@@ -1,0 +1,30 @@
+{
+  "name": "@canvasflow/types",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared TypeScript types for CanvasFlow",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo",
+    "lint": "eslint src --max-warnings=0"
+  },
+  "devDependencies": {
+    "@canvasflow/config": "workspace:*",
+    "typescript": "^5.6.3"
+  }
+}
