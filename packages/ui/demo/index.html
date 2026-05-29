@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CanvasFlow UI — Component Preview</title>
+  <link rel="stylesheet" href="./style.css" />
+  <style>
+    body { padding: 2.5rem; max-width: 768px; margin: 0 auto; }
+    section { margin-bottom: 2.5rem; }
+    .stack { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    .label { font-size: 0.75rem; font-weight: 500; color: #71717a; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; }
+  </style>
+</head>
+<body>
+  <h1 class="text-2xl font-semibold text-zinc-900 mb-2">CanvasFlow UI</h1>
+  <p class="text-sm text-zinc-500 mb-10">Design token preview. Live-compiled with Vite + Tailwind v4.</p>
+
+  <section>
+    <div class="label">Buttons</div>
+    <div class="stack">
+      <button class="inline-flex items-center justify-center gap-2 font-medium rounded-md h-10 px-4 text-sm bg-brand-600 text-white hover:bg-brand-700">Primary</button>
+      <button class="inline-flex items-center justify-center gap-2 font-medium rounded-md h-10 px-4 text-sm bg-zinc-100 text-zinc-900 hover:bg-zinc-200">Secondary</button>
+      <button class="inline-flex items-center justify-center gap-2 font-medium rounded-md h-10 px-4 text-sm border border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-50">Outline</button>
+      <button class="inline-flex items-center justify-center gap-2 font-medium rounded-md h-10 px-4 text-sm text-zinc-700 hover:bg-zinc-100">Ghost</button>
+      <button class="inline-flex items-center justify-center gap-2 font-medium rounded-md h-10 px-4 text-sm bg-red-600 text-white hover:bg-red-700">Danger</button>
+    </div>
+  </section>
+
+  <section>
+    <div class="label">Badges</div>
+    <div class="stack">
+      <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-900">Default</span>
+      <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-brand-100 text-brand-700">Brand</span>
+      <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 text-green-700">Success</span>
+      <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-700">Warning</span>
+      <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-100 text-red-700">Danger</span>
+      <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border border-zinc-200 text-zinc-700">Outline</span>
+    </div>
+  </section>
+
+  <section>
+    <div class="label">Input</div>
+    <input
+      type="text"
+      placeholder="Enter your email"
+      class="flex h-10 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2"
+    />
+  </section>
+
+  <section>
+    <div class="label">Card</div>
+    <div class="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
+      <h3 class="text-lg font-semibold text-zinc-900 mb-1">Welcome to CanvasFlow</h3>
+      <p class="text-sm text-zinc-500 mb-4">A collaborative whiteboard for distributed teams.</p>
+      <button class="inline-flex items-center justify-center gap-2 font-medium rounded-md h-10 px-4 text-sm bg-brand-600 text-white hover:bg-brand-700">
+        Get started
+      </button>
+    </div>
+  </section>
+
+  <section>
+    <div class="label">Typography</div>
+    <h1 class="text-4xl font-semibold text-zinc-900 tracking-tight mb-2">Heading 1</h1>
+    <h2 class="text-3xl font-semibold text-zinc-900 tracking-tight mb-2">Heading 2</h2>
+    <h3 class="text-2xl font-semibold text-zinc-900 tracking-tight mb-2">Heading 3</h3>
+    <p class="text-base text-zinc-900 mb-1">Body text in the default tone.</p>
+    <p class="text-sm text-zinc-600 mb-1">Smaller secondary text.</p>
+    <p class="text-xs text-zinc-500">Muted caption text.</p>
+  </section>
+
+  <section>
+    <div class="label">Brand color scale</div>
+    <div class="stack">
+      <div class="w-12 h-12 rounded bg-brand-50 border border-zinc-200" title="brand-50"></div>
+      <div class="w-12 h-12 rounded bg-brand-100" title="brand-100"></div>
+      <div class="w-12 h-12 rounded bg-brand-200" title="brand-200"></div>
+      <div class="w-12 h-12 rounded bg-brand-300" title="brand-300"></div>
+      <div class="w-12 h-12 rounded bg-brand-400" title="brand-400"></div>
+      <div class="w-12 h-12 rounded bg-brand-500" title="brand-500"></div>
+      <div class="w-12 h-12 rounded bg-brand-600" title="brand-600"></div>
+      <div class="w-12 h-12 rounded bg-brand-700" title="brand-700"></div>
+      <div class="w-12 h-12 rounded bg-brand-800" title="brand-800"></div>
+      <div class="w-12 h-12 rounded bg-brand-900" title="brand-900"></div>
+    </div>
+  </section>
+</body>
+</html>
