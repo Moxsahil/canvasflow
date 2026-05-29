@@ -1,0 +1,5 @@
+/**
+ * Demo entry CSS. Imports the real source globals so Vite picks up the
+ * @theme tokens and generates Tailwind utility classes for the HTML.
+ */
+@import '../src/styles/globals.css';

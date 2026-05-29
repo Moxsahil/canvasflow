@@ -1,0 +1,13 @@
+{
+  "extends": "@canvasflow/config/typescript/library",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "jsx": "react-jsx",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "composite": false,
+    "incremental": false
+  },
+  "include": ["src/**/*"]
+}
