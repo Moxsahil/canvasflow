@@ -1,0 +1,9 @@
+{
+  "extends": "@canvasflow/config/typescript/library",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": ["node"]
+  },
+  "include": ["src/**/*"]
+}
