@@ -1,5 +1,5 @@
 import { pgTable, uuid, text, pgEnum, timestamp, unique } from 'drizzle-orm/pg-core';
-import { users } from './users';
+import { users } from './users.js';
 import { relations } from 'drizzle-orm';
 
 export const workspacePlanEnum = pgEnum('workspace_plan', ['free', 'pro', 'enterprise']);
