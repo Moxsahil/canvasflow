@@ -1,0 +1,35 @@
+{
+  "name": "@canvasflow/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "CanvasFlow Next.js web application — marketing site and dashboard",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf .next .turbo *.tsbuildinfo",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@canvasflow/types": "workspace:*",
+    "@canvasflow/ui": "workspace:*",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@tanstack/react-query": "^5.62.7",
+    "@tanstack/react-query-devtools": "^5.62.7",
+    "next": "^15.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^4.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@canvasflow/config": "workspace:*",
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.13",
+    "@types/react-dom": "^18.3.1",
+    "eslint-config-next": "^15.1.0",
+    "typescript": "^5.6.3"
+  }
+}
