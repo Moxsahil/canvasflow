@@ -6,6 +6,10 @@ export const users = pgTable('users', {
   email: text('email').notNull().unique(),
   name: text('name').notNull(),
   avatarUrl: text('avatar_url'),
+  passwordHash: text('password_hash'),
+  emailVerifiedAt: timestamp('email_verified_at', {
+    withTimezone: true,
+  }),
   preferences: jsonb('preferences').$type<UserPreferences>().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
