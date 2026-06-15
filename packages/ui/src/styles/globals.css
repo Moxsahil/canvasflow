@@ -5,6 +5,12 @@
 
 @import 'tailwindcss';
 
+/* Let consuming apps' Tailwind builds see classes used inside this
+   package's components (cva() class strings, etc.) — without this,
+   Tailwind's default content scan skips node_modules and never
+   generates utilities for Button/Card/Input/etc. */
+@source '../src/**/*.{ts,tsx}';
+
 @theme {
   /* Brand colors */
   --color-brand-50:  #eef2ff;
