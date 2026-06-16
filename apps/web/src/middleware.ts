@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth';
 import { NextResponse } from 'next/server';
 import { authConfig } from '@/lib/auth/config';
+import { safeRedirect } from '@/lib/safe-redirect';
 
 const { auth } = NextAuth(authConfig);
 
@@ -15,7 +16,11 @@ export default auth((req) => {
 
   if (!req.auth) {
     const loginUrl = new URL('/login', req.nextUrl);
-    loginUrl.searchParams.set('next', req.nextUrl.pathname);
+    // Validate the path before using it as a redirect target.
+    // Without this, the middleware would forward any malicious 'next'
+    // value, defeating the safeRedirect protection on the login page
+    const safeNext = safeRedirect(req.nextUrl.pathname, '/boards');
+    loginUrl.searchParams.set('next', safeNext);
     return NextResponse.redirect(loginUrl);
   }
 
