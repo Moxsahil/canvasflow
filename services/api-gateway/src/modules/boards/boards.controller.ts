@@ -1,4 +1,11 @@
-import { Controller, Get, NotFoundException, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  ParseUUIDPipe,
+  UseGuards,
+} from '@nestjs/common';
 import { BoardsService } from './boards.service.js';
 import type { BoardRow } from '@canvasflow/db';
 import { JwtAuthGuard, type AuthenticatedUser } from '../auth/jwt.guard.js';
@@ -16,9 +23,14 @@ export class BoardsController {
   }
 
   @Get(':id')
-  async get(@Param('id') id: string): Promise<{ data: BoardRow }> {
-    const data = await this.boards.findById(id);
+  async get(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ data: BoardRow }> {
+    const data = await this.boards.findByIdForUser(id, user.id);
     if (!data) {
+      // Intentionally 404, not 403. Returning "forbidden" tells an attacker
+      // the resource exists, which is itself an info leak.
       throw new NotFoundException(`Board ${id} not found`);
     }
     return { data };

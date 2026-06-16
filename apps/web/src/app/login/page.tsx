@@ -5,11 +5,12 @@ import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button, Input, Text, Card, CardContent, CardHeader, CardTitle } from '@canvasflow/ui';
+import { safeRedirect } from '@/lib/safe-redirect';
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') ?? '/boards';
+  const next = safeRedirect(searchParams.get('next'), '/boards');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
