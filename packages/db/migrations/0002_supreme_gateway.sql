@@ -1,0 +1,1 @@
+ALTER TABLE "users" ALTER COLUMN "preferences" SET DEFAULT '{"theme":"system","cursorColor":"#6366f1","showCursorsOfOthers":true,"defaultBoardTool":"select"}'::jsonb;
