@@ -8,6 +8,20 @@
       "when": 1780398147532,
       "tag": "0000_white_wild_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781075943263,
+      "tag": "0001_complex_blue_marvel",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781516111281,
+      "tag": "0002_supreme_gateway",
+      "breakpoints": true
     }
   ]
 }

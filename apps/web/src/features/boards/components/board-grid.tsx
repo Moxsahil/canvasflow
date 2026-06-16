@@ -1,25 +1,11 @@
-'use client';
-
 import { Text } from '@canvasflow/ui';
-import { useBoards } from '../hooks/use-boards';
+import { listBoards } from '../api/boards.client';
 import { BoardCard } from './board-card';
 
-export function BoardGrid() {
-  const { data: boards, isLoading, isError, error } = useBoards();
+export async function BoardGrid() {
+  const boards = await listBoards();
 
-  if (isLoading) {
-    return <Text tone="muted">Loading boards...</Text>;
-  }
-
-  if (isError) {
-    return (
-      <Text tone="danger">
-        Couldn't load boards: {error instanceof Error ? error.message : 'unknown'}
-      </Text>
-    );
-  }
-
-  if (!boards || boards.length === 0) {
+  if (boards.length === 0) {
     return <Text tone="muted">No boards yet. Create your first one.</Text>;
   }
 
