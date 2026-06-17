@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel older runs of the same workflow on the same branch/PR
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify (lint + typecheck + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        run: pnpm build
+        env:
+          # Provide placeholder values for build-time env var checks
+          # Real values come from Neon/GitHub OAuth/etc. in deployment workflows
+          DATABASE_URL: postgresql://placeholder:placeholder@placeholder:5432/placeholder?sslmode=require
+          AUTH_SECRET: placeholder-secret-must-be-32-chars-or-more-padding-padding
+          AUTH_URL: http://localhost:3000
+          GOOGLE_CLIENT_ID: placeholder
+          GOOGLE_CLIENT_SECRET: placeholder
+          GITHUB_CLIENT_ID: placeholder
+          GITHUB_CLIENT_SECRET: placeholder
+          RESEND_API_KEY: re_placeholder
+          EMAIL_FROM: onboarding@resend.dev
+          NEXT_PUBLIC_API_URL: http://localhost:3001

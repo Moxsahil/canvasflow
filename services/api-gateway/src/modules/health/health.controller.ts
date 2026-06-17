@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { DatabaseService } from '../../infra/database/database.service.js';
+import { type DatabaseService } from '../../infra/database/database.service.js';
 import { sql } from 'drizzle-orm';
 
 interface HealthCheck {
