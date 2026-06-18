@@ -6,7 +6,7 @@ import {
   ParseUUIDPipe,
   UseGuards,
 } from '@nestjs/common';
-import { BoardsService } from './boards.service.js';
+import { type BoardsService } from './boards.service.js';
 import type { BoardRow } from '@canvasflow/db';
 import { JwtAuthGuard, type AuthenticatedUser } from '../auth/jwt.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';

@@ -1,10 +1,10 @@
 import {
   Catch,
-  ExceptionFilter,
+  type ExceptionFilter,
   Logger,
   HttpException,
   HttpStatus,
-  ArgumentsHost,
+  type ArgumentsHost,
 } from '@nestjs/common';
 
 import type { Request, Response } from 'express';
@@ -40,8 +40,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
         error = obj.error ?? error;
       }
     } else if (exception instanceof Error) {
-      message: exception.message;
-      error: exception.name;
+      message = exception.message;
+      error = exception.name;
     }
 
     if (status >= 500) {

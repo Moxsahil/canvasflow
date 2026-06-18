@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DatabaseService } from '../../infra/database/database.service.js';
+import { type DatabaseService } from '../../infra/database/database.service.js';
 import { boards, memberships, type BoardRow } from '@canvasflow/db';
 import { eq, isNull, and, inArray } from 'drizzle-orm';
 

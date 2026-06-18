@@ -1,6 +1,6 @@
 import { parseEnv } from '@/config/env';
 import { createClient, type Database } from '@canvasflow/db';
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {

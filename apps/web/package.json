@@ -10,7 +10,7 @@
     "start": "next start --port 3000",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf .next .turbo *.tsbuildinfo",
-    "lint": "next lint"
+    "lint": "eslint . --max-warnings=0"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
