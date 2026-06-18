@@ -42,7 +42,7 @@ export default function SignupPage() {
               account.
             </Text>
             <Text size="sm" tone="muted" className="mt-4">
-              Didn't receive it? Check your spam folder.
+              Didn&apos;t receive it? Check your spam folder.
             </Text>
           </CardContent>
         </Card>

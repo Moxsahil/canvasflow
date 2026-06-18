@@ -15,7 +15,10 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rm -rf node_modules",
-    "prepare": "husky"
+    "prepare": "husky",
+    "verify": "pnpm run typecheck && pnpm run lint && pnpm run build",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yaml,yml}\" --ignore-unknown",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yaml,yml}\" --ignore-unknown"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.0.1",
