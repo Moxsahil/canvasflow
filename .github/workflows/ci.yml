@@ -47,8 +47,9 @@ jobs:
       - name: Build
         run: pnpm build
         env:
-          # Provide placeholder values for build-time env var checks
-          # Real values come from Neon/GitHub OAuth/etc. in deployment workflows
+          NEXT_TELEMETRY_DISABLED: 1
+          # Placeholder values so Zod env validation passes at build time.
+          # Real secrets live in deployment workflows only — never here.
           DATABASE_URL: postgresql://placeholder:placeholder@placeholder:5432/placeholder?sslmode=require
           AUTH_SECRET: placeholder-secret-must-be-32-chars-or-more-padding-padding
           AUTH_URL: http://localhost:3000
