@@ -1,0 +1,12 @@
+{
+  "extends": "@canvasflow/config/typescript/library",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "lib": ["ES2023", "DOM"],
+    "types": ["vitest/globals"],
+    "composite": false,
+    "incremental": false
+  },
+  "include": ["src/**/*", "test/**/*"]
+}
