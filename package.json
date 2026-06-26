@@ -39,7 +39,11 @@
     "onlyBuiltDependencies": [
       "canvas",
       "sharp",
-      "unrs-resolver"
+      "unrs-resolver",
+      "bcrypt",
+      "esbuild",
+      "@nestjs/core",
+      "protobufjs"
     ]
   },
   "license": "UNLICENSED",
