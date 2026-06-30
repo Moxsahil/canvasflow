@@ -1,0 +1,30 @@
+{
+  "name": "@canvasflow/editor",
+  "version": "0.0.0",
+  "private": true,
+  "description": "CanvasFlow editor — Vite + React canvas application",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3002 --host",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --port 3002",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo",
+    "lint": "eslint src --max-warnings=0"
+  },
+  "dependencies": {
+    "@canvasflow/canvas-engine": "workspace:*",
+    "@canvasflow/types": "workspace:*",
+    "@canvasflow/ui": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@canvasflow/config": "workspace:*",
+    "@types/react": "^18.3.13",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}
