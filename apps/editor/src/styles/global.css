@@ -1,0 +1,24 @@
+@import '@canvasflow/ui/styles.css';
+
+/* Editor-specific reset */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  background: #fafaf9;
+  color: var(--color-fg-primary);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Prevent text selection during canvas interactions */
+.canvas-stack,
+.canvas-stack * {
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
