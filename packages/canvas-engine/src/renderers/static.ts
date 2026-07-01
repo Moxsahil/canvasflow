@@ -1,9 +1,20 @@
-import { isRectangle } from '../shapes';
 import type { Shape } from '../shapes/shape.js';
-import { clearCanvas } from '../utils/canvas';
-import { createRoughCanvas, drawShape, generateRectangleDrawable } from '../utils/rough';
+import { assertNever } from '../shapes/shape.js';
+import { clearCanvas } from '../utils/canvas.js';
+import {
+  createRoughCanvas,
+  generateRectangleDrawable,
+  generateEllipseDrawable,
+  generateDiamondDrawable,
+  generateLineDrawable,
+  generateArrowDrawable,
+  generateFreehandDrawable,
+  drawShape,
+  drawArrowheads,
+  drawText,
+} from '../utils/rough.js';
 
-export interface StaticSceneAOptions {
+export interface StaticSceneOptions {
   readonly width: number;
   readonly height: number;
   readonly shapes: readonly Shape[];
@@ -17,21 +28,19 @@ export interface StaticSceneAOptions {
 /**
  * Paint all finished shapes to the static canvas.
  *
- * This canvas is the "background" — it holds everything that isn't being
- * actively edited. It repaints only when the scene changes, not on every
- * pointer event.
+ * Switch on shape.kind for exhaustive type-narrowing. The assertNever
+ * call in the default case makes TypeScript refuse to compile if we
+ * add a new shape kind and forget to handle it here.
  */
-
 export function renderStaticScene(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   canvas: HTMLCanvasElement | OffscreenCanvas,
-  opts: StaticSceneAOptions,
+  opts: StaticSceneOptions,
 ): void {
-  const { height, width, shapes, camera } = opts;
+  const { width, height, shapes, camera } = opts;
 
-  clearCanvas(ctx, height, width);
+  clearCanvas(ctx, width, height);
 
-  // Save the un-transformed context, then apply camera transform
   ctx.save();
 
   if (camera) {
@@ -42,11 +51,40 @@ export function renderStaticScene(
   const rc = createRoughCanvas(canvas);
 
   for (const shape of shapes) {
-    if (isRectangle(shape)) {
-      const drawable = generateRectangleDrawable(rc, shape);
-      drawShape(rc, drawable);
+    switch (shape.kind) {
+      case 'rectangle': {
+        drawShape(rc, generateRectangleDrawable(rc, shape));
+        break;
+      }
+      case 'ellipse': {
+        drawShape(rc, generateEllipseDrawable(rc, shape));
+        break;
+      }
+      case 'diamond': {
+        drawShape(rc, generateDiamondDrawable(rc, shape));
+        break;
+      }
+      case 'line': {
+        drawShape(rc, generateLineDrawable(rc, shape));
+        break;
+      }
+      case 'arrow': {
+        drawShape(rc, generateArrowDrawable(rc, shape));
+        drawArrowheads(ctx, shape);
+        break;
+      }
+      case 'freehand': {
+        drawShape(rc, generateFreehandDrawable(rc, shape));
+        break;
+      }
+      case 'text': {
+        drawText(ctx, shape);
+        break;
+      }
+      default:
+        assertNever(shape);
     }
-    //TODO: ellipse, line, arrow etc. Each adds a case here
   }
+
   ctx.restore();
 }
