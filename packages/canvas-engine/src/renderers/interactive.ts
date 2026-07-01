@@ -1,5 +1,14 @@
 import type { Shape } from '../shapes/shape.js';
-import { clearCanvas } from '../utils/canvas';
+import { assertNever } from '../shapes/shape.js';
+import { clearCanvas } from '../utils/canvas.js';
+import { rectangleBounds } from '../shapes/rectangle.js';
+import { ellipseBounds } from '../shapes/ellipse.js';
+import { diamondBounds } from '../shapes/diamond.js';
+import { lineBounds } from '../shapes/line.js';
+import { arrowBounds } from '../shapes/arrow.js';
+import { freehandBounds } from '../shapes/freehand.js';
+import { textBoundsEstimate } from '../shapes/text.js';
+import type { Rect } from '../math.js';
 
 export interface InteractiveSceneOptions {
   readonly width: number;
@@ -13,14 +22,27 @@ export interface InteractiveSceneOptions {
   };
 }
 
-/**
- * Paint the interactive overlay — selection bounding boxes, resize handles,
- * remote collaborator cursors.
- *
- * This canvas repaints often (on every mouse-move during selection), but
- * the static canvas underneath stays cached. That's the perf win.
- *
- */
+function shapeBounds(shape: Shape): Rect {
+  switch (shape.kind) {
+    case 'rectangle':
+      return rectangleBounds(shape);
+    case 'ellipse':
+      return ellipseBounds(shape);
+    case 'diamond':
+      return diamondBounds(shape);
+    case 'line':
+      return lineBounds(shape);
+    case 'arrow':
+      return arrowBounds(shape);
+    case 'freehand':
+      return freehandBounds(shape);
+    case 'text':
+      return textBoundsEstimate(shape);
+    default:
+      assertNever(shape);
+  }
+}
+
 export function renderInteractiveScene(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   _canvas: HTMLCanvasElement | OffscreenCanvas,
@@ -29,6 +51,7 @@ export function renderInteractiveScene(
   const { width, height, shapes, selectedIds, camera } = opts;
 
   clearCanvas(ctx, width, height);
+
   if (selectedIds.length === 0) return;
 
   ctx.save();
@@ -37,16 +60,15 @@ export function renderInteractiveScene(
     ctx.scale(camera.zoom, camera.zoom);
   }
 
-  // Selection bounding box outlines
+  const zoom = camera?.zoom ?? 1;
   ctx.strokeStyle = '#6366f1';
-  ctx.lineWidth = 1.5 / (camera?.zoom ?? 1);
-  ctx.setLineDash([8 / (camera?.zoom ?? 1), 4 / (camera?.zoom ?? 1)]);
+  ctx.lineWidth = 1.5 / zoom;
+  ctx.setLineDash([8 / zoom, 4 / zoom]);
 
   for (const shape of shapes) {
     if (!selectedIds.includes(shape.id)) continue;
-    if (shape.kind === 'rectangle') {
-      ctx.strokeRect(shape.x - 4, shape.y - 4, shape.width + 8, shape.height + 8);
-    }
+    const b = shapeBounds(shape);
+    ctx.strokeRect(b.x - 4, b.y - 4, b.width + 8, b.height + 8);
   }
 
   ctx.setLineDash([]);

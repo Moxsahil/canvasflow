@@ -1,38 +1,101 @@
-import { useMemo } from 'react';
-import { createRectangle, type Shape } from '@canvasflow/canvas-engine';
+import { useMemo, useRef } from 'react';
+import {
+  createRectangle,
+  createEllipse,
+  createDiamond,
+  createLine,
+  createArrow,
+  createFreehand,
+  createText,
+  type Shape,
+} from '@canvasflow/canvas-engine';
 import { CanvasStack } from './canvas/CanvasStack';
 import { DevOverlay } from './canvas/dev/DevOverlay';
 import { useCanvasResize } from './canvas/hooks/useCanvasResize';
 import { useDevicePixelRatio } from './canvas/hooks/useDevicePixelRatio';
-import { useRef } from 'react';
 
 /**
  * The Editor — full-viewport canvas application.
  *
- * In PR #12 this just renders a hardcoded test rectangle to prove the
- * full pipeline (canvas-engine → React → browser) works end-to-end.
- *
- * Real document loading comes in PR #17 (Yjs integration).
+ * In PR #13 we render a sample of all 7 shape primitives to prove
+ * the renderer's exhaustiveness. Real document loading comes in PR #17.
  */
 export function Editor() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { width, height } = useCanvasResize(containerRef);
   const dpr = useDevicePixelRatio();
 
-  // PR #12 test scene: one hand-drawn rectangle.
-  // Replace with real document loading in PR #17.
   const shapes = useMemo<Shape[]>(
     () => [
       createRectangle({
-        id: 'demo-rectangle',
-        x: 120,
+        id: 'demo-rect',
+        x: 80,
         y: 100,
-        width: 280,
-        height: 160,
-        strokeColor: '#1e293b',
+        width: 160,
+        height: 100,
         fillColor: '#fef3c7',
-        strokeWidth: 2,
-        seed: 42, // stable seed so render is deterministic
+        seed: 42,
+      }),
+      createEllipse({
+        id: 'demo-ellipse',
+        x: 280,
+        y: 100,
+        width: 160,
+        height: 100,
+        fillColor: '#dbeafe',
+        seed: 43,
+      }),
+      createDiamond({
+        id: 'demo-diamond',
+        x: 480,
+        y: 80,
+        width: 140,
+        height: 140,
+        fillColor: '#fce7f3',
+        seed: 44,
+      }),
+      createLine({
+        id: 'demo-line',
+        x: 80,
+        y: 280,
+        points: [
+          [0, 0],
+          [160, 80],
+        ],
+        seed: 45,
+      }),
+      createArrow({
+        id: 'demo-arrow',
+        x: 280,
+        y: 280,
+        points: [
+          [0, 0],
+          [160, 80],
+        ],
+        seed: 46,
+      }),
+      createFreehand({
+        id: 'demo-freehand',
+        x: 480,
+        y: 280,
+        points: [
+          [0, 0],
+          [20, 30],
+          [50, 20],
+          [80, 50],
+          [110, 30],
+          [140, 60],
+          [160, 80],
+        ],
+        seed: 47,
+      }),
+      createText({
+        id: 'demo-text',
+        x: 80,
+        y: 420,
+        text: 'Sahil Barak',
+        fontSize: 32,
+        seed: 48,
       }),
     ],
     [],
@@ -70,7 +133,7 @@ export function Editor() {
       >
         CanvasFlow Editor
         <span style={{ color: '#a1a1aa', fontWeight: 400, fontSize: 12 }}>
-          PR #12 · scaffold render
+          PR #13 · all 7 shape primitives
         </span>
       </header>
 

@@ -1,6 +1,18 @@
 import type { Shape } from '../shapes/shape.js';
-import { clearCanvas } from '../utils/canvas';
-import { createRoughCanvas, drawShape, generateRectangleDrawable } from '../utils/rough.js';
+import { assertNever } from '../shapes/shape.js';
+import { clearCanvas } from '../utils/canvas.js';
+import {
+  createRoughCanvas,
+  generateRectangleDrawable,
+  generateEllipseDrawable,
+  generateDiamondDrawable,
+  generateLineDrawable,
+  generateArrowDrawable,
+  generateFreehandDrawable,
+  drawShape,
+  drawArrowheads,
+  drawText,
+} from '../utils/rough.js';
 
 export interface NewElementSceneOptions {
   readonly width: number;
@@ -12,14 +24,6 @@ export interface NewElementSceneOptions {
     readonly zoom: number;
   };
 }
-
-/**
- * Paint the shape being actively drawn (e.g., a rectangle the user is
- * dragging out right now).
- *
- * This canvas repaints every frame during a drag. Separated from static
- * so we don't re-render 2000 shapes 60 times a second.
- */
 
 export function renderNewElementScene(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
@@ -38,10 +42,42 @@ export function renderNewElementScene(
     ctx.translate(-camera.x, -camera.y);
     ctx.scale(camera.zoom, camera.zoom);
   }
-  if (newElement.kind === 'rectangle') {
-    const rc = createRoughCanvas(canvas);
-    const drawable = generateRectangleDrawable(rc, newElement);
-    drawShape(rc, drawable);
+
+  const rc = createRoughCanvas(canvas);
+
+  switch (newElement.kind) {
+    case 'rectangle': {
+      drawShape(rc, generateRectangleDrawable(rc, newElement));
+      break;
+    }
+    case 'ellipse': {
+      drawShape(rc, generateEllipseDrawable(rc, newElement));
+      break;
+    }
+    case 'diamond': {
+      drawShape(rc, generateDiamondDrawable(rc, newElement));
+      break;
+    }
+    case 'line': {
+      drawShape(rc, generateLineDrawable(rc, newElement));
+      break;
+    }
+    case 'arrow': {
+      drawShape(rc, generateArrowDrawable(rc, newElement));
+      drawArrowheads(ctx, newElement);
+      break;
+    }
+    case 'freehand': {
+      drawShape(rc, generateFreehandDrawable(rc, newElement));
+      break;
+    }
+    case 'text': {
+      drawText(ctx, newElement);
+      break;
+    }
+    default:
+      assertNever(newElement);
   }
+
   ctx.restore();
 }
