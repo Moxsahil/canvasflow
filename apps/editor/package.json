@@ -10,14 +10,19 @@
     "preview": "vite preview --port 3002",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist .turbo *.tsbuildinfo",
-    "lint": "eslint src --max-warnings=0"
+    "lint": "eslint src --max-warnings=0",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@canvasflow/canvas-engine": "workspace:*",
     "@canvasflow/types": "workspace:*",
     "@canvasflow/ui": "workspace:*",
+    "@xstate/react": "^6.1.0",
+    "lucide-react": "^1.22.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "xstate": "^5.32.2"
   },
   "devDependencies": {
     "@canvasflow/config": "workspace:*",
@@ -25,6 +30,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
   }
 }

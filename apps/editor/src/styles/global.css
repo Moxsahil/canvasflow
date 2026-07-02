@@ -1,6 +1,5 @@
 @import '@canvasflow/ui/styles.css';
 
-/* Editor-specific reset */
 html, body, #root {
   height: 100%;
   margin: 0;
@@ -15,10 +14,27 @@ html, body, #root {
   box-sizing: border-box;
 }
 
-/* Prevent text selection during canvas interactions */
 .canvas-stack,
 .canvas-stack * {
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
+}
+
+/* Tool-specific cursor styles applied dynamically via data attribute */
+.canvas-stack[data-tool='select'] {
+  cursor: default;
+}
+.canvas-stack[data-tool='text'] {
+  cursor: text;
+}
+.canvas-stack[data-tool='rectangle'],
+.canvas-stack[data-tool='ellipse'],
+.canvas-stack[data-tool='diamond'],
+.canvas-stack[data-tool='line'],
+.canvas-stack[data-tool='arrow'] {
+  cursor: crosshair;
+}
+.canvas-stack[data-tool='freehand'] {
+  cursor: crosshair;
 }

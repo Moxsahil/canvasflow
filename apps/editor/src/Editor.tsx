@@ -1,116 +1,107 @@
-import { useMemo, useRef } from 'react';
-import {
-  createRectangle,
-  createEllipse,
-  createDiamond,
-  createLine,
-  createArrow,
-  createFreehand,
-  createText,
-  type Shape,
-} from '@canvasflow/canvas-engine';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useActorRef, useSelector } from '@xstate/react';
+import { createText, type Shape } from '@canvasflow/canvas-engine';
 import { CanvasStack } from './canvas/CanvasStack';
 import { DevOverlay } from './canvas/dev/DevOverlay';
 import { useCanvasResize } from './canvas/hooks/useCanvasResize';
 import { useDevicePixelRatio } from './canvas/hooks/useDevicePixelRatio';
+import { Toolbar } from './toolbar/Toolbar';
+import { TextEditor } from './text-editor/TextEditor';
+import { toolMachine } from './machine/tool-machine';
+import { useKeyboardShortcuts } from './tools/useKeyboardShortcuts';
+import type { Tool } from './tools/tool';
 
-/**
- * The Editor — full-viewport canvas application.
- *
- * In PR #13 we render a sample of all 7 shape primitives to prove
- * the renderer's exhaustiveness. Real document loading comes in PR #17.
- */
+const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
 export function Editor() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { width, height } = useCanvasResize(containerRef);
   const dpr = useDevicePixelRatio();
 
-  const shapes = useMemo<Shape[]>(
-    () => [
-      createRectangle({
-        id: 'demo-rect',
-        x: 80,
-        y: 100,
-        width: 160,
-        height: 100,
-        fillColor: '#fef3c7',
-        seed: 42,
-      }),
-      createEllipse({
-        id: 'demo-ellipse',
-        x: 280,
-        y: 100,
-        width: 160,
-        height: 100,
-        fillColor: '#dbeafe',
-        seed: 43,
-      }),
-      createDiamond({
-        id: 'demo-diamond',
-        x: 480,
-        y: 80,
-        width: 140,
-        height: 140,
-        fillColor: '#fce7f3',
-        seed: 44,
-      }),
-      createLine({
-        id: 'demo-line',
-        x: 80,
-        y: 280,
-        points: [
-          [0, 0],
-          [160, 80],
-        ],
-        seed: 45,
-      }),
-      createArrow({
-        id: 'demo-arrow',
-        x: 280,
-        y: 280,
-        points: [
-          [0, 0],
-          [160, 80],
-        ],
-        seed: 46,
-      }),
-      createFreehand({
-        id: 'demo-freehand',
-        x: 480,
-        y: 280,
-        points: [
-          [0, 0],
-          [20, 30],
-          [50, 20],
-          [80, 50],
-          [110, 30],
-          [140, 60],
-          [160, 80],
-        ],
-        seed: 47,
-      }),
-      createText({
-        id: 'demo-text',
-        x: 80,
-        y: 420,
-        text: 'Sahil Barak',
-        fontSize: 32,
-        seed: 48,
-      }),
-    ],
-    [],
+  const [shapes, setShapes] = useState<Shape[]>([]);
+
+  // Actor ref (not useMachine) so we can subscribe to emitted events.
+  const actorRef = useActorRef(toolMachine);
+
+  // Selector hooks so we re-render on the specific context fields we care about.
+  const activeTool = useSelector(actorRef, (s) => s.context.activeTool);
+  const newElement = useSelector(actorRef, (s) => s.context.newElement);
+  const textEditingAt = useSelector(actorRef, (s) => s.context.textEditingAt);
+
+  // Subscribe to shape commits and add them to the scene.
+  useEffect(() => {
+    const subscription = actorRef.on('shape.committed', (emitted) => {
+      setShapes((prev) => [...prev, emitted.shape]);
+    });
+    return () => subscription.unsubscribe();
+  }, [actorRef]);
+
+  const handlePointerDown = useCallback(
+    (point: { x: number; y: number }) => {
+      actorRef.send({ type: 'POINTER_DOWN', point });
+    },
+    [actorRef],
+  );
+  const handlePointerMove = useCallback(
+    (point: { x: number; y: number }) => {
+      actorRef.send({ type: 'POINTER_MOVE', point });
+    },
+    [actorRef],
+  );
+  const handlePointerUp = useCallback(
+    (point: { x: number; y: number }) => {
+      actorRef.send({ type: 'POINTER_UP', point });
+    },
+    [actorRef],
   );
 
+  const handleToolChange = useCallback(
+    (tool: Tool) => {
+      actorRef.send({ type: 'SELECT_TOOL', tool });
+    },
+    [actorRef],
+  );
+
+  const handleEscape = useCallback(() => {
+    actorRef.send({ type: 'ESCAPE' });
+  }, [actorRef]);
+
+  useKeyboardShortcuts({
+    onSelectTool: handleToolChange,
+    onEscape: handleEscape,
+  });
+
+  const handleCommitText = useCallback(
+    (text: string) => {
+      const pos = actorRef.getSnapshot().context.textEditingAt;
+      if (pos && text.trim()) {
+        const textShape = createText({
+          id: genId(),
+          x: pos.x,
+          y: pos.y,
+          text,
+        });
+        setShapes((prev) => [...prev, textShape]);
+      }
+      actorRef.send({ type: 'COMMIT_TEXT', text });
+    },
+    [actorRef],
+  );
+
+  const handleCancelText = useCallback(() => {
+    actorRef.send({ type: 'CANCEL_TEXT' });
+  }, [actorRef]);
+
   return (
-    <div
-      ref={containerRef}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        overflow: 'hidden',
-      }}
-    >
-      <CanvasStack shapes={shapes} />
+    <div ref={containerRef} style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
+      <CanvasStack
+        shapes={shapes}
+        newElement={newElement}
+        activeTool={activeTool}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+      />
 
       <header
         style={{
@@ -129,13 +120,24 @@ export function Editor() {
           fontSize: 14,
           fontWeight: 500,
           color: '#3f3f46',
+          zIndex: 10,
         }}
       >
         CanvasFlow Editor
         <span style={{ color: '#a1a1aa', fontWeight: 400, fontSize: 12 }}>
-          PR #13 · all 7 shape primitives
+          PR #14 · draw with any tool
         </span>
       </header>
+
+      <Toolbar activeTool={activeTool} onToolChange={handleToolChange} />
+
+      {textEditingAt && (
+        <TextEditor
+          position={textEditingAt}
+          onCommit={handleCommitText}
+          onCancel={handleCancelText}
+        />
+      )}
 
       <DevOverlay shapeCount={shapes.length} width={width} height={height} devicePixelRatio={dpr} />
     </div>
