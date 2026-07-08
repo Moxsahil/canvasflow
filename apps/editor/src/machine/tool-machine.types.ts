@@ -6,6 +6,18 @@ export interface Point {
   readonly y: number;
 }
 
+export interface Camera {
+  /** World - space translation (in canvas coordinates)*/
+  readonly x: number;
+  readonly y: number;
+  /** 1.0 = 100%, 0.1% = 10% (max out), 5.0 = 500% (max in). */
+  readonly zoom: number;
+}
+
+export const IDENTITY_CAMERA: Camera = { x: 0, y: 0, zoom: 1 };
+export const MIN_ZOOM = 0.1;
+export const MAX_ZOOM = 5;
+
 export interface ToolMachineContext {
   /** Currently active tool. */
   activeTool: Tool;
@@ -17,16 +29,25 @@ export interface ToolMachineContext {
   freehandPoints: Array<readonly [number, number]>;
   /** Position where text tool was clicked (null when not editing text). */
   textEditingAt: Point | null;
+  /** The camera transform for the viewport. */
+  camera: Camera;
+  /** True while user is holding Space to pan. */
+  isSpacePressed: boolean;
 }
 
 export type ToolMachineEvent =
   | { type: 'SELECT_TOOL'; tool: Tool }
-  | { type: 'POINTER_DOWN'; point: Point }
-  | { type: 'POINTER_MOVE'; point: Point }
+  | { type: 'POINTER_DOWN'; point: Point; button: number }
+  | { type: 'POINTER_MOVE'; point: Point; screenDelta: Point }
   | { type: 'POINTER_UP'; point: Point }
   | { type: 'ESCAPE' }
   | { type: 'COMMIT_TEXT'; text: string }
-  | { type: 'CANCEL_TEXT' };
+  | { type: 'CANCEL_TEXT' }
+  | { type: 'SPACE_DOWN' }
+  | { type: 'SPACE_UP' }
+  | { type: 'PAN_BY'; dx: number; dy: number }
+  | { type: 'ZOOM_BY'; delta: number; anchor: Point }
+  | { type: 'RESET_VIEW' };
 
 export interface ShapeCommitted {
   shape: Shape;

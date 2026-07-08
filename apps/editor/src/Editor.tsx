@@ -10,6 +10,7 @@ import { TextEditor } from './text-editor/TextEditor';
 import { toolMachine } from './machine/tool-machine';
 import { useKeyboardShortcuts } from './tools/useKeyboardShortcuts';
 import type { Tool } from './tools/tool';
+import type { Point } from './machine/tool-machine.types';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -20,15 +21,14 @@ export function Editor() {
 
   const [shapes, setShapes] = useState<Shape[]>([]);
 
-  // Actor ref (not useMachine) so we can subscribe to emitted events.
   const actorRef = useActorRef(toolMachine);
 
-  // Selector hooks so we re-render on the specific context fields we care about.
   const activeTool = useSelector(actorRef, (s) => s.context.activeTool);
   const newElement = useSelector(actorRef, (s) => s.context.newElement);
   const textEditingAt = useSelector(actorRef, (s) => s.context.textEditingAt);
+  const camera = useSelector(actorRef, (s) => s.context.camera);
+  const isSpacePressed = useSelector(actorRef, (s) => s.context.isSpacePressed);
 
-  // Subscribe to shape commits and add them to the scene.
   useEffect(() => {
     const subscription = actorRef.on('shape.committed', (emitted) => {
       setShapes((prev) => [...prev, emitted.shape]);
@@ -36,24 +36,44 @@ export function Editor() {
     return () => subscription.unsubscribe();
   }, [actorRef]);
 
+  // --- Pointer handlers ---
+
   const handlePointerDown = useCallback(
-    (point: { x: number; y: number }) => {
-      actorRef.send({ type: 'POINTER_DOWN', point });
+    (point: Point, _screenPoint: Point, button: number) => {
+      actorRef.send({ type: 'POINTER_DOWN', point, button });
     },
     [actorRef],
   );
   const handlePointerMove = useCallback(
-    (point: { x: number; y: number }) => {
-      actorRef.send({ type: 'POINTER_MOVE', point });
+    (point: Point, _screenPoint: Point, screenDelta: Point) => {
+      actorRef.send({ type: 'POINTER_MOVE', point, screenDelta });
     },
     [actorRef],
   );
   const handlePointerUp = useCallback(
-    (point: { x: number; y: number }) => {
+    (point: Point) => {
       actorRef.send({ type: 'POINTER_UP', point });
     },
     [actorRef],
   );
+
+  // --- Wheel handlers ---
+
+  const handleWheelZoom = useCallback(
+    (delta: number, anchor: Point) => {
+      actorRef.send({ type: 'ZOOM_BY', delta, anchor });
+    },
+    [actorRef],
+  );
+
+  const handleWheelPan = useCallback(
+    (dx: number, dy: number) => {
+      actorRef.send({ type: 'PAN_BY', dx, dy });
+    },
+    [actorRef],
+  );
+
+  // --- Keyboard handlers ---
 
   const handleToolChange = useCallback(
     (tool: Tool) => {
@@ -66,9 +86,42 @@ export function Editor() {
     actorRef.send({ type: 'ESCAPE' });
   }, [actorRef]);
 
+  const handleSpaceDown = useCallback(() => {
+    actorRef.send({ type: 'SPACE_DOWN' });
+  }, [actorRef]);
+
+  const handleSpaceUp = useCallback(() => {
+    actorRef.send({ type: 'SPACE_UP' });
+  }, [actorRef]);
+
+  const handleZoomIn = useCallback(() => {
+    actorRef.send({
+      type: 'ZOOM_BY',
+      delta: 1.2,
+      anchor: { x: width / 2, y: height / 2 },
+    });
+  }, [actorRef, width, height]);
+
+  const handleZoomOut = useCallback(() => {
+    actorRef.send({
+      type: 'ZOOM_BY',
+      delta: 0.8,
+      anchor: { x: width / 2, y: height / 2 },
+    });
+  }, [actorRef, width, height]);
+
+  const handleResetView = useCallback(() => {
+    actorRef.send({ type: 'RESET_VIEW' });
+  }, [actorRef]);
+
   useKeyboardShortcuts({
     onSelectTool: handleToolChange,
     onEscape: handleEscape,
+    onSpaceDown: handleSpaceDown,
+    onSpaceUp: handleSpaceUp,
+    onZoomIn: handleZoomIn,
+    onZoomOut: handleZoomOut,
+    onResetView: handleResetView,
   });
 
   const handleCommitText = useCallback(
@@ -98,9 +151,13 @@ export function Editor() {
         shapes={shapes}
         newElement={newElement}
         activeTool={activeTool}
+        camera={camera}
+        isSpacePressed={isSpacePressed}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onWheelZoom={handleWheelZoom}
+        onWheelPan={handleWheelPan}
       />
 
       <header
@@ -125,7 +182,7 @@ export function Editor() {
       >
         CanvasFlow Editor
         <span style={{ color: '#a1a1aa', fontWeight: 400, fontSize: 12 }}>
-          PR #14 · draw with any tool
+          PR #15 · pan and zoom
         </span>
       </header>
 
@@ -139,7 +196,13 @@ export function Editor() {
         />
       )}
 
-      <DevOverlay shapeCount={shapes.length} width={width} height={height} devicePixelRatio={dpr} />
+      <DevOverlay
+        shapeCount={shapes.length}
+        width={width}
+        height={height}
+        devicePixelRatio={dpr}
+        camera={camera}
+      />
     </div>
   );
 }
