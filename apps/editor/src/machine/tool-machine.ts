@@ -8,10 +8,17 @@ import {
   createRectangle,
   type Shape,
 } from '@canvasflow/canvas-engine';
-import type { ToolMachineContext, ToolMachineEvent } from './tool-machine.types';
+import {
+  IDENTITY_CAMERA,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  type ToolMachineContext,
+  type ToolMachineEvent,
+} from './tool-machine.types';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 export const toolMachine = setup({
   types: {
     context: {} as ToolMachineContext,
@@ -154,6 +161,58 @@ export const toolMachine = setup({
       freehandPoints: [],
     }),
     clearTextEditing: assign({ textEditingAt: null }),
+
+    // --- New: camera actions ---
+
+    trackSpaceDown: assign({ isSpacePressed: true }),
+    trackSpaceUp: assign({ isSpacePressed: false }),
+
+    /**
+     * Pan the camera by a screen-pixel delta. Divide by zoom because a
+     * 100-pixel pan at 50% zoom should move the world by 200 units.
+     */
+
+    applyPan: assign(({ context, event }) => {
+      if (event.type !== 'PAN_BY') return {};
+      return {
+        camera: {
+          ...context.camera,
+          x: context.camera.x - event.dx / context.camera.zoom,
+          y: context.camera.y - event.dy / context.camera.zoom,
+        },
+      };
+    }),
+
+    /**
+     * Zoom around a screen-space anchor point. Math:
+     * - Convert anchor from screen to world using current zoom
+     * - Change zoom (clamped)
+     * - Adjust camera so the same world point is still under the anchor
+     */
+
+    applyZoom: assign(({ context, event }) => {
+      if (event.type !== 'ZOOM_BY') return {};
+      const oldZoom = context.camera.zoom;
+      const newZoom = clamp(oldZoom * event.delta, MIN_ZOOM, MAX_ZOOM);
+      if (newZoom === oldZoom) return {};
+
+      // World point under anchor before zoom change
+      const worldX = event.anchor.x / oldZoom + context.camera.x;
+      const worldY = event.anchor.y / oldZoom + context.camera.y;
+
+      // After zoom change, the same world point should still be under the anchor
+      const newCameraX = worldX - event.anchor.x / newZoom;
+      const newCameraY = worldY - event.anchor.y / newZoom;
+
+      return {
+        camera: {
+          x: newCameraX,
+          y: newCameraY,
+          zoom: newZoom,
+        },
+      };
+    }),
+    resetView: assign({ camera: IDENTITY_CAMERA }),
   },
   guards: {
     isShapeTool: ({ context }) => {
@@ -164,6 +223,11 @@ export const toolMachine = setup({
     },
     isFreehandTool: ({ context }) => context.activeTool === 'freehand',
     isTextTool: ({ context }) => context.activeTool === 'text',
+    isPanGesture: ({ context, event }) => {
+      if (event.type !== 'POINTER_DOWN') return false;
+      // Middle mouse button, OR space held while left-clicking
+      return event.button === 1 || context.isSpacePressed;
+    },
     hasMovedEnough: ({ context, event }) => {
       if (event.type !== 'POINTER_UP') return false;
       const start = context.pointerDownAt;
@@ -183,15 +247,25 @@ export const toolMachine = setup({
     newElement: null,
     freehandPoints: [],
     textEditingAt: null,
+    camera: IDENTITY_CAMERA,
+    isSpacePressed: false,
   },
   on: {
     SELECT_TOOL: { target: '.idle', actions: 'selectTool' },
     ESCAPE: { target: '.idle', actions: ['clearDraw', 'clearTextEditing'] },
+    SPACE_DOWN: { actions: 'trackSpaceDown' },
+    SPACE_UP: { actions: 'trackSpaceUp' },
+    ZOOM_BY: { actions: 'applyZoom' },
+    RESET_VIEW: { actions: 'resetView' },
   },
   states: {
     idle: {
       on: {
         POINTER_DOWN: [
+          {
+            guard: 'isPanGesture',
+            target: 'panning',
+          },
           {
             guard: 'isShapeTool',
             target: 'drawingShape',
@@ -208,6 +282,23 @@ export const toolMachine = setup({
             actions: 'startTextEditing',
           },
         ],
+      },
+    },
+    panning: {
+      on: {
+        POINTER_MOVE: {
+          actions: assign(({ context, event }) => {
+            if (event.type !== 'POINTER_MOVE') return {};
+            return {
+              camera: {
+                ...context.camera,
+                x: context.camera.x - event.screenDelta.x / context.camera.zoom,
+                y: context.camera.y - event.screenDelta.y / context.camera.zoom,
+              },
+            };
+          }),
+        },
+        POINTER_UP: { target: 'idle' },
       },
     },
     drawingShape: {

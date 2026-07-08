@@ -1,10 +1,12 @@
-import { useEffect, type RefObject } from 'react';
-import { eventToCanvasPoint } from './coords';
+import { useEffect, useRef, type RefObject } from 'react';
+import type { Point } from '@/machine/tool-machine.types';
 
 interface UsePointerEventsOptions {
-  onPointerDown: (point: { x: number; y: number }) => void;
-  onPointerMove: (point: { x: number; y: number }) => void;
-  onPointerUp: (point: { x: number; y: number }) => void;
+  onPointerDown: (point: Point, screenPoint: Point, button: number) => void;
+  onPointerMove: (point: Point, screenPoint: Point, screenDelta: Point) => void;
+  onPointerUp: (point: Point, screenPoint: Point) => void;
+  screenToWorld: (screenX: number, screenY: number) => Point;
+  eventToCanvasScreen: (event: PointerEvent) => Point;
 }
 
 /**
@@ -14,8 +16,17 @@ interface UsePointerEventsOptions {
  */
 export function usePointerEvents(
   canvasRef: RefObject<HTMLCanvasElement | null>,
-  { onPointerDown, onPointerMove, onPointerUp }: UsePointerEventsOptions,
+  {
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    screenToWorld,
+    eventToCanvasScreen,
+  }: UsePointerEventsOptions,
 ): void {
+  // Track last screen position to compute deltas for pans
+  const lastScreenRef = useRef<Point | null>(null);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -24,16 +35,25 @@ export function usePointerEvents(
     let capturedPointerId: number | null = null;
 
     const handlePointerDown = (e: PointerEvent) => {
-      if (e.button !== 0) return; // left button only
+      // Allow left (0) or middle (1) mouse button
+      if (e.button !== 0 && e.button !== 1) return; // left button only
       isDown = true;
       capturedPointerId = e.pointerId;
       canvas.setPointerCapture(e.pointerId);
-      onPointerDown(eventToCanvasPoint(e, canvas));
+      const screen = eventToCanvasScreen(e);
+      const world = screenToWorld(e.clientX, e.clientY);
+      lastScreenRef.current = screen;
+      onPointerDown(world, screen, e.button);
     };
 
     const handlePointerMove = (e: PointerEvent) => {
       if (!isDown) return;
-      onPointerMove(eventToCanvasPoint(e, canvas));
+      const screen = eventToCanvasScreen(e);
+      const world = screenToWorld(e.clientX, e.clientY);
+      const last = lastScreenRef.current ?? screen;
+      const delta = { x: screen.x - last.x, y: screen.y - last.y };
+      lastScreenRef.current = screen;
+      onPointerMove(world, screen, delta);
     };
 
     const handlePointerUp = (e: PointerEvent) => {
@@ -43,7 +63,10 @@ export function usePointerEvents(
         canvas.releasePointerCapture(capturedPointerId);
         capturedPointerId = null;
       }
-      onPointerUp(eventToCanvasPoint(e, canvas));
+      lastScreenRef.current = null;
+      const screen = eventToCanvasScreen(e);
+      const world = screenToWorld(e.clientX, e.clientY);
+      onPointerUp(world, screen);
     };
 
     canvas.addEventListener('pointerdown', handlePointerDown);
@@ -57,5 +80,5 @@ export function usePointerEvents(
       canvas.removeEventListener('pointerup', handlePointerUp);
       canvas.removeEventListener('pointercancel', handlePointerUp);
     };
-  }, [canvasRef, onPointerDown, onPointerMove, onPointerUp]);
+  }, [canvasRef, onPointerDown, onPointerMove, onPointerUp, screenToWorld, eventToCanvasScreen]);
 }

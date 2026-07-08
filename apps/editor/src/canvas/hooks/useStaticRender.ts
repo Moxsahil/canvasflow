@@ -1,10 +1,12 @@
 import { useEffect, type RefObject } from 'react';
 import { renderStaticScene, setupCanvas, type Shape } from '@canvasflow/canvas-engine';
+import type { Camera } from '../../machine/tool-machine.types';
 
 interface UseStaticRenderOptions {
   width: number;
   height: number;
   shapes: readonly Shape[];
+  camera: Camera;
   devicePixelRatio: number;
 }
 
@@ -19,7 +21,7 @@ export function useStaticRender(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   options: UseStaticRenderOptions,
 ): void {
-  const { width, height, shapes, devicePixelRatio } = options;
+  const { width, height, shapes, camera, devicePixelRatio } = options;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -31,6 +33,7 @@ export function useStaticRender(
       width,
       height,
       shapes,
+      camera,
     });
-  }, [canvasRef, width, height, shapes, devicePixelRatio]);
+  }, [canvasRef, width, height, shapes, camera, devicePixelRatio]);
 }
