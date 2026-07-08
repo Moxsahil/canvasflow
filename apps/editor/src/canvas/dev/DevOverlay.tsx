@@ -1,15 +1,24 @@
+import type { Camera } from '../../machine/tool-machine.types';
+
 interface DevOverlayProps {
   shapeCount: number;
   width: number;
   height: number;
   devicePixelRatio: number;
+  camera: Camera;
 }
 
 /**
  * Dev-only overlay showing canvas state. Removed in PR #15 in favor of
  * a proper debug panel.
  */
-export function DevOverlay({ shapeCount, width, height, devicePixelRatio }: DevOverlayProps) {
+export function DevOverlay({
+  shapeCount,
+  width,
+  height,
+  devicePixelRatio,
+  camera,
+}: DevOverlayProps) {
   return (
     <div
       style={{
@@ -30,6 +39,9 @@ export function DevOverlay({ shapeCount, width, height, devicePixelRatio }: DevO
         size: {width} × {height}
       </div>
       <div>dpr: {devicePixelRatio}x</div>
+      <div>
+        camera: {camera.x.toFixed(0)}, {camera.y.toFixed(0)} @ {(camera.zoom * 100).toFixed(0)}%
+      </div>
     </div>
   );
 }
