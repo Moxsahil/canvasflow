@@ -18,7 +18,14 @@ describe('toolMachine', () => {
   it('transitions to drawingShape on POINTER_DOWN when rectangle tool is active', () => {
     const actor = createActor(toolMachine).start();
     actor.send({ type: 'SELECT_TOOL', tool: 'rectangle' });
-    actor.send({ type: 'POINTER_DOWN', point: { x: 100, y: 100 }, button: 0 });
+    actor.send({
+      type: 'POINTER_DOWN',
+      point: { x: 100, y: 100 },
+      button: 0,
+      shiftKey: false,
+      hitShapeId: null,
+      hitHandle: null,
+    });
     expect(actor.getSnapshot().value).toBe('drawingShape');
     expect(actor.getSnapshot().context.newElement).not.toBeNull();
   });
@@ -26,7 +33,14 @@ describe('toolMachine', () => {
   it('does not create a shape on POINTER_UP if user did not drag', () => {
     const actor = createActor(toolMachine).start();
     actor.send({ type: 'SELECT_TOOL', tool: 'rectangle' });
-    actor.send({ type: 'POINTER_DOWN', point: { x: 100, y: 100 }, button: 0 });
+    actor.send({
+      type: 'POINTER_DOWN',
+      point: { x: 100, y: 100 },
+      button: 0,
+      shiftKey: false,
+      hitShapeId: null,
+      hitHandle: null,
+    });
     actor.send({ type: 'POINTER_UP', point: { x: 100, y: 100 } });
     // Should have returned to idle and cleared newElement
     expect(actor.getSnapshot().value).toBe('idle');
@@ -36,7 +50,14 @@ describe('toolMachine', () => {
   it('returns to select tool after committing a shape', () => {
     const actor = createActor(toolMachine).start();
     actor.send({ type: 'SELECT_TOOL', tool: 'rectangle' });
-    actor.send({ type: 'POINTER_DOWN', point: { x: 100, y: 100 }, button: 0 });
+    actor.send({
+      type: 'POINTER_DOWN',
+      point: { x: 100, y: 100 },
+      button: 0,
+      shiftKey: false,
+      hitShapeId: null,
+      hitHandle: null,
+    });
     actor.send({ type: 'POINTER_MOVE', point: { x: 200, y: 200 }, screenDelta: { x: 0, y: 0 } });
     actor.send({ type: 'POINTER_UP', point: { x: 200, y: 200 } });
     // Auto-transitions through committing to idle with select tool
@@ -47,7 +68,14 @@ describe('toolMachine', () => {
   it('ESCAPE cancels an in-progress draw', () => {
     const actor = createActor(toolMachine).start();
     actor.send({ type: 'SELECT_TOOL', tool: 'rectangle' });
-    actor.send({ type: 'POINTER_DOWN', point: { x: 100, y: 100 }, button: 0 });
+    actor.send({
+      type: 'POINTER_DOWN',
+      point: { x: 100, y: 100 },
+      button: 0,
+      shiftKey: false,
+      hitShapeId: null,
+      hitHandle: null,
+    });
     actor.send({ type: 'POINTER_MOVE', point: { x: 150, y: 150 }, screenDelta: { x: 0, y: 0 } });
     actor.send({ type: 'ESCAPE' });
     expect(actor.getSnapshot().value).toBe('idle');
@@ -57,7 +85,14 @@ describe('toolMachine', () => {
   it('accumulates freehand points on POINTER_MOVE', () => {
     const actor = createActor(toolMachine).start();
     actor.send({ type: 'SELECT_TOOL', tool: 'freehand' });
-    actor.send({ type: 'POINTER_DOWN', point: { x: 100, y: 100 }, button: 0 });
+    actor.send({
+      type: 'POINTER_DOWN',
+      point: { x: 100, y: 100 },
+      button: 0,
+      shiftKey: false,
+      hitShapeId: null,
+      hitHandle: null,
+    });
     actor.send({ type: 'POINTER_MOVE', point: { x: 110, y: 110 }, screenDelta: { x: 0, y: 0 } });
     actor.send({ type: 'POINTER_MOVE', point: { x: 120, y: 120 }, screenDelta: { x: 0, y: 0 } });
     actor.send({ type: 'POINTER_MOVE', point: { x: 130, y: 130 }, screenDelta: { x: 0, y: 0 } });

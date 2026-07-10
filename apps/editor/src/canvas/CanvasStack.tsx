@@ -1,22 +1,25 @@
-import React, { useCallback, useRef } from 'react';
-import type { Tool } from '@/tools/tool';
+import { useCallback, useRef } from 'react';
 import type { Shape } from '@canvasflow/canvas-engine';
-import type { Camera, Point } from '@/machine/tool-machine.types';
+import type { Camera, Point } from '../machine/tool-machine.types';
+import type { Tool } from '../tools/tool';
 import { useCanvasResize } from './hooks/useCanvasResize';
 import { useDevicePixelRatio } from './hooks/useDevicePixelRatio';
 import { useStaticRender } from './hooks/useStaticRender';
 import { useNewElementRender } from './hooks/useNewElementRender';
+import { useInteractiveRender } from './hooks/useInteractiveRender';
 import { usePointerEvents } from '../pointer/usePointerEvents';
-import { screenToWorld, eventToCanvasScreen } from '@/pointer/coords';
-import { useWheelEvents } from '@/pointer/useWheelEvents';
+import { useWheelEvents } from '../pointer/useWheelEvents';
+import { screenToWorld, eventToCanvasScreen } from '../pointer/coords';
 
 interface CanvasStackProps {
   shapes: readonly Shape[];
   newElement: Shape | null;
+  selectedIds: readonly string[];
+  marquee: { x: number; y: number; width: number; height: number } | null;
   activeTool: Tool;
   camera: Camera;
   isSpacePressed: boolean;
-  onPointerDown: (point: Point, screenPoint: Point, button: number) => void;
+  onPointerDown: (point: Point, screenPoint: Point, button: number, shiftKey: boolean) => void;
   onPointerMove: (point: Point, screenPoint: Point, screenDelta: Point) => void;
   onPointerUp: (point: Point, screenPoint: Point) => void;
   onWheelZoom: (delta: number, anchor: Point) => void;
@@ -26,6 +29,8 @@ interface CanvasStackProps {
 export function CanvasStack({
   shapes,
   newElement,
+  selectedIds,
+  marquee,
   activeTool,
   camera,
   isSpacePressed,
@@ -43,18 +48,20 @@ export function CanvasStack({
   const { width, height } = useCanvasResize(containerRef);
   const dpr = useDevicePixelRatio();
 
-  useStaticRender(staticCanvasRef, {
-    width,
-    height,
-    shapes,
-    camera,
-    devicePixelRatio: dpr,
-  });
-
+  useStaticRender(staticCanvasRef, { width, height, shapes, camera, devicePixelRatio: dpr });
   useNewElementRender(newElementCanvasRef, {
     width,
     height,
     newElement,
+    camera,
+    devicePixelRatio: dpr,
+  });
+  useInteractiveRender(interactiveCanvasRef, {
+    width,
+    height,
+    shapes,
+    selectedIds,
+    marquee,
     camera,
     devicePixelRatio: dpr,
   });
@@ -74,8 +81,15 @@ export function CanvasStack({
     return eventToCanvasScreen(event as PointerEvent, canvas);
   }, []);
 
+  const handlePointerDown = useCallback(
+    (point: Point, screenPoint: Point, button: number, shiftKey: boolean) => {
+      onPointerDown(point, screenPoint, button, shiftKey);
+    },
+    [onPointerDown],
+  );
+
   usePointerEvents(interactiveCanvasRef, {
-    onPointerDown,
+    onPointerDown: handlePointerDown,
     onPointerMove,
     onPointerUp,
     screenToWorld: screenToWorldFn,
@@ -110,11 +124,7 @@ export function CanvasStack({
     >
       <canvas ref={staticCanvasRef} style={canvasStyle} aria-label="Static canvas" />
       <canvas ref={newElementCanvasRef} style={canvasStyle} aria-label="New element canvas" />
-      <canvas
-        ref={interactiveCanvasRef}
-        style={{ ...canvasStyle, cursor: 'crosshair' }}
-        aria-label="Interactive canvas"
-      />
+      <canvas ref={interactiveCanvasRef} style={canvasStyle} aria-label="Interactive canvas" />
     </div>
   );
 }

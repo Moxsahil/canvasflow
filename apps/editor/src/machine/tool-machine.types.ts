@@ -18,6 +18,8 @@ export const IDENTITY_CAMERA: Camera = { x: 0, y: 0, zoom: 1 };
 export const MIN_ZOOM = 0.1;
 export const MAX_ZOOM = 5;
 
+export type HandleIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
 export interface ToolMachineContext {
   /** Currently active tool. */
   activeTool: Tool;
@@ -33,11 +35,27 @@ export interface ToolMachineContext {
   camera: Camera;
   /** True while user is holding Space to pan. */
   isSpacePressed: boolean;
+
+  selectedIds: string[];
+
+  marquee: { x: number; y: number; width: number; height: number } | null;
+
+  dragOriginShapes: Record<string, Shape>;
+
+  resizeHandle: HandleIndex | null;
+  resizeOriginShape: Shape | null;
 }
 
 export type ToolMachineEvent =
   | { type: 'SELECT_TOOL'; tool: Tool }
-  | { type: 'POINTER_DOWN'; point: Point; button: number }
+  | {
+      type: 'POINTER_DOWN';
+      point: Point;
+      button: number;
+      shiftKey: boolean;
+      hitShapeId: string | null;
+      hitHandle: HandleIndex | null;
+    }
   | { type: 'POINTER_MOVE'; point: Point; screenDelta: Point }
   | { type: 'POINTER_UP'; point: Point }
   | { type: 'ESCAPE' }
@@ -47,8 +65,20 @@ export type ToolMachineEvent =
   | { type: 'SPACE_UP' }
   | { type: 'PAN_BY'; dx: number; dy: number }
   | { type: 'ZOOM_BY'; delta: number; anchor: Point }
-  | { type: 'RESET_VIEW' };
+  | { type: 'RESET_VIEW' }
+  | { type: 'DELETE_SELECTED' }
+  | { type: 'SELECT_ALL'; shapeIds: string[] }
+  | { type: 'DESELECT' }
+  | { type: 'INTERNAL_UPDATE_SHAPES'; shapes: Shape[] };
 
 export interface ShapeCommitted {
   shape: Shape;
+}
+
+export interface ShapesUpdated {
+  shapes: Shape[];
+}
+
+export interface ShapesDeleted {
+  ids: string[];
 }

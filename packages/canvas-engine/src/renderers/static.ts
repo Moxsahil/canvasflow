@@ -44,7 +44,7 @@ export function renderStaticScene(
   ctx.save();
 
   if (camera) {
-    ctx.translate(-camera.x, -camera.y);
+    ctx.translate(-camera.x * camera.zoom, -camera.y * camera.zoom);
     ctx.scale(camera.zoom, camera.zoom);
   }
 

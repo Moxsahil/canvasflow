@@ -6,3 +6,4 @@ export * from './line.js';
 export * from './arrow.js';
 export * from './freehand.js';
 export * from './text.js';
+export * from './bounds.js';
