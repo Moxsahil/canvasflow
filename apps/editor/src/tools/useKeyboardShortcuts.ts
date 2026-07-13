@@ -10,6 +10,8 @@ interface UseKeyboardShortcutsOptions {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetView: () => void;
+  onDelete: () => void;
+  onSelectAll: () => void;
 }
 
 export function useKeyboardShortcuts({
@@ -20,6 +22,8 @@ export function useKeyboardShortcuts({
   onZoomIn,
   onZoomOut,
   onResetView,
+  onDelete,
+  onSelectAll,
 }: UseKeyboardShortcutsOptions): void {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -28,31 +32,39 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      // Space: only when not typing
       if (event.code === 'Space' && !shouldIgnoreShortcut(event)) {
         event.preventDefault();
         onSpaceDown();
         return;
       }
 
-      // Cmd/Ctrl + 0 = reset view
       if ((event.metaKey || event.ctrlKey) && event.key === '0') {
         event.preventDefault();
         onResetView();
         return;
       }
 
-      // Cmd/Ctrl + = or + = zoom in
       if ((event.metaKey || event.ctrlKey) && (event.key === '=' || event.key === '+')) {
         event.preventDefault();
         onZoomIn();
         return;
       }
 
-      // Cmd/Ctrl + - = zoom out
       if ((event.metaKey || event.ctrlKey) && event.key === '-') {
         event.preventDefault();
         onZoomOut();
+        return;
+      }
+
+      if ((event.metaKey || event.ctrlKey) && event.key === 'a') {
+        event.preventDefault();
+        onSelectAll();
+        return;
+      }
+
+      if ((event.key === 'Delete' || event.key === 'Backspace') && !shouldIgnoreShortcut(event)) {
+        event.preventDefault();
+        onDelete();
         return;
       }
 
@@ -77,5 +89,15 @@ export function useKeyboardShortcuts({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [onSelectTool, onEscape, onSpaceDown, onSpaceUp, onZoomIn, onZoomOut, onResetView]);
+  }, [
+    onSelectTool,
+    onEscape,
+    onSpaceDown,
+    onSpaceUp,
+    onZoomIn,
+    onZoomOut,
+    onResetView,
+    onDelete,
+    onSelectAll,
+  ]);
 }

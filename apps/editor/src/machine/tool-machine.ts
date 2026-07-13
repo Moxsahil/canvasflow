@@ -12,6 +12,7 @@ import {
   IDENTITY_CAMERA,
   MAX_ZOOM,
   MIN_ZOOM,
+  type HandleIndex,
   type ToolMachineContext,
   type ToolMachineEvent,
 } from './tool-machine.types';
@@ -19,11 +20,68 @@ import {
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+/**
+ * Resize a shape based on which handle is being dragged and the pointer position.
+ * Handle indices: 0=TL 1=TC 2=TR 3=MR 4=BR 5=BC 6=BL 7=ML
+ */
+function resizeShape(original: Shape, handle: HandleIndex, dx: number, dy: number): Shape {
+  if (original.kind === 'line' || original.kind === 'arrow' || original.kind === 'freehand') {
+    // Linear shapes don't resize via handles in this PR
+    return original;
+  }
+  if (original.kind === 'text') {
+    return original;
+  }
+
+  // For rect/ellipse/diamond
+  const shape = original as typeof original & { width: number; height: number };
+  let x = shape.x;
+  let y = shape.y;
+  let width = shape.width;
+  let height = shape.height;
+
+  // Horizontal axis
+  if (handle === 0 || handle === 6 || handle === 7) {
+    // left side handles
+    x = shape.x + dx;
+    width = shape.width - dx;
+  } else if (handle === 2 || handle === 3 || handle === 4) {
+    // right side handles
+    width = shape.width + dx;
+  }
+
+  // Vertical axis
+  if (handle === 0 || handle === 1 || handle === 2) {
+    // top side handles
+    y = shape.y + dy;
+    height = shape.height - dy;
+  } else if (handle === 4 || handle === 5 || handle === 6) {
+    // bottom side handles
+    height = shape.height + dy;
+  }
+
+  // Prevent inversion
+  if (width < 1) {
+    x = x + width - 1;
+    width = 1;
+  }
+  if (height < 1) {
+    y = y + height - 1;
+    height = 1;
+  }
+
+  return { ...shape, x, y, width, height } as Shape;
+}
+
 export const toolMachine = setup({
   types: {
     context: {} as ToolMachineContext,
     events: {} as ToolMachineEvent,
-    emitted: {} as { type: 'shape.committed'; shape: Shape },
+    emitted: {} as
+      | { type: 'shape.committed'; shape: Shape }
+      | { type: 'shapes.updated'; shapes: Shape[] }
+      | { type: 'shapes.deleted'; ids: string[] },
   },
   actions: {
     selectTool: assign(({ event }) => {
@@ -144,11 +202,6 @@ export const toolMachine = setup({
       if (event.type !== 'POINTER_DOWN') return {};
       return { textEditingAt: event.point };
     }),
-    /**
-     * Emit the committed shape so React can add it to the scene.
-     * Emit uses XState 5's emit() API — subscribers receive it via
-     * actor.on('shape.committed', handler).
-     */
     emitCommittedShape: emit(({ context }) => {
       if (!context.newElement) {
         throw new Error('emitCommittedShape called with no newElement');
@@ -161,60 +214,73 @@ export const toolMachine = setup({
       freehandPoints: [],
     }),
     clearTextEditing: assign({ textEditingAt: null }),
-
-    // --- New: camera actions ---
-
     trackSpaceDown: assign({ isSpacePressed: true }),
     trackSpaceUp: assign({ isSpacePressed: false }),
-
-    /**
-     * Pan the camera by a screen-pixel delta. Divide by zoom because a
-     * 100-pixel pan at 50% zoom should move the world by 200 units.
-     */
-
-    applyPan: assign(({ context, event }) => {
-      if (event.type !== 'PAN_BY') return {};
-      return {
-        camera: {
-          ...context.camera,
-          x: context.camera.x - event.dx / context.camera.zoom,
-          y: context.camera.y - event.dy / context.camera.zoom,
-        },
-      };
-    }),
-
-    /**
-     * Zoom around a screen-space anchor point. Math:
-     * - Convert anchor from screen to world using current zoom
-     * - Change zoom (clamped)
-     * - Adjust camera so the same world point is still under the anchor
-     */
-
     applyZoom: assign(({ context, event }) => {
       if (event.type !== 'ZOOM_BY') return {};
       const oldZoom = context.camera.zoom;
       const newZoom = clamp(oldZoom * event.delta, MIN_ZOOM, MAX_ZOOM);
       if (newZoom === oldZoom) return {};
-
-      // World point under anchor before zoom change
       const worldX = event.anchor.x / oldZoom + context.camera.x;
       const worldY = event.anchor.y / oldZoom + context.camera.y;
-
-      // After zoom change, the same world point should still be under the anchor
       const newCameraX = worldX - event.anchor.x / newZoom;
       const newCameraY = worldY - event.anchor.y / newZoom;
-
-      return {
-        camera: {
-          x: newCameraX,
-          y: newCameraY,
-          zoom: newZoom,
-        },
-      };
+      return { camera: { x: newCameraX, y: newCameraY, zoom: newZoom } };
     }),
     resetView: assign({ camera: IDENTITY_CAMERA }),
+
+    // --- Selection actions ---
+
+    selectSingle: assign(({ event }) => {
+      if (event.type !== 'POINTER_DOWN' || !event.hitShapeId) return {};
+      return { selectedIds: [event.hitShapeId] };
+    }),
+    toggleInSelection: assign(({ context, event }) => {
+      if (event.type !== 'POINTER_DOWN' || !event.hitShapeId) return {};
+      const id = event.hitShapeId;
+      const current = context.selectedIds;
+      if (current.includes(id)) {
+        return { selectedIds: current.filter((x) => x !== id) };
+      }
+      return { selectedIds: [...current, id] };
+    }),
+    deselectAll: assign({ selectedIds: [] }),
+    setSelectAll: assign(({ event }) => {
+      if (event.type !== 'SELECT_ALL') return {};
+      return { selectedIds: event.shapeIds };
+    }),
+
+    beginDragOrigin: assign(() => {
+      // Set later from Editor via SELECT_TOOL-style side channel...
+      // Actually: we'll capture drag origins from the outside via event payload
+      return {};
+    }),
+
+    startMarquee: assign(({ event }) => {
+      if (event.type !== 'POINTER_DOWN') return {};
+      return {
+        marquee: { x: event.point.x, y: event.point.y, width: 0, height: 0 },
+      };
+    }),
+    updateMarquee: assign(({ context, event }) => {
+      if (event.type !== 'POINTER_MOVE' || !context.pointerDownAt) return {};
+      const start = context.pointerDownAt;
+      const x = Math.min(start.x, event.point.x);
+      const y = Math.min(start.y, event.point.y);
+      const width = Math.abs(event.point.x - start.x);
+      const height = Math.abs(event.point.y - start.y);
+      return { marquee: { x, y, width, height } };
+    }),
+    clearMarquee: assign({ marquee: null }),
+
+    beginResize: assign(({ event }) => {
+      if (event.type !== 'POINTER_DOWN' || event.hitHandle === null) return {};
+      return { resizeHandle: event.hitHandle };
+    }),
+    clearResize: assign({ resizeHandle: null, resizeOriginShape: null }),
   },
   guards: {
+    isSelectTool: ({ context }) => context.activeTool === 'select',
     isShapeTool: ({ context }) => {
       const t = context.activeTool;
       return (
@@ -225,8 +291,19 @@ export const toolMachine = setup({
     isTextTool: ({ context }) => context.activeTool === 'text',
     isPanGesture: ({ context, event }) => {
       if (event.type !== 'POINTER_DOWN') return false;
-      // Middle mouse button, OR space held while left-clicking
       return event.button === 1 || context.isSpacePressed;
+    },
+    hitAHandle: ({ event }) => {
+      if (event.type !== 'POINTER_DOWN') return false;
+      return event.hitHandle !== null;
+    },
+    hitAShape: ({ event }) => {
+      if (event.type !== 'POINTER_DOWN') return false;
+      return event.hitShapeId !== null && event.hitHandle === null;
+    },
+    isShiftClick: ({ event }) => {
+      if (event.type !== 'POINTER_DOWN') return false;
+      return event.shiftKey;
     },
     hasMovedEnough: ({ context, event }) => {
       if (event.type !== 'POINTER_UP') return false;
@@ -249,22 +326,40 @@ export const toolMachine = setup({
     textEditingAt: null,
     camera: IDENTITY_CAMERA,
     isSpacePressed: false,
+    selectedIds: [],
+    marquee: null,
+    dragOriginShapes: {},
+    resizeHandle: null,
+    resizeOriginShape: null,
   },
   on: {
     SELECT_TOOL: { target: '.idle', actions: 'selectTool' },
-    ESCAPE: { target: '.idle', actions: ['clearDraw', 'clearTextEditing'] },
+    ESCAPE: { target: '.idle', actions: ['clearDraw', 'clearTextEditing', 'deselectAll'] },
     SPACE_DOWN: { actions: 'trackSpaceDown' },
     SPACE_UP: { actions: 'trackSpaceUp' },
     ZOOM_BY: { actions: 'applyZoom' },
     RESET_VIEW: { actions: 'resetView' },
+    SELECT_ALL: { actions: 'setSelectAll' },
+    DESELECT: { actions: 'deselectAll' },
+    DELETE_SELECTED: {
+      actions: [
+        emit(({ context }) => ({
+          type: 'shapes.deleted' as const,
+          ids: context.selectedIds,
+        })),
+        'deselectAll',
+      ],
+    },
   },
   states: {
     idle: {
       on: {
         POINTER_DOWN: [
+          { guard: 'isPanGesture', target: 'panning' },
           {
-            guard: 'isPanGesture',
-            target: 'panning',
+            guard: 'isSelectTool',
+            target: 'selectPointerDown',
+            actions: 'recordPointerDown',
           },
           {
             guard: 'isShapeTool',
@@ -301,6 +396,80 @@ export const toolMachine = setup({
         POINTER_UP: { target: 'idle' },
       },
     },
+    /**
+     * Transient decision state for select-tool pointer down.
+     * Branches based on what was hit.
+     */
+    selectPointerDown: {
+      always: [
+        {
+          guard: 'hitAHandle',
+          target: 'resizingSelection',
+          actions: 'beginResize',
+        },
+        {
+          guard: 'hitAShape',
+          target: 'draggingSelection',
+          actions: [
+            assign(({ context, event }) => {
+              if (event.type !== 'POINTER_DOWN' || !event.hitShapeId) return {};
+              // Add to selection or replace
+              if (event.shiftKey) {
+                const current = context.selectedIds;
+                if (current.includes(event.hitShapeId)) return {};
+                return { selectedIds: [...current, event.hitShapeId] };
+              }
+              // If clicking a shape not already selected, replace selection
+              if (!context.selectedIds.includes(event.hitShapeId)) {
+                return { selectedIds: [event.hitShapeId] };
+              }
+              return {};
+            }),
+          ],
+        },
+        {
+          // Clicked empty canvas — start marquee (or deselect)
+          target: 'marqueeSelecting',
+          actions: ['deselectAll', 'startMarquee'],
+        },
+      ],
+    },
+    draggingSelection: {
+      on: {
+        POINTER_MOVE: {
+          actions: emit(({ event }) => {
+            if (event.type !== 'POINTER_MOVE') {
+              return { type: 'shapes.updated' as const, shapes: [] };
+            }
+            return {
+              type: 'shapes.updated' as const,
+              // React uses screenDelta / zoom to move selected shapes
+              // We emit an intent; Editor computes the new positions.
+              shapes: [],
+            };
+          }),
+        },
+        POINTER_UP: { target: 'idle' },
+      },
+    },
+    resizingSelection: {
+      on: {
+        POINTER_MOVE: {
+          // Similar pattern - Editor listens to context changes
+          actions: [],
+        },
+        POINTER_UP: { target: 'idle', actions: 'clearResize' },
+      },
+    },
+    marqueeSelecting: {
+      on: {
+        POINTER_MOVE: { actions: 'updateMarquee' },
+        POINTER_UP: {
+          target: 'idle',
+          actions: 'clearMarquee',
+        },
+      },
+    },
     drawingShape: {
       on: {
         POINTER_MOVE: { actions: 'updateShapeDraw' },
@@ -308,14 +477,9 @@ export const toolMachine = setup({
           {
             guard: 'hasMovedEnough',
             target: 'idle',
-            // Order matters: emit BEFORE clearDraw so the emit callback
-            // sees the newElement in context.
             actions: ['emitCommittedShape', 'clearDraw'],
           },
-          {
-            target: 'idle',
-            actions: 'clearDraw',
-          },
+          { target: 'idle', actions: 'clearDraw' },
         ],
       },
     },
@@ -328,24 +492,18 @@ export const toolMachine = setup({
             target: 'idle',
             actions: ['emitCommittedShape', 'clearDraw'],
           },
-          {
-            target: 'idle',
-            actions: 'clearDraw',
-          },
+          { target: 'idle', actions: 'clearDraw' },
         ],
       },
     },
     editingText: {
       on: {
-        COMMIT_TEXT: {
-          target: 'idle',
-          actions: 'clearTextEditing',
-        },
-        CANCEL_TEXT: {
-          target: 'idle',
-          actions: 'clearTextEditing',
-        },
+        COMMIT_TEXT: { target: 'idle', actions: 'clearTextEditing' },
+        CANCEL_TEXT: { target: 'idle', actions: 'clearTextEditing' },
       },
     },
   },
 });
+
+// Re-export helpers used by the Editor
+export { resizeShape };
