@@ -28,8 +28,10 @@
   },
   "dependencies": {
     "@canvasflow/types": "workspace:*",
+    "fractional-indexing": "^4.0.0",
     "rbush": "^4.0.1",
-    "roughjs": "^4.6.6"
+    "roughjs": "^4.6.6",
+    "yjs": "^13.6.31"
   },
   "devDependencies": {
     "@canvasflow/config": "workspace:*",

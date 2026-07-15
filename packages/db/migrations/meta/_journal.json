@@ -29,6 +29,13 @@
       "when": 1781624579322,
       "tag": "0003_unknown_jack_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783932837063,
+      "tag": "0004_lumpy_silver_sable",
+      "breakpoints": true
     }
   ]
 }
