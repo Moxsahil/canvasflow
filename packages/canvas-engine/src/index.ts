@@ -9,3 +9,4 @@ export { setupCanvas, clearCanvas } from './utils/canvas.js';
 
 export * from './spatial/index.js';
 export * from './hit-testing/index.js';
+export * from './document/index.js';
