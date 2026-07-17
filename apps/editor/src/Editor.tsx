@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useActorRef, useSelector } from '@xstate/react';
 import { createText, hitTest, SpatialIndex, type Shape } from '@canvasflow/canvas-engine';
 import { CanvasStack } from './canvas/CanvasStack';
@@ -11,9 +11,10 @@ import { toolMachine, resizeShape } from './machine/tool-machine';
 import { useKeyboardShortcuts } from './tools/useKeyboardShortcuts';
 import { hitTestHandles } from './selection/handles';
 import { useBoardDocument, useYjsShapes } from './document/useYjsDocument';
+import { useUndoState } from './document/useUndoState';
 import { useBoardSync } from './sync/useBoardSync';
-import { useAuthToken } from './auth/useAuthToken';
-import { env } from '@/lib/env';
+import { getAuthTokenFromHash, clearAuthTokenFromHash } from './auth/token';
+import { env } from './lib/env';
 import type { Tool } from './tools/tool';
 import type { Point } from './machine/tool-machine.types';
 
@@ -28,18 +29,24 @@ export function Editor({ boardId }: EditorProps) {
   const { width, height } = useCanvasResize(containerRef);
   const dpr = useDevicePixelRatio();
 
-  // Grabs the token from the URL hash on first mount (then clears it from
-  // the URL), and silently re-mints it from the web app before it expires.
-  const { authToken, refresh: refreshAuthToken } = useAuthToken();
+  const [authToken] = useState(() => {
+    const token = getAuthTokenFromHash();
+    if (token) {
+      window.sessionStorage.setItem('editor:authToken', token);
+      clearAuthTokenFromHash();
+      return token;
+    }
+    return window.sessionStorage.getItem('editor:authToken');
+  });
 
   const doc = useBoardDocument(boardId);
   const shapes = useYjsShapes(doc);
+  const { canUndo, canRedo } = useUndoState(doc);
 
   const { status: syncStatus, error: syncError } = useBoardSync(doc, {
     boardId,
     apiUrl: env.VITE_API_URL,
     authToken,
-    onAuthError: refreshAuthToken,
   });
 
   const actorRef = useActorRef(toolMachine);
@@ -169,12 +176,20 @@ export function Editor({ boardId }: EditorProps) {
 
   const handlePointerUp = useCallback(
     (point: Point) => {
+      const snap = actorRef.getSnapshot();
+      const wasInteracting = snap.matches('draggingSelection') || snap.matches('resizingSelection');
+
       actorRef.send({ type: 'POINTER_UP', point });
       dragOriginsRef.current = {};
       resizeOriginRef.current = null;
       pointerDownWorldRef.current = null;
+
+      // Break the undo group so the next drag/resize is a separate undo step
+      if (wasInteracting) {
+        doc.breakUndoGroup();
+      }
     },
-    [actorRef],
+    [actorRef, doc],
   );
 
   const handleWheelZoom = useCallback(
@@ -206,6 +221,8 @@ export function Editor({ boardId }: EditorProps) {
     () => actorRef.send({ type: 'SELECT_ALL', shapeIds: shapes.map((s) => s.id) }),
     [actorRef, shapes],
   );
+  const handleUndo = useCallback(() => doc.undo(), [doc]);
+  const handleRedo = useCallback(() => doc.redo(), [doc]);
 
   useKeyboardShortcuts({
     onSelectTool: handleToolChange,
@@ -217,6 +234,8 @@ export function Editor({ boardId }: EditorProps) {
     onResetView: handleResetView,
     onDelete: handleDelete,
     onSelectAll: handleSelectAll,
+    onUndo: handleUndo,
+    onRedo: handleRedo,
   });
 
   const handleCommitText = useCallback(
@@ -233,7 +252,6 @@ export function Editor({ boardId }: EditorProps) {
 
   const handleCancelText = useCallback(() => actorRef.send({ type: 'CANCEL_TEXT' }), [actorRef]);
 
-  // Sync status label for the header
   const syncLabel = (() => {
     if (syncError) return 'Sync error';
     switch (syncStatus) {
@@ -297,7 +315,14 @@ export function Editor({ boardId }: EditorProps) {
         </span>
       </header>
 
-      <Toolbar activeTool={activeTool} onToolChange={handleToolChange} />
+      <Toolbar
+        activeTool={activeTool}
+        onToolChange={handleToolChange}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+      />
 
       {textEditingAt && (
         <TextEditor

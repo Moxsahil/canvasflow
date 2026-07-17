@@ -3,6 +3,8 @@ import { generateKeyBetween } from 'fractional-indexing';
 import type { Shape } from '../shapes/shape.js';
 import { shapeToYMap, yMapToShape } from './yjs-shape.js';
 
+const UNDO_CAPTURE_TIMEOUT_MS = 1000;
+
 /**
  * The canonical document API for CanvasFlow boards.
  *
@@ -10,37 +12,82 @@ import { shapeToYMap, yMapToShape } from './yjs-shape.js';
  * All shape mutations go through methods on this class so we can:
  *   - Enforce fractional indexing consistency
  *   - Emit change notifications for React
+ *   - Provide undo/redo via Y.UndoManager
  *   - Centralize the Y.Doc <-> Shape[] conversion
- *
- * The Y.Doc is exposed via .yDoc for the sync layer (Phase C) that
- * needs raw Yjs update bytes.
  */
 export class BoardDocument {
   readonly yDoc: Y.Doc;
   private readonly yShapes: Y.Array<Y.Map<unknown>>;
+  private readonly undoManager: Y.UndoManager;
   private listeners = new Set<() => void>();
+  private undoListeners = new Set<() => void>();
 
   constructor(doc?: Y.Doc) {
     this.yDoc = doc ?? new Y.Doc();
     this.yShapes = this.yDoc.getArray<Y.Map<unknown>>('shapes');
 
+    // UndoManager tracks changes to the shapes array only.
+    // - captureTimeout groups rapid activity into single undo steps
+    // - trackedOrigins limits what gets tracked; we skip 'remote' origin
+    //   updates so my undo doesn't undo someone else's changes (Sprint 3)
+    this.undoManager = new Y.UndoManager(this.yShapes, {
+      captureTimeout: UNDO_CAPTURE_TIMEOUT_MS,
+      trackedOrigins: new Set([null, undefined, 'local']),
+    });
+
     // Notify listeners on any deep change to the shapes array
     this.yShapes.observeDeep(() => {
       for (const listener of this.listeners) listener();
     });
+
+    // Notify undo listeners when undo/redo state changes
+    const notifyUndo = () => {
+      for (const listener of this.undoListeners) listener();
+    };
+    this.undoManager.on('stack-item-added', notifyUndo);
+    this.undoManager.on('stack-item-popped', notifyUndo);
+    this.undoManager.on('stack-cleared', notifyUndo);
   }
 
-  /**
-   * Subscribe to any change in the document. Returns unsubscribe fn.
-   */
   onChange(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
   /**
-   * Read all shapes as plain objects, sorted by zIndex for render order.
+   * Subscribe to undo/redo availability changes. Fires whenever the
+   * undo or redo stack changes size, so UI can re-check canUndo/canRedo.
    */
+  onUndoChange(listener: () => void): () => void {
+    this.undoListeners.add(listener);
+    return () => this.undoListeners.delete(listener);
+  }
+
+  canUndo(): boolean {
+    return this.undoManager.undoStack.length > 0;
+  }
+
+  canRedo(): boolean {
+    return this.undoManager.redoStack.length > 0;
+  }
+
+  undo(): void {
+    this.undoManager.undo();
+  }
+
+  redo(): void {
+    this.undoManager.redo();
+  }
+
+  /**
+   * Manually mark the end of an undo group.
+   * Call this after finishing a drag/resize gesture so the NEXT gesture
+   * starts a new undo step, even if it happens within captureTimeout.
+   */
+  breakUndoGroup(): void {
+    this.undoManager.stopCapturing();
+  }
+
   getShapes(): Shape[] {
     const shapes: Shape[] = [];
     for (let i = 0; i < this.yShapes.length; i++) {
@@ -48,8 +95,6 @@ export class BoardDocument {
       const shape = yMapToShape(yMap);
       if (shape) shapes.push(shape);
     }
-    // Sort by zIndex string ascending. Fallback to insertion order if any
-    // shape lacks a zIndex (shouldn't happen in normal flow but be safe).
     return shapes.sort((a, b) => {
       const az = (a as Shape & { zIndex?: string }).zIndex ?? '';
       const bz = (b as Shape & { zIndex?: string }).zIndex ?? '';
@@ -57,10 +102,6 @@ export class BoardDocument {
     });
   }
 
-  /**
-   * Get the current highest zIndex string, or null if no shapes exist.
-   * Used to generate a new zIndex for shapes added at the top.
-   */
   private getMaxZIndex(): string | null {
     let max: string | null = null;
     for (let i = 0; i < this.yShapes.length; i++) {
@@ -72,106 +113,78 @@ export class BoardDocument {
     return max;
   }
 
-  /**
-   * Add a new shape. Automatically assigns it a zIndex above all existing
-   * shapes (so it renders on top).
-   */
   addShape(shape: Shape): void {
     this.yDoc.transact(() => {
       const currentMax = this.getMaxZIndex();
       const newZIndex = generateKeyBetween(currentMax, null);
       const shapeWithZ = { ...shape, zIndex: newZIndex } as Shape & { zIndex: string };
       this.yShapes.push([shapeToYMap(shapeWithZ)]);
-    });
+    }, 'local');
   }
 
-  /**
-   * Update a shape by id. Applies each provided property to the Y.Map.
-   * Untouched properties are left alone. Fine-grained sync: each property
-   * change is a separate Yjs update, so two users editing different
-   * properties of the same shape don't conflict.
-   */
   updateShape(id: string, patch: Partial<Shape>): void {
     this.yDoc.transact(() => {
       for (let i = 0; i < this.yShapes.length; i++) {
         const yMap = this.yShapes.get(i);
         if (yMap.get('id') === id) {
           for (const [key, value] of Object.entries(patch)) {
-            if (key === 'id' || key === 'kind') continue; // never change identity
+            if (key === 'id' || key === 'kind') continue;
             yMap.set(key, value);
           }
           return;
         }
       }
-    });
+    }, 'local');
   }
 
-  /**
-   * Delete one or more shapes by id.
-   */
   deleteShapes(ids: readonly string[]): void {
     const idSet = new Set(ids);
     this.yDoc.transact(() => {
-      // Iterate in reverse so index-based deletions don't shift subsequent indices
       for (let i = this.yShapes.length - 1; i >= 0; i--) {
         const yMap = this.yShapes.get(i);
         if (idSet.has(yMap.get('id') as string)) {
           this.yShapes.delete(i, 1);
         }
       }
-    });
+    }, 'local');
   }
 
-  /**
-   * Bring shape to front — give it a zIndex above all others.
-   */
   bringToFront(id: string): void {
     this.yDoc.transact(() => {
       const currentMax = this.getMaxZIndex();
       const newZIndex = generateKeyBetween(currentMax, null);
       this.updateShape(id, { zIndex: newZIndex } as unknown as Partial<Shape>);
-    });
+    }, 'local');
   }
 
-  /**
-   * Send shape to back — give it a zIndex below all others.
-   */
   sendToBack(id: string): void {
     this.yDoc.transact(() => {
       let currentMin: string | null = null;
       for (let i = 0; i < this.yShapes.length; i++) {
-        const z = this.yShapes.get(i).get('zIndex');
-        if (typeof z === 'string' && z !== this.yShapes.get(i).get('zIndex-none')) {
-          const yMapId = this.yShapes.get(i).get('id');
-          if (yMapId === id) continue; // exclude the shape being moved
-          if (currentMin === null || z < currentMin) currentMin = z;
+        const yMap = this.yShapes.get(i);
+        if (yMap.get('id') === id) continue;
+        const z = yMap.get('zIndex');
+        if (typeof z === 'string' && (currentMin === null || z < currentMin)) {
+          currentMin = z;
         }
       }
       const newZIndex = generateKeyBetween(null, currentMin);
       this.updateShape(id, { zIndex: newZIndex } as unknown as Partial<Shape>);
-    });
+    }, 'local');
   }
 
-  /**
-   * Apply a raw Yjs update. Used by the sync layer to hydrate a doc from
-   * the server's update log.
-   */
   applyUpdate(update: Uint8Array): void {
     Y.applyUpdate(this.yDoc, update);
   }
 
-  /**
-   * Encode the current state as a single Yjs update. Used for snapshots.
-   */
   encodeState(): Uint8Array {
     return Y.encodeStateAsUpdate(this.yDoc);
   }
 
-  /**
-   * Destroy the doc — call on unmount to prevent memory leaks.
-   */
   destroy(): void {
     this.listeners.clear();
+    this.undoListeners.clear();
+    this.undoManager.destroy();
     this.yDoc.destroy();
   }
 }
