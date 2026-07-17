@@ -3,3 +3,4 @@ export * from './users.js';
 export * from './workspaces.js';
 export * from './boards.js';
 export * from './auth.js';
+export * from './board-updates.js';

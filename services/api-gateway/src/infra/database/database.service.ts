@@ -1,4 +1,4 @@
-import { parseEnv } from '@/config/env';
+import { parseEnv } from '../../config/env.js';
 import { createClient, type Database } from '@canvasflow/db';
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 

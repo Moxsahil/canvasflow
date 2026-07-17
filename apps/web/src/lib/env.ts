@@ -7,6 +7,7 @@ const envSchema = z.object({
   // Auth.js
   AUTH_SECRET: z.string().min(32, 'AUTH_SECRET must be at least 32 characters'),
   AUTH_URL: z.string().url().default('http://localhost:3000'),
+  NEXT_PUBLIC_EDITOR_URL: z.string().url().default('http://localhost:3002'),
 
   // OAuth providers
   GOOGLE_CLIENT_ID: z.string().min(1),
@@ -30,6 +31,7 @@ function parseEnv(): Env {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     AUTH_SECRET: process.env.AUTH_SECRET,
     AUTH_URL: process.env.AUTH_URL,
+    NEXT_PUBLIC_EDITOR_URL: process.env.NEXT_PUBLIC_EDITOR_URL,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
     GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
