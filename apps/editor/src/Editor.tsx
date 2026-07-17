@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useActorRef, useSelector } from '@xstate/react';
 import { createText, hitTest, SpatialIndex, type Shape } from '@canvasflow/canvas-engine';
 import { CanvasStack } from './canvas/CanvasStack';
@@ -10,17 +10,37 @@ import { TextEditor } from './text-editor/TextEditor';
 import { toolMachine, resizeShape } from './machine/tool-machine';
 import { useKeyboardShortcuts } from './tools/useKeyboardShortcuts';
 import { hitTestHandles } from './selection/handles';
+import { useBoardDocument, useYjsShapes } from './document/useYjsDocument';
+import { useBoardSync } from './sync/useBoardSync';
+import { useAuthToken } from './auth/useAuthToken';
+import { env } from '@/lib/env';
 import type { Tool } from './tools/tool';
 import type { Point } from './machine/tool-machine.types';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-export function Editor() {
+interface EditorProps {
+  boardId: string;
+}
+
+export function Editor({ boardId }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { width, height } = useCanvasResize(containerRef);
   const dpr = useDevicePixelRatio();
 
-  const [shapes, setShapes] = useState<Shape[]>([]);
+  // Grabs the token from the URL hash on first mount (then clears it from
+  // the URL), and silently re-mints it from the web app before it expires.
+  const { authToken, refresh: refreshAuthToken } = useAuthToken();
+
+  const doc = useBoardDocument(boardId);
+  const shapes = useYjsShapes(doc);
+
+  const { status: syncStatus, error: syncError } = useBoardSync(doc, {
+    boardId,
+    apiUrl: env.VITE_API_URL,
+    authToken,
+    onAuthError: refreshAuthToken,
+  });
 
   const actorRef = useActorRef(toolMachine);
 
@@ -32,67 +52,49 @@ export function Editor() {
   const selectedIds = useSelector(actorRef, (s) => s.context.selectedIds);
   const marquee = useSelector(actorRef, (s) => s.context.marquee);
 
-  // --- Spatial index rebuilt when shapes change ---
   const spatialIndex = useMemo(() => {
     const index = new SpatialIndex();
     index.rebuild(shapes);
     return index;
   }, [shapes]);
 
-  // --- Refs for drag state (avoid re-render on every mouse move) ---
   const dragOriginsRef = useRef<Record<string, Shape>>({});
   const resizeOriginRef = useRef<Shape | null>(null);
   const pointerDownWorldRef = useRef<Point | null>(null);
 
-  // --- Emit subscriptions ---
   useEffect(() => {
     const sub1 = actorRef.on('shape.committed', (emitted) => {
-      setShapes((prev) => [...prev, emitted.shape]);
+      doc.addShape(emitted.shape);
     });
     const sub2 = actorRef.on('shapes.deleted', (emitted) => {
-      const idSet = new Set(emitted.ids);
-      setShapes((prev) => prev.filter((s) => !idSet.has(s.id)));
+      doc.deleteShapes(emitted.ids);
     });
     return () => {
       sub1.unsubscribe();
       sub2.unsubscribe();
     };
-  }, [actorRef]);
+  }, [actorRef, doc]);
 
-  // --- Marquee -> selection sync (when marquee state clears, apply selection) ---
   const marqueeRef = useRef(marquee);
   useEffect(() => {
-    // When marquee just cleared and we had one before, compute selection
     if (marqueeRef.current && !marquee) {
       const finalMarquee = marqueeRef.current;
-      // Compute shapes that intersect the marquee
-      // const intersects: string[] = [];
-      // for (const s of shapes) {
-      //   const b = spatialIndex; // eslint-disable-line @typescript-eslint/no-unused-vars
-      //   // We'll do a simple bounds intersect
-      //   // (using shape geometry inline to avoid another module hop)
-      // }
-      // Simpler: use the SpatialIndex API
       const ids = spatialIndex.searchRect(finalMarquee);
       if (ids.length > 0) {
         actorRef.send({ type: 'SELECT_ALL', shapeIds: ids });
       }
     }
     marqueeRef.current = marquee;
-  }, [marquee, shapes, spatialIndex, actorRef]);
+  }, [marquee, spatialIndex, actorRef]);
 
-  // --- Pointer handlers ---
   const handlePointerDown = useCallback(
     (point: Point, _screenPoint: Point, button: number, shiftKey: boolean) => {
       pointerDownWorldRef.current = point;
 
-      // Hit-test: shape and handle
       let hitShapeId: string | null = null;
       let hitHandle: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | null = null;
 
-      // Only run hit-tests if the select tool is active
       if (activeTool === 'select' && !isSpacePressed && button !== 1) {
-        // Handle hit-test first (only when exactly one shape selected)
         if (selectedIds.length === 1) {
           const selectedShape = shapes.find((s) => s.id === selectedIds[0]);
           if (selectedShape) {
@@ -102,12 +104,10 @@ export function Editor() {
             }
           }
         }
-        // Shape hit-test if no handle hit
         if (hitHandle === null) {
           const hit = hitTest(shapes, spatialIndex, point.x, point.y);
           hitShapeId = hit?.id ?? null;
 
-          // Capture drag origins if we're going to drag
           if (hit) {
             const idsToMove =
               shiftKey || selectedIds.includes(hit.id)
@@ -136,25 +136,19 @@ export function Editor() {
 
   const handlePointerMove = useCallback(
     (point: Point, _screenPoint: Point, screenDelta: Point) => {
-      // Send to machine first (drives state)
       actorRef.send({ type: 'POINTER_MOVE', point, screenDelta });
 
-      // If we're dragging a selection, update shapes directly
       const snap = actorRef.getSnapshot();
+
       if (snap.matches('draggingSelection') && pointerDownWorldRef.current) {
         const dx = point.x - pointerDownWorldRef.current.x;
         const dy = point.y - pointerDownWorldRef.current.y;
         const origins = dragOriginsRef.current;
-        setShapes((prev) =>
-          prev.map((s) => {
-            const origin = origins[s.id];
-            if (!origin) return s;
-            return { ...s, x: origin.x + dx, y: origin.y + dy };
-          }),
-        );
+        for (const [id, origin] of Object.entries(origins)) {
+          doc.updateShape(id, { x: origin.x + dx, y: origin.y + dy });
+        }
       }
 
-      // If we're resizing, update the one shape
       if (
         snap.matches('resizingSelection') &&
         pointerDownWorldRef.current &&
@@ -166,11 +160,11 @@ export function Editor() {
         const handle = snap.context.resizeHandle;
         if (handle !== null) {
           const resized = resizeShape(originalShape, handle, dx, dy);
-          setShapes((prev) => prev.map((s) => (s.id === originalShape.id ? resized : s)));
+          doc.updateShape(originalShape.id, resized);
         }
       }
     },
-    [actorRef],
+    [actorRef, doc],
   );
 
   const handlePointerUp = useCallback(
@@ -184,50 +178,34 @@ export function Editor() {
   );
 
   const handleWheelZoom = useCallback(
-    (delta: number, anchor: Point) => {
-      actorRef.send({ type: 'ZOOM_BY', delta, anchor });
-    },
+    (delta: number, anchor: Point) => actorRef.send({ type: 'ZOOM_BY', delta, anchor }),
     [actorRef],
   );
-
   const handleWheelPan = useCallback(
-    (dx: number, dy: number) => {
-      actorRef.send({ type: 'PAN_BY', dx, dy });
-    },
+    (dx: number, dy: number) => actorRef.send({ type: 'PAN_BY', dx, dy }),
     [actorRef],
   );
-
   const handleToolChange = useCallback(
-    (tool: Tool) => {
-      actorRef.send({ type: 'SELECT_TOOL', tool });
-    },
+    (tool: Tool) => actorRef.send({ type: 'SELECT_TOOL', tool }),
     [actorRef],
   );
-
-  const handleEscape = useCallback(() => {
-    actorRef.send({ type: 'ESCAPE' });
-  }, [actorRef]);
-
+  const handleEscape = useCallback(() => actorRef.send({ type: 'ESCAPE' }), [actorRef]);
   const handleSpaceDown = useCallback(() => actorRef.send({ type: 'SPACE_DOWN' }), [actorRef]);
   const handleSpaceUp = useCallback(() => actorRef.send({ type: 'SPACE_UP' }), [actorRef]);
-
-  const handleZoomIn = useCallback(() => {
-    actorRef.send({ type: 'ZOOM_BY', delta: 1.2, anchor: { x: width / 2, y: height / 2 } });
-  }, [actorRef, width, height]);
-
-  const handleZoomOut = useCallback(() => {
-    actorRef.send({ type: 'ZOOM_BY', delta: 0.8, anchor: { x: width / 2, y: height / 2 } });
-  }, [actorRef, width, height]);
-
+  const handleZoomIn = useCallback(
+    () => actorRef.send({ type: 'ZOOM_BY', delta: 1.2, anchor: { x: width / 2, y: height / 2 } }),
+    [actorRef, width, height],
+  );
+  const handleZoomOut = useCallback(
+    () => actorRef.send({ type: 'ZOOM_BY', delta: 0.8, anchor: { x: width / 2, y: height / 2 } }),
+    [actorRef, width, height],
+  );
   const handleResetView = useCallback(() => actorRef.send({ type: 'RESET_VIEW' }), [actorRef]);
-
-  const handleDelete = useCallback(() => {
-    actorRef.send({ type: 'DELETE_SELECTED' });
-  }, [actorRef]);
-
-  const handleSelectAll = useCallback(() => {
-    actorRef.send({ type: 'SELECT_ALL', shapeIds: shapes.map((s) => s.id) });
-  }, [actorRef, shapes]);
+  const handleDelete = useCallback(() => actorRef.send({ type: 'DELETE_SELECTED' }), [actorRef]);
+  const handleSelectAll = useCallback(
+    () => actorRef.send({ type: 'SELECT_ALL', shapeIds: shapes.map((s) => s.id) }),
+    [actorRef, shapes],
+  );
 
   useKeyboardShortcuts({
     onSelectTool: handleToolChange,
@@ -246,14 +224,35 @@ export function Editor() {
       const pos = actorRef.getSnapshot().context.textEditingAt;
       if (pos && text.trim()) {
         const textShape = createText({ id: genId(), x: pos.x, y: pos.y, text });
-        setShapes((prev) => [...prev, textShape]);
+        doc.addShape(textShape);
       }
       actorRef.send({ type: 'COMMIT_TEXT', text });
     },
-    [actorRef],
+    [actorRef, doc],
   );
 
   const handleCancelText = useCallback(() => actorRef.send({ type: 'CANCEL_TEXT' }), [actorRef]);
+
+  // Sync status label for the header
+  const syncLabel = (() => {
+    if (syncError) return 'Sync error';
+    switch (syncStatus) {
+      case 'idle':
+        return authToken ? 'Waiting' : 'Not authenticated';
+      case 'loading':
+        return 'Loading...';
+      case 'loaded':
+        return 'Loaded';
+      case 'saving':
+        return 'Saving...';
+      case 'saved':
+        return 'Saved';
+      case 'error':
+        return 'Sync error';
+      default:
+        return '';
+    }
+  })();
 
   return (
     <div ref={containerRef} style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
@@ -294,7 +293,7 @@ export function Editor() {
       >
         CanvasFlow Editor
         <span style={{ color: '#a1a1aa', fontWeight: 400, fontSize: 12 }}>
-          PR #16 · select, move, resize
+          {boardId} · {syncLabel}
         </span>
       </header>
 

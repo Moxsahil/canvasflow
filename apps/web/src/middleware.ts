@@ -14,6 +14,13 @@ export default auth((req) => {
 
   if (isPublic) return NextResponse.next();
 
+  // The editor calls this cross-origin (with credentials) to silently
+  // refresh its auth token. CORS preflight (OPTIONS) never carries
+  // cookies, so it must never hit the redirect-to-login below — and the
+  // route handles its own 401 JSON response (with CORS headers) for the
+  // unauthenticated case, which fetch() can act on unlike an HTML redirect.
+  if (req.nextUrl.pathname === '/api/editor-token') return NextResponse.next();
+
   if (!req.auth) {
     const loginUrl = new URL('/login', req.nextUrl);
     // Validate the path before using it as a redirect target.

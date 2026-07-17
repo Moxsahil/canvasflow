@@ -11,7 +11,10 @@ export function createClient(connectionString: string): Database {
     connectionString,
     max: 20,
     idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 5_000,
+    // Neon's serverless compute autosuspends when idle; waking it back up
+    // (cold start) can take several seconds, so this needs more headroom
+    // than a typical always-on Postgres connection timeout.
+    connectionTimeoutMillis: 15_000,
   });
 
   return drizzle(pool, { schema, logger: process.env.NODE_ENV === 'development' });

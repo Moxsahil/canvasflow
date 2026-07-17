@@ -23,8 +23,9 @@ async function bootstrap(): Promise<void> {
   app.useGlobalInterceptors(new LoggingInterceptor());
 
   // CORS — locked down by default, opens up in higher environments
+  const DEV_ORIGINS = ['http://localhost:3000', 'http://localhost:3002'];
   app.enableCors({
-    origin: env.NODE_ENV === 'production' ? false : 'http://localhost:3000',
+    origin: env.NODE_ENV === 'production' ? false : DEV_ORIGINS,
     credentials: true,
   });
 
