@@ -11,22 +11,36 @@ import { toolMachine, resizeShape } from './machine/tool-machine';
 import { useKeyboardShortcuts } from './tools/useKeyboardShortcuts';
 import { hitTestHandles } from './selection/handles';
 import { useBoardDocument, useYjsShapes } from './document/useYjsDocument';
+import { useBoardSync } from './sync/useBoardSync';
+import { useAuthToken } from './auth/useAuthToken';
+import { env } from '@/lib/env';
 import type { Tool } from './tools/tool';
 import type { Point } from './machine/tool-machine.types';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-// Phase B still uses a single hardcoded board. Phase C adds routing.
-const DEV_BOARD_ID = 'dev-local-board';
+interface EditorProps {
+  boardId: string;
+}
 
-export function Editor() {
+export function Editor({ boardId }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { width, height } = useCanvasResize(containerRef);
   const dpr = useDevicePixelRatio();
 
-  // Yjs doc — created once for this board id
-  const doc = useBoardDocument(DEV_BOARD_ID);
+  // Grabs the token from the URL hash on first mount (then clears it from
+  // the URL), and silently re-mints it from the web app before it expires.
+  const { authToken, refresh: refreshAuthToken } = useAuthToken();
+
+  const doc = useBoardDocument(boardId);
   const shapes = useYjsShapes(doc);
+
+  const { status: syncStatus, error: syncError } = useBoardSync(doc, {
+    boardId,
+    apiUrl: env.VITE_API_URL,
+    authToken,
+    onAuthError: refreshAuthToken,
+  });
 
   const actorRef = useActorRef(toolMachine);
 
@@ -48,7 +62,6 @@ export function Editor() {
   const resizeOriginRef = useRef<Shape | null>(null);
   const pointerDownWorldRef = useRef<Point | null>(null);
 
-  // Emit subscription — shape.committed adds to doc, shapes.deleted removes
   useEffect(() => {
     const sub1 = actorRef.on('shape.committed', (emitted) => {
       doc.addShape(emitted.shape);
@@ -62,7 +75,6 @@ export function Editor() {
     };
   }, [actorRef, doc]);
 
-  // Marquee -> selection sync (unchanged from PR #16)
   const marqueeRef = useRef(marquee);
   useEffect(() => {
     if (marqueeRef.current && !marquee) {
@@ -128,7 +140,6 @@ export function Editor() {
 
       const snap = actorRef.getSnapshot();
 
-      // Dragging selection — update Yjs doc directly
       if (snap.matches('draggingSelection') && pointerDownWorldRef.current) {
         const dx = point.x - pointerDownWorldRef.current.x;
         const dy = point.y - pointerDownWorldRef.current.y;
@@ -138,7 +149,6 @@ export function Editor() {
         }
       }
 
-      // Resizing — same
       if (
         snap.matches('resizingSelection') &&
         pointerDownWorldRef.current &&
@@ -223,6 +233,27 @@ export function Editor() {
 
   const handleCancelText = useCallback(() => actorRef.send({ type: 'CANCEL_TEXT' }), [actorRef]);
 
+  // Sync status label for the header
+  const syncLabel = (() => {
+    if (syncError) return 'Sync error';
+    switch (syncStatus) {
+      case 'idle':
+        return authToken ? 'Waiting' : 'Not authenticated';
+      case 'loading':
+        return 'Loading...';
+      case 'loaded':
+        return 'Loaded';
+      case 'saving':
+        return 'Saving...';
+      case 'saved':
+        return 'Saved';
+      case 'error':
+        return 'Sync error';
+      default:
+        return '';
+    }
+  })();
+
   return (
     <div ref={containerRef} style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
       <CanvasStack
@@ -262,7 +293,7 @@ export function Editor() {
       >
         CanvasFlow Editor
         <span style={{ color: '#a1a1aa', fontWeight: 400, fontSize: 12 }}>
-          PR #17 · Yjs-backed document (no sync yet)
+          {boardId} · {syncLabel}
         </span>
       </header>
 
