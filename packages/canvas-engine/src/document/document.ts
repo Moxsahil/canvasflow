@@ -31,10 +31,12 @@ export class BoardDocument {
       trackedOrigins: new Set([null, undefined, 'local']),
     });
 
+    // Notify listeners on any deep change to the shapes array
     this.yShapes.observeDeep(() => {
       for (const listener of this.listeners) listener();
     });
 
+    // Notify undo listeners when undo/redo state changes
     const notifyUndo = () => {
       for (const listener of this.undoListeners) listener();
     };
@@ -69,6 +71,11 @@ export class BoardDocument {
     this.undoManager.redo();
   }
 
+  /**
+   * Manually mark the end of an undo group.
+   * Call this after finishing a drag/resize gesture so the NEXT gesture
+   * starts a new undo step, even if it happens within captureTimeout.
+   */
   breakUndoGroup(): void {
     this.undoManager.stopCapturing();
   }
