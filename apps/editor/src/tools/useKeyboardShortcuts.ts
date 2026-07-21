@@ -14,21 +14,33 @@ interface UseKeyboardShortcutsOptions {
   onSelectAll: () => void;
   onUndo: () => void;
   onRedo: () => void;
+  onNudge: (dx: number, dy: number) => void;
+  onBringForward: () => void;
+  onSendBackward: () => void;
+  onBringToFront: () => void;
+  onSendToBack: () => void;
 }
 
-export function useKeyboardShortcuts({
-  onSelectTool,
-  onEscape,
-  onSpaceDown,
-  onSpaceUp,
-  onZoomIn,
-  onZoomOut,
-  onResetView,
-  onDelete,
-  onSelectAll,
-  onUndo,
-  onRedo,
-}: UseKeyboardShortcutsOptions): void {
+export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
+  const {
+    onSelectTool,
+    onEscape,
+    onSpaceDown,
+    onSpaceUp,
+    onZoomIn,
+    onZoomOut,
+    onResetView,
+    onDelete,
+    onSelectAll,
+    onUndo,
+    onRedo,
+    onNudge,
+    onBringForward,
+    onSendBackward,
+    onBringToFront,
+    onSendToBack,
+  } = opts;
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -42,27 +54,72 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      // Cmd/Ctrl-modified shortcuts
       const mod = event.metaKey || event.ctrlKey;
+
+      // Arrow-nudge (only if not typing)
+      if (!shouldIgnoreShortcut(event)) {
+        const step = event.shiftKey ? 10 : 1;
+        if (event.key === 'ArrowLeft') {
+          event.preventDefault();
+          onNudge(-step, 0);
+          return;
+        }
+        if (event.key === 'ArrowRight') {
+          event.preventDefault();
+          onNudge(step, 0);
+          return;
+        }
+        if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          onNudge(0, -step);
+          return;
+        }
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          onNudge(0, step);
+          return;
+        }
+      }
+
+      // Z-order shortcuts (only if not typing)
+      if (!shouldIgnoreShortcut(event)) {
+        if (mod && event.key === ']') {
+          event.preventDefault();
+          onBringToFront();
+          return;
+        }
+        if (mod && event.key === '[') {
+          event.preventDefault();
+          onSendToBack();
+          return;
+        }
+        if (!mod && event.key === ']') {
+          event.preventDefault();
+          onBringForward();
+          return;
+        }
+        if (!mod && event.key === '[') {
+          event.preventDefault();
+          onSendBackward();
+          return;
+        }
+      }
 
       if (mod && event.key === '0') {
         event.preventDefault();
         onResetView();
         return;
       }
-
       if (mod && (event.key === '=' || event.key === '+')) {
         event.preventDefault();
         onZoomIn();
         return;
       }
-
       if (mod && event.key === '-') {
         event.preventDefault();
         onZoomOut();
         return;
       }
-
       if (mod && event.key === 'a') {
         event.preventDefault();
         onSelectAll();
@@ -75,8 +132,6 @@ export function useKeyboardShortcuts({
         onUndo();
         return;
       }
-
-      // Redo: Cmd/Ctrl+Shift+Z or Ctrl+Y
       if (mod && ((event.key === 'z' && event.shiftKey) || event.key === 'y')) {
         event.preventDefault();
         onRedo();
@@ -122,5 +177,10 @@ export function useKeyboardShortcuts({
     onSelectAll,
     onUndo,
     onRedo,
+    onNudge,
+    onBringForward,
+    onSendBackward,
+    onBringToFront,
+    onSendToBack,
   ]);
 }
