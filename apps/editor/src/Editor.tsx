@@ -224,6 +224,34 @@ export function Editor({ boardId }: EditorProps) {
   const handleUndo = useCallback(() => doc.undo(), [doc]);
   const handleRedo = useCallback(() => doc.redo(), [doc]);
 
+  const handleNudge = useCallback(
+    (dx: number, dy: number) => {
+      if (selectedIds.length === 0) return;
+      doc.nudgeShapes(selectedIds, dx, dy);
+    },
+    [doc, selectedIds],
+  );
+
+  const handleBringForward = useCallback(() => {
+    if (selectedIds.length !== 1) return;
+    doc.bringForward(selectedIds[0]!);
+  }, [doc, selectedIds]);
+
+  const handleSendBackward = useCallback(() => {
+    if (selectedIds.length !== 1) return;
+    doc.sendBackward(selectedIds[0]!);
+  }, [doc, selectedIds]);
+
+  const handleBringToFront = useCallback(() => {
+    if (selectedIds.length !== 1) return;
+    doc.bringToFront(selectedIds[0]!);
+  }, [doc, selectedIds]);
+
+  const handleSendToBack = useCallback(() => {
+    if (selectedIds.length !== 1) return;
+    doc.sendToBack(selectedIds[0]!);
+  }, [doc, selectedIds]);
+
   useKeyboardShortcuts({
     onSelectTool: handleToolChange,
     onEscape: handleEscape,
@@ -236,6 +264,11 @@ export function Editor({ boardId }: EditorProps) {
     onSelectAll: handleSelectAll,
     onUndo: handleUndo,
     onRedo: handleRedo,
+    onNudge: handleNudge,
+    onBringForward: handleBringForward,
+    onSendBackward: handleSendBackward,
+    onBringToFront: handleBringToFront,
+    onSendToBack: handleSendToBack,
   });
 
   const handleCommitText = useCallback(
