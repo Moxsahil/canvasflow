@@ -33,16 +33,37 @@ export function createText(input: {
   };
 }
 
+let measureCtx: OffscreenCanvasRenderingContext2D | null = null;
+
+function getMeasureContext(): OffscreenCanvasRenderingContext2D {
+  if (!measureCtx) {
+    const canvas = new OffscreenCanvas(1, 1);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Could not acquire a 2D context for text measurement');
+    }
+    measureCtx = ctx;
+  }
+  return measureCtx;
+}
+
 /**
- * Bounds for text are approximate without measuring the actual font.
- * Returns a rough estimate using fontSize × text length.
- * Real measurement (using ctx.measureText) happens at render time.
+ * Measures actual text bounds via ctx.measureText, using the same font
+ * string and line-height formula as the renderer (utils/rough.ts drawText),
+ * so selection outlines / resize handles hug the rendered glyphs instead of
+ * a per-character guess.
  */
 export function textBoundsEstimate(s: TextShape): Rect {
-  // Rough estimate: width = chars × (fontSize × 0.6), height = fontSize × 1.2
+  const ctx = getMeasureContext();
+  ctx.font = `${s.fontSize}px ${s.fontFamily}`;
+
   const lines = s.text.split('\n');
-  const longestLine = Math.max(...lines.map((l) => l.length));
-  const width = longestLine * s.fontSize * 0.6;
+  let width = 0;
+  for (const line of lines) {
+    const lineWidth = ctx.measureText(line).width;
+    if (lineWidth > width) width = lineWidth;
+  }
   const height = lines.length * s.fontSize * 1.2;
+
   return { x: s.x, y: s.y, width, height };
 }

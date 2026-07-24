@@ -22,6 +22,7 @@ interface CanvasStackProps {
   onPointerDown: (point: Point, screenPoint: Point, button: number, shiftKey: boolean) => void;
   onPointerMove: (point: Point, screenPoint: Point, screenDelta: Point) => void;
   onPointerUp: (point: Point, screenPoint: Point) => void;
+  onDoubleClick: (point: Point, screenPoint: Point) => void;
   onWheelZoom: (delta: number, anchor: Point) => void;
   onWheelPan: (dx: number, dy: number) => void;
 }
@@ -37,6 +38,7 @@ export function CanvasStack({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  onDoubleClick,
   onWheelZoom,
   onWheelPan,
 }: CanvasStackProps) {
@@ -92,6 +94,7 @@ export function CanvasStack({
     onPointerDown: handlePointerDown,
     onPointerMove,
     onPointerUp,
+    onDoubleClick,
     screenToWorld: screenToWorldFn,
     eventToCanvasScreen: eventToCanvasScreenFn,
   });

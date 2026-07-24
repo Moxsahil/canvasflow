@@ -5,6 +5,7 @@ interface UsePointerEventsOptions {
   onPointerDown: (point: Point, screenPoint: Point, button: number, shiftKey: boolean) => void;
   onPointerMove: (point: Point, screenPoint: Point, screenDelta: Point) => void;
   onPointerUp: (point: Point, screenPoint: Point) => void;
+  onDoubleClick: (point: Point, screenPoint: Point) => void;
   screenToWorld: (screenX: number, screenY: number) => Point;
   eventToCanvasScreen: (event: PointerEvent) => Point;
 }
@@ -15,6 +16,7 @@ export function usePointerEvents(
     onPointerDown,
     onPointerMove,
     onPointerUp,
+    onDoubleClick,
     screenToWorld,
     eventToCanvasScreen,
   }: UsePointerEventsOptions,
@@ -29,6 +31,7 @@ export function usePointerEvents(
 
     const handlePointerDown = (e: PointerEvent) => {
       if (e.button !== 0 && e.button !== 1) return;
+      e.preventDefault();
       isDownRef.current = true;
       capturedPointerIdRef.current = e.pointerId;
       canvas.setPointerCapture(e.pointerId);
@@ -61,16 +64,35 @@ export function usePointerEvents(
       onPointerUp(world, screen);
     };
 
+    const handleDoubleClick = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      // eventToCanvasScreen only reads clientX/clientY, which MouseEvent and
+      // PointerEvent share — safe to reuse across both event types.
+      const screen = eventToCanvasScreen(e as unknown as PointerEvent);
+      const world = screenToWorld(e.clientX, e.clientY);
+      onDoubleClick(world, screen);
+    };
+
     canvas.addEventListener('pointerdown', handlePointerDown);
     canvas.addEventListener('pointermove', handlePointerMove);
     canvas.addEventListener('pointerup', handlePointerUp);
     canvas.addEventListener('pointercancel', handlePointerUp);
+    canvas.addEventListener('dblclick', handleDoubleClick);
 
     return () => {
       canvas.removeEventListener('pointerdown', handlePointerDown);
       canvas.removeEventListener('pointermove', handlePointerMove);
       canvas.removeEventListener('pointerup', handlePointerUp);
       canvas.removeEventListener('pointercancel', handlePointerUp);
+      canvas.removeEventListener('dblclick', handleDoubleClick);
     };
-  }, [canvasRef, onPointerDown, onPointerMove, onPointerUp, screenToWorld, eventToCanvasScreen]);
+  }, [
+    canvasRef,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onDoubleClick,
+    screenToWorld,
+    eventToCanvasScreen,
+  ]);
 }

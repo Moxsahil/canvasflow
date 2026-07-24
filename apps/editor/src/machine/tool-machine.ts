@@ -6,6 +6,7 @@ import {
   createFreehand,
   createLine,
   createRectangle,
+  shapeBounds,
   type Shape,
 } from '@canvasflow/canvas-engine';
 import {
@@ -21,6 +22,26 @@ const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(3
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
+const MIN_TEXT_FONT_SIZE = 8;
+const MAX_TEXT_FONT_SIZE = 200;
+
+// Each handle's position as a fraction of the bounding box (0=left/top,
+// 1=right/bottom, 0.5=center). Used to resize text: the ANCHOR for a given
+// handle is the point at the opposite fraction (1 - fx, 1 - fy), so e.g. the
+// top-left corner (0,0) anchors at the bottom-right (1,1), and top-center
+// (0.5,0) anchors at bottom-center (0.5,1) — keeping the horizontal center
+// fixed and only the dragged edge moving.
+const TEXT_HANDLE_FRACTIONS: Record<HandleIndex, readonly [number, number]> = {
+  0: [0, 0], // TL
+  1: [0.5, 0], // TC
+  2: [1, 0], // TR
+  3: [1, 0.5], // MR
+  4: [1, 1], // BR
+  5: [0.5, 1], // BC
+  6: [0, 1], // BL
+  7: [0, 0.5], // ML
+};
+
 /**
  * Resize a shape based on which handle is being dragged and the pointer position.
  * Handle indices: 0=TL 1=TC 2=TR 3=MR 4=BR 5=BC 6=BL 7=ML
@@ -31,7 +52,36 @@ function resizeShape(original: Shape, handle: HandleIndex, dx: number, dy: numbe
     return original;
   }
   if (original.kind === 'text') {
-    return original;
+    // Text has no independent width/height — its rendered size is driven
+    // entirely by fontSize, so every handle (corner or edge) scales fontSize
+    // uniformly. The point opposite the dragged handle stays anchored in
+    // place; see TEXT_HANDLE_FRACTIONS for how that opposite point is derived.
+    const bounds = shapeBounds(original);
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      return original;
+    }
+
+    const [fx, fy] = TEXT_HANDLE_FRACTIONS[handle];
+    const anchorX = bounds.x + (1 - fx) * bounds.width;
+    const anchorY = bounds.y + (1 - fy) * bounds.height;
+    const draggedX = bounds.x + fx * bounds.width + dx;
+    const draggedY = bounds.y + fy * bounds.height + dy;
+
+    const scale = Math.max(
+      Math.abs(draggedX - anchorX) / bounds.width,
+      Math.abs(draggedY - anchorY) / bounds.height,
+    );
+    const newFontSize = clamp(original.fontSize * scale, MIN_TEXT_FONT_SIZE, MAX_TEXT_FONT_SIZE);
+    const actualScale = newFontSize / original.fontSize;
+    const scaledWidth = bounds.width * actualScale;
+    const scaledHeight = bounds.height * actualScale;
+
+    return {
+      ...original,
+      fontSize: newFontSize,
+      x: anchorX - (1 - fx) * scaledWidth,
+      y: anchorY - (1 - fy) * scaledHeight,
+    };
   }
 
   // For rect/ellipse/diamond
@@ -92,6 +142,7 @@ export const toolMachine = setup({
         newElement: null,
         freehandPoints: [],
         textEditingAt: null,
+        editingTextShapeId: null,
       };
     }),
     recordPointerDown: assign(({ event }) => {
@@ -200,7 +251,14 @@ export const toolMachine = setup({
     }),
     startTextEditing: assign(({ event }) => {
       if (event.type !== 'POINTER_DOWN') return {};
-      return { textEditingAt: event.point };
+      return { textEditingAt: event.point, editingTextShapeId: null };
+    }),
+    startEditingExistingText: assign(({ event }) => {
+      if (event.type !== 'EDIT_TEXT_SHAPE') return {};
+      return {
+        textEditingAt: event.position,
+        editingTextShapeId: event.shapeId,
+      };
     }),
     emitCommittedShape: emit(({ context }) => {
       if (!context.newElement) {
@@ -213,7 +271,7 @@ export const toolMachine = setup({
       newElement: null,
       freehandPoints: [],
     }),
-    clearTextEditing: assign({ textEditingAt: null }),
+    clearTextEditing: assign({ textEditingAt: null, editingTextShapeId: null }),
     trackSpaceDown: assign({ isSpacePressed: true }),
     trackSpaceUp: assign({ isSpacePressed: false }),
     applyZoom: assign(({ context, event }) => {
@@ -324,6 +382,7 @@ export const toolMachine = setup({
     newElement: null,
     freehandPoints: [],
     textEditingAt: null,
+    editingTextShapeId: null,
     camera: IDENTITY_CAMERA,
     isSpacePressed: false,
     selectedIds: [],
@@ -335,10 +394,17 @@ export const toolMachine = setup({
   on: {
     SELECT_TOOL: { target: '.idle', actions: 'selectTool' },
     ESCAPE: { target: '.idle', actions: ['clearDraw', 'clearTextEditing', 'deselectAll'] },
+    EDIT_TEXT_SHAPE: { target: '.editingText', actions: 'startEditingExistingText' },
     SPACE_DOWN: { actions: 'trackSpaceDown' },
     SPACE_UP: { actions: 'trackSpaceUp' },
     ZOOM_BY: { actions: 'applyZoom' },
     RESET_VIEW: { actions: 'resetView' },
+    SET_CAMERA: {
+      actions: assign(({ event }) => {
+        if (event.type !== 'SET_CAMERA') return {};
+        return { camera: event.camera };
+      }),
+    },
     SELECT_ALL: { actions: 'setSelectAll' },
     DESELECT: { actions: 'deselectAll' },
     DELETE_SELECTED: {

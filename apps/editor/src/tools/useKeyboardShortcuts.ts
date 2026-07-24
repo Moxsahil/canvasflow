@@ -19,6 +19,10 @@ interface UseKeyboardShortcutsOptions {
   onSendBackward: () => void;
   onBringToFront: () => void;
   onSendToBack: () => void;
+  onDuplicate: () => void;
+  onZoomTo100: () => void;
+  onZoomToFit: () => void;
+  onZoomToSelection: () => void;
 }
 
 export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
@@ -39,6 +43,10 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onSendBackward,
     onBringToFront,
     onSendToBack,
+    onDuplicate,
+    onZoomTo100,
+    onZoomToFit,
+    onZoomToSelection,
   } = opts;
 
   useEffect(() => {
@@ -81,7 +89,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
         }
       }
 
-      // Z-order shortcuts (only if not typing)
+      // Z-order
       if (!shouldIgnoreShortcut(event)) {
         if (mod && event.key === ']') {
           event.preventDefault();
@@ -105,6 +113,30 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
         }
       }
 
+      // Duplicate: Cmd/Ctrl+D
+      if (mod && event.key === 'd') {
+        event.preventDefault();
+        onDuplicate();
+        return;
+      }
+
+      // Zoom presets: Cmd/Ctrl + 1 / 2 / 3
+      if (mod && event.key === '1') {
+        event.preventDefault();
+        onZoomTo100();
+        return;
+      }
+      if (mod && event.key === '2') {
+        event.preventDefault();
+        onZoomToFit();
+        return;
+      }
+      if (mod && event.key === '3') {
+        event.preventDefault();
+        onZoomToSelection();
+        return;
+      }
+
       if (mod && event.key === '0') {
         event.preventDefault();
         onResetView();
@@ -125,8 +157,6 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
         onSelectAll();
         return;
       }
-
-      // Undo: Cmd/Ctrl+Z (without shift)
       if (mod && event.key === 'z' && !event.shiftKey) {
         event.preventDefault();
         onUndo();
@@ -182,5 +212,9 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onSendBackward,
     onBringToFront,
     onSendToBack,
+    onDuplicate,
+    onZoomTo100,
+    onZoomToFit,
+    onZoomToSelection,
   ]);
 }

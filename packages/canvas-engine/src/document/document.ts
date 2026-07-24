@@ -238,6 +238,59 @@ export class BoardDocument {
     this.breakUndoGroup();
   }
 
+  /**
+   * Duplicate a set of shapes with a positional offset. Returns the new
+   * shape IDs so the caller can select them.
+   *
+   * All duplicates share one transact = one undo step.
+   */
+  duplicateShapes(
+    ids: readonly string[],
+    offset: { dx: number; dy: number },
+    genId: () => string,
+  ): string[] {
+    const idSet = new Set(ids);
+    const originals: Array<{ yMap: Y.Map<unknown>; newId: string }> = [];
+
+    // First pass: collect the originals + generate new IDs
+    for (let i = 0; i < this.yShapes.length; i++) {
+      const yMap = this.yShapes.get(i);
+      if (idSet.has(yMap.get('id') as string)) {
+        originals.push({ yMap, newId: genId() });
+      }
+    }
+
+    if (originals.length === 0) return [];
+
+    this.yDoc.transact(() => {
+      let currentMax = this.getMaxZIndex();
+      for (const { yMap, newId } of originals) {
+        // Clone every property from the original Y.Map into a new one
+        const clone = new Y.Map<unknown>();
+        yMap.forEach((value, key) => {
+          if (key === 'id') return; // will set new id below
+          if (key === 'x') {
+            clone.set('x', (value as number) + offset.dx);
+          } else if (key === 'y') {
+            clone.set('y', (value as number) + offset.dy);
+          } else {
+            clone.set(key, value);
+          }
+        });
+        clone.set('id', newId);
+
+        // Give the clone a fresh zIndex above current max
+        const newZIndex = generateKeyBetween(currentMax, null);
+        clone.set('zIndex', newZIndex);
+        currentMax = newZIndex;
+
+        this.yShapes.push([clone]);
+      }
+    }, 'local');
+
+    return originals.map((o) => o.newId);
+  }
+
   applyUpdate(update: Uint8Array): void {
     Y.applyUpdate(this.yDoc, update);
   }

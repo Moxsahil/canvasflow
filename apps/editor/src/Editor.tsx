@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useActorRef, useSelector } from '@xstate/react';
-import { createText, hitTest, SpatialIndex, type Shape } from '@canvasflow/canvas-engine';
+import {
+  computeBoundingRect,
+  createText,
+  DEFAULT_FONT_FAMILY,
+  DEFAULT_FONT_SIZE,
+  fitRectToViewport,
+  hitTest,
+  isText,
+  SpatialIndex,
+  type Shape,
+} from '@canvasflow/canvas-engine';
 import { CanvasStack } from './canvas/CanvasStack';
 import { DevOverlay } from './canvas/dev/DevOverlay';
 import { useCanvasResize } from './canvas/hooks/useCanvasResize';
@@ -54,10 +64,55 @@ export function Editor({ boardId }: EditorProps) {
   const activeTool = useSelector(actorRef, (s) => s.context.activeTool);
   const newElement = useSelector(actorRef, (s) => s.context.newElement);
   const textEditingAt = useSelector(actorRef, (s) => s.context.textEditingAt);
+  const editingTextShapeId = useSelector(actorRef, (s) => s.context.editingTextShapeId);
+  const editingTextShape = editingTextShapeId
+    ? shapes.find((s) => s.id === editingTextShapeId)
+    : undefined;
+  const editingTextInitialValue =
+    editingTextShape && isText(editingTextShape) ? editingTextShape.text : undefined;
+  // Bump a key whenever a new text-editing session starts (a new textEditingAt
+  // reference), so <TextEditor> remounts with blank state instead of reusing
+  // the previous instance — commit/re-entry into editingText happens within
+  // one batched update, so textEditingAt never passes through null in between.
+  const textEditingKeyRef = useRef(0);
+  const prevTextEditingAtRef = useRef(textEditingAt);
+  if (textEditingAt !== prevTextEditingAtRef.current) {
+    if (textEditingAt) textEditingKeyRef.current += 1;
+    prevTextEditingAtRef.current = textEditingAt;
+  }
   const camera = useSelector(actorRef, (s) => s.context.camera);
   const isSpacePressed = useSelector(actorRef, (s) => s.context.isSpacePressed);
   const selectedIds = useSelector(actorRef, (s) => s.context.selectedIds);
   const marquee = useSelector(actorRef, (s) => s.context.marquee);
+
+  // While editing, the shape being edited is rendered by the textarea
+  // itself — drop it from what's passed to the canvas so it doesn't also
+  // render underneath (the Yjs doc still has it; hit-testing/selection
+  // elsewhere in this component keep using the full `shapes` array).
+  const shapesForRender = useMemo(
+    () => (editingTextShapeId ? shapes.filter((s) => s.id !== editingTextShapeId) : shapes),
+    [shapes, editingTextShapeId],
+  );
+
+  // Textarea is a fixed-position screen-space overlay; the shape/click
+  // position is world-space, so convert through the camera. Font size is
+  // scaled the same way so the in-place text visually matches the canvas at
+  // the current zoom (the stored fontSize on the shape itself is untouched).
+  const textEditorScreenPosition = textEditingAt
+    ? {
+        x: (textEditingAt.x - camera.x) * camera.zoom,
+        y: (textEditingAt.y - camera.y) * camera.zoom,
+      }
+    : null;
+  const textEditorFontSize =
+    (editingTextShape && isText(editingTextShape) ? editingTextShape.fontSize : DEFAULT_FONT_SIZE) *
+    camera.zoom;
+  const textEditorFontFamily =
+    editingTextShape && isText(editingTextShape)
+      ? editingTextShape.fontFamily
+      : DEFAULT_FONT_FAMILY;
+  const textEditorColor =
+    editingTextShape && isText(editingTextShape) ? editingTextShape.strokeColor : '#1e293b';
 
   const spatialIndex = useMemo(() => {
     const index = new SpatialIndex();
@@ -96,6 +151,17 @@ export function Editor({ boardId }: EditorProps) {
 
   const handlePointerDown = useCallback(
     (point: Point, _screenPoint: Point, button: number, shiftKey: boolean) => {
+      // The canvas's pointerdown suppresses the browser's default focus
+      // handling (see usePointerEvents), which also suppresses the native
+      // blur a click-away would normally trigger on an open text editor.
+      // Flush it manually so a new click can re-enter editingText.
+      if (actorRef.getSnapshot().matches('editingText')) {
+        const active = document.activeElement;
+        if (active instanceof HTMLTextAreaElement) {
+          active.blur();
+        }
+      }
+
       pointerDownWorldRef.current = point;
 
       let hitShapeId: string | null = null;
@@ -192,6 +258,22 @@ export function Editor({ boardId }: EditorProps) {
     [actorRef, doc],
   );
 
+  // Double-clicking a text shape (with any tool active) reopens it for editing.
+  const handleDoubleClick = useCallback(
+    (point: Point) => {
+      const hit = hitTest(shapes, spatialIndex, point.x, point.y);
+      if (hit && isText(hit)) {
+        actorRef.send({
+          type: 'EDIT_TEXT_SHAPE',
+          shapeId: hit.id,
+          position: { x: hit.x, y: hit.y },
+          existingText: hit.text,
+        });
+      }
+    },
+    [actorRef, shapes, spatialIndex],
+  );
+
   const handleWheelZoom = useCallback(
     (delta: number, anchor: Point) => actorRef.send({ type: 'ZOOM_BY', delta, anchor }),
     [actorRef],
@@ -201,7 +283,15 @@ export function Editor({ boardId }: EditorProps) {
     [actorRef],
   );
   const handleToolChange = useCallback(
-    (tool: Tool) => actorRef.send({ type: 'SELECT_TOOL', tool }),
+    (tool: Tool) => {
+      if (actorRef.getSnapshot().matches('editingText')) {
+        const active = document.activeElement;
+        if (active instanceof HTMLTextAreaElement) {
+          active.blur();
+        }
+      }
+      actorRef.send({ type: 'SELECT_TOOL', tool });
+    },
     [actorRef],
   );
   const handleEscape = useCallback(() => actorRef.send({ type: 'ESCAPE' }), [actorRef]);
@@ -252,6 +342,45 @@ export function Editor({ boardId }: EditorProps) {
     doc.sendToBack(selectedIds[0]!);
   }, [doc, selectedIds]);
 
+  // Duplicate: clone selected shapes with 10px offset, auto-select the clones
+  const handleDuplicate = useCallback(() => {
+    if (selectedIds.length === 0) return;
+    const newIds = doc.duplicateShapes(selectedIds, { dx: 10, dy: 10 }, genId);
+    if (newIds.length > 0) {
+      actorRef.send({ type: 'SELECT_ALL', shapeIds: newIds });
+    }
+  }, [doc, selectedIds, actorRef]);
+
+  // Zoom to 100% (identity zoom, centered on current viewport)
+  const handleZoomTo100 = useCallback(() => {
+    actorRef.send({
+      type: 'SET_CAMERA',
+      camera: {
+        x: camera.x + (width / camera.zoom - width) / 2,
+        y: camera.y + (height / camera.zoom - height) / 2,
+        zoom: 1,
+      },
+    });
+  }, [actorRef, camera, width, height]);
+
+  // Zoom to fit all shapes
+  const handleZoomToFit = useCallback(() => {
+    const rect = computeBoundingRect(shapes);
+    if (!rect) return; // No shapes to fit
+    const newCamera = fitRectToViewport(rect, { width, height });
+    actorRef.send({ type: 'SET_CAMERA', camera: newCamera });
+  }, [actorRef, shapes, width, height]);
+
+  // Zoom to selection (falls back to zoom-to-fit if nothing selected)
+  const handleZoomToSelection = useCallback(() => {
+    const target =
+      selectedIds.length > 0 ? shapes.filter((s) => selectedIds.includes(s.id)) : shapes;
+    const rect = computeBoundingRect(target);
+    if (!rect) return;
+    const newCamera = fitRectToViewport(rect, { width, height });
+    actorRef.send({ type: 'SET_CAMERA', camera: newCamera });
+  }, [actorRef, shapes, selectedIds, width, height]);
+
   useKeyboardShortcuts({
     onSelectTool: handleToolChange,
     onEscape: handleEscape,
@@ -269,15 +398,31 @@ export function Editor({ boardId }: EditorProps) {
     onSendBackward: handleSendBackward,
     onBringToFront: handleBringToFront,
     onSendToBack: handleSendToBack,
+    onDuplicate: handleDuplicate,
+    onZoomTo100: handleZoomTo100,
+    onZoomToFit: handleZoomToFit,
+    onZoomToSelection: handleZoomToSelection,
   });
 
   const handleCommitText = useCallback(
     (text: string) => {
-      const pos = actorRef.getSnapshot().context.textEditingAt;
-      if (pos && text.trim()) {
+      const snap = actorRef.getSnapshot();
+      const pos = snap.context.textEditingAt;
+      const editingId = snap.context.editingTextShapeId;
+      const trimmed = text.trim();
+
+      if (editingId) {
+        if (trimmed) {
+          doc.updateShape(editingId, { text });
+        } else {
+          // Editing an existing shape down to empty text deletes it.
+          doc.deleteShapes([editingId]);
+        }
+      } else if (pos && trimmed) {
         const textShape = createText({ id: genId(), x: pos.x, y: pos.y, text });
         doc.addShape(textShape);
       }
+
       actorRef.send({ type: 'COMMIT_TEXT', text });
     },
     [actorRef, doc],
@@ -308,7 +453,7 @@ export function Editor({ boardId }: EditorProps) {
   return (
     <div ref={containerRef} style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
       <CanvasStack
-        shapes={shapes}
+        shapes={shapesForRender}
         newElement={newElement}
         selectedIds={selectedIds}
         marquee={marquee}
@@ -318,6 +463,7 @@ export function Editor({ boardId }: EditorProps) {
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onDoubleClick={handleDoubleClick}
         onWheelZoom={handleWheelZoom}
         onWheelPan={handleWheelPan}
       />
@@ -357,9 +503,14 @@ export function Editor({ boardId }: EditorProps) {
         onRedo={handleRedo}
       />
 
-      {textEditingAt && (
+      {textEditorScreenPosition && (
         <TextEditor
-          position={textEditingAt}
+          key={textEditingKeyRef.current}
+          position={textEditorScreenPosition}
+          fontSize={textEditorFontSize}
+          fontFamily={textEditorFontFamily}
+          color={textEditorColor}
+          initialText={editingTextInitialValue}
           onCommit={handleCommitText}
           onCancel={handleCancelText}
         />
