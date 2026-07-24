@@ -31,6 +31,8 @@ export interface ToolMachineContext {
   freehandPoints: Array<readonly [number, number]>;
   /** Position where text tool was clicked (null when not editing text). */
   textEditingAt: Point | null;
+  /** Id of the existing text shape being edited, or null when creating new text. */
+  editingTextShapeId: string | null;
   /** The camera transform for the viewport. */
   camera: Camera;
   /** True while user is holding Space to pan. */
@@ -61,11 +63,13 @@ export type ToolMachineEvent =
   | { type: 'ESCAPE' }
   | { type: 'COMMIT_TEXT'; text: string }
   | { type: 'CANCEL_TEXT' }
+  | { type: 'EDIT_TEXT_SHAPE'; shapeId: string; position: Point; existingText: string }
   | { type: 'SPACE_DOWN' }
   | { type: 'SPACE_UP' }
   | { type: 'PAN_BY'; dx: number; dy: number }
   | { type: 'ZOOM_BY'; delta: number; anchor: Point }
   | { type: 'RESET_VIEW' }
+  | { type: 'SET_CAMERA'; camera: Camera }
   | { type: 'DELETE_SELECTED' }
   | { type: 'SELECT_ALL'; shapeIds: string[] }
   | { type: 'DESELECT' }

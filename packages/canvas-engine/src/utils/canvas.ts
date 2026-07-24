@@ -26,7 +26,15 @@ export function setupCanvas(
     canvas.style.height = `${height}px`;
   }
 
-  const ctx = canvas.getContext('2d');
+  // Cast: TS resolves `(HTMLCanvasElement | OffscreenCanvas).getContext('2d')`
+  // against OffscreenCanvas's broadest overload (which also covers webgl/
+  // bitmaprenderer contexts) instead of its '2d'-specific one, once
+  // OffscreenCanvas is referenced elsewhere in the program. The '2d' literal
+  // guarantees a 2D context (or null) at runtime regardless.
+  const ctx = canvas.getContext('2d') as
+    | CanvasRenderingContext2D
+    | OffscreenCanvasRenderingContext2D
+    | null;
   if (!ctx) {
     throw new Error('Could not get 2D context from canvas');
   }
