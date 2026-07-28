@@ -23,6 +23,9 @@ interface UseKeyboardShortcutsOptions {
   onZoomTo100: () => void;
   onZoomToFit: () => void;
   onZoomToSelection: () => void;
+  onCopy: () => void;
+  onCut: () => void;
+  onPaste: () => void;
 }
 
 export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
@@ -47,6 +50,9 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onZoomTo100,
     onZoomToFit,
     onZoomToSelection,
+    onCopy,
+    onCut,
+    onPaste,
   } = opts;
 
   useEffect(() => {
@@ -117,6 +123,27 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
       if (mod && event.key === 'd') {
         event.preventDefault();
         onDuplicate();
+        return;
+      }
+
+      // Cut: Cmd/Ctrl+X
+      if (mod && event.key === 'x') {
+        event.preventDefault();
+        onCut();
+        return;
+      }
+
+      // Copy: Cmd/Ctrl+C
+      if (mod && event.key === 'c') {
+        event.preventDefault();
+        onCopy();
+        return;
+      }
+
+      // Paste: Cmd/Ctrl+V
+      if (mod && event.key === 'v') {
+        event.preventDefault();
+        onPaste();
         return;
       }
 
@@ -216,5 +243,8 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onZoomTo100,
     onZoomToFit,
     onZoomToSelection,
+    onCopy,
+    onCut,
+    onPaste,
   ]);
 }
