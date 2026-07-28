@@ -11,6 +11,7 @@ import {
   SpatialIndex,
   type Shape,
 } from '@canvasflow/canvas-engine';
+import { readShapesFromClipboard, writeShapesToClipboard } from './clipboard';
 import { CanvasStack } from './canvas/CanvasStack';
 import { DevOverlay } from './canvas/dev/DevOverlay';
 import { useCanvasResize } from './canvas/hooks/useCanvasResize';
@@ -381,6 +382,49 @@ export function Editor({ boardId }: EditorProps) {
     actorRef.send({ type: 'SET_CAMERA', camera: newCamera });
   }, [actorRef, shapes, selectedIds, width, height]);
 
+  const handleCopy = useCallback(async () => {
+    if (selectedIds.length === 0) return;
+    const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
+    await writeShapesToClipboard(selectedShapes);
+  }, [shapes, selectedIds]);
+
+  const handleCut = useCallback(async () => {
+    if (selectedIds.length === 0) return;
+    const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
+    const wroteOK = await writeShapesToClipboard(selectedShapes);
+    if (wroteOK) {
+      // Delete via same event as Delete key — one undo step
+      actorRef.send({ type: 'DELETE_SELECTED' });
+    }
+  }, [shapes, selectedIds, actorRef]);
+
+  const handlePaste = useCallback(async () => {
+    const pastedShapes = await readShapesFromClipboard(genId);
+    if (pastedShapes.length === 0) return;
+
+    // Offset each pasted shape 20px in both axes so they're
+    // visually distinguishable from the originals
+    const OFFSET = 20;
+    const offsetShapes = pastedShapes.map((s) => ({
+      ...s,
+      x: s.x + OFFSET,
+      y: s.y + OFFSET,
+    }));
+
+    // Add each shape via the document — each addShape assigns a fresh
+    // fractional zIndex above current max, so pasted shapes land on top
+    // in their original relative order
+    for (const shape of offsetShapes) {
+      doc.addShape(shape);
+    }
+
+    // Auto-select the pasted shapes so user can immediately drag them
+    actorRef.send({
+      type: 'SELECT_ALL',
+      shapeIds: offsetShapes.map((s) => s.id),
+    });
+  }, [doc, actorRef]);
+
   useKeyboardShortcuts({
     onSelectTool: handleToolChange,
     onEscape: handleEscape,
@@ -402,6 +446,9 @@ export function Editor({ boardId }: EditorProps) {
     onZoomTo100: handleZoomTo100,
     onZoomToFit: handleZoomToFit,
     onZoomToSelection: handleZoomToSelection,
+    onCopy: handleCopy,
+    onCut: handleCut,
+    onPaste: handlePaste,
   });
 
   const handleCommitText = useCallback(
