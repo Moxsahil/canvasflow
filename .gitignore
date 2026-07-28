@@ -39,3 +39,6 @@ coverage/
 # Temp
 tmp/
 temp/
+
+# Local-only reference media (videos/images), not for git
+apps/editor/src/error/

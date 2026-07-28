@@ -26,6 +26,8 @@ interface UseKeyboardShortcutsOptions {
   onCopy: () => void;
   onCut: () => void;
   onPaste: () => void;
+  onShowHelp: () => void;
+  disabled?: boolean;
 }
 
 export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
@@ -53,12 +55,22 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onCopy,
     onCut,
     onPaste,
+    onShowHelp,
+    disabled,
   } = opts;
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (disabled) return;
       if (event.key === 'Escape') {
         onEscape();
+        return;
+      }
+
+      // Help: ? (Shift+/)
+      if (event.key === '?' || (event.shiftKey && event.key === '/')) {
+        event.preventDefault();
+        onShowHelp();
         return;
       }
 
@@ -246,5 +258,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onCopy,
     onCut,
     onPaste,
+    onShowHelp,
+    disabled,
   ]);
 }
