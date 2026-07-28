@@ -26,10 +26,6 @@ export class BoardDocument {
     this.yDoc = doc ?? new Y.Doc();
     this.yShapes = this.yDoc.getArray<Y.Map<unknown>>('shapes');
 
-    // UndoManager tracks changes to the shapes array only.
-    // - captureTimeout groups rapid activity into single undo steps
-    // - trackedOrigins limits what gets tracked; we skip 'remote' origin
-    //   updates so my undo doesn't undo someone else's changes (Sprint 3)
     this.undoManager = new Y.UndoManager(this.yShapes, {
       captureTimeout: UNDO_CAPTURE_TIMEOUT_MS,
       trackedOrigins: new Set([null, undefined, 'local']),
@@ -54,10 +50,6 @@ export class BoardDocument {
     return () => this.listeners.delete(listener);
   }
 
-  /**
-   * Subscribe to undo/redo availability changes. Fires whenever the
-   * undo or redo stack changes size, so UI can re-check canUndo/canRedo.
-   */
   onUndoChange(listener: () => void): () => void {
     this.undoListeners.add(listener);
     return () => this.undoListeners.delete(listener);
@@ -102,15 +94,26 @@ export class BoardDocument {
     });
   }
 
-  private getMaxZIndex(): string | null {
-    let max: string | null = null;
+  /**
+   * Get all zIndex strings currently in use, sorted ascending.
+   * Used by layer-order methods to find neighbors.
+   */
+  private getSortedZIndexes(): Array<{ id: string; zIndex: string }> {
+    const items: Array<{ id: string; zIndex: string }> = [];
     for (let i = 0; i < this.yShapes.length; i++) {
-      const z = this.yShapes.get(i).get('zIndex');
+      const yMap = this.yShapes.get(i);
+      const id = yMap.get('id') as string;
+      const z = yMap.get('zIndex');
       if (typeof z === 'string') {
-        if (max === null || z > max) max = z;
+        items.push({ id, zIndex: z });
       }
     }
-    return max;
+    return items.sort((a, b) => a.zIndex.localeCompare(b.zIndex));
+  }
+
+  private getMaxZIndex(): string | null {
+    const sorted = this.getSortedZIndexes();
+    return sorted.length > 0 ? sorted[sorted.length - 1]!.zIndex : null;
   }
 
   addShape(shape: Shape): void {
@@ -171,6 +174,121 @@ export class BoardDocument {
       const newZIndex = generateKeyBetween(null, currentMin);
       this.updateShape(id, { zIndex: newZIndex } as unknown as Partial<Shape>);
     }, 'local');
+  }
+
+  /**
+   * Move the shape one layer forward (up in z-order).
+   * If already at the top, no-op.
+   */
+  bringForward(id: string): void {
+    this.yDoc.transact(() => {
+      const sorted = this.getSortedZIndexes();
+      const currentIdx = sorted.findIndex((s) => s.id === id);
+      if (currentIdx === -1 || currentIdx === sorted.length - 1) return;
+
+      // Get the shape currently above us and the one above that
+      const above = sorted[currentIdx + 1]!;
+      const aboveAbove = sorted[currentIdx + 2]?.zIndex ?? null;
+
+      // Insert between the one above us and the one above that
+      const newZIndex = generateKeyBetween(above.zIndex, aboveAbove);
+      this.updateShape(id, { zIndex: newZIndex } as unknown as Partial<Shape>);
+    }, 'local');
+  }
+
+  /**
+   * Move the shape one layer backward (down in z-order).
+   * If already at the bottom, no-op.
+   */
+  sendBackward(id: string): void {
+    this.yDoc.transact(() => {
+      const sorted = this.getSortedZIndexes();
+      const currentIdx = sorted.findIndex((s) => s.id === id);
+      if (currentIdx === -1 || currentIdx === 0) return;
+
+      // Get the shape currently below us and the one below that
+      const below = sorted[currentIdx - 1]!;
+      const belowBelow = sorted[currentIdx - 2]?.zIndex ?? null;
+
+      // Insert between the one below us and the one below that
+      const newZIndex = generateKeyBetween(belowBelow, below.zIndex);
+      this.updateShape(id, { zIndex: newZIndex } as unknown as Partial<Shape>);
+    }, 'local');
+  }
+
+  /**
+   * Batch-nudge multiple shapes by a delta.
+   * Wrapped in a single transact so it's one undo step.
+   */
+  nudgeShapes(ids: readonly string[], dx: number, dy: number): void {
+    if (ids.length === 0 || (dx === 0 && dy === 0)) return;
+    const idSet = new Set(ids);
+    this.yDoc.transact(() => {
+      for (let i = 0; i < this.yShapes.length; i++) {
+        const yMap = this.yShapes.get(i);
+        const id = yMap.get('id') as string;
+        if (!idSet.has(id)) continue;
+        const x = yMap.get('x') as number;
+        const y = yMap.get('y') as number;
+        yMap.set('x', x + dx);
+        yMap.set('y', y + dy);
+      }
+    }, 'local');
+    // Each nudge is a distinct undo step
+    this.breakUndoGroup();
+  }
+
+  /**
+   * Duplicate a set of shapes with a positional offset. Returns the new
+   * shape IDs so the caller can select them.
+   *
+   * All duplicates share one transact = one undo step.
+   */
+  duplicateShapes(
+    ids: readonly string[],
+    offset: { dx: number; dy: number },
+    genId: () => string,
+  ): string[] {
+    const idSet = new Set(ids);
+    const originals: Array<{ yMap: Y.Map<unknown>; newId: string }> = [];
+
+    // First pass: collect the originals + generate new IDs
+    for (let i = 0; i < this.yShapes.length; i++) {
+      const yMap = this.yShapes.get(i);
+      if (idSet.has(yMap.get('id') as string)) {
+        originals.push({ yMap, newId: genId() });
+      }
+    }
+
+    if (originals.length === 0) return [];
+
+    this.yDoc.transact(() => {
+      let currentMax = this.getMaxZIndex();
+      for (const { yMap, newId } of originals) {
+        // Clone every property from the original Y.Map into a new one
+        const clone = new Y.Map<unknown>();
+        yMap.forEach((value, key) => {
+          if (key === 'id') return; // will set new id below
+          if (key === 'x') {
+            clone.set('x', (value as number) + offset.dx);
+          } else if (key === 'y') {
+            clone.set('y', (value as number) + offset.dy);
+          } else {
+            clone.set(key, value);
+          }
+        });
+        clone.set('id', newId);
+
+        // Give the clone a fresh zIndex above current max
+        const newZIndex = generateKeyBetween(currentMax, null);
+        clone.set('zIndex', newZIndex);
+        currentMax = newZIndex;
+
+        this.yShapes.push([clone]);
+      }
+    }, 'local');
+
+    return originals.map((o) => o.newId);
   }
 
   applyUpdate(update: Uint8Array): void {

@@ -14,25 +14,63 @@ interface UseKeyboardShortcutsOptions {
   onSelectAll: () => void;
   onUndo: () => void;
   onRedo: () => void;
+  onNudge: (dx: number, dy: number) => void;
+  onBringForward: () => void;
+  onSendBackward: () => void;
+  onBringToFront: () => void;
+  onSendToBack: () => void;
+  onDuplicate: () => void;
+  onZoomTo100: () => void;
+  onZoomToFit: () => void;
+  onZoomToSelection: () => void;
+  onCopy: () => void;
+  onCut: () => void;
+  onPaste: () => void;
+  onShowHelp: () => void;
+  disabled?: boolean;
 }
 
-export function useKeyboardShortcuts({
-  onSelectTool,
-  onEscape,
-  onSpaceDown,
-  onSpaceUp,
-  onZoomIn,
-  onZoomOut,
-  onResetView,
-  onDelete,
-  onSelectAll,
-  onUndo,
-  onRedo,
-}: UseKeyboardShortcutsOptions): void {
+export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
+  const {
+    onSelectTool,
+    onEscape,
+    onSpaceDown,
+    onSpaceUp,
+    onZoomIn,
+    onZoomOut,
+    onResetView,
+    onDelete,
+    onSelectAll,
+    onUndo,
+    onRedo,
+    onNudge,
+    onBringForward,
+    onSendBackward,
+    onBringToFront,
+    onSendToBack,
+    onDuplicate,
+    onZoomTo100,
+    onZoomToFit,
+    onZoomToSelection,
+    onCopy,
+    onCut,
+    onPaste,
+    onShowHelp,
+    disabled,
+  } = opts;
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (disabled) return;
       if (event.key === 'Escape') {
         onEscape();
+        return;
+      }
+
+      // Help: ? (Shift+/)
+      if (event.key === '?' || (event.shiftKey && event.key === '/')) {
+        event.preventDefault();
+        onShowHelp();
         return;
       }
 
@@ -42,41 +80,127 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      // Cmd/Ctrl-modified shortcuts
       const mod = event.metaKey || event.ctrlKey;
+
+      // Arrow-nudge (only if not typing)
+      if (!shouldIgnoreShortcut(event)) {
+        const step = event.shiftKey ? 10 : 1;
+        if (event.key === 'ArrowLeft') {
+          event.preventDefault();
+          onNudge(-step, 0);
+          return;
+        }
+        if (event.key === 'ArrowRight') {
+          event.preventDefault();
+          onNudge(step, 0);
+          return;
+        }
+        if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          onNudge(0, -step);
+          return;
+        }
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          onNudge(0, step);
+          return;
+        }
+      }
+
+      // Z-order
+      if (!shouldIgnoreShortcut(event)) {
+        if (mod && event.key === ']') {
+          event.preventDefault();
+          onBringToFront();
+          return;
+        }
+        if (mod && event.key === '[') {
+          event.preventDefault();
+          onSendToBack();
+          return;
+        }
+        if (!mod && event.key === ']') {
+          event.preventDefault();
+          onBringForward();
+          return;
+        }
+        if (!mod && event.key === '[') {
+          event.preventDefault();
+          onSendBackward();
+          return;
+        }
+      }
+
+      // Duplicate: Cmd/Ctrl+D
+      if (mod && event.key === 'd') {
+        event.preventDefault();
+        onDuplicate();
+        return;
+      }
+
+      // Cut: Cmd/Ctrl+X
+      if (mod && event.key === 'x') {
+        event.preventDefault();
+        onCut();
+        return;
+      }
+
+      // Copy: Cmd/Ctrl+C
+      if (mod && event.key === 'c') {
+        event.preventDefault();
+        onCopy();
+        return;
+      }
+
+      // Paste: Cmd/Ctrl+V
+      if (mod && event.key === 'v') {
+        event.preventDefault();
+        onPaste();
+        return;
+      }
+
+      // Zoom presets: Cmd/Ctrl + 1 / 2 / 3
+      if (mod && event.key === '1') {
+        event.preventDefault();
+        onZoomTo100();
+        return;
+      }
+      if (mod && event.key === '2') {
+        event.preventDefault();
+        onZoomToFit();
+        return;
+      }
+      if (mod && event.key === '3') {
+        event.preventDefault();
+        onZoomToSelection();
+        return;
+      }
 
       if (mod && event.key === '0') {
         event.preventDefault();
         onResetView();
         return;
       }
-
       if (mod && (event.key === '=' || event.key === '+')) {
         event.preventDefault();
         onZoomIn();
         return;
       }
-
       if (mod && event.key === '-') {
         event.preventDefault();
         onZoomOut();
         return;
       }
-
       if (mod && event.key === 'a') {
         event.preventDefault();
         onSelectAll();
         return;
       }
-
-      // Undo: Cmd/Ctrl+Z (without shift)
       if (mod && event.key === 'z' && !event.shiftKey) {
         event.preventDefault();
         onUndo();
         return;
       }
-
-      // Redo: Cmd/Ctrl+Shift+Z or Ctrl+Y
       if (mod && ((event.key === 'z' && event.shiftKey) || event.key === 'y')) {
         event.preventDefault();
         onRedo();
@@ -122,5 +246,19 @@ export function useKeyboardShortcuts({
     onSelectAll,
     onUndo,
     onRedo,
+    onNudge,
+    onBringForward,
+    onSendBackward,
+    onBringToFront,
+    onSendToBack,
+    onDuplicate,
+    onZoomTo100,
+    onZoomToFit,
+    onZoomToSelection,
+    onCopy,
+    onCut,
+    onPaste,
+    onShowHelp,
+    disabled,
   ]);
 }
