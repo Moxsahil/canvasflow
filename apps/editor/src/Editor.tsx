@@ -28,6 +28,7 @@ import { getAuthTokenFromHash, clearAuthTokenFromHash } from './auth/token';
 import { env } from './lib/env';
 import type { Tool } from './tools/tool';
 import type { Point } from './machine/tool-machine.types';
+import { ShortcutsModal } from './help';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -49,6 +50,11 @@ export function Editor({ boardId }: EditorProps) {
     }
     return window.sessionStorage.getItem('editor:authToken');
   });
+
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  const handleShowHelp = useCallback(() => setHelpOpen(true), []);
+  const handleCloseHelp = useCallback(() => setHelpOpen(false), []);
 
   const doc = useBoardDocument(boardId);
   const shapes = useYjsShapes(doc);
@@ -449,6 +455,8 @@ export function Editor({ boardId }: EditorProps) {
     onCopy: handleCopy,
     onCut: handleCut,
     onPaste: handlePaste,
+    disabled: helpOpen,
+    onShowHelp: handleShowHelp,
   });
 
   const handleCommitText = useCallback(
@@ -539,6 +547,25 @@ export function Editor({ boardId }: EditorProps) {
         <span style={{ color: '#a1a1aa', fontWeight: 400, fontSize: 12 }}>
           {boardId} · {syncLabel}
         </span>
+        <div style={{ marginLeft: 'auto', fontSize: 12, color: '#a1a1aa' }}>
+          Press{' '}
+          <kbd
+            style={{
+              fontFamily: 'ui-monospace, monospace',
+              fontSize: 11,
+              padding: '1px 6px',
+              background: '#f4f4f5',
+              borderRadius: 3,
+              border: '1px solid #e4e4e7',
+              color: '#3f3f46',
+              cursor: 'pointer',
+            }}
+            onClick={handleShowHelp}
+          >
+            ?
+          </kbd>{' '}
+          for shortcuts
+        </div>
       </header>
 
       <Toolbar
@@ -570,6 +597,7 @@ export function Editor({ boardId }: EditorProps) {
         devicePixelRatio={dpr}
         camera={camera}
       />
+      <ShortcutsModal open={helpOpen} onClose={handleCloseHelp} />
     </div>
   );
 }
