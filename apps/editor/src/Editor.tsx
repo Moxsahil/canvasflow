@@ -13,9 +13,7 @@ import {
 } from '@canvasflow/canvas-engine';
 import { readShapesFromClipboard, writeShapesToClipboard } from './clipboard';
 import { CanvasStack } from './canvas/CanvasStack';
-import { DevOverlay } from './canvas/dev/DevOverlay';
 import { useCanvasResize } from './canvas/hooks/useCanvasResize';
-import { useDevicePixelRatio } from './canvas/hooks/useDevicePixelRatio';
 import { Toolbar } from './toolbar/Toolbar';
 import { TextEditor } from './text-editor/TextEditor';
 import { ZoomPanel } from './zoom-panel/ZoomPanel';
@@ -30,6 +28,7 @@ import { env } from './lib/env';
 import type { Tool } from './tools/tool';
 import type { Point } from './machine/tool-machine.types';
 import { ShortcutsModal } from './help';
+import { ShortcutsHint } from './help/ShortcutsHint';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -40,7 +39,6 @@ interface EditorProps {
 export function Editor({ boardId }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { width, height } = useCanvasResize(containerRef);
-  const dpr = useDevicePixelRatio();
 
   const [authToken] = useState(() => {
     const token = getAuthTokenFromHash();
@@ -61,7 +59,7 @@ export function Editor({ boardId }: EditorProps) {
   const shapes = useYjsShapes(doc);
   const { canUndo, canRedo } = useUndoState(doc);
 
-  const { status: syncStatus, error: syncError } = useBoardSync(doc, {
+  const { status: syncStatus } = useBoardSync(doc, {
     boardId,
     apiUrl: env.VITE_API_URL,
     authToken,
@@ -487,26 +485,6 @@ export function Editor({ boardId }: EditorProps) {
 
   const handleCancelText = useCallback(() => actorRef.send({ type: 'CANCEL_TEXT' }), [actorRef]);
 
-  const syncLabel = (() => {
-    if (syncError) return 'Sync error';
-    switch (syncStatus) {
-      case 'idle':
-        return authToken ? 'Waiting' : 'Not authenticated';
-      case 'loading':
-        return 'Loading...';
-      case 'loaded':
-        return 'Loaded';
-      case 'saving':
-        return 'Saving...';
-      case 'saved':
-        return 'Saved';
-      case 'error':
-        return 'Sync error';
-      default:
-        return '';
-    }
-  })();
-
   return (
     <div ref={containerRef} style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
       <CanvasStack
@@ -526,51 +504,6 @@ export function Editor({ boardId }: EditorProps) {
         isPanning={isPanning}
       />
 
-      <header
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 48,
-          padding: '0 16px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          background: 'rgba(255, 255, 255, 0.92)',
-          backdropFilter: 'blur(8px)',
-          borderBottom: '1px solid #e4e4e7',
-          fontSize: 14,
-          fontWeight: 500,
-          color: '#3f3f46',
-          zIndex: 10,
-        }}
-      >
-        CanvasFlow Editor
-        <span style={{ color: '#a1a1aa', fontWeight: 400, fontSize: 12 }}>
-          {boardId} · {syncLabel}
-        </span>
-        <div style={{ marginLeft: 'auto', fontSize: 12, color: '#a1a1aa' }}>
-          Press{' '}
-          <kbd
-            style={{
-              fontFamily: 'ui-monospace, monospace',
-              fontSize: 11,
-              padding: '1px 6px',
-              background: '#f4f4f5',
-              borderRadius: 3,
-              border: '1px solid #e4e4e7',
-              color: '#3f3f46',
-              cursor: 'pointer',
-            }}
-            onClick={handleShowHelp}
-          >
-            ?
-          </kbd>{' '}
-          for shortcuts
-        </div>
-      </header>
-
       <Toolbar activeTool={activeTool} onToolChange={handleToolChange} />
 
       {textEditorScreenPosition && (
@@ -586,24 +519,18 @@ export function Editor({ boardId }: EditorProps) {
         />
       )}
 
-      <DevOverlay
-        shapeCount={shapes.length}
-        width={width}
-        height={height}
-        devicePixelRatio={dpr}
-        camera={camera}
-      />
-
       <ZoomPanel
         zoom={camera.zoom}
         canUndo={canUndo}
         canRedo={canRedo}
+        syncStatus={syncStatus}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onResetZoom={handleResetView}
         onUndo={handleUndo}
         onRedo={handleRedo}
       />
+      <ShortcutsHint onClick={handleShowHelp} />
       <ShortcutsModal open={helpOpen} onClose={handleCloseHelp} />
     </div>
   );

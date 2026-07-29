@@ -1,10 +1,12 @@
 import type { FC, SVGProps } from 'react';
 import { UndoIcon, RedoIcon, ZoomInIcon, ZoomOutIcon } from '../assets/icons';
+import type { SyncStatus } from '../sync/BoardSync';
 
 interface ZoomPanelProps {
   zoom: number;
   canUndo: boolean;
   canRedo: boolean;
+  syncStatus: SyncStatus;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetZoom: () => void;
@@ -12,10 +14,15 @@ interface ZoomPanelProps {
   onRedo: () => void;
 }
 
+/**
+ * Floating panel in bottom-left corner. Contains sync status dot,
+ * zoom controls, and undo/redo. Excalidraw-style layout.
+ */
 export function ZoomPanel({
   zoom,
   canUndo,
   canRedo,
+  syncStatus,
   onZoomIn,
   onZoomOut,
   onResetZoom,
@@ -31,7 +38,7 @@ export function ZoomPanel({
         bottom: 16,
         left: 16,
         display: 'inline-flex',
-        alignItems: 'stretch',
+        alignItems: 'center',
         gap: 0,
         padding: 4,
         background: 'white',
@@ -42,6 +49,11 @@ export function ZoomPanel({
       role="toolbar"
       aria-label="Zoom and history controls"
     >
+      <SyncStatusDot status={syncStatus} />
+      <div
+        aria-hidden="true"
+        style={{ width: 1, alignSelf: 'stretch', background: '#e4e4e7', margin: '4px 4px' }}
+      />
       <IconOnlyButton
         icon={ZoomOutIcon}
         onClick={onZoomOut}
@@ -84,7 +96,10 @@ export function ZoomPanel({
         title="Zoom in (⌘+)"
         aria-label="Zoom in"
       />
-      <div aria-hidden="true" style={{ width: 1, background: '#e4e4e7', margin: '4px 4px' }} />
+      <div
+        aria-hidden="true"
+        style={{ width: 1, alignSelf: 'stretch', background: '#e4e4e7', margin: '4px 4px' }}
+      />
       <IconOnlyButton
         icon={UndoIcon}
         onClick={onUndo}
@@ -102,21 +117,24 @@ export function ZoomPanel({
     </div>
   );
 }
-
 interface IconOnlyButtonProps {
   icon: FC<SVGProps<SVGSVGElement>>;
   onClick: () => void;
-  disabled?: boolean;
   title: string;
   'aria-label': string;
+  disabled?: boolean;
 }
 
+/**
+ * Square icon button sized to match the panel's 32px row. Hover feedback is
+ * suppressed while disabled so undo/redo read as unavailable.
+ */
 function IconOnlyButton({
   icon: Icon,
   onClick,
-  disabled = false,
   title,
-  ...aria
+  'aria-label': ariaLabel,
+  disabled = false,
 }: IconOnlyButtonProps) {
   return (
     <button
@@ -124,7 +142,7 @@ function IconOnlyButton({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      aria-label={aria['aria-label']}
+      aria-label={ariaLabel}
       style={{
         width: 32,
         height: 32,
@@ -134,8 +152,9 @@ function IconOnlyButton({
         border: 'none',
         borderRadius: 4,
         background: 'transparent',
-        color: disabled ? '#d4d4d8' : '#3f3f46',
-        cursor: disabled ? 'not-allowed' : 'pointer',
+        color: '#3f3f46',
+        opacity: disabled ? 0.35 : 1,
+        cursor: disabled ? 'default' : 'pointer',
         transition: 'background 100ms ease',
       }}
       onMouseEnter={(e) => {
@@ -145,7 +164,57 @@ function IconOnlyButton({
         if (!disabled) e.currentTarget.style.background = 'transparent';
       }}
     >
-      <Icon width={16} height={16} />
+      <Icon width={14} height={14} />
     </button>
+  );
+}
+
+interface SyncStatusDotProps {
+  status: SyncStatus;
+}
+
+function SyncStatusDot({ status }: SyncStatusDotProps) {
+  // Color and tooltip based on status
+  const { color, label, pulse } = (() => {
+    switch (status) {
+      case 'idle':
+        return { color: '#a1a1aa', label: 'Not connected', pulse: false };
+      case 'loading':
+        return { color: '#f59e0b', label: 'Loading board...', pulse: true };
+      case 'loaded':
+        return { color: '#22c55e', label: 'Loaded', pulse: false };
+      case 'saving':
+        return { color: '#f59e0b', label: 'Saving...', pulse: true };
+      case 'saved':
+        return { color: '#22c55e', label: 'Saved', pulse: false };
+      case 'error':
+        return { color: '#ef4444', label: 'Sync error', pulse: false };
+      default:
+        return { color: '#a1a1aa', label: 'Unknown', pulse: false };
+    }
+  })();
+
+  return (
+    <div
+      title={label}
+      aria-label={label}
+      style={{
+        width: 32,
+        height: 32,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <span
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          background: color,
+          animation: pulse ? 'sync-pulse 1.5s ease-in-out infinite' : 'none',
+        }}
+      />
+    </div>
   );
 }
