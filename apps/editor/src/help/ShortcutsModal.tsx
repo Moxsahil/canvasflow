@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
+import { CloseIcon } from '../assets/icons';
 import { SHORTCUTS, type ShortcutEntry } from './shortcuts-registry';
 import { formatShortcutKeys } from './platform';
 
@@ -107,7 +107,7 @@ export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
               e.currentTarget.style.background = 'transparent';
             }}
           >
-            <X size={18} />
+            <CloseIcon width={14} height={14} />
           </button>
         </div>
 

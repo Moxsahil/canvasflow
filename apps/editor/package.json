@@ -19,7 +19,6 @@
     "@canvasflow/types": "workspace:*",
     "@canvasflow/ui": "workspace:*",
     "@xstate/react": "^6.1.0",
-    "lucide-react": "^1.22.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.18.1",
@@ -33,6 +32,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
+    "vite-plugin-svgr": "^5.2.0",
     "vitest": "^2.1.8"
   }
 }

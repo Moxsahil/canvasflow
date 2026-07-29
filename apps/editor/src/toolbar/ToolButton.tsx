@@ -1,25 +1,29 @@
+import type { FC, SVGProps } from 'react';
 import {
-  MousePointer2,
-  Square,
-  Circle,
-  Diamond,
-  Minus,
-  ArrowRight,
-  Pencil,
-  Type,
-  type LucideIcon,
-} from 'lucide-react';
+  HandIcon,
+  SelectIcon,
+  RectangleIcon,
+  EllipseIcon,
+  DiamondIcon,
+  LineIcon,
+  ArrowIcon,
+  FreehandIcon,
+  TextIcon,
+} from '../assets/icons';
 import type { Tool } from '../tools/tool';
 
-const ICONS: Record<Tool, LucideIcon> = {
-  select: MousePointer2,
-  rectangle: Square,
-  ellipse: Circle,
-  diamond: Diamond,
-  line: Minus,
-  arrow: ArrowRight,
-  freehand: Pencil,
-  text: Type,
+type IconComponent = FC<SVGProps<SVGSVGElement>>;
+
+const ICONS: Record<Tool, IconComponent> = {
+  hand: HandIcon,
+  select: SelectIcon,
+  rectangle: RectangleIcon,
+  ellipse: EllipseIcon,
+  diamond: DiamondIcon,
+  line: LineIcon,
+  arrow: ArrowIcon,
+  freehand: FreehandIcon,
+  text: TextIcon,
 };
 
 interface ToolButtonProps {
@@ -40,14 +44,14 @@ export function ToolButton({ tool, label, shortcut, active, onClick }: ToolButto
       aria-label={label}
       aria-pressed={active}
       style={{
-        width: 36,
-        height: 36,
+        width: 40,
+        height: 40,
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
         border: 'none',
         borderRadius: 6,
-        background: active ? '#6366f1' : 'transparent',
+        background: active ? '#F9E8A2' : 'transparent',
         color: active ? 'white' : '#3f3f46',
         cursor: 'pointer',
         transition: 'background 100ms ease',
@@ -59,7 +63,7 @@ export function ToolButton({ tool, label, shortcut, active, onClick }: ToolButto
         if (!active) e.currentTarget.style.background = 'transparent';
       }}
     >
-      <Icon size={18} />
+      <Icon width={14} height={14} />
     </button>
   );
 }

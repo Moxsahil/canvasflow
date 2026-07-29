@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
+import svgr from 'vite-plugin-svgr';
 
 /**
  * Vite config for the editor SPA.
@@ -11,7 +12,7 @@ import path from 'node:path';
  * - Workspace packages transpiled by Vite via their dist/ output
  */
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), svgr()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

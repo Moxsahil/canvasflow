@@ -69,6 +69,7 @@ export function Editor({ boardId }: EditorProps) {
   const actorRef = useActorRef(toolMachine);
 
   const activeTool = useSelector(actorRef, (s) => s.context.activeTool);
+  const isPanning = useSelector(actorRef, (s) => s.matches('panning'));
   const newElement = useSelector(actorRef, (s) => s.context.newElement);
   const textEditingAt = useSelector(actorRef, (s) => s.context.textEditingAt);
   const editingTextShapeId = useSelector(actorRef, (s) => s.context.editingTextShapeId);
@@ -521,6 +522,7 @@ export function Editor({ boardId }: EditorProps) {
         onDoubleClick={handleDoubleClick}
         onWheelZoom={handleWheelZoom}
         onWheelPan={handleWheelPan}
+        isPanning={isPanning}
       />
 
       <header

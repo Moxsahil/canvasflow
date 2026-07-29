@@ -1,4 +1,5 @@
 export type Tool =
+  | 'hand'
   | 'select'
   | 'rectangle'
   // | 'circle'
@@ -18,7 +19,7 @@ export const TOOL_TO_SHAPE_KIND = {
   arrow: 'arrow',
   freehand: 'freehand',
   text: 'text',
-} as const satisfies Record<Exclude<Tool, 'select'>, string>;
+} as const satisfies Record<Exclude<Tool, 'hand' | 'select'>, string>;
 
 export interface ToolMeta {
   readonly id: Tool;
@@ -27,10 +28,11 @@ export interface ToolMeta {
 }
 
 export const TOOLS: readonly ToolMeta[] = [
+  { id: 'hand', label: 'Hand', shortcut: 'H' },
   { id: 'select', label: 'Select', shortcut: 'V' },
   { id: 'rectangle', label: 'Rectangle', shortcut: 'R' },
   // { id: 'circle', label: 'circle', shortcut: 'C' },
-  { id: 'ellipse', label: 'Ellipse', shortcut: 'E' },
+  { id: 'ellipse', label: 'Ellipse', shortcut: 'C' },
   { id: 'diamond', label: 'Diamond', shortcut: 'D' },
   { id: 'line', label: 'Line', shortcut: 'L' },
   { id: 'arrow', label: 'Arrow', shortcut: 'A' },

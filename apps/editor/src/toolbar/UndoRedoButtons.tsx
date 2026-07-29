@@ -1,4 +1,4 @@
-import { Undo2, Redo2 } from 'lucide-react';
+import { UndoIcon, RedoIcon } from '../assets/icons';
 
 interface UndoRedoButtonsProps {
   canUndo: boolean;
@@ -11,14 +11,14 @@ export function UndoRedoButtons({ canUndo, canRedo, onUndo, onRedo }: UndoRedoBu
   return (
     <div style={{ display: 'inline-flex', gap: 4 }}>
       <IconButton
-        icon={<Undo2 size={18} />}
+        icon={<UndoIcon width={14} height={14} />}
         onClick={onUndo}
         disabled={!canUndo}
         title="Undo (⌘Z)"
         aria-label="Undo"
       />
       <IconButton
-        icon={<Redo2 size={18} />}
+        icon={<RedoIcon width={14} height={14} />}
         onClick={onRedo}
         disabled={!canRedo}
         title="Redo (⌘⇧Z)"
