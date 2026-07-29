@@ -11,7 +11,7 @@ export function Toolbar({ activeTool, onToolChange }: ToolbarProps) {
     <div
       style={{
         position: 'absolute',
-        top: 60,
+        top: 12,
         left: '50%',
         transform: 'translateX(-50%)',
         display: 'inline-flex',

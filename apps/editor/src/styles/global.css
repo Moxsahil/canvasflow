@@ -43,3 +43,14 @@ html, body, #root {
 .canvas-stack[data-tool='hand'] { cursor: grab; }
 .canvas-stack[data-tool='grab'] { cursor: grab; }
 .canvas-stack[data-tool='grabbing'] { cursor: grabbing; }
+
+@keyframes sync-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.85);
+  }
+}
