@@ -18,6 +18,7 @@ import { useCanvasResize } from './canvas/hooks/useCanvasResize';
 import { useDevicePixelRatio } from './canvas/hooks/useDevicePixelRatio';
 import { Toolbar } from './toolbar/Toolbar';
 import { TextEditor } from './text-editor/TextEditor';
+import { ZoomPanel } from './zoom-panel/ZoomPanel';
 import { toolMachine, resizeShape } from './machine/tool-machine';
 import { useKeyboardShortcuts } from './tools/useKeyboardShortcuts';
 import { hitTestHandles } from './selection/handles';
@@ -570,14 +571,7 @@ export function Editor({ boardId }: EditorProps) {
         </div>
       </header>
 
-      <Toolbar
-        activeTool={activeTool}
-        onToolChange={handleToolChange}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-      />
+      <Toolbar activeTool={activeTool} onToolChange={handleToolChange} />
 
       {textEditorScreenPosition && (
         <TextEditor
@@ -598,6 +592,17 @@ export function Editor({ boardId }: EditorProps) {
         height={height}
         devicePixelRatio={dpr}
         camera={camera}
+      />
+
+      <ZoomPanel
+        zoom={camera.zoom}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onResetZoom={handleResetView}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
       />
       <ShortcutsModal open={helpOpen} onClose={handleCloseHelp} />
     </div>

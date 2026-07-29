@@ -10,3 +10,5 @@ export { default as TextIcon } from './text.svg?react';
 export { default as UndoIcon } from './undo.svg?react';
 export { default as RedoIcon } from './redo.svg?react';
 export { default as CloseIcon } from './cross.svg?react';
+export { default as ZoomInIcon } from './zoom-in.svg?react';
+export { default as ZoomOutIcon } from './zoom-out.svg?react';
