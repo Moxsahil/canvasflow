@@ -25,6 +25,7 @@ interface CanvasStackProps {
   onDoubleClick: (point: Point, screenPoint: Point) => void;
   onWheelZoom: (delta: number, anchor: Point) => void;
   onWheelPan: (dx: number, dy: number) => void;
+  isPanning: boolean;
 }
 
 export function CanvasStack({
@@ -41,6 +42,7 @@ export function CanvasStack({
   onDoubleClick,
   onWheelZoom,
   onWheelPan,
+  isPanning,
 }: CanvasStackProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const staticCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -112,7 +114,15 @@ export function CanvasStack({
     height: '100%',
   };
 
-  const cursorClass = isSpacePressed ? 'grabbing' : activeTool;
+  // Cursor priority: space-pan > active-pan > tool default
+  let cursorClass: string;
+  if (isSpacePressed || isPanning) {
+    cursorClass = 'grabbing';
+  } else if (activeTool === 'hand') {
+    cursorClass = 'grab';
+  } else {
+    cursorClass = activeTool;
+  }
 
   return (
     <div

@@ -22,6 +22,7 @@ html, body, #root {
 }
 
 /* Tool-specific cursor styles applied dynamically via data attribute */
+.canvas-stack[data-tool='hand']:active { cursor: grabbing; }
 .canvas-stack[data-tool='select'] {
   cursor: default;
 }
@@ -38,3 +39,7 @@ html, body, #root {
 .canvas-stack[data-tool='freehand'] {
   cursor: crosshair;
 }
+
+.canvas-stack[data-tool='hand'] { cursor: grab; }
+.canvas-stack[data-tool='grab'] { cursor: grab; }
+.canvas-stack[data-tool='grabbing'] { cursor: grabbing; }

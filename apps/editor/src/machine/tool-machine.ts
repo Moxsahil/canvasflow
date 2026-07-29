@@ -349,8 +349,9 @@ export const toolMachine = setup({
     isTextTool: ({ context }) => context.activeTool === 'text',
     isPanGesture: ({ context, event }) => {
       if (event.type !== 'POINTER_DOWN') return false;
-      return event.button === 1 || context.isSpacePressed;
+      return event.button === 1 || context.isSpacePressed || context.activeTool === 'hand';
     },
+    isHandTool: ({ context }) => context.activeTool === 'hand',
     hitAHandle: ({ event }) => {
       if (event.type !== 'POINTER_DOWN') return false;
       return event.hitHandle !== null;

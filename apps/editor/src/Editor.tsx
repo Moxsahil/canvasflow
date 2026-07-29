@@ -18,6 +18,7 @@ import { useCanvasResize } from './canvas/hooks/useCanvasResize';
 import { useDevicePixelRatio } from './canvas/hooks/useDevicePixelRatio';
 import { Toolbar } from './toolbar/Toolbar';
 import { TextEditor } from './text-editor/TextEditor';
+import { ZoomPanel } from './zoom-panel/ZoomPanel';
 import { toolMachine, resizeShape } from './machine/tool-machine';
 import { useKeyboardShortcuts } from './tools/useKeyboardShortcuts';
 import { hitTestHandles } from './selection/handles';
@@ -69,6 +70,7 @@ export function Editor({ boardId }: EditorProps) {
   const actorRef = useActorRef(toolMachine);
 
   const activeTool = useSelector(actorRef, (s) => s.context.activeTool);
+  const isPanning = useSelector(actorRef, (s) => s.matches('panning'));
   const newElement = useSelector(actorRef, (s) => s.context.newElement);
   const textEditingAt = useSelector(actorRef, (s) => s.context.textEditingAt);
   const editingTextShapeId = useSelector(actorRef, (s) => s.context.editingTextShapeId);
@@ -521,6 +523,7 @@ export function Editor({ boardId }: EditorProps) {
         onDoubleClick={handleDoubleClick}
         onWheelZoom={handleWheelZoom}
         onWheelPan={handleWheelPan}
+        isPanning={isPanning}
       />
 
       <header
@@ -568,14 +571,7 @@ export function Editor({ boardId }: EditorProps) {
         </div>
       </header>
 
-      <Toolbar
-        activeTool={activeTool}
-        onToolChange={handleToolChange}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-      />
+      <Toolbar activeTool={activeTool} onToolChange={handleToolChange} />
 
       {textEditorScreenPosition && (
         <TextEditor
@@ -596,6 +592,17 @@ export function Editor({ boardId }: EditorProps) {
         height={height}
         devicePixelRatio={dpr}
         camera={camera}
+      />
+
+      <ZoomPanel
+        zoom={camera.zoom}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onResetZoom={handleResetView}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
       />
       <ShortcutsModal open={helpOpen} onClose={handleCloseHelp} />
     </div>

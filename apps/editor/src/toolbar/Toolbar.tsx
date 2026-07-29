@@ -1,24 +1,12 @@
 import { TOOLS, type Tool } from '../tools/tool';
 import { ToolButton } from './ToolButton';
-import { UndoRedoButtons } from './UndoRedoButtons';
 
 interface ToolbarProps {
   activeTool: Tool;
   onToolChange: (tool: Tool) => void;
-  canUndo: boolean;
-  canRedo: boolean;
-  onUndo: () => void;
-  onRedo: () => void;
 }
 
-export function Toolbar({
-  activeTool,
-  onToolChange,
-  canUndo,
-  canRedo,
-  onUndo,
-  onRedo,
-}: ToolbarProps) {
+export function Toolbar({ activeTool, onToolChange }: ToolbarProps) {
   return (
     <div
       style={{
@@ -36,8 +24,6 @@ export function Toolbar({
       role="toolbar"
       aria-label="Drawing tools"
     >
-      <UndoRedoButtons canUndo={canUndo} canRedo={canRedo} onUndo={onUndo} onRedo={onRedo} />
-      <div style={{ width: 1, background: '#e4e4e7', margin: '4px 4px' }} />
       {TOOLS.map((t) => (
         <ToolButton
           key={t.id}

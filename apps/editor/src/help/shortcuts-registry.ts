@@ -21,6 +21,7 @@ export const SHORTCUTS: ShortcutCategory[] = [
   {
     title: 'Tools',
     entries: [
+      { keys: 'h', description: 'Hand (pan canvas)' },
       { keys: 'v', description: 'Select tool' },
       { keys: 'r', description: 'Rectangle' },
       { keys: 'o', description: 'Ellipse' },
