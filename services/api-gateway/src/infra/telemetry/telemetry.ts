@@ -11,7 +11,7 @@ import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentation
 export function initTelemetry(serviceName: string, endpoint: string | undefined): void {
   if (!endpoint) {
     // No OTEL endpoint configured — skip telemetry initialization
-    console.log('[telemetry] No OTEL_EXPORTER_OTLP_ENDPOINT set, skipping init');
+    console.warn('[telemetry] No OTEL_EXPORTER_OTLP_ENDPOINT set, skipping init');
     return;
   }
   const sdk = new NodeSDK({
