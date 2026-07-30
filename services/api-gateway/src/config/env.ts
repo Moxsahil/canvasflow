@@ -14,6 +14,8 @@ const envSchema = z.object({
     .optional()
     .or(z.literal('').transform(() => undefined)),
   OTEL_SERVICE_NAME: z.string().default('api-gateway'),
+  WEB_URL: z.string().url().optional(),
+  EDITOR_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -8,7 +8,12 @@ import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentation
  * If OTEL_EXPORTER_OTLP_ENDPOINT is unset , the sdk starts but doesn't export anywhere - traes are collected but discarded
  */
 
-export function initTelemetry(serviceName: string, endpoint?: string): NodeSDK {
+export function initTelemetry(serviceName: string, endpoint: string | undefined): void {
+  if (!endpoint) {
+    // No OTEL endpoint configured — skip telemetry initialization
+    console.warn('[telemetry] No OTEL_EXPORTER_OTLP_ENDPOINT set, skipping init');
+    return;
+  }
   const sdk = new NodeSDK({
     serviceName,
     traceExporter: endpoint ? new OTLPTraceExporter({ url: endpoint }) : undefined,
@@ -27,5 +32,4 @@ export function initTelemetry(serviceName: string, endpoint?: string): NodeSDK {
       .catch((err) => console.error('Opentelemetry shutdown failed', err))
       .finally(() => process.exit(0));
   });
-  return sdk;
 }
