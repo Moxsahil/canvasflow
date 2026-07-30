@@ -22,10 +22,17 @@ async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new LoggingInterceptor());
 
-  // CORS — locked down by default, opens up in higher environments
   const DEV_ORIGINS = ['http://localhost:3000', 'http://localhost:3002'];
+  const PROD_ORIGINS = [env.WEB_URL, env.EDITOR_URL].filter((url): url is string => Boolean(url));
+
+  const allowedOrigins = env.NODE_ENV === 'production' ? PROD_ORIGINS : DEV_ORIGINS;
+
+  if (env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
+    logger.warn('⚠️  No PROD_ORIGINS configured. Set WEB_URL and EDITOR_URL env vars.');
+  }
+
   app.enableCors({
-    origin: env.NODE_ENV === 'production' ? false : DEV_ORIGINS,
+    origin: allowedOrigins,
     credentials: true,
   });
 
