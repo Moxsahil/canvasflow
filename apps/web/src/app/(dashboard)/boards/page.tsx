@@ -1,5 +1,6 @@
-import { Heading, Text, Button } from '@canvasflow/ui';
+import { Heading, Text } from '@canvasflow/ui';
 import { BoardGrid } from '@/features/boards/components/board-grid';
+import { NewBoardButton } from '@/features/boards/components/new-board-button';
 
 export default function BoardsPage() {
   return (
@@ -11,7 +12,7 @@ export default function BoardsPage() {
             Your collaborative whiteboards
           </Text>
         </div>
-        <Button variant="primary">New board</Button>
+        <NewBoardButton />
       </div>
 
       <BoardGrid />
