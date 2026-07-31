@@ -3,13 +3,13 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, Text, Badge } from '@canvasflow/ui';
 import type { BoardDto } from '../api/boards.client';
-import { env } from '@/lib/env';
+import { clientEnv } from '@/lib/env.client';
 
 interface BoardCardProps {
   board: BoardDto;
 }
 
-const EDITOR_URL = env.NEXT_PUBLIC_EDITOR_URL ?? 'http://localhost:3002';
+const EDITOR_URL = clientEnv.NEXT_PUBLIC_EDITOR_URL;
 
 export function BoardCard({ board }: BoardCardProps) {
   const [opening, setOpening] = useState(false);

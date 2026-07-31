@@ -51,4 +51,14 @@ function parseEnv(): Env {
   return result.data;
 }
 
+// Guard: this module holds server-only secrets. If it ever gets pulled into a
+// client bundle, `process.env.*` secrets are undefined and validation would
+// fail with a confusing "Invalid environment variables" error. Fail fast with
+// a clear message pointing to the client-safe alternative instead.
+if (typeof window !== 'undefined') {
+  throw new Error(
+    'src/lib/env.ts contains server-only secrets and must not be imported by client components. Import from "@/lib/env.client" instead.',
+  );
+}
+
 export const env = parseEnv();
