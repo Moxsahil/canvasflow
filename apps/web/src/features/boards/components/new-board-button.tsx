@@ -28,7 +28,7 @@ export function NewBoardButton() {
     // Same handoff as opening an existing board: mint a short-lived editor
     // token and pass it to the editor in the URL fragment.
     try {
-      const res = await fetch('/api/editor-token');
+      const res = await fetch(`/api/editor-token?boardId=${result.boardId}`);
       if (!res.ok) {
         throw new Error(`Failed to mint editor token: ${res.status}`);
       }

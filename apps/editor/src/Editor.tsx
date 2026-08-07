@@ -23,7 +23,8 @@ import { hitTestHandles } from './selection/handles';
 import { useBoardDocument, useYjsShapes } from './document/useYjsDocument';
 import { useUndoState } from './document/useUndoState';
 import { useBoardSync } from './sync/useBoardSync';
-import { getAuthTokenFromHash, clearAuthTokenFromHash } from './auth/token';
+// import { getAuthTokenFromHash, clearAuthTokenFromHash } from './auth/token';
+import { useAuthToken } from './auth/useAuthToken';
 import { env } from './lib/env';
 import type { Tool } from './tools/tool';
 import type { Point } from './machine/tool-machine.types';
@@ -40,15 +41,17 @@ export function Editor({ boardId }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { width, height } = useCanvasResize(containerRef);
 
-  const [authToken] = useState(() => {
-    const token = getAuthTokenFromHash();
-    if (token) {
-      window.sessionStorage.setItem('editor:authToken', token);
-      clearAuthTokenFromHash();
-      return token;
-    }
-    return window.sessionStorage.getItem('editor:authToken');
-  });
+  // const [authToken] = useState(() => {
+  //   const token = getAuthTokenFromHash();
+  //   if (token) {
+  //     window.sessionStorage.setItem('editor:authToken', token);
+  //     clearAuthTokenFromHash();
+  //     return token;
+  //   }
+  //   return window.sessionStorage.getItem('editor:authToken');
+  // });
+
+  const { authToken, refresh: refreshAuthToken } = useAuthToken(boardId);
 
   const [helpOpen, setHelpOpen] = useState(false);
 
@@ -59,10 +62,17 @@ export function Editor({ boardId }: EditorProps) {
   const shapes = useYjsShapes(doc);
   const { canUndo, canRedo } = useUndoState(doc);
 
+  // const { status: syncStatus } = useBoardSync(doc, {
+  //   boardId,
+  //   apiUrl: env.VITE_API_URL,
+  //   authToken,
+  // });
+
   const { status: syncStatus } = useBoardSync(doc, {
     boardId,
     apiUrl: env.VITE_API_URL,
     authToken,
+    onAuthError: refreshAuthToken,
   });
 
   const actorRef = useActorRef(toolMachine);
