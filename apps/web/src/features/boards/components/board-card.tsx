@@ -18,12 +18,12 @@ export function BoardCard({ board }: BoardCardProps) {
     if (opening) return;
     setOpening(true);
     try {
-      const res = await fetch('/api/editor-token');
+      const res = await fetch(`/api/editor-token?boardId=${board.id}`);
       if (!res.ok) {
         throw new Error(`Failed to mint editor token: ${res.status}`);
       }
       const { token } = (await res.json()) as { token: string };
-      window.location.href = `${EDITOR_URL}/boards/${board.id}#token=${encodeURIComponent(token)}`;
+      window.location.href = `${EDITOR_URL}/boards/${board.id}#token=${token}`;
     } catch (err) {
       console.error('Failed to open board:', err);
       setOpening(false);

@@ -2,15 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { env } from '@/lib/env';
 import {
   clearAuthTokenFromHash,
+  decodeJwtBoardId,
   decodeJwtExpiry,
   getAuthTokenFromHash,
   refreshAuthToken,
 } from './token';
 
-const STORAGE_KEY = 'editor:authToken';
+const STORAGE_KEY_PREFIX = 'editor:authToken:';
+
 // Refresh a little before actual expiry so in-flight sync calls don't
 // race the token going stale.
 const REFRESH_MARGIN_MS = 60_000;
+
 // Guard against hammering the web app if refreshes keep failing (e.g.
 // the user's web session itself expired) — several BoardSync flushes
 // can all report a 401 in quick succession.
@@ -21,15 +24,52 @@ interface AuthTokenState {
   expiresAt: number | null;
 }
 
-function readInitialToken(): AuthTokenState {
+/**
+ * Per-board storage key. Board-scoped tokens must never bleed across
+ * boards — a token scoped to board A must not be reused on board B
+ * even if both live in the same browser tab.
+ */
+function storageKeyFor(boardId: string): string {
+  return `${STORAGE_KEY_PREFIX}${boardId}`;
+}
+
+/**
+ * Load the initial token for a specific board. Priority:
+ *   1. URL hash (fresh from a board-open redirect)
+ *   2. sessionStorage keyed by boardId (survives page refresh)
+ *
+ * A hash token wins even if a stored one exists — this handles the case
+ * where a user opens a second board in the same tab. The redirect from
+ * the dashboard carries a fresh token, and we should always trust that
+ * over anything stashed.
+ *
+ * If either token is present but its boardId claim doesn't match the
+ * current board, we drop it — never reuse a cross-board token.
+ */
+function readInitialToken(boardId: string): AuthTokenState {
   const fromHash = getAuthTokenFromHash();
   if (fromHash) {
-    window.sessionStorage.setItem(STORAGE_KEY, fromHash);
+    const claimedBoardId = decodeJwtBoardId(fromHash);
+    if (claimedBoardId === boardId) {
+      window.sessionStorage.setItem(storageKeyFor(boardId), fromHash);
+      clearAuthTokenFromHash();
+      return { token: fromHash, expiresAt: decodeJwtExpiry(fromHash) };
+    }
+    // Hash token exists but scoped to a different board — clear it, keep looking
     clearAuthTokenFromHash();
-    return { token: fromHash, expiresAt: decodeJwtExpiry(fromHash) };
   }
-  const stored = window.sessionStorage.getItem(STORAGE_KEY);
-  return { token: stored, expiresAt: stored ? decodeJwtExpiry(stored) : null };
+
+  const stored = window.sessionStorage.getItem(storageKeyFor(boardId));
+  if (stored) {
+    const claimedBoardId = decodeJwtBoardId(stored);
+    if (claimedBoardId === boardId) {
+      return { token: stored, expiresAt: decodeJwtExpiry(stored) };
+    }
+    // Stored token exists but scoped to a different board — discard
+    window.sessionStorage.removeItem(storageKeyFor(boardId));
+  }
+
+  return { token: null, expiresAt: null };
 }
 
 /**
@@ -37,10 +77,16 @@ function readInitialToken(): AuthTokenState {
  * the URL hash (or sessionStorage on refresh), then keeps it fresh by
  * silently re-minting it from the web app shortly before it expires —
  * so long editing sessions don't run into a dead "sync error" once the
- * initial 10-minute token lapses.
+ * initial 5-minute token lapses.
+ *
+ * The token is scoped to a specific board. Passing a different boardId
+ * on re-render triggers a fresh initial-token read for that board.
  */
-export function useAuthToken(): { authToken: string | null; refresh: () => Promise<void> } {
-  const [state, setState] = useState<AuthTokenState>(readInitialToken);
+export function useAuthToken(boardId: string): {
+  authToken: string | null;
+  refresh: () => Promise<void>;
+} {
+  const [state, setState] = useState<AuthTokenState>(() => readInitialToken(boardId));
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAttemptRef = useRef(0);
 
@@ -48,25 +94,28 @@ export function useAuthToken(): { authToken: string | null; refresh: () => Promi
     const now = Date.now();
     if (now - lastAttemptRef.current < MIN_REFRESH_INTERVAL_MS) return;
     lastAttemptRef.current = now;
-
     try {
-      const next = await refreshAuthToken(env.VITE_WEB_URL);
-      window.sessionStorage.setItem(STORAGE_KEY, next.token);
+      const next = await refreshAuthToken(env.VITE_WEB_URL, boardId);
+      window.sessionStorage.setItem(storageKeyFor(boardId), next.token);
       setState({ token: next.token, expiresAt: next.expiresAt });
     } catch (err) {
       console.error('Failed to refresh editor auth token:', err);
     }
-  }, []);
+  }, [boardId]);
 
+  // When boardId changes, re-read initial token for the new board
+  useEffect(() => {
+    setState(readInitialToken(boardId));
+  }, [boardId]);
+
+  // Schedule automatic refresh before expiry
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (!state.expiresAt) return undefined;
-
     const delay = Math.max(state.expiresAt - Date.now() - REFRESH_MARGIN_MS, 0);
     timerRef.current = setTimeout(() => {
       void refresh();
     }, delay);
-
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
