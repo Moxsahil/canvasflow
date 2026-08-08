@@ -1,5 +1,5 @@
 import { createClient, boards, memberships } from '@canvasflow/db';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { env } from '@/lib/env';
 
 const db = createClient(env.DATABASE_URL);
@@ -18,52 +18,41 @@ export interface BoardAccessResult {
  * Returns null if the board doesn't exist OR the user has no access —
  * never distinguish the two, to prevent existence-leak side-channel.
  *
- * Mirrors services/api-gateway/src/boards/boards.service.ts findByIdForUser
- * to keep authorization logic consistent across services. Any change to
- * one must be applied to the other.
+ * Uses a single JOIN query (memberships INNER JOIN boards) rather than
+ * two sequential round trips. Matches the optimization made in
+ * services/sync-server/src/auth/check-board-access.ts for consistency
+ * across services.
+ *
+ * MIRRORS:
+ *   - services/sync-server/src/auth/check-board-access.ts (identical contract)
+ *
+ * RELATED, but a DIFFERENT contract — do not assume these are interchangeable:
+ *   - services/api-gateway/src/modules/boards/boards.service.ts
+ *     (findByIdForUser returns a full BoardRow, not { workspaceId, role })
+ *
+ * TODO: Extract to a shared package (@canvasflow/board-access).
+ * ANY CHANGE HERE MUST BE MIRRORED TO sync-server.
  */
 export async function checkBoardAccess(
   userId: string,
   boardId: string,
 ): Promise<BoardAccessResult | null> {
-  // First: which workspaces is the user in, and what's their role in each?
-  const userMemberships = await db
+  const rows = await db
     .select({
-      workspaceId: memberships.workspaceId,
+      workspaceId: boards.workspaceId,
       role: memberships.role,
     })
     .from(memberships)
-    .where(eq(memberships.userId, userId));
-
-  if (userMemberships.length === 0) return null;
-
-  const workspaceIds = userMemberships.map((m) => m.workspaceId);
-
-  // Then: does the board exist in one of those workspaces?
-  const boardRows = await db
-    .select({
-      workspaceId: boards.workspaceId,
-    })
-    .from(boards)
-    .where(
-      and(
-        eq(boards.id, boardId),
-        inArray(boards.workspaceId, workspaceIds),
-        isNull(boards.deletedAt),
-      ),
-    )
+    .innerJoin(boards, eq(boards.workspaceId, memberships.workspaceId))
+    .where(and(eq(memberships.userId, userId), eq(boards.id, boardId), isNull(boards.deletedAt)))
     .limit(1);
 
-  const board = boardRows[0];
-  if (!board) return null;
-
-  // Find the role in the specific workspace
-  const membership = userMemberships.find((m) => m.workspaceId === board.workspaceId);
-  if (!membership) return null; // Defensive — shouldn't happen given the query above
+  const row = rows[0];
+  if (!row) return null;
 
   return {
     boardId,
-    workspaceId: board.workspaceId,
-    role: membership.role,
+    workspaceId: row.workspaceId,
+    role: row.role,
   };
 }
