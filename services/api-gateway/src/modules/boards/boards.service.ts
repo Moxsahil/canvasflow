@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../infra/database/database.service.js';
 import { boards, memberships, workspaces, type BoardRow } from '@canvasflow/db';
-import { eq, isNull, and, inArray, asc } from 'drizzle-orm';
+import { eq, isNull, and, inArray, asc, getTableColumns } from 'drizzle-orm';
 
 export interface CreateBoardInput {
   userId: string;
@@ -32,17 +32,24 @@ export class BoardsService {
    * Returns null if the board doesn't exist, is soft-deleted, OR the
    * user lacks access. Callers should treat null as 404 — never leak
    * "exists but forbidden" because that's its own info disclosure.
+   *
+   * Uses a single JOIN query rather than two sequential round trips.
+   * Matches the same optimization in
+   * services/sync-server/src/auth/check-board-access.ts and
+   * apps/web/src/lib/boards/access.ts.
+   *
+   * getTableColumns(boards) keeps the result flat as BoardRow — a bare
+   * .select() alongside a join would nest it as { boards, memberships }.
+   *
+   * MIRRORS: sync-server + web app helpers.
+   * ANY CHANGE HERE MUST BE MIRRORED TO BOTH.
    */
   async findByIdForUser(id: string, userId: string): Promise<BoardRow | null> {
-    const workspaceIds = await this.getUserWorkspaceIds(userId);
-    if (workspaceIds.length === 0) return null;
-
     const rows = await this.database.db
-      .select()
+      .select(getTableColumns(boards))
       .from(boards)
-      .where(
-        and(eq(boards.id, id), inArray(boards.workspaceId, workspaceIds), isNull(boards.deletedAt)),
-      )
+      .innerJoin(memberships, eq(memberships.workspaceId, boards.workspaceId))
+      .where(and(eq(boards.id, id), eq(memberships.userId, userId), isNull(boards.deletedAt)))
       .limit(1);
 
     return rows[0] ?? null;
