@@ -181,12 +181,18 @@ function SyncStatusDot({ status }: SyncStatusDotProps) {
         return { color: '#a1a1aa', label: 'Not connected', pulse: false };
       case 'loading':
         return { color: '#f59e0b', label: 'Loading board...', pulse: true };
-      case 'loaded':
-        return { color: '#22c55e', label: 'Loaded', pulse: false };
-      case 'saving':
-        return { color: '#f59e0b', label: 'Saving...', pulse: true };
-      case 'saved':
-        return { color: '#22c55e', label: 'Saved', pulse: false };
+      case 'connecting':
+        return { color: '#f59e0b', label: 'Connecting...', pulse: true };
+      case 'connected':
+        return { color: '#22c55e', label: 'Live', pulse: false };
+      case 'reconnecting':
+        return { color: '#f59e0b', label: 'Reconnecting...', pulse: true };
+      case 'offline':
+        return {
+          color: '#ef4444',
+          label: 'Offline - changes will sync when reconnected',
+          pulse: false,
+        };
       case 'error':
         return { color: '#ef4444', label: 'Sync error', pulse: false };
       default:
