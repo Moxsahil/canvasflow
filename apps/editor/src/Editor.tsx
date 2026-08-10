@@ -62,15 +62,10 @@ export function Editor({ boardId }: EditorProps) {
   const shapes = useYjsShapes(doc);
   const { canUndo, canRedo } = useUndoState(doc);
 
-  // const { status: syncStatus } = useBoardSync(doc, {
-  //   boardId,
-  //   apiUrl: env.VITE_API_URL,
-  //   authToken,
-  // });
-
-  const { status: syncStatus } = useBoardSync(doc, {
+  const { status: syncStatus, notifyActivity } = useBoardSync(doc, {
     boardId,
     apiUrl: env.VITE_API_URL,
+    syncUrl: env.VITE_SYNC_URL,
     authToken,
     onAuthError: refreshAuthToken,
   });
@@ -168,6 +163,7 @@ export function Editor({ boardId }: EditorProps) {
 
   const handlePointerDown = useCallback(
     (point: Point, _screenPoint: Point, button: number, shiftKey: boolean) => {
+      notifyActivity();
       // The canvas's pointerdown suppresses the browser's default focus
       // handling (see usePointerEvents), which also suppresses the native
       // blur a click-away would normally trigger on an open text editor.
@@ -221,7 +217,16 @@ export function Editor({ boardId }: EditorProps) {
         hitHandle,
       });
     },
-    [actorRef, activeTool, isSpacePressed, selectedIds, shapes, spatialIndex, camera.zoom],
+    [
+      actorRef,
+      activeTool,
+      isSpacePressed,
+      selectedIds,
+      shapes,
+      spatialIndex,
+      camera.zoom,
+      notifyActivity,
+    ],
   );
 
   const handlePointerMove = useCallback(

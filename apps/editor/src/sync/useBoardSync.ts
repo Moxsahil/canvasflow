@@ -1,40 +1,45 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BoardDocument } from '@canvasflow/canvas-engine';
 import { BoardSync, type SyncStatus } from './BoardSync';
+import { WebSocketSync } from './WebSocketSync';
 
 interface UseBoardSyncOptions {
   boardId: string;
   apiUrl: string;
+  syncUrl: string;
   authToken: string | null;
-  /** Called when a sync request fails with 401 — the caller should mint a fresh token. */
   onAuthError?: () => void;
 }
 
 interface UseBoardSyncResult {
   status: SyncStatus;
   error: Error | null;
-}
-
-function isAuthError(err: unknown): boolean {
-  return err instanceof Error && err.message.includes('401');
+  notifyActivity: () => void;
 }
 
 /**
- * Wires a BoardDocument to the api-gateway sync layer.
+ * Wires a BoardDocument to the sync layer.
  *
  * Lifecycle:
- *   - On mount: create BoardSync, call load(), start observing
- *   - On board change: dispose the old sync, create fresh one
- *   - On unmount: flush pending updates, then dispose
- *   - Also flush on beforeunload (browser close/refresh)
+ *   - On mount: create BoardSync, HTTP-hydrate, then attach WebSocketSync
+ *   - On board change: dispose everything, recreate for new board
+ *   - On auth token change: recreate WebSocketSync (provider needs a new token)
+ *   - On unmount: dispose both cleanly
  */
 export function useBoardSync(
   doc: BoardDocument,
-  { boardId, apiUrl, authToken, onAuthError }: UseBoardSyncOptions,
+  { boardId, apiUrl, syncUrl, authToken, onAuthError }: UseBoardSyncOptions,
 ): UseBoardSyncResult {
   const [status, setStatus] = useState<SyncStatus>('idle');
   const [error, setError] = useState<Error | null>(null);
-  const syncRef = useRef<BoardSync | null>(null);
+
+  const wsRef = useRef<WebSocketSync | null>(null);
+  const boardSyncRef = useRef<BoardSync | null>(null);
+  const tokenRef = useRef<string | null>(authToken);
+
+  useEffect(() => {
+    tokenRef.current = authToken;
+  }, [authToken]);
 
   useEffect(() => {
     if (!authToken) {
@@ -42,44 +47,61 @@ export function useBoardSync(
       return;
     }
 
+    let cancelled = false;
+
     const handleError = (err: Error) => {
+      if (cancelled) return;
       setError(err);
-      if (isAuthError(err)) onAuthError?.();
+      if (err.message.includes('401')) onAuthError?.();
     };
 
-    const sync = new BoardSync(doc, {
+    const boardSync = new BoardSync(doc, {
       boardId,
       apiUrl,
       authToken,
       onError: handleError,
     });
-    syncRef.current = sync;
+    boardSyncRef.current = boardSync;
 
-    const unsubStatus = sync.onStatusChange(setStatus);
+    const unsubStatus = boardSync.onStatusChange(setStatus);
 
-    sync.load().catch((err) => {
-      handleError(err instanceof Error ? err : new Error(String(err)));
-    });
-
-    // Flush on tab close / refresh
-    const flushOnLeave = () => {
-      sync.flush().catch(() => {
-        // Best-effort on unload; can't do much if it fails
+    // HTTP hydration first, then attach WebSocket.
+    boardSync
+      .load()
+      .then(() => {
+        if (cancelled) return;
+        const ws = new WebSocketSync(doc, {
+          boardId,
+          syncUrl,
+          apiUrl,
+          getToken: () => tokenRef.current,
+          onAuthError,
+          onStatusChange: (nextStatus) => {
+            if (cancelled) return;
+            boardSync.setStatus(nextStatus);
+          },
+        });
+        wsRef.current = ws;
+      })
+      .catch((err) => {
+        handleError(err instanceof Error ? err : new Error(String(err)));
       });
-    };
-    window.addEventListener('beforeunload', flushOnLeave);
 
     return () => {
-      window.removeEventListener('beforeunload', flushOnLeave);
+      cancelled = true;
       unsubStatus();
-      // Fire-and-forget final flush, then dispose
-      sync
-        .flush()
-        .catch(() => undefined)
-        .finally(() => sync.dispose());
-      syncRef.current = null;
+      if (wsRef.current) {
+        wsRef.current.dispose();
+        wsRef.current = null;
+      }
+      boardSync.dispose();
+      boardSyncRef.current = null;
     };
-  }, [doc, boardId, apiUrl, authToken]);
+  }, [doc, boardId, apiUrl, syncUrl, authToken]);
 
-  return { status, error };
+  const notifyActivity = useCallback(() => {
+    wsRef.current?.notifyActivity();
+  }, []);
+
+  return { status, error, notifyActivity };
 }
