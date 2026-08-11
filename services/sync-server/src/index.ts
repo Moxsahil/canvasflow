@@ -7,6 +7,13 @@ import { createLogger } from './logging/logger.js';
 import { verifyEditorToken } from './auth/verify-token.js';
 import { checkBoardAccess } from './auth/check-board-access.js';
 import { getAllowedOrigins, isOriginAllowed } from './security/allowed-origins.js';
+import * as Y from 'yjs';
+import {
+  loadUpdates,
+  appendUpdate,
+  EmptyUpdateError,
+  UpdateTooLargeError,
+} from './persistence/board-updates-store.js';
 
 const env = parseEnv();
 const allowedOrigins = getAllowedOrigins(env);
@@ -96,6 +103,57 @@ const hocuspocus = Server.configure({
       role: access.role,
     };
   },
+  /**
+   * Load persisted state on room entry.
+   *
+   * Fires once per room, when the first client joins. Reads all persisted
+   * Yjs updates from Postgres in order and applies them to the document
+   * Hocuspocus is about to hand out to clients.
+   *
+   * Note this hook does NOT communicate state via its return value the way
+   * a `fetch`-style API would: Hocuspocus ignores a returned Uint8Array and
+   * only honours a returned Y.Doc. Applying updates straight onto
+   * data.document is the supported path, so that is what we do.
+   *
+   * On error: log and leave the document empty. Clients still function; they
+   * just don't see prior history. Preferable to throwing, which Hocuspocus
+   * treats as fatal — it closes every connection for the room, leaving users
+   * staring at "sync error" over a transient DB blip.
+   */
+  async onLoadDocument(data) {
+    const documentName = data.documentName;
+    const startedAt = Date.now();
+
+    try {
+      const updates = await loadUpdates(db, documentName);
+
+      if (updates.length === 0) {
+        log.info('fetch: no prior state', { boardId: documentName });
+        return data.document;
+      }
+
+      let mergedBytes = 0;
+      for (const update of updates) {
+        Y.applyUpdate(data.document, update);
+        mergedBytes += update.length;
+      }
+
+      log.info('fetch: loaded prior state', {
+        boardId: documentName,
+        updateCount: updates.length,
+        mergedBytes,
+        loadMs: Date.now() - startedAt,
+      });
+
+      return data.document;
+    } catch (err) {
+      log.error('load: failed, starting empty', {
+        boardId: documentName,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return data.document;
+    }
+  },
 
   // NOTE: there is deliberately no onConnect hook. Hocuspocus fires it on
   // the first message *before* awaiting onAuthenticate (handleQueueingMessage
@@ -130,6 +188,61 @@ const hocuspocus = Server.configure({
       updateBytes: data.update.length,
     });
     // PR #28: persist to Postgres here
+  },
+
+  /**
+   * Persist the current document state.
+   *
+   * Hocuspocus debounces this by default (2s of quiescence), so we don't
+   * pay a DB write per Yjs update. Instead, after a burst of edits settles,
+   * we write one row containing the merged state.
+   *
+   * On error: log and continue. In-memory state is preserved; the next
+   * successful save catches up. Losing the very last save on a server
+   * crash is an accepted trade-off for now — the schema comment already
+   * flags compaction/snapshotting as future work.
+   */
+  async onStoreDocument(data) {
+    const ctx = data.context as
+      | { requestId: string; userId: string; boardId: string }
+      | Record<string, never>;
+
+    // Same guard as onDisconnect/onChange — Hocuspocus can invoke this
+    // for connections that never authenticated.
+    if (!ctx.userId) return;
+
+    const update = Y.encodeStateAsUpdate(data.document);
+
+    try {
+      await appendUpdate(db, ctx.boardId, ctx.userId, update);
+      log.info('persisted document state', {
+        requestId: ctx.requestId,
+        boardId: ctx.boardId,
+        userId: ctx.userId,
+        bytes: update.length,
+      });
+    } catch (err) {
+      if (err instanceof EmptyUpdateError) {
+        log.debug('skipped empty update', {
+          requestId: ctx.requestId,
+          boardId: ctx.boardId,
+        });
+        return;
+      }
+      if (err instanceof UpdateTooLargeError) {
+        log.warn('rejected oversized update', {
+          requestId: ctx.requestId,
+          boardId: ctx.boardId,
+          bytes: update.length,
+        });
+        return;
+      }
+      log.error('failed to persist document state', {
+        requestId: ctx.requestId,
+        boardId: ctx.boardId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   },
 });
 
