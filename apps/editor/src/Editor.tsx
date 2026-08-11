@@ -23,13 +23,13 @@ import { hitTestHandles } from './selection/handles';
 import { useBoardDocument, useYjsShapes } from './document/useYjsDocument';
 import { useUndoState } from './document/useUndoState';
 import { useBoardSync } from './sync/useBoardSync';
-// import { getAuthTokenFromHash, clearAuthTokenFromHash } from './auth/token';
 import { useAuthToken } from './auth/useAuthToken';
 import { env } from './lib/env';
 import type { Tool } from './tools/tool';
 import type { Point } from './machine/tool-machine.types';
 import { ShortcutsModal } from './help';
 import { ShortcutsHint } from './help/ShortcutsHint';
+import { decodeJwtUserId } from './auth/token';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -41,16 +41,6 @@ export function Editor({ boardId }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { width, height } = useCanvasResize(containerRef);
 
-  // const [authToken] = useState(() => {
-  //   const token = getAuthTokenFromHash();
-  //   if (token) {
-  //     window.sessionStorage.setItem('editor:authToken', token);
-  //     clearAuthTokenFromHash();
-  //     return token;
-  //   }
-  //   return window.sessionStorage.getItem('editor:authToken');
-  // });
-
   const { authToken, refresh: refreshAuthToken } = useAuthToken(boardId);
 
   const [helpOpen, setHelpOpen] = useState(false);
@@ -58,7 +48,9 @@ export function Editor({ boardId }: EditorProps) {
   const handleShowHelp = useCallback(() => setHelpOpen(true), []);
   const handleCloseHelp = useCallback(() => setHelpOpen(false), []);
 
-  const doc = useBoardDocument(boardId);
+  const userId = authToken ? decodeJwtUserId(authToken) : null;
+
+  const doc = useBoardDocument(boardId, userId);
   const shapes = useYjsShapes(doc);
   const { canUndo, canRedo } = useUndoState(doc);
 
@@ -97,19 +89,11 @@ export function Editor({ boardId }: EditorProps) {
   const selectedIds = useSelector(actorRef, (s) => s.context.selectedIds);
   const marquee = useSelector(actorRef, (s) => s.context.marquee);
 
-  // While editing, the shape being edited is rendered by the textarea
-  // itself — drop it from what's passed to the canvas so it doesn't also
-  // render underneath (the Yjs doc still has it; hit-testing/selection
-  // elsewhere in this component keep using the full `shapes` array).
   const shapesForRender = useMemo(
     () => (editingTextShapeId ? shapes.filter((s) => s.id !== editingTextShapeId) : shapes),
     [shapes, editingTextShapeId],
   );
 
-  // Textarea is a fixed-position screen-space overlay; the shape/click
-  // position is world-space, so convert through the camera. Font size is
-  // scaled the same way so the in-place text visually matches the canvas at
-  // the current zoom (the stored fontSize on the shape itself is untouched).
   const textEditorScreenPosition = textEditingAt
     ? {
         x: (textEditingAt.x - camera.x) * camera.zoom,

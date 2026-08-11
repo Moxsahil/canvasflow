@@ -26,6 +26,13 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
     map.set('zIndex', zIndex);
   }
 
+  if (shape.lastEditedBy !== undefined) {
+    map.set('lastEditedBy', shape.lastEditedBy);
+  }
+  if (shape.lastEditedAt !== undefined) {
+    map.set('lastEditedAt', shape.lastEditedAt);
+  }
+
   // Shape-kind-specific fields
   switch (shape.kind) {
     case 'rectangle':
@@ -62,6 +69,9 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
   const kind = map.get('kind');
   if (typeof kind !== 'string') return null;
 
+  const lastEditedByRaw = map.get('lastEditedBy');
+  const lastEditedAtRaw = map.get('lastEditedAt');
+
   const base = {
     id: map.get('id') as string,
     x: map.get('x') as number,
@@ -71,6 +81,8 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
     fillColor: (map.get('fillColor') as string | null) ?? null,
     strokeWidth: (map.get('strokeWidth') as number) ?? 2,
     seed: (map.get('seed') as number) ?? 0,
+    ...(typeof lastEditedByRaw === 'string' && { lastEditedBy: lastEditedByRaw }),
+    ...(typeof lastEditedAtRaw === 'number' && { lastEditedAt: lastEditedAtRaw }),
   };
 
   const zIndex = map.get('zIndex');

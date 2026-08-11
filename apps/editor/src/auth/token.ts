@@ -49,6 +49,19 @@ export function decodeJwtBoardId(token: string): string | null {
   }
 }
 
+export function decodeJwtUserId(token: string): string | null {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const json = atob(base64);
+    const claims = JSON.parse(json) as { id?: string };
+    return typeof claims.id === 'string' ? claims.id : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface RefreshedToken {
   token: string;
   expiresAt: number;

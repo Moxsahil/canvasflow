@@ -21,10 +21,12 @@ export class BoardDocument {
   private readonly undoManager: Y.UndoManager;
   private listeners = new Set<() => void>();
   private undoListeners = new Set<() => void>();
+  private userId: string | null = null;
 
-  constructor(doc?: Y.Doc) {
+  constructor(doc?: Y.Doc, userId?: string | null) {
     this.yDoc = doc ?? new Y.Doc();
     this.yShapes = this.yDoc.getArray<Y.Map<unknown>>('shapes');
+    this.userId = userId ?? null;
 
     this.undoManager = new Y.UndoManager(this.yShapes, {
       captureTimeout: UNDO_CAPTURE_TIMEOUT_MS,
@@ -71,11 +73,16 @@ export class BoardDocument {
     this.undoManager.redo();
   }
 
-  /**
-   * Manually mark the end of an undo group.
-   * Call this after finishing a drag/resize gesture so the NEXT gesture
-   * starts a new undo step, even if it happens within captureTimeout.
-   */
+  setUserId(userId: string | null): void {
+    this.userId = userId;
+  }
+
+  private setAttribution(yMap: Y.Map<unknown>): void {
+    if (this.userId === null) return;
+    yMap.set('lastEditedBy', this.userId);
+    yMap.set('lastEditedAt', Date.now());
+  }
+
   breakUndoGroup(): void {
     this.undoManager.stopCapturing();
   }
@@ -121,7 +128,9 @@ export class BoardDocument {
       const currentMax = this.getMaxZIndex();
       const newZIndex = generateKeyBetween(currentMax, null);
       const shapeWithZ = { ...shape, zIndex: newZIndex } as Shape & { zIndex: string };
-      this.yShapes.push([shapeToYMap(shapeWithZ)]);
+      const yMap = shapeToYMap(shapeWithZ);
+      this.setAttribution(yMap);
+      this.yShapes.push([yMap]);
     }, 'local');
   }
 
@@ -134,6 +143,7 @@ export class BoardDocument {
             if (key === 'id' || key === 'kind') continue;
             yMap.set(key, value);
           }
+          this.setAttribution(yMap);
           return;
         }
       }
@@ -232,9 +242,9 @@ export class BoardDocument {
         const y = yMap.get('y') as number;
         yMap.set('x', x + dx);
         yMap.set('y', y + dy);
+        this.setAttribution(yMap);
       }
     }, 'local');
-    // Each nudge is a distinct undo step
     this.breakUndoGroup();
   }
 
@@ -283,6 +293,7 @@ export class BoardDocument {
         const newZIndex = generateKeyBetween(currentMax, null);
         clone.set('zIndex', newZIndex);
         currentMax = newZIndex;
+        this.setAttribution(clone);
 
         this.yShapes.push([clone]);
       }
