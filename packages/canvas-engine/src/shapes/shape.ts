@@ -7,6 +7,8 @@ export interface BaseShape {
   readonly fillColor: string | null;
   readonly strokeWidth: number;
   readonly seed: number;
+  readonly lastEditedBy?: string;
+  readonly lastEditedAt?: number;
 }
 
 export interface RectangleShape extends BaseShape {
