@@ -1,12 +1,5 @@
 import type { FC, ReactNode, SVGProps } from 'react';
 
-/**
- * Editor chrome icons.
- *
- * Following Excalidraw: no SVG files, one factory producing tabler-style
- * outline glyphs. Everything is `currentColor` on the stroke, so icons inherit
- * `--icon-fill-color` and follow hover/active/theme with no per-icon rules.
- */
 export function createIcon(children: ReactNode): FC<SVGProps<SVGSVGElement>> {
   const Icon: FC<SVGProps<SVGSVGElement>> = (props) => (
     <svg
