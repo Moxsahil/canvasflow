@@ -10,6 +10,7 @@ import {
   type Shape,
 } from '@canvasflow/canvas-engine';
 import {
+  DEFAULT_ITEM_STYLE,
   IDENTITY_CAMERA,
   MAX_ZOOM,
   MIN_ZOOM,
@@ -153,16 +154,38 @@ export const toolMachine = setup({
       if (event.type !== 'POINTER_DOWN') return {};
       const p = event.point;
       const tool = context.activeTool;
+      const style = context.itemStyle;
       let newElement: Shape | null = null;
       switch (tool) {
         case 'rectangle':
-          newElement = createRectangle({ id: genId(), x: p.x, y: p.y, width: 1, height: 1 });
+          newElement = createRectangle({
+            id: genId(),
+            x: p.x,
+            y: p.y,
+            width: 1,
+            height: 1,
+            ...style,
+          });
           break;
         case 'ellipse':
-          newElement = createEllipse({ id: genId(), x: p.x, y: p.y, width: 1, height: 1 });
+          newElement = createEllipse({
+            id: genId(),
+            x: p.x,
+            y: p.y,
+            width: 1,
+            height: 1,
+            ...style,
+          });
           break;
         case 'diamond':
-          newElement = createDiamond({ id: genId(), x: p.x, y: p.y, width: 1, height: 1 });
+          newElement = createDiamond({
+            id: genId(),
+            x: p.x,
+            y: p.y,
+            width: 1,
+            height: 1,
+            ...style,
+          });
           break;
         case 'line':
           newElement = createLine({
@@ -173,6 +196,7 @@ export const toolMachine = setup({
               [0, 0],
               [1, 1],
             ],
+            ...style,
           });
           break;
         case 'arrow':
@@ -184,6 +208,7 @@ export const toolMachine = setup({
               [0, 0],
               [1, 1],
             ],
+            ...style,
           });
           break;
         default:
@@ -191,7 +216,7 @@ export const toolMachine = setup({
       }
       return { newElement };
     }),
-    startFreehand: assign(({ event }) => {
+    startFreehand: assign(({ context, event }) => {
       if (event.type !== 'POINTER_DOWN') return {};
       const p = event.point;
       return {
@@ -201,8 +226,25 @@ export const toolMachine = setup({
           x: p.x,
           y: p.y,
           points: [[0, 0]],
+          ...context.itemStyle,
         }),
       };
+    }),
+    markForErase: assign(({ context, event }) => {
+      if (event.type !== 'ERASE_MARK') return {};
+      // Alt takes shapes back out of the pending set, so a slip can be undone
+      // without abandoning the whole stroke.
+      const pending = new Set(context.erasePending);
+      for (const id of event.ids) {
+        if (event.restore) pending.delete(id);
+        else pending.add(id);
+      }
+      return { erasePending: [...pending] };
+    }),
+    clearErasePending: assign({ erasePending: [] }),
+    setItemStyle: assign(({ context, event }) => {
+      if (event.type !== 'SET_ITEM_STYLE') return {};
+      return { itemStyle: { ...context.itemStyle, ...event.style } };
     }),
     updateShapeDraw: assign(({ context, event }) => {
       if (event.type !== 'POINTER_MOVE') return {};
@@ -347,6 +389,7 @@ export const toolMachine = setup({
     },
     isFreehandTool: ({ context }) => context.activeTool === 'freehand',
     isTextTool: ({ context }) => context.activeTool === 'text',
+    isEraserTool: ({ context }) => context.activeTool === 'eraser',
     isPanGesture: ({ context, event }) => {
       if (event.type !== 'POINTER_DOWN') return false;
       return event.button === 1 || context.isSpacePressed || context.activeTool === 'hand';
@@ -391,9 +434,12 @@ export const toolMachine = setup({
     dragOriginShapes: {},
     resizeHandle: null,
     resizeOriginShape: null,
+    itemStyle: DEFAULT_ITEM_STYLE,
+    erasePending: [],
   },
   on: {
     SELECT_TOOL: { target: '.idle', actions: 'selectTool' },
+    SET_ITEM_STYLE: { actions: 'setItemStyle' },
     ESCAPE: { target: '.idle', actions: ['clearDraw', 'clearTextEditing', 'deselectAll'] },
     EDIT_TEXT_SHAPE: { target: '.editingText', actions: 'startEditingExistingText' },
     SPACE_DOWN: { actions: 'trackSpaceDown' },
@@ -443,7 +489,32 @@ export const toolMachine = setup({
             target: 'editingText',
             actions: 'startTextEditing',
           },
+          {
+            guard: 'isEraserTool',
+            target: 'erasing',
+            actions: ['recordPointerDown', 'clearErasePending'],
+          },
         ],
+      },
+    },
+    /**
+     * An eraser stroke in progress. Shapes accumulate in `erasePending` and
+     * only leave the document on pointer up, so the whole stroke is a single
+     * undo step rather than one per shape swept.
+     */
+    erasing: {
+      on: {
+        ERASE_MARK: { actions: 'markForErase' },
+        POINTER_UP: {
+          target: 'idle',
+          actions: [
+            emit(({ context }) => ({
+              type: 'shapes.deleted' as const,
+              ids: context.erasePending,
+            })),
+            'clearErasePending',
+          ],
+        },
       },
     },
     panning: {

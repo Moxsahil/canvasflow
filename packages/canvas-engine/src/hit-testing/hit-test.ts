@@ -17,7 +17,6 @@ export function hitTest(
   y: number,
 ): Shape | null {
   const candidateIds = new Set(index.searchPoint(x, y));
-  // Iterate in reverse so we find the topmost first
   for (let i = shapes.length - 1; i >= 0; i--) {
     const shape = shapes[i];
     if (!shape) continue;
@@ -28,10 +27,6 @@ export function hitTest(
   return null;
 }
 
-/**
- * Find all shapes intersecting a marquee rectangle.
- * Uses bounds-intersection (not full containment) — matches Excalidraw/Figma.
- */
 export function hitTestMarquee(
   shapes: readonly Shape[],
   index: SpatialIndex,
@@ -44,7 +39,6 @@ export function hitTestMarquee(
   });
 }
 
-/** Normalize a rect so width/height are positive. */
 export function normalizeRect(x1: number, y1: number, x2: number, y2: number): Rect {
   return {
     x: Math.min(x1, x2),

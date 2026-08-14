@@ -1,4 +1,5 @@
 export * from './shape.js';
+export * from './style.js';
 export * from './rectangle.js';
 export * from './ellipse.js';
 export * from './diamond.js';
@@ -7,3 +8,4 @@ export * from './arrow.js';
 export * from './freehand.js';
 export * from './text.js';
 export * from './bounds.js';
+export * from './outline.js';

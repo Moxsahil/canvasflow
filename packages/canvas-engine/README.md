@@ -81,7 +81,7 @@ in Node, so we don't need a browser to verify renderer correctness.
   in, get pixels out. Makes testing trivial.
 - **Discriminated unions for shapes.** Each new shape kind adds one case
   to a `switch`, and TypeScript enforces exhaustiveness.
-- **Rough.js for hand-drawn aesthetic.** Same library Excalidraw uses.
+- **Rough.js for hand-drawn aesthetic.** Same library uses.
   Pinned per-shape seeds so renders are deterministic.
 - **Camera as a value type.** Pan and zoom are just `{ x, y, zoom }`,
   passed in per render call. No global state.

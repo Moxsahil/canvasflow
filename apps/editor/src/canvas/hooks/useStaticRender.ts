@@ -8,6 +8,8 @@ interface UseStaticRenderOptions {
   shapes: readonly Shape[];
   camera: Camera;
   devicePixelRatio: number;
+  /** Shapes the eraser has marked; drawn faded until the stroke commits. */
+  pendingErasureIds?: ReadonlySet<string>;
 }
 
 /**
@@ -21,7 +23,7 @@ export function useStaticRender(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   options: UseStaticRenderOptions,
 ): void {
-  const { width, height, shapes, camera, devicePixelRatio } = options;
+  const { width, height, shapes, camera, devicePixelRatio, pendingErasureIds } = options;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -34,6 +36,7 @@ export function useStaticRender(
       height,
       shapes,
       camera,
+      pendingErasureIds,
     });
-  }, [canvasRef, width, height, shapes, camera, devicePixelRatio]);
+  }, [canvasRef, width, height, shapes, camera, devicePixelRatio, pendingErasureIds]);
 }

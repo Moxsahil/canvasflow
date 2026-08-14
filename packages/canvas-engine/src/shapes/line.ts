@@ -1,21 +1,21 @@
 import type { LineShape } from './shape.js';
 import type { Rect } from '../math.js';
+import { resolveBaseStyle, type BaseStyleInput, type Edges } from './style.js';
 
 /**
  * A line is defined by 2+ points. The first point is the line's origin
  * (x, y); subsequent points are relative to it in the canvas coordinate
  * system. Multi-point lines become poly-lines (multiple connected segments).
  */
-export function createLine(input: {
-  id: string;
-  x: number;
-  y: number;
-  points: ReadonlyArray<readonly [number, number]>;
-  strokeColor?: string;
-  strokeWidth?: number;
-  rotation?: number;
-  seed?: number;
-}): LineShape {
+export function createLine(
+  input: BaseStyleInput & {
+    id: string;
+    x: number;
+    y: number;
+    points: ReadonlyArray<readonly [number, number]>;
+    edges?: Edges;
+  },
+): LineShape {
   if (input.points.length < 2) {
     throw new Error('Line requires at least 2 points');
   }
@@ -25,11 +25,8 @@ export function createLine(input: {
     x: input.x,
     y: input.y,
     points: input.points,
-    rotation: input.rotation ?? 0,
-    strokeColor: input.strokeColor ?? '#1e293b',
-    fillColor: null,
-    strokeWidth: input.strokeWidth ?? 2,
-    seed: input.seed ?? Math.floor(Math.random() * 2 ** 31),
+    edges: input.edges ?? 'sharp',
+    ...resolveBaseStyle(input),
   };
 }
 

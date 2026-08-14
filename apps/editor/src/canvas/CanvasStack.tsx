@@ -13,6 +13,7 @@ import { screenToWorld, eventToCanvasScreen } from '../pointer/coords';
 
 interface CanvasStackProps {
   shapes: readonly Shape[];
+  pendingErasureIds?: ReadonlySet<string>;
   newElement: Shape | null;
   selectedIds: readonly string[];
   marquee: { x: number; y: number; width: number; height: number } | null;
@@ -20,7 +21,7 @@ interface CanvasStackProps {
   camera: Camera;
   isSpacePressed: boolean;
   onPointerDown: (point: Point, screenPoint: Point, button: number, shiftKey: boolean) => void;
-  onPointerMove: (point: Point, screenPoint: Point, screenDelta: Point) => void;
+  onPointerMove: (point: Point, screenPoint: Point, screenDelta: Point, altKey: boolean) => void;
   onPointerUp: (point: Point, screenPoint: Point) => void;
   onDoubleClick: (point: Point, screenPoint: Point) => void;
   onWheelZoom: (delta: number, anchor: Point) => void;
@@ -30,6 +31,7 @@ interface CanvasStackProps {
 
 export function CanvasStack({
   shapes,
+  pendingErasureIds,
   newElement,
   selectedIds,
   marquee,
@@ -52,7 +54,14 @@ export function CanvasStack({
   const { width, height } = useCanvasResize(containerRef);
   const dpr = useDevicePixelRatio();
 
-  useStaticRender(staticCanvasRef, { width, height, shapes, camera, devicePixelRatio: dpr });
+  useStaticRender(staticCanvasRef, {
+    width,
+    height,
+    shapes,
+    camera,
+    devicePixelRatio: dpr,
+    pendingErasureIds,
+  });
   useNewElementRender(newElementCanvasRef, {
     width,
     height,

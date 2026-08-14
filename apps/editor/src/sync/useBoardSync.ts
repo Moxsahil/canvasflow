@@ -36,10 +36,17 @@ export function useBoardSync(
   const wsRef = useRef<WebSocketSync | null>(null);
   const boardSyncRef = useRef<BoardSync | null>(null);
   const tokenRef = useRef<string | null>(authToken);
+  // Held in a ref for the same reason as the token: the connection effect must
+  // not tear down and reconnect just because the callback's identity changed.
+  const onAuthErrorRef = useRef(onAuthError);
 
   useEffect(() => {
     tokenRef.current = authToken;
   }, [authToken]);
+
+  useEffect(() => {
+    onAuthErrorRef.current = onAuthError;
+  }, [onAuthError]);
 
   useEffect(() => {
     if (!authToken) {
@@ -52,7 +59,7 @@ export function useBoardSync(
     const handleError = (err: Error) => {
       if (cancelled) return;
       setError(err);
-      if (err.message.includes('401')) onAuthError?.();
+      if (err.message.includes('401')) onAuthErrorRef.current?.();
     };
 
     const boardSync = new BoardSync(doc, {
@@ -75,7 +82,7 @@ export function useBoardSync(
           syncUrl,
           apiUrl,
           getToken: () => tokenRef.current,
-          onAuthError,
+          onAuthError: () => onAuthErrorRef.current?.(),
           onStatusChange: (nextStatus) => {
             if (cancelled) return;
             boardSync.setStatus(nextStatus);

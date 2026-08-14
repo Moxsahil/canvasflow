@@ -1,5 +1,16 @@
 import type { Tool } from '@/tools/tool';
-import type { Shape } from '@canvasflow/canvas-engine';
+import {
+  DEFAULT_FONT_FAMILY,
+  DEFAULT_FONT_SIZE,
+  DEFAULT_STROKE_COLOR,
+  type Arrowhead,
+  type ArrowType,
+  type Edges,
+  type FillStyle,
+  type Roughness,
+  type Shape,
+  type StrokeStyle,
+} from '@canvasflow/canvas-engine';
 
 export interface Point {
   readonly x: number;
@@ -19,6 +30,55 @@ export const MIN_ZOOM = 0.1;
 export const MAX_ZOOM = 5;
 
 export type HandleIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
+/**
+ * Style applied to the next shape drawn. The properties panel edits this when
+ * nothing is selected, so a tool "remembers" the look you last chose.
+ *
+ * It carries the union of every kind's styleable fields; the panel shows only
+ * the ones that apply to what's being edited, and the shape factories ignore
+ * whatever doesn't belong to them.
+ */
+export interface ItemStyle {
+  readonly strokeColor: string;
+  readonly fillColor: string | null;
+  readonly fillStyle: FillStyle;
+  readonly strokeWidth: number;
+  readonly strokeStyle: StrokeStyle;
+  readonly roughness: Roughness;
+  readonly edges: Edges;
+  /** 0–100. */
+  readonly opacity: number;
+  // text
+  readonly fontFamily: string;
+  readonly fontSize: number;
+  readonly textAlign: 'left' | 'center' | 'right';
+  // arrow
+  readonly arrowType: ArrowType;
+  readonly startArrowhead: Arrowhead;
+  readonly endArrowhead: Arrowhead;
+  // freehand
+  readonly simulatePressure: boolean;
+}
+
+/** strokeColor matches the first swatch in the panel, so it opens with a selection. */
+export const DEFAULT_ITEM_STYLE: ItemStyle = {
+  strokeColor: DEFAULT_STROKE_COLOR,
+  fillColor: null,
+  fillStyle: 'hachure',
+  strokeWidth: 2,
+  strokeStyle: 'solid',
+  roughness: 1,
+  edges: 'sharp',
+  opacity: 100,
+  fontFamily: DEFAULT_FONT_FAMILY,
+  fontSize: DEFAULT_FONT_SIZE,
+  textAlign: 'left',
+  arrowType: 'straight',
+  startArrowhead: 'none',
+  endArrowhead: 'arrow',
+  simulatePressure: true,
+};
 
 export interface ToolMachineContext {
   /** Currently active tool. */
@@ -46,6 +106,15 @@ export interface ToolMachineContext {
 
   resizeHandle: HandleIndex | null;
   resizeOriginShape: Shape | null;
+
+  /** Style used for shapes drawn from here on. */
+  itemStyle: ItemStyle;
+
+  /**
+   * Shapes the eraser has swept over but not yet deleted. They render faded
+   * until the stroke ends, so the gesture stays reversible while in progress.
+   */
+  erasePending: string[];
 }
 
 export type ToolMachineEvent =
@@ -73,6 +142,8 @@ export type ToolMachineEvent =
   | { type: 'DELETE_SELECTED' }
   | { type: 'SELECT_ALL'; shapeIds: string[] }
   | { type: 'DESELECT' }
+  | { type: 'SET_ITEM_STYLE'; style: Partial<ItemStyle> }
+  | { type: 'ERASE_MARK'; ids: readonly string[]; restore: boolean }
   | { type: 'INTERNAL_UPDATE_SHAPES'; shapes: Shape[] };
 
 export interface ShapeCommitted {

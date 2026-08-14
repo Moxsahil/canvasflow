@@ -1,5 +1,9 @@
 import { TOOLS, type Tool } from '../tools/tool';
+import { Island, Stack } from '../ui';
 import { ToolButton } from './ToolButton';
+import './Toolbar.css';
+
+const TOOL_GROUP = 'cf-active-tool';
 
 interface ToolbarProps {
   activeTool: Tool;
@@ -8,32 +12,20 @@ interface ToolbarProps {
 
 export function Toolbar({ activeTool, onToolChange }: ToolbarProps) {
   return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 12,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        display: 'inline-flex',
-        gap: 4,
-        padding: 4,
-        background: 'white',
-        borderRadius: 8,
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04)',
-      }}
-      role="toolbar"
-      aria-label="Drawing tools"
-    >
-      {TOOLS.map((t) => (
-        <ToolButton
-          key={t.id}
-          tool={t.id}
-          label={t.label}
-          shortcut={t.shortcut}
-          active={activeTool === t.id}
-          onClick={() => onToolChange(t.id)}
-        />
-      ))}
+    <div className="cf-toolbar-container" role="radiogroup" aria-label="Drawing tools">
+      <Island padding={1}>
+        <Stack.Row gap={1} align="center">
+          {TOOLS.map((meta) => (
+            <ToolButton
+              key={meta.id}
+              meta={meta}
+              active={activeTool === meta.id}
+              group={TOOL_GROUP}
+              onSelect={onToolChange}
+            />
+          ))}
+        </Stack.Row>
+      </Island>
     </div>
   );
 }

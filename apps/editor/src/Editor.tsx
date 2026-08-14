@@ -3,11 +3,10 @@ import { useActorRef, useSelector } from '@xstate/react';
 import {
   computeBoundingRect,
   createText,
-  DEFAULT_FONT_FAMILY,
-  DEFAULT_FONT_SIZE,
   fitRectToViewport,
   hitTest,
   isText,
+  shapesIntersectingSegment,
   SpatialIndex,
   type Shape,
 } from '@canvasflow/canvas-engine';
@@ -25,8 +24,9 @@ import { useUndoState } from './document/useUndoState';
 import { useBoardSync } from './sync/useBoardSync';
 import { useAuthToken } from './auth/useAuthToken';
 import { env } from './lib/env';
-import type { Tool } from './tools/tool';
-import type { Point } from './machine/tool-machine.types';
+import { PropertiesPanel, itemStyleFromShape } from './properties';
+import { TOOL_TO_SHAPE_KIND, type Tool } from './tools/tool';
+import type { ItemStyle, Point } from './machine/tool-machine.types';
 import { ShortcutsModal } from './help';
 import { ShortcutsHint } from './help/ShortcutsHint';
 import { decodeJwtUserId } from './auth/token';
@@ -88,6 +88,8 @@ export function Editor({ boardId }: EditorProps) {
   const isSpacePressed = useSelector(actorRef, (s) => s.context.isSpacePressed);
   const selectedIds = useSelector(actorRef, (s) => s.context.selectedIds);
   const marquee = useSelector(actorRef, (s) => s.context.marquee);
+  const itemStyle = useSelector(actorRef, (s) => s.context.itemStyle);
+  const erasePending = useSelector(actorRef, (s) => s.context.erasePending);
 
   const shapesForRender = useMemo(
     () => (editingTextShapeId ? shapes.filter((s) => s.id !== editingTextShapeId) : shapes),
@@ -100,15 +102,17 @@ export function Editor({ boardId }: EditorProps) {
         y: (textEditingAt.y - camera.y) * camera.zoom,
       }
     : null;
+  // Editing an existing shape shows that shape's type; new text previews the
+  // style the panel is set to, so the overlay matches what gets committed.
+  const editingText = editingTextShape && isText(editingTextShape) ? editingTextShape : null;
   const textEditorFontSize =
-    (editingTextShape && isText(editingTextShape) ? editingTextShape.fontSize : DEFAULT_FONT_SIZE) *
-    camera.zoom;
-  const textEditorFontFamily =
-    editingTextShape && isText(editingTextShape)
-      ? editingTextShape.fontFamily
-      : DEFAULT_FONT_FAMILY;
-  const textEditorColor =
-    editingTextShape && isText(editingTextShape) ? editingTextShape.strokeColor : '#1e293b';
+    (editingText ? editingText.fontSize : itemStyle.fontSize) * camera.zoom;
+  const textEditorFontFamily = editingText ? editingText.fontFamily : itemStyle.fontFamily;
+  const textEditorColor = editingText ? editingText.strokeColor : itemStyle.strokeColor;
+
+  // Rebuilt only when the marked set actually changes, so the static canvas
+  // isn't invalidated on every pointer move of an eraser stroke.
+  const pendingErasureIds = useMemo(() => new Set(erasePending), [erasePending]);
 
   const spatialIndex = useMemo(() => {
     const index = new SpatialIndex();
@@ -116,9 +120,51 @@ export function Editor({ boardId }: EditorProps) {
     return index;
   }, [shapes]);
 
+  // --- properties panel ---------------------------------------------------
+  // The panel edits the selection when there is one, and otherwise the style
+  // the next drawn shape will take. That second mode is why it shows for an
+  // active drawing tool on an empty canvas.
+  const selectedShapes = useMemo(
+    () => shapes.filter((s) => selectedIds.includes(s.id)),
+    [shapes, selectedIds],
+  );
+
+  const toolShapeKind =
+    activeTool in TOOL_TO_SHAPE_KIND
+      ? TOOL_TO_SHAPE_KIND[activeTool as keyof typeof TOOL_TO_SHAPE_KIND]
+      : null;
+
+  const propertyShapeKinds = useMemo<Shape['kind'][]>(() => {
+    if (selectedShapes.length > 0) return [...new Set(selectedShapes.map((s) => s.kind))];
+    return toolShapeKind ? [toolShapeKind] : [];
+  }, [selectedShapes, toolShapeKind]);
+
+  const firstSelected = selectedShapes[0];
+  const propertyStyle: ItemStyle = firstSelected
+    ? itemStyleFromShape(firstSelected, itemStyle)
+    : itemStyle;
+
+  const showProperties = selectedShapes.length > 0 || toolShapeKind !== null;
+
+  const handleStyleChange = useCallback(
+    (patch: Partial<ItemStyle>, transient = false) => {
+      // Always remember the choice, so the next shape drawn inherits it.
+      actorRef.send({ type: 'SET_ITEM_STYLE', style: patch });
+      if (selectedIds.length === 0) return;
+      for (const id of selectedIds) {
+        doc.updateShape(id, patch);
+      }
+
+      if (!transient) doc.breakUndoGroup();
+    },
+    [actorRef, doc, selectedIds],
+  );
+
   const dragOriginsRef = useRef<Record<string, Shape>>({});
   const resizeOriginRef = useRef<Shape | null>(null);
   const pointerDownWorldRef = useRef<Point | null>(null);
+  /** Previous point of the eraser stroke, so each move sweeps a segment. */
+  const lastErasePointRef = useRef<Point | null>(null);
 
   useEffect(() => {
     const sub1 = actorRef.on('shape.committed', (emitted) => {
@@ -200,6 +246,26 @@ export function Editor({ boardId }: EditorProps) {
         hitShapeId,
         hitHandle,
       });
+
+      // After POINTER_DOWN, so the machine is already in `erasing` — the idle
+      // state has no ERASE_MARK handler and would drop this silently.
+      // A click produces no pointer move, so mark the spot directly, otherwise
+      // tapping a shape would do nothing.
+      if (activeTool === 'eraser') {
+        lastErasePointRef.current = point;
+        const ids = shapesIntersectingSegment(
+          shapes,
+          spatialIndex,
+          [
+            [point.x, point.y],
+            [point.x, point.y],
+          ],
+          camera.zoom,
+        );
+        if (ids.length > 0) {
+          actorRef.send({ type: 'ERASE_MARK', ids, restore: false });
+        }
+      }
     },
     [
       actorRef,
@@ -214,10 +280,29 @@ export function Editor({ boardId }: EditorProps) {
   );
 
   const handlePointerMove = useCallback(
-    (point: Point, _screenPoint: Point, screenDelta: Point) => {
+    (point: Point, _screenPoint: Point, screenDelta: Point, altKey = false) => {
       actorRef.send({ type: 'POINTER_MOVE', point, screenDelta });
 
       const snap = actorRef.getSnapshot();
+
+      if (snap.matches('erasing')) {
+        // Test the span the pointer just swept, not where it landed: between
+        // two events the cursor can jump clean over a shape.
+        const from = lastErasePointRef.current ?? point;
+        lastErasePointRef.current = point;
+        const ids = shapesIntersectingSegment(
+          shapes,
+          spatialIndex,
+          [
+            [from.x, from.y],
+            [point.x, point.y],
+          ],
+          camera.zoom,
+        );
+        if (ids.length > 0) {
+          actorRef.send({ type: 'ERASE_MARK', ids, restore: altKey });
+        }
+      }
 
       if (snap.matches('draggingSelection') && pointerDownWorldRef.current) {
         const dx = point.x - pointerDownWorldRef.current.x;
@@ -243,7 +328,9 @@ export function Editor({ boardId }: EditorProps) {
         }
       }
     },
-    [actorRef, doc],
+    // shapes/spatialIndex/zoom feed the eraser hit-test; omitting them freezes
+    // this callback on the first render's empty document.
+    [actorRef, doc, shapes, spatialIndex, camera.zoom],
   );
 
   const handlePointerUp = useCallback(
@@ -255,6 +342,7 @@ export function Editor({ boardId }: EditorProps) {
       dragOriginsRef.current = {};
       resizeOriginRef.current = null;
       pointerDownWorldRef.current = null;
+      lastErasePointRef.current = null;
 
       // Break the undo group so the next drag/resize is a separate undo step
       if (wasInteracting) {
@@ -473,7 +561,19 @@ export function Editor({ boardId }: EditorProps) {
           doc.deleteShapes([editingId]);
         }
       } else if (pos && trimmed) {
-        const textShape = createText({ id: genId(), x: pos.x, y: pos.y, text });
+        const { strokeColor, opacity, fontFamily, fontSize, textAlign } = snap.context.itemStyle;
+        const textShape = createText({
+          id: genId(),
+          x: pos.x,
+          y: pos.y,
+          text,
+          // New text takes whatever the properties panel is showing.
+          strokeColor,
+          opacity,
+          fontFamily,
+          fontSize,
+          textAlign,
+        });
         doc.addShape(textShape);
       }
 
@@ -485,9 +585,14 @@ export function Editor({ boardId }: EditorProps) {
   const handleCancelText = useCallback(() => actorRef.send({ type: 'CANCEL_TEXT' }), [actorRef]);
 
   return (
-    <div ref={containerRef} style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
+    <div
+      ref={containerRef}
+      className="cf-editor"
+      style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}
+    >
       <CanvasStack
         shapes={shapesForRender}
+        pendingErasureIds={pendingErasureIds}
         newElement={newElement}
         selectedIds={selectedIds}
         marquee={marquee}
@@ -504,6 +609,21 @@ export function Editor({ boardId }: EditorProps) {
       />
 
       <Toolbar activeTool={activeTool} onToolChange={handleToolChange} />
+
+      {showProperties && (
+        <PropertiesPanel
+          style={propertyStyle}
+          shapeKinds={propertyShapeKinds}
+          canReorder={selectedIds.length === 1}
+          onStyleChange={handleStyleChange}
+          layerActions={{
+            onSendToBack: handleSendToBack,
+            onSendBackward: handleSendBackward,
+            onBringForward: handleBringForward,
+            onBringToFront: handleBringToFront,
+          }}
+        />
+      )}
 
       {textEditorScreenPosition && (
         <TextEditor

@@ -14,10 +14,6 @@ interface ZoomPanelProps {
   onRedo: () => void;
 }
 
-/**
- * Floating panel in bottom-left corner. Contains sync status dot,
- * zoom controls, and undo/redo. Excalidraw-style layout.
- */
 export function ZoomPanel({
   zoom,
   canUndo,
@@ -164,7 +160,7 @@ function IconOnlyButton({
         if (!disabled) e.currentTarget.style.background = 'transparent';
       }}
     >
-      <Icon width={14} height={14} />
+      <Icon width={16} height={16} />
     </button>
   );
 }

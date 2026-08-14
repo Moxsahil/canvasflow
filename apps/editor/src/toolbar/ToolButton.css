@@ -1,0 +1,68 @@
+.cf-tool-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--border-radius-lg);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The real radio drives state and keyboard navigation; only the sibling span
+   is ever painted. Kept in the accessibility tree, so no `display: none`. */
+.cf-tool-button__input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  margin: 0;
+}
+
+.cf-tool-button__icon {
+  box-sizing: border-box;
+  width: var(--default-button-size);
+  height: var(--default-button-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-lg);
+  color: var(--icon-fill-color);
+  transition: background-color 100ms ease;
+}
+
+.cf-tool-button__icon svg {
+  width: var(--default-icon-size);
+  height: var(--default-icon-size);
+}
+
+.cf-tool-button:hover .cf-tool-button__icon {
+  background-color: var(--button-hover-bg);
+}
+
+.cf-tool-button:active .cf-tool-button__icon {
+  background-color: var(--button-hover-bg);
+  border-color: var(--button-active-border);
+}
+
+.cf-tool-button__input:checked + .cf-tool-button__icon {
+  background-color: var(--color-surface-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+.cf-tool-button__input:focus-visible + .cf-tool-button__icon {
+  box-shadow: 0 0 0 2px var(--focus-highlight-color);
+}
+
+.cf-tool-button__keybinding {
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  font-family: var(--font-sans);
+  font-size: 0.5rem;
+  line-height: 1;
+  color: var(--keybinding-color);
+}
+
+.cf-tool-button__input:checked + .cf-tool-button__icon .cf-tool-button__keybinding {
+  color: var(--color-on-primary-container);
+}
