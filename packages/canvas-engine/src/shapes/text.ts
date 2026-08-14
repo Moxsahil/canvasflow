@@ -1,21 +1,21 @@
 import type { TextShape } from './shape.js';
 import type { Rect } from '../math.js';
+import { resolveBaseStyle, type BaseStyleInput } from './style.js';
 
 export const DEFAULT_FONT_FAMILY = '"Caveat", "Comic Sans MS", system-ui, sans-serif';
 export const DEFAULT_FONT_SIZE = 20;
 
-export function createText(input: {
-  id: string;
-  x: number;
-  y: number;
-  text: string;
-  fontSize?: number;
-  fontFamily?: string;
-  textAlign?: 'left' | 'center' | 'right';
-  strokeColor?: string;
-  rotation?: number;
-  seed?: number;
-}): TextShape {
+export function createText(
+  input: BaseStyleInput & {
+    id: string;
+    x: number;
+    y: number;
+    text: string;
+    fontSize?: number;
+    fontFamily?: string;
+    textAlign?: 'left' | 'center' | 'right';
+  },
+): TextShape {
   return {
     kind: 'text',
     id: input.id,
@@ -25,11 +25,10 @@ export function createText(input: {
     fontSize: input.fontSize ?? DEFAULT_FONT_SIZE,
     fontFamily: input.fontFamily ?? DEFAULT_FONT_FAMILY,
     textAlign: input.textAlign ?? 'left',
-    rotation: input.rotation ?? 0,
-    strokeColor: input.strokeColor ?? '#1e293b',
+    ...resolveBaseStyle(input),
     fillColor: null,
-    strokeWidth: 1, // text uses fontSize, not strokeWidth, but kept for BaseShape
-    seed: input.seed ?? Math.floor(Math.random() * 2 ** 31),
+    // Text is sized by fontSize; strokeWidth is carried only for BaseShape.
+    strokeWidth: 1,
   };
 }
 
@@ -65,5 +64,11 @@ export function textBoundsEstimate(s: TextShape): Rect {
   }
   const height = lines.length * s.fontSize * 1.2;
 
-  return { x: s.x, y: s.y, width, height };
+  // The renderer sets ctx.textAlign, so x is the anchor rather than always the
+  // left edge. Shift the box to match, or selection outlines and hit-testing
+  // would sit beside centred and right-aligned text.
+  const x =
+    s.textAlign === 'center' ? s.x - width / 2 : s.textAlign === 'right' ? s.x - width : s.x;
+
+  return { x, y: s.y, width, height };
 }

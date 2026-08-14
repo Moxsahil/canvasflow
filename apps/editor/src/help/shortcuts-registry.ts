@@ -12,11 +12,6 @@ export interface ShortcutCategory {
   entries: ShortcutEntry[];
 }
 
-/**
- * All keyboard shortcuts in CanvasFlow, organized by category.
- * Three big columns (Tools / Editor / View) to match Excalidraw's layout.
- * Keep in sync with useKeyboardShortcuts.ts as shortcuts are added.
- */
 export const SHORTCUTS: ShortcutCategory[] = [
   {
     title: 'Tools',
@@ -24,12 +19,13 @@ export const SHORTCUTS: ShortcutCategory[] = [
       { keys: 'h', description: 'Hand (pan canvas)' },
       { keys: 'v', description: 'Select tool' },
       { keys: 'r', description: 'Rectangle' },
-      { keys: 'o', description: 'Ellipse' },
+      { keys: 'c', description: 'Ellipse' },
       { keys: 'd', description: 'Diamond' },
       { keys: 'l', description: 'Line' },
       { keys: 'a', description: 'Arrow' },
       { keys: 'p', description: 'Freehand (pencil)' },
       { keys: 't', description: 'Text' },
+      { keys: 'e', description: 'Eraser' },
     ],
   },
   {

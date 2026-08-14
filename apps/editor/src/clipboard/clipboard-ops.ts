@@ -26,17 +26,6 @@ export async function writeShapesToClipboard(shapes: readonly Shape[]): Promise<
   }
 }
 
-/**
- * Read shapes from system clipboard. Handles both CanvasFlow and
- * Excalidraw formats. Returns [] if:
- *   - Clipboard is empty
- *   - Clipboard contents aren't valid JSON
- *   - Contents don't match a supported format
- *   - Browser blocks the read
- *
- * genId is provided by the caller so new shapes get fresh IDs
- * (never collide with existing shapes in the doc).
- */
 export async function readShapesFromClipboard(genId: () => string): Promise<Shape[]> {
   let raw: string;
   try {

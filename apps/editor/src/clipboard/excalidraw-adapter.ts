@@ -10,14 +10,6 @@ import {
 } from '@canvasflow/canvas-engine';
 import type { ExcalidrawElement } from './schema';
 
-/**
- * Excalidraw uses numeric IDs for font families in their JSON:
- *   1 = Virgil (their handwritten default)
- *   2 = Helvetica
- *   3 = Cascadia
- *   4 = Segoe UI
- * We map them to font-family strings that fit our stack.
- */
 const EXCALIDRAW_FONT_MAP: Record<number, string> = {
   1: '"Caveat", "Comic Sans MS", system-ui, sans-serif',
   2: 'Helvetica, Arial, sans-serif',
@@ -25,11 +17,6 @@ const EXCALIDRAW_FONT_MAP: Record<number, string> = {
   4: '"Segoe UI", system-ui, sans-serif',
 };
 
-/**
- * Convert a list of Excalidraw elements into CanvasFlow shapes.
- * Skips unsupported types (image, frame, etc.) silently.
- * Uses caller-provided genId so we don't collide with existing shape IDs.
- */
 export function excalidrawElementsToShapes(
   elements: ExcalidrawElement[],
   genId: () => string,

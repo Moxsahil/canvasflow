@@ -1,20 +1,11 @@
 import type { Shape } from '@canvasflow/canvas-engine';
 
-/**
- * Our clipboard payload format. Serialized as JSON, written to system
- * clipboard as text. On paste, we detect this marker to distinguish our
- * own data from arbitrary text or Excalidraw's format.
- */
 export interface CanvasFlowClipboard {
   type: 'canvasflow/clipboard';
   version: 1;
   shapes: Shape[];
 }
 
-/**
- * Excalidraw's clipboard format. We accept it on paste.
- * Fields we don't use are typed loose; we extract only what we need.
- */
 export interface ExcalidrawClipboard {
   type: 'excalidraw/clipboard';
   elements: ExcalidrawElement[];
@@ -36,7 +27,7 @@ export interface ExcalidrawElement {
   endArrowhead?: string | null;
   text?: string;
   fontSize?: number;
-  fontFamily?: number; // Excalidraw uses numeric IDs — we translate below
+  fontFamily?: number;
   seed?: number;
 }
 

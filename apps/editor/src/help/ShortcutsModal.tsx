@@ -107,7 +107,7 @@ export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
               e.currentTarget.style.background = 'transparent';
             }}
           >
-            <CloseIcon width={14} height={14} />
+            <CloseIcon width={16} height={16} />
           </button>
         </div>
 

@@ -1,23 +1,14 @@
 import type { Shape } from '../shapes/shape.js';
-import { assertNever } from '../shapes/shape.js';
 import { clearCanvas } from '../utils/canvas.js';
-import {
-  createRoughCanvas,
-  generateRectangleDrawable,
-  generateEllipseDrawable,
-  generateDiamondDrawable,
-  generateLineDrawable,
-  generateArrowDrawable,
-  generateFreehandDrawable,
-  drawShape,
-  drawArrowheads,
-  drawText,
-} from '../utils/rough.js';
+import { createRoughCanvas } from '../utils/rough.js';
+import { drawSceneShape } from './draw-shape.js';
 
 export interface StaticSceneOptions {
   readonly width: number;
   readonly height: number;
   readonly shapes: readonly Shape[];
+  /** Shapes the eraser has marked but not yet deleted; drawn faded. */
+  readonly pendingErasureIds?: ReadonlySet<string>;
   readonly camera?: {
     readonly x: number;
     readonly y: number;
@@ -28,16 +19,15 @@ export interface StaticSceneOptions {
 /**
  * Paint all finished shapes to the static canvas.
  *
- * Switch on shape.kind for exhaustive type-narrowing. The assertNever
- * call in the default case makes TypeScript refuse to compile if we
- * add a new shape kind and forget to handle it here.
+ * Per-shape painting lives in drawSceneShape, shared with the new-element
+ * renderer, so exhaustiveness over shape kinds is checked in one place.
  */
 export function renderStaticScene(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   canvas: HTMLCanvasElement | OffscreenCanvas,
   opts: StaticSceneOptions,
 ): void {
-  const { width, height, shapes, camera } = opts;
+  const { width, height, shapes, camera, pendingErasureIds } = opts;
 
   clearCanvas(ctx, width, height);
 
@@ -51,39 +41,7 @@ export function renderStaticScene(
   const rc = createRoughCanvas(canvas);
 
   for (const shape of shapes) {
-    switch (shape.kind) {
-      case 'rectangle': {
-        drawShape(rc, generateRectangleDrawable(rc, shape));
-        break;
-      }
-      case 'ellipse': {
-        drawShape(rc, generateEllipseDrawable(rc, shape));
-        break;
-      }
-      case 'diamond': {
-        drawShape(rc, generateDiamondDrawable(rc, shape));
-        break;
-      }
-      case 'line': {
-        drawShape(rc, generateLineDrawable(rc, shape));
-        break;
-      }
-      case 'arrow': {
-        drawShape(rc, generateArrowDrawable(rc, shape));
-        drawArrowheads(ctx, shape);
-        break;
-      }
-      case 'freehand': {
-        drawShape(rc, generateFreehandDrawable(rc, shape));
-        break;
-      }
-      case 'text': {
-        drawText(ctx, shape);
-        break;
-      }
-      default:
-        assertNever(shape);
-    }
+    drawSceneShape(ctx, rc, shape, pendingErasureIds?.has(shape.id) ?? false);
   }
 
   ctx.restore();

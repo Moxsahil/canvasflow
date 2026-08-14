@@ -1,22 +1,22 @@
 import type { ArrowShape } from './shape.js';
 import type { Rect } from '../math.js';
+import { resolveBaseStyle, type Arrowhead, type ArrowType, type BaseStyleInput } from './style.js';
 
 /**
  * An arrow is a line with arrowhead markers at one or both ends.
  * Same point-relative geometry as Line.
  */
-export function createArrow(input: {
-  id: string;
-  x: number;
-  y: number;
-  points: ReadonlyArray<readonly [number, number]>;
-  startArrowhead?: 'none' | 'triangle';
-  endArrowhead?: 'none' | 'triangle';
-  strokeColor?: string;
-  strokeWidth?: number;
-  rotation?: number;
-  seed?: number;
-}): ArrowShape {
+export function createArrow(
+  input: BaseStyleInput & {
+    id: string;
+    x: number;
+    y: number;
+    points: ReadonlyArray<readonly [number, number]>;
+    startArrowhead?: Arrowhead;
+    endArrowhead?: Arrowhead;
+    arrowType?: ArrowType;
+  },
+): ArrowShape {
   if (input.points.length < 2) {
     throw new Error('Arrow requires at least 2 points');
   }
@@ -27,12 +27,11 @@ export function createArrow(input: {
     y: input.y,
     points: input.points,
     startArrowhead: input.startArrowhead ?? 'none',
-    endArrowhead: input.endArrowhead ?? 'triangle',
-    rotation: input.rotation ?? 0,
-    strokeColor: input.strokeColor ?? '#1e293b',
+    endArrowhead: input.endArrowhead ?? 'arrow',
+    arrowType: input.arrowType ?? 'straight',
+    ...resolveBaseStyle(input),
+    // Arrows enclose no area.
     fillColor: null,
-    strokeWidth: input.strokeWidth ?? 2,
-    seed: input.seed ?? Math.floor(Math.random() * 2 ** 31),
   };
 }
 

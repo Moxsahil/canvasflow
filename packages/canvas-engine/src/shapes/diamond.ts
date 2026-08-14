@@ -1,23 +1,22 @@
 import type { Rect } from '../math.js';
 import type { DiamondShape } from './shape.js';
+import { resolveBaseStyle, type BaseStyleInput, type Edges } from './style.js';
 
 /**
  * Diamond is just a 4-point polygon: top, right, bottom, left of its
  * bounding box. Width/height define the box.
  */
 
-export function createDiamond(input: {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  strokeColor?: string;
-  fillColor?: string | null;
-  strokeWidth?: number;
-  rotation?: number;
-  seed?: number;
-}): DiamondShape {
+export function createDiamond(
+  input: BaseStyleInput & {
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    edges?: Edges;
+  },
+): DiamondShape {
   return {
     kind: 'diamond',
     id: input.id,
@@ -25,11 +24,8 @@ export function createDiamond(input: {
     y: input.y,
     width: input.width,
     height: input.height,
-    rotation: input.rotation ?? 0,
-    fillColor: input.fillColor ?? null,
-    strokeColor: input.strokeColor ?? '#1e293b',
-    strokeWidth: input.strokeWidth ?? 2,
-    seed: input.seed ?? Math.floor(Math.random() * 2 ** 31),
+    edges: input.edges ?? 'sharp',
+    ...resolveBaseStyle(input),
   };
 }
 

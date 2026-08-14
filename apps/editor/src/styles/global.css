@@ -1,4 +1,5 @@
 @import '@canvasflow/ui/styles.css';
+@import './theme.css';
 
 html, body, #root {
   height: 100%;
@@ -38,6 +39,12 @@ html, body, #root {
 }
 .canvas-stack[data-tool='freehand'] {
   cursor: crosshair;
+}
+/* A small circle at the pointer, echoing the eraser's reach. */
+.canvas-stack[data-tool='eraser'] {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Ccircle cx='10' cy='10' r='7' fill='rgba(255,255,255,0.6)' stroke='%231e1e1e' stroke-width='1.5'/%3E%3C/svg%3E")
+      10 10,
+    crosshair;
 }
 
 .canvas-stack[data-tool='hand'] { cursor: grab; }

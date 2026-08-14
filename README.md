@@ -3,7 +3,6 @@
 [![CI](https://github.com/Moxsahil/canvasflow/actions/workflows/ci.yml/badge.svg)](https://github.com/Moxsahil/canvasflow/actions/workflows/ci.yml)
 
 Enterprise-grade collaborative whiteboard platform.
-Excalidraw warmth meets Figma collaboration meets Notion workspace primitives.
 
 ## Stack
 

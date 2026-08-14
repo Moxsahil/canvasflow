@@ -1,3 +1,5 @@
+import type { Arrowhead, ArrowType, Edges, FillStyle, Roughness, StrokeStyle } from './style.js';
+
 export interface BaseShape {
   readonly id: string;
   readonly x: number;
@@ -5,7 +7,12 @@ export interface BaseShape {
   readonly rotation: number;
   readonly strokeColor: string;
   readonly fillColor: string | null;
+  readonly fillStyle: FillStyle;
   readonly strokeWidth: number;
+  readonly strokeStyle: StrokeStyle;
+  readonly roughness: Roughness;
+  /** 0–100. */
+  readonly opacity: number;
   readonly seed: number;
   readonly lastEditedBy?: string;
   readonly lastEditedAt?: number;
@@ -15,6 +22,7 @@ export interface RectangleShape extends BaseShape {
   readonly kind: 'rectangle';
   readonly width: number;
   readonly height: number;
+  readonly edges: Edges;
 }
 
 export interface EllipseShape extends BaseShape {
@@ -27,6 +35,7 @@ export interface DiamondShape extends BaseShape {
   readonly kind: 'diamond';
   readonly width: number;
   readonly height: number;
+  readonly edges: Edges;
 }
 
 // --- Linear shapes (defined by points, no closed area) ---
@@ -34,19 +43,25 @@ export interface DiamondShape extends BaseShape {
 export interface LineShape extends BaseShape {
   readonly kind: 'line';
   readonly points: ReadonlyArray<readonly [number, number]>;
+  /** `round` curves through the points instead of joining them straight. */
+  readonly edges: Edges;
 }
 
 export interface ArrowShape extends BaseShape {
   readonly kind: 'arrow';
   readonly points: ReadonlyArray<readonly [number, number]>;
-  readonly startArrowhead: 'none' | 'triangle';
-  readonly endArrowhead: 'none' | 'triangle';
+  readonly startArrowhead: Arrowhead;
+  readonly endArrowhead: Arrowhead;
+  readonly arrowType: ArrowType;
 }
 
 export interface FreehandShape extends BaseShape {
   readonly kind: 'freehand';
   /** Many short segments captured from pointer move events. */
   readonly points: ReadonlyArray<readonly [number, number]>;
+  readonly edges: Edges;
+  /** Taper the stroke toward both ends, as if drawn with varying pressure. */
+  readonly simulatePressure: boolean;
 }
 
 // --- Text shape ---

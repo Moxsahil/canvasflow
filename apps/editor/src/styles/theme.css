@@ -1,0 +1,61 @@
+
+
+.cf-editor {
+  /* ---------- palette ---------- */
+  --color-surface-lowest: #ffffff;
+  --color-surface-low: #ececf4;
+  --color-surface-mid: #f6f6f9;
+  --color-surface-high: #f1f0ff;
+  --color-on-surface: #1b1b1f;
+  --color-surface-primary-container: #e0dfff;
+  --color-on-primary-container: #030064;
+  --color-brand-active: #4440bf;
+  --color-muted: #b8b8b8;
+
+  /* ---------- semantic roles ---------- */
+  --island-bg-color: var(--color-surface-lowest);
+  --shadow-island:
+    0 0 1px 0 rgb(0 0 0 / 0.17), 0 0 3px 0 rgb(0 0 0 / 0.08), 0 7px 14px 0 rgb(0 0 0 / 0.05);
+  --default-border-color: var(--color-surface-high);
+  --icon-fill-color: var(--color-on-surface);
+  --text-primary-color: var(--color-on-surface);
+  --keybinding-color: var(--color-muted);
+  --button-hover-bg: var(--color-surface-high);
+  --button-active-border: var(--color-brand-active);
+  --focus-highlight-color: #a5d8ff;
+
+  /* ---------- metrics ---------- */
+  /* Every Island padding and Stack gap is a multiple of this, so the whole
+     UI rescales from one number. */
+  --space-factor: 0.25rem;
+  --default-button-size: 2rem;
+  --default-icon-size: 1rem;
+  --border-radius-md: 0.375rem;
+  --border-radius-lg: 0.5rem;
+
+  /* ---------- z-index ladder ----------
+     Named so no chrome component invents its own stacking number. */
+  --zIndex-canvas: 1;
+  --zIndex-interactiveCanvas: 2;
+  --zIndex-wysiwyg: 3;
+  --zIndex-layerUI: 4;
+  --zIndex-popup: 100;
+  --zIndex-modal: 1000;
+}
+
+.cf-editor[data-theme='dark'] {
+  --color-surface-lowest: hsl(0, 0%, 7%);
+  --color-surface-low: hsl(240, 8%, 15%);
+  --color-surface-mid: hsl(240, 6%, 10%);
+  --color-surface-high: #2e2d39;
+  --color-on-surface: #e3e3e8;
+  --color-surface-primary-container: #403e6a;
+  --color-on-primary-container: #e0dfff;
+  --color-brand-active: #d0ccff;
+  --color-muted: #7a7a7a;
+
+  --island-bg-color: #232329;
+  --shadow-island:
+    0 0 1px 0 rgb(0 0 0 / 0.4), 0 0 3px 0 rgb(0 0 0 / 0.3), 0 7px 14px 0 rgb(0 0 0 / 0.25);
+  --focus-highlight-color: #228be6;
+}

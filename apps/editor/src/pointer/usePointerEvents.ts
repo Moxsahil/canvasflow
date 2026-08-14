@@ -3,7 +3,7 @@ import type { Point } from '../machine/tool-machine.types';
 
 interface UsePointerEventsOptions {
   onPointerDown: (point: Point, screenPoint: Point, button: number, shiftKey: boolean) => void;
-  onPointerMove: (point: Point, screenPoint: Point, screenDelta: Point) => void;
+  onPointerMove: (point: Point, screenPoint: Point, screenDelta: Point, altKey: boolean) => void;
   onPointerUp: (point: Point, screenPoint: Point) => void;
   onDoubleClick: (point: Point, screenPoint: Point) => void;
   screenToWorld: (screenX: number, screenY: number) => Point;
@@ -48,7 +48,7 @@ export function usePointerEvents(
       const last = lastScreenRef.current ?? screen;
       const delta = { x: screen.x - last.x, y: screen.y - last.y };
       lastScreenRef.current = screen;
-      onPointerMove(world, screen, delta);
+      onPointerMove(world, screen, delta, e.altKey);
     };
 
     const handlePointerUp = (e: PointerEvent) => {
