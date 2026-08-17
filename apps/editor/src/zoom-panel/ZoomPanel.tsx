@@ -1,6 +1,6 @@
 import type { FC, SVGProps } from 'react';
 import { UndoIcon, RedoIcon, ZoomInIcon, ZoomOutIcon } from '../assets/icons';
-import type { SyncStatus } from '../sync/BoardSync';
+import type { SyncStatus } from '../sync/sync-status';
 
 interface ZoomPanelProps {
   zoom: number;

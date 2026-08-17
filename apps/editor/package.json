@@ -24,6 +24,7 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.18.1",
     "xstate": "^5.32.2",
+    "y-indexeddb": "^9.0.12",
     "yjs": "^13.6.31"
   },
   "devDependencies": {

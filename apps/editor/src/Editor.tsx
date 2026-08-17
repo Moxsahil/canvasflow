@@ -59,6 +59,7 @@ export function Editor({ boardId }: EditorProps) {
     apiUrl: env.VITE_API_URL,
     syncUrl: env.VITE_SYNC_URL,
     authToken,
+    userId,
     onAuthError: refreshAuthToken,
   });
 
