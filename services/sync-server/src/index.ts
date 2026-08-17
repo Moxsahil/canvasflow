@@ -9,11 +9,35 @@ import { checkBoardAccess } from './auth/check-board-access.js';
 import { getAllowedOrigins, isOriginAllowed } from './security/allowed-origins.js';
 import * as Y from 'yjs';
 import {
-  loadUpdates,
-  appendUpdate,
+  loadSnapshot,
+  saveSnapshot,
   EmptyUpdateError,
   UpdateTooLargeError,
 } from './persistence/board-updates-store.js';
+
+/**
+ * State vector of the last state we persisted, per room.
+ *
+ * Borrowed from Excalidraw's `isSavedToFirebase`, which compares a scene
+ * version before writing and returns early when nothing changed. The same
+ * idea applies here with a stronger equality check: a Yjs state vector is
+ * the set of (client, clock) pairs a document has seen, so an unchanged
+ * vector means no operation has been added since the last save.
+ *
+ * Worth having because onStoreDocument fires on a timer after activity,
+ * not only on real change — awareness churn, a reconnect, or a room
+ * unloading can all trigger a save of bytes Postgres already holds. Each
+ * of those costs a full round trip to a database an ocean away.
+ *
+ * Keyed by documentName and cleared in onDestroy so the map cannot grow
+ * without bound across rooms.
+ */
+const lastPersistedVector = new Map<string, Uint8Array>();
+
+function vectorsEqual(a: Uint8Array | undefined, b: Uint8Array): boolean {
+  if (!a || a.length !== b.length) return false;
+  return a.every((byte, i) => byte === b[i]);
+}
 
 const env = parseEnv();
 const allowedOrigins = getAllowedOrigins(env);
@@ -35,6 +59,27 @@ const db = createClient(env.DATABASE_URL);
  */
 const hocuspocus = Server.configure({
   port: env.PORT_WS,
+
+  /**
+   * Persistence cadence. Hocuspocus defaults to debounce 2s / maxDebounce
+   * 10s, which meant a busy board wrote a full snapshot every couple of
+   * seconds. Excalidraw saves its scene on a 20s throttle; we sit just
+   * inside that, which cuts write volume roughly fivefold while still
+   * bounding how much work an unexpected process death can cost.
+   */
+  debounce: 10_000,
+  maxDebounce: 30_000,
+
+  /**
+   * Keep a room in memory after the last client leaves.
+   *
+   * The default (true) evicts the document the instant the socket closes,
+   * so every reconnect — a tab switch, a token refresh, a flaky network —
+   * pays a fresh onLoadDocument round trip to Postgres. Holding the room
+   * for the debounce window instead makes those reconnects free, which
+   * matters most on exactly the connections that drop and return quickly.
+   */
+  unloadImmediately: false,
 
   async onAuthenticate(data) {
     const requestId = randomUUID();
@@ -106,9 +151,9 @@ const hocuspocus = Server.configure({
   /**
    * Load persisted state on room entry.
    *
-   * Fires once per room, when the first client joins. Reads all persisted
-   * Yjs updates from Postgres in order and applies them to the document
-   * Hocuspocus is about to hand out to clients.
+   * Fires once per room, when the first client joins. Reads the board's
+   * persisted state from Postgres as a single merged update and applies it
+   * to the document Hocuspocus is about to hand out to clients.
    *
    * Note this hook does NOT communicate state via its return value the way
    * a `fetch`-style API would: Hocuspocus ignores a returned Uint8Array and
@@ -125,23 +170,23 @@ const hocuspocus = Server.configure({
     const startedAt = Date.now();
 
     try {
-      const updates = await loadUpdates(db, documentName);
+      const snapshot = await loadSnapshot(db, documentName);
 
-      if (updates.length === 0) {
+      if (!snapshot) {
         log.info('fetch: no prior state', { boardId: documentName });
         return data.document;
       }
 
-      let mergedBytes = 0;
-      for (const update of updates) {
-        Y.applyUpdate(data.document, update);
-        mergedBytes += update.length;
-      }
+      Y.applyUpdate(data.document, snapshot);
+
+      // Seed the skip guard: the document currently matches what is in
+      // Postgres, so the first onStoreDocument has nothing to write unless
+      // a client actually edits something.
+      lastPersistedVector.set(documentName, Y.encodeStateVector(data.document));
 
       log.info('fetch: loaded prior state', {
         boardId: documentName,
-        updateCount: updates.length,
-        mergedBytes,
+        snapshotBytes: snapshot.length,
         loadMs: Date.now() - startedAt,
       });
 
@@ -175,6 +220,16 @@ const hocuspocus = Server.configure({
     });
   },
 
+  /**
+   * A room is gone from memory, so its cached state vector is stale — the
+   * next load re-seeds it from Postgres. Dropping it here is what keeps
+   * lastPersistedVector bounded by live rooms rather than by every board
+   * this process has ever served.
+   */
+  async afterUnloadDocument(data) {
+    lastPersistedVector.delete(data.documentName);
+  },
+
   async onChange(data) {
     const ctx = data.context as
       | { requestId: string; userId: string; boardId: string }
@@ -193,14 +248,14 @@ const hocuspocus = Server.configure({
   /**
    * Persist the current document state.
    *
-   * Hocuspocus debounces this by default (2s of quiescence), so we don't
-   * pay a DB write per Yjs update. Instead, after a burst of edits settles,
-   * we write one row containing the merged state.
+   * Debounced by the cadence configured above, so a burst of edits settles
+   * into one write rather than a write per Yjs update. That write replaces
+   * the board's previous snapshot instead of appending to a log — see
+   * saveSnapshot for why the old rows are pruned.
    *
    * On error: log and continue. In-memory state is preserved; the next
    * successful save catches up. Losing the very last save on a server
-   * crash is an accepted trade-off for now — the schema comment already
-   * flags compaction/snapshotting as future work.
+   * crash is an accepted trade-off.
    */
   async onStoreDocument(data) {
     const ctx = data.context as
@@ -211,10 +266,22 @@ const hocuspocus = Server.configure({
     // for connections that never authenticated.
     if (!ctx.userId) return;
 
+    // Nothing new since the last save? Then the round trip would write
+    // bytes Postgres already has. See lastPersistedVector.
+    const vector = Y.encodeStateVector(data.document);
+    if (vectorsEqual(lastPersistedVector.get(data.documentName), vector)) {
+      log.debug('skipped unchanged document', {
+        requestId: ctx.requestId,
+        boardId: ctx.boardId,
+      });
+      return;
+    }
+
     const update = Y.encodeStateAsUpdate(data.document);
 
     try {
-      await appendUpdate(db, ctx.boardId, ctx.userId, update);
+      await saveSnapshot(db, ctx.boardId, ctx.userId, update);
+      lastPersistedVector.set(data.documentName, vector);
       log.info('persisted document state', {
         requestId: ctx.requestId,
         boardId: ctx.boardId,

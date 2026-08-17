@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BoardDocument } from '@canvasflow/canvas-engine';
-import { BoardSync, type SyncStatus } from './BoardSync';
+import type { SyncStatus } from './sync-status';
 import { WebSocketSync } from './WebSocketSync';
+import { useOfflineCache } from './useOfflineCache';
 
 interface UseBoardSyncOptions {
   boardId: string;
   apiUrl: string;
   syncUrl: string;
   authToken: string | null;
+  userId: string | null;
   onAuthError?: () => void;
 }
 
@@ -21,24 +23,37 @@ interface UseBoardSyncResult {
  * Wires a BoardDocument to the sync layer.
  *
  * Lifecycle:
- *   - On mount: create BoardSync, HTTP-hydrate, then attach WebSocketSync
+ *   - On mount: replay the local cache, attach WebSocketSync
  *   - On board change: dispose everything, recreate for new board
- *   - On auth token change: recreate WebSocketSync (provider needs a new token)
- *   - On unmount: dispose both cleanly
+ *   - On auth token change: nothing — see the connection effect below
+ *   - On unmount: dispose cleanly
+ *
+ * There is no HTTP hydration step. The server's state arrives through the
+ * WebSocket's own sync protocol, so fetching it separately meant loading
+ * the same bytes twice and, worse, holding the socket closed until the
+ * slower of the two finished.
  */
 export function useBoardSync(
   doc: BoardDocument,
-  { boardId, apiUrl, syncUrl, authToken, onAuthError }: UseBoardSyncOptions,
+  { boardId, apiUrl, syncUrl, authToken, userId, onAuthError }: UseBoardSyncOptions,
 ): UseBoardSyncResult {
   const [status, setStatus] = useState<SyncStatus>('idle');
   const [error, setError] = useState<Error | null>(null);
 
   const wsRef = useRef<WebSocketSync | null>(null);
-  const boardSyncRef = useRef<BoardSync | null>(null);
+
+  // The token is deliberately read through a ref rather than closed over.
+  // Editor tokens live ~5 minutes and are silently re-minted a minute
+  // before expiry, so treating the token as a dependency of the connection
+  // effect tore the socket down and rebuilt it every few minutes — for a
+  // board that was already loaded and already live. WebSocketSync asks for
+  // the current token via getToken() whenever it actually needs one.
   const tokenRef = useRef<string | null>(authToken);
-  // Held in a ref for the same reason as the token: the connection effect must
-  // not tear down and reconnect just because the callback's identity changed.
+  // Held in a ref for the same reason: the connection must not restart
+  // just because a callback's identity changed between renders.
   const onAuthErrorRef = useRef(onAuthError);
+
+  const cacheHydrated = useOfflineCache(doc, boardId, userId);
 
   useEffect(() => {
     tokenRef.current = authToken;
@@ -48,63 +63,49 @@ export function useBoardSync(
     onAuthErrorRef.current = onAuthError;
   }, [onAuthError]);
 
+  const hasToken = authToken !== null;
+
   useEffect(() => {
-    if (!authToken) {
+    if (!hasToken) {
       setStatus('idle');
+      return;
+    }
+
+    // Attaching the provider before the cache has replayed would let the
+    // server's state land first and make the local copy look like a remote
+    // edit. Both orders converge — Yjs updates are commutative — but
+    // waiting keeps the local doc authoritative for first paint, which is
+    // the whole point of caching it.
+    if (!cacheHydrated) {
+      setStatus('loading');
       return;
     }
 
     let cancelled = false;
 
-    const handleError = (err: Error) => {
-      if (cancelled) return;
-      setError(err);
-      if (err.message.includes('401')) onAuthErrorRef.current?.();
-    };
-
-    const boardSync = new BoardSync(doc, {
+    const ws = new WebSocketSync(doc, {
       boardId,
+      syncUrl,
       apiUrl,
-      authToken,
-      onError: handleError,
-    });
-    boardSyncRef.current = boardSync;
-
-    const unsubStatus = boardSync.onStatusChange(setStatus);
-
-    // HTTP hydration first, then attach WebSocket.
-    boardSync
-      .load()
-      .then(() => {
+      getToken: () => tokenRef.current,
+      onAuthError: () => onAuthErrorRef.current?.(),
+      onStatusChange: (next) => {
         if (cancelled) return;
-        const ws = new WebSocketSync(doc, {
-          boardId,
-          syncUrl,
-          apiUrl,
-          getToken: () => tokenRef.current,
-          onAuthError: () => onAuthErrorRef.current?.(),
-          onStatusChange: (nextStatus) => {
-            if (cancelled) return;
-            boardSync.setStatus(nextStatus);
-          },
-        });
-        wsRef.current = ws;
-      })
-      .catch((err) => {
-        handleError(err instanceof Error ? err : new Error(String(err)));
-      });
+        setStatus(next);
+      },
+      onError: (err) => {
+        if (cancelled) return;
+        setError(err);
+      },
+    });
+    wsRef.current = ws;
 
     return () => {
       cancelled = true;
-      unsubStatus();
-      if (wsRef.current) {
-        wsRef.current.dispose();
-        wsRef.current = null;
-      }
-      boardSync.dispose();
-      boardSyncRef.current = null;
+      ws.dispose();
+      wsRef.current = null;
     };
-  }, [doc, boardId, apiUrl, syncUrl, authToken]);
+  }, [doc, boardId, apiUrl, syncUrl, hasToken, cacheHydrated]);
 
   const notifyActivity = useCallback(() => {
     wsRef.current?.notifyActivity();

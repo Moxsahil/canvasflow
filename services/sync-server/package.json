@@ -10,6 +10,7 @@
     "dev": "tsx watch --clear-screen=false --env-file=.env src/index.ts",
     "start": "node --env-file-if-exists=.env dist/index.js",
     "typecheck": "tsc --noEmit",
+    "compact:updates": "tsx --env-file=.env scripts/compact-board-updates.ts",
     "clean": "rm -rf dist .turbo *.tsbuildinfo",
     "lint": "eslint src --max-warnings=0"
   },

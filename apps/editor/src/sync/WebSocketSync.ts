@@ -1,6 +1,6 @@
 import { HocuspocusProvider, WebSocketStatus } from '@hocuspocus/provider';
 import type { BoardDocument } from '@canvasflow/canvas-engine';
-import type { SyncStatus } from './BoardSync';
+import type { SyncStatus } from './sync-status';
 
 export interface WebSocketSyncConfig {
   boardId: string;
@@ -9,6 +9,7 @@ export interface WebSocketSyncConfig {
   getToken: () => string | null;
   onAuthError?: () => void;
   onStatusChange?: (status: SyncStatus) => void;
+  onError?: (err: Error) => void;
 }
 
 /**
@@ -21,6 +22,10 @@ export interface WebSocketSyncConfig {
  * Reads and writes Yjs updates. Persistence to Postgres happens on the
  * server side via sync-server's onStoreDocument hook — this layer just
  * has to keep the connection alive.
+ *
+ * It is also the only path that loads the board: the provider's own sync
+ * protocol delivers the server's state on connect, so there is no separate
+ * hydration fetch to wait on or reconcile against.
  */
 export class WebSocketSync {
   private provider: HocuspocusProvider | null = null;
@@ -68,6 +73,7 @@ export class WebSocketSync {
       onStatus: ({ status }) => this.handleStatusChange(status),
       onAuthenticationFailed: () => {
         // Editor's useBoardSync handles this by calling refresh on useAuthToken
+        this.config.onError?.(new Error('Sync authentication failed (401)'));
         this.config.onAuthError?.();
       },
     });
