@@ -41,7 +41,9 @@ function fromExcalidrawElements(elements: unknown[], genId: () => string): Shape
     try {
       const [shape] = excalidrawElementsToShapes([element as never], genId);
       if (shape) shapes.push(shape);
-    } catch {}
+    } catch {
+      // An element we can't convert isn't fatal; skip it and keep importing.
+    }
   }
   return shapes;
 }
