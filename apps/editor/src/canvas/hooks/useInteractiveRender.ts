@@ -1,5 +1,10 @@
 import { useEffect, type RefObject } from 'react';
-import { renderInteractiveScene, setupCanvas, type Shape } from '@canvasflow/canvas-engine';
+import {
+  renderInteractiveScene,
+  setupCanvas,
+  type Rect,
+  type Shape,
+} from '@canvasflow/canvas-engine';
 import type { Camera } from '../../machine/tool-machine.types';
 
 interface UseInteractiveRenderOptions {
@@ -10,13 +15,15 @@ interface UseInteractiveRenderOptions {
   marquee: { x: number; y: number; width: number; height: number } | null;
   camera: Camera;
   devicePixelRatio: number;
+  /** Find-on-canvas highlights, drawn beneath the selection UI. */
+  search?: { rects: readonly Rect[]; focusedRects: readonly Rect[] };
 }
 
 export function useInteractiveRender(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   options: UseInteractiveRenderOptions,
 ): void {
-  const { width, height, shapes, selectedIds, marquee, camera, devicePixelRatio } = options;
+  const { width, height, shapes, selectedIds, marquee, camera, devicePixelRatio, search } = options;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -30,6 +37,7 @@ export function useInteractiveRender(
       selectedIds,
       marquee,
       camera,
+      search,
     });
-  }, [canvasRef, width, height, shapes, selectedIds, marquee, camera, devicePixelRatio]);
+  }, [canvasRef, width, height, shapes, selectedIds, marquee, camera, devicePixelRatio, search]);
 }

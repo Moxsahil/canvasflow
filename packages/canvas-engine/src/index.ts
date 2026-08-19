@@ -12,3 +12,5 @@ export { simplifyPoints, isPathALoop } from './utils/simplify.js';
 export * from './geometry/segment.js';
 export * from './hit-testing/index.js';
 export * from './document/index.js';
+export * from './export/index.js';
+export * from './search/index.js';

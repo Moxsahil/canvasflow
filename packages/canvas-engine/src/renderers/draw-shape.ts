@@ -15,7 +15,6 @@ import {
   drawText,
 } from '../utils/rough.js';
 
-/** How far a shape fades once the eraser has marked it. Excalidraw's value. */
 export const ERASE_PENDING_OPACITY = 20;
 
 /**

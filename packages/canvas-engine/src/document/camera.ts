@@ -43,6 +43,27 @@ export function computeBoundingRect(
 }
 
 /**
+ * Whether any part of a world-space rectangle currently falls on screen.
+ *
+ * Screen space is `(world - camera) * zoom`, the same transform the canvases
+ * render with. Used to tell "there is nothing on this board" apart from "the
+ * board's content is somewhere the camera isn't pointing" — which look
+ * identical to the user, and are fixed very differently.
+ */
+export function rectIntersectsViewport(
+  rect: { x: number; y: number; width: number; height: number },
+  camera: Camera,
+  viewport: Viewport,
+): boolean {
+  const left = (rect.x - camera.x) * camera.zoom;
+  const top = (rect.y - camera.y) * camera.zoom;
+  const right = left + rect.width * camera.zoom;
+  const bottom = top + rect.height * camera.zoom;
+
+  return right > 0 && bottom > 0 && left < viewport.width && top < viewport.height;
+}
+
+/**
  * Compute a camera that fits the given rectangle into the viewport with padding.
  * Zoom is clamped to a sensible max so a tiny shape doesn't zoom to 500%.
  */

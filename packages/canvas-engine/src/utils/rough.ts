@@ -1,6 +1,7 @@
 import rough from 'roughjs';
 import type { RoughCanvas } from 'roughjs/bin/canvas';
 import type { Drawable, Options } from 'roughjs/bin/core';
+import type { RoughGenerator } from 'roughjs/bin/generator';
 import type {
   RectangleShape,
   EllipseShape,
@@ -14,6 +15,20 @@ import type { Arrowhead, StrokeStyle } from '../shapes/style.js';
 import { ARROWHEAD_GEOMETRY } from '../shapes/style.js';
 import { diamondPoints } from '../shapes/diamond.js';
 import { isPathALoop, simplifyPoints } from './simplify.js';
+
+/**
+ * What the drawable generators actually need. RoughCanvas satisfies it, and so
+ * does RoughGenerator on its own — which is how the SVG renderer reuses the
+ * canvas renderer's geometry rather than reimplementing every shape.
+ */
+export interface RoughDrawableSource {
+  readonly generator: RoughGenerator;
+}
+
+/** A generator with no canvas behind it — all the SVG renderer needs. */
+export function createRoughGenerator(): RoughGenerator {
+  return rough.generator();
+}
 
 export function createRoughCanvas(canvas: HTMLCanvasElement | OffscreenCanvas): RoughCanvas {
   // roughjs types only accept HTMLCanvasElement but the implementation only uses
@@ -30,6 +45,13 @@ const CORNER_RADIUS_RATIO = 0.25;
  * Dash pattern for a stroke style. Both patterns scale with stroke width so a
  * thick dashed line doesn't read as solid.
  */
+export function strokeDashArray(
+  strokeStyle: StrokeStyle,
+  strokeWidth: number,
+): number[] | undefined {
+  return dashArray(strokeStyle, strokeWidth);
+}
+
 function dashArray(strokeStyle: StrokeStyle, strokeWidth: number): number[] | undefined {
   switch (strokeStyle) {
     case 'dashed':
@@ -147,7 +169,10 @@ export function arrowRenderPoints(shape: ArrowShape): Array<[number, number]> {
 
 // --- Drawable generators ---
 
-export function generateRectangleDrawable(rc: RoughCanvas, shape: RectangleShape): Drawable {
+export function generateRectangleDrawable(
+  rc: RoughDrawableSource,
+  shape: RectangleShape,
+): Drawable {
   if (shape.edges === 'round') {
     return rc.generator.path(
       roundedRectPath(shape.x, shape.y, shape.width, shape.height),
@@ -157,7 +182,7 @@ export function generateRectangleDrawable(rc: RoughCanvas, shape: RectangleShape
   return rc.generator.rectangle(shape.x, shape.y, shape.width, shape.height, baseOptions(shape));
 }
 
-export function generateEllipseDrawable(rc: RoughCanvas, shape: EllipseShape): Drawable {
+export function generateEllipseDrawable(rc: RoughDrawableSource, shape: EllipseShape): Drawable {
   return rc.generator.ellipse(
     shape.x + shape.width / 2,
     shape.y + shape.height / 2,
@@ -167,7 +192,7 @@ export function generateEllipseDrawable(rc: RoughCanvas, shape: EllipseShape): D
   );
 }
 
-export function generateDiamondDrawable(rc: RoughCanvas, shape: DiamondShape): Drawable {
+export function generateDiamondDrawable(rc: RoughDrawableSource, shape: DiamondShape): Drawable {
   const points = diamondPoints(shape);
   if (shape.edges === 'round') {
     return rc.generator.path(roundedPolygonPath(points), baseOptions(shape));
@@ -175,7 +200,7 @@ export function generateDiamondDrawable(rc: RoughCanvas, shape: DiamondShape): D
   return rc.generator.polygon(points as Array<[number, number]>, baseOptions(shape));
 }
 
-export function generateLineDrawable(rc: RoughCanvas, shape: LineShape): Drawable {
+export function generateLineDrawable(rc: RoughDrawableSource, shape: LineShape): Drawable {
   const absPoints = absolutePoints(shape);
   const options = baseOptions(shape);
   // Round edges curve through the points rather than joining them straight.
@@ -197,7 +222,7 @@ export function generateLineDrawable(rc: RoughCanvas, shape: LineShape): Drawabl
  * with no stroke of its own, since the real stroke paints over the top.
  */
 export function generateFreehandFillDrawable(
-  rc: RoughCanvas,
+  rc: RoughDrawableSource,
   shape: FreehandShape,
 ): Drawable | null {
   if (!shape.fillColor || !isPathALoop(shape.points)) return null;
@@ -211,14 +236,14 @@ export function generateFreehandFillDrawable(
   });
 }
 
-export function generateArrowDrawable(rc: RoughCanvas, shape: ArrowShape): Drawable {
+export function generateArrowDrawable(rc: RoughDrawableSource, shape: ArrowShape): Drawable {
   const absPoints = arrowRenderPoints(shape);
   return shape.arrowType === 'curved'
     ? rc.generator.curve(absPoints, baseOptions(shape))
     : rc.generator.linearPath(absPoints, baseOptions(shape));
 }
 
-export function generateFreehandDrawable(rc: RoughCanvas, shape: FreehandShape): Drawable {
+export function generateFreehandDrawable(rc: RoughDrawableSource, shape: FreehandShape): Drawable {
   const options: Options = {
     ...baseOptions(shape),
     // Freehand is already an organic line; full roughness turns it to mush.
@@ -239,17 +264,44 @@ export function drawShape(rc: RoughCanvas, drawable: Drawable): void {
   rc.draw(drawable);
 }
 
+/** One segment of a tapered freehand stroke, at its own width. */
+export interface TaperedSegment {
+  readonly from: readonly [number, number];
+  readonly to: readonly [number, number];
+  readonly width: number;
+}
+
 /**
- * Freehand rendered as a tapered stroke: each segment is stroked at its own
- * width, thin at both ends and full through the middle, so the line reads as
- * though drawn with varying pressure. Round caps hide the seams.
+ * Freehand as a tapered stroke: each segment carries its own width, thin at
+ * both ends and full through the middle, so the line reads as though drawn
+ * with varying pressure.
+ *
+ * Returned as geometry rather than drawn, so the canvas and SVG renderers
+ * taper identically instead of each carrying a copy of the maths.
  */
+export function freehandPressureSegments(shape: FreehandShape): TaperedSegment[] {
+  const pts = absolutePoints(shape);
+  if (pts.length < 2) return [];
+
+  const segments = pts.length - 1;
+  const out: TaperedSegment[] = [];
+  for (let i = 0; i < segments; i++) {
+    // sin() peaks at the midpoint and reaches zero at both ends; the floor
+    // keeps the tips visible rather than vanishing.
+    const t = (i + 0.5) / segments;
+    const taper = 0.35 + 0.65 * Math.sin(Math.PI * t);
+    out.push({ from: pts[i]!, to: pts[i + 1]!, width: shape.strokeWidth * taper });
+  }
+  return out;
+}
+
+/** Round caps hide the seams between the segments. */
 export function drawFreehandPressure(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   shape: FreehandShape,
 ): void {
-  const pts = absolutePoints(shape);
-  if (pts.length < 2) return;
+  const segments = freehandPressureSegments(shape);
+  if (segments.length === 0) return;
 
   ctx.save();
   ctx.strokeStyle = shape.strokeColor;
@@ -259,19 +311,11 @@ export function drawFreehandPressure(
   const dash = dashArray(shape.strokeStyle, shape.strokeWidth);
   if (dash) ctx.setLineDash(dash);
 
-  const segments = pts.length - 1;
-  for (let i = 0; i < segments; i++) {
-    const from = pts[i]!;
-    const to = pts[i + 1]!;
-    // sin() peaks at the midpoint and reaches zero at both ends; the floor
-    // keeps the tips visible rather than vanishing.
-    const t = (i + 0.5) / segments;
-    const taper = 0.35 + 0.65 * Math.sin(Math.PI * t);
-
-    ctx.lineWidth = shape.strokeWidth * taper;
+  for (const segment of segments) {
+    ctx.lineWidth = segment.width;
     ctx.beginPath();
-    ctx.moveTo(from[0], from[1]);
-    ctx.lineTo(to[0], to[1]);
+    ctx.moveTo(segment.from[0], segment.from[1]);
+    ctx.lineTo(segment.to[0], segment.to[1]);
     ctx.stroke();
   }
 
@@ -305,51 +349,40 @@ function rotateAround(
 }
 
 /**
- * Draw arrowheads on an arrow shape. Called after the line itself
- * has been drawn via generateArrowDrawable + drawShape.
+ * One arrowhead, described rather than drawn.
+ *
+ * `open` is a stroked polyline with no enclosed area (a plain arrow or bar);
+ * `closed` is a polygon that is either filled or outlined; `circle` is a dot or
+ * ring at the tip. Splitting the maths out this way is what lets the SVG
+ * renderer produce the same markers as the canvas one.
  */
-export function drawArrowheads(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  shape: ArrowShape,
-): void {
-  const pts = arrowRenderPoints(shape);
-  if (pts.length < 2) return;
+export type ArrowheadMark =
+  | {
+      readonly kind: 'circle';
+      readonly cx: number;
+      readonly cy: number;
+      readonly radius: number;
+      readonly filled: boolean;
+    }
+  | { readonly kind: 'open'; readonly points: ReadonlyArray<readonly [number, number]> }
+  | {
+      readonly kind: 'closed';
+      readonly points: ReadonlyArray<readonly [number, number]>;
+      readonly filled: boolean;
+    };
 
-  const length = polylineLength(pts);
-
-  ctx.save();
-  ctx.fillStyle = shape.strokeColor;
-  ctx.strokeStyle = shape.strokeColor;
-  ctx.lineWidth = shape.strokeWidth;
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-  // Arrowheads are solid markers even on a dashed arrow.
-  ctx.setLineDash([]);
-
-  const end = pts[pts.length - 1]!;
-  const beforeEnd = pts[pts.length - 2]!;
-  drawArrowhead(ctx, shape, shape.endArrowhead, beforeEnd, end, length);
-
-  const start = pts[0]!;
-  const afterStart = pts[1]!;
-  drawArrowhead(ctx, shape, shape.startArrowhead, afterStart, start, length);
-
-  ctx.restore();
-}
-
-function drawArrowhead(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+function arrowheadMark(
   shape: ArrowShape,
   arrowhead: Arrowhead,
   from: readonly [number, number],
   tip: readonly [number, number],
   arrowLength: number,
-): void {
-  if (arrowhead === 'none') return;
+): ArrowheadMark | null {
+  if (arrowhead === 'none') return null;
 
   const [tx, ty] = tip;
   const distance = Math.hypot(tx - from[0], ty - from[1]);
-  if (distance === 0) return;
+  if (distance === 0) return null;
 
   const { size, angle, lengthRatio } = ARROWHEAD_GEOMETRY[arrowhead];
   const nx = (tx - from[0]) / distance;
@@ -362,48 +395,100 @@ function drawArrowhead(
 
   if (arrowhead === 'circle' || arrowhead === 'circle_outline') {
     const radius = (Math.hypot(by - ty, bx - tx) + shape.strokeWidth - 2) / 2;
-    if (radius <= 0) return;
-    ctx.beginPath();
-    ctx.arc(tx, ty, radius, 0, Math.PI * 2);
-    if (arrowhead === 'circle') {
-      ctx.fill();
-    } else {
-      ctx.stroke();
-    }
-    return;
+    if (radius <= 0) return null;
+    return { kind: 'circle', cx: tx, cy: ty, radius, filled: arrowhead === 'circle' };
   }
 
   const radians = (angle * Math.PI) / 180;
-  const [w1x, w1y] = rotateAround(bx, by, tx, ty, -radians);
-  const [w2x, w2y] = rotateAround(bx, by, tx, ty, radians);
+  const wing1 = rotateAround(bx, by, tx, ty, -radians);
+  const wing2 = rotateAround(bx, by, tx, ty, radians);
 
   if (arrowhead === 'arrow' || arrowhead === 'bar') {
-    // Open marker: two strokes from the tip, no enclosed area to fill.
-    ctx.beginPath();
-    ctx.moveTo(w1x, w1y);
-    ctx.lineTo(tx, ty);
-    ctx.lineTo(w2x, w2y);
-    ctx.stroke();
-    return;
+    return { kind: 'open', points: [wing1, [tx, ty], wing2] };
   }
 
-  ctx.beginPath();
-  ctx.moveTo(tx, ty);
-  ctx.lineTo(w1x, w1y);
-
+  const points: Array<readonly [number, number]> = [[tx, ty], wing1];
   if (arrowhead === 'diamond' || arrowhead === 'diamond_outline') {
     // Fourth corner, mirrored through the tip from the base point.
-    ctx.lineTo(tx - nx * minSize * 2, ty - ny * minSize * 2);
+    points.push([tx - nx * minSize * 2, ty - ny * minSize * 2]);
+  }
+  points.push(wing2);
+
+  return {
+    kind: 'closed',
+    points,
+    filled: arrowhead !== 'triangle_outline' && arrowhead !== 'diamond_outline',
+  };
+}
+
+/** Both ends of an arrow, as geometry. Empty when neither end has a marker. */
+export function arrowheadMarks(shape: ArrowShape): ArrowheadMark[] {
+  const pts = arrowRenderPoints(shape);
+  if (pts.length < 2) return [];
+
+  const length = polylineLength(pts);
+  const marks: ArrowheadMark[] = [];
+
+  const end = arrowheadMark(
+    shape,
+    shape.endArrowhead,
+    pts[pts.length - 2]!,
+    pts[pts.length - 1]!,
+    length,
+  );
+  if (end) marks.push(end);
+
+  const start = arrowheadMark(shape, shape.startArrowhead, pts[1]!, pts[0]!, length);
+  if (start) marks.push(start);
+
+  return marks;
+}
+
+/**
+ * Draw arrowheads on an arrow shape. Called after the line itself
+ * has been drawn via generateArrowDrawable + drawShape.
+ */
+export function drawArrowheads(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  shape: ArrowShape,
+): void {
+  const marks = arrowheadMarks(shape);
+  if (marks.length === 0) return;
+
+  ctx.save();
+  ctx.fillStyle = shape.strokeColor;
+  ctx.strokeStyle = shape.strokeColor;
+  ctx.lineWidth = shape.strokeWidth;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  // Arrowheads are solid markers even on a dashed arrow.
+  ctx.setLineDash([]);
+
+  for (const mark of marks) {
+    if (mark.kind === 'circle') {
+      ctx.beginPath();
+      ctx.arc(mark.cx, mark.cy, mark.radius, 0, Math.PI * 2);
+      if (mark.filled) ctx.fill();
+      else ctx.stroke();
+      continue;
+    }
+
+    ctx.beginPath();
+    const [first, ...rest] = mark.points;
+    ctx.moveTo(first![0], first![1]);
+    for (const [px, py] of rest) ctx.lineTo(px, py);
+
+    if (mark.kind === 'open') {
+      ctx.stroke();
+      continue;
+    }
+
+    ctx.closePath();
+    if (mark.filled) ctx.fill();
+    else ctx.stroke();
   }
 
-  ctx.lineTo(w2x, w2y);
-  ctx.closePath();
-
-  if (arrowhead === 'triangle_outline' || arrowhead === 'diamond_outline') {
-    ctx.stroke();
-  } else {
-    ctx.fill();
-  }
+  ctx.restore();
 }
 
 export function drawText(

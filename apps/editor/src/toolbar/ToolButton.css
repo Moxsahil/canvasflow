@@ -49,7 +49,15 @@
   color: var(--color-on-primary-container);
 }
 
-.cf-tool-button__input:focus-visible + .cf-tool-button__icon {
+/* Scoped to :checked so the ring can't strand itself on a stale button.
+   Clicking a tool leaves DOM focus on that radio, but the tool can also
+   change from a keyboard shortcut, which updates `checked` without moving
+   focus — so the fill would move while the ring stayed behind. Within a
+   radio group focus and selection normally travel together (Tab lands on
+   the checked radio, arrows check as they move), and this group always has
+   exactly one checked member, so requiring both never hides a legitimate
+   focus ring. */
+.cf-tool-button__input:focus-visible:checked + .cf-tool-button__icon {
   box-shadow: 0 0 0 2px var(--focus-highlight-color);
 }
 

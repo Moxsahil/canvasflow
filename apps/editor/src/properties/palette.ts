@@ -14,6 +14,21 @@ export const BACKGROUND_SWATCHES = [
   { value: '#ffec99', label: 'Yellow' },
 ] as const;
 
+/**
+ * Board-level canvas backgrounds offered by the main menu. Unlike the swatches
+ * above, these tint the whole canvas rather than a shape, so `#fafaf9` — the
+ * colour the canvas has always been — leads the list as the default.
+ */
+export const CANVAS_BACKGROUNDS = [
+  { value: '#fafaf9', label: 'Default' },
+  { value: '#ffffff', label: 'White' },
+  { value: '#f5faff', label: 'Blue' },
+  { value: '#fffce8', label: 'Yellow' },
+  { value: '#fdf8f6', label: 'Warm' },
+] as const;
+
+export const DEFAULT_CANVAS_BACKGROUND = CANVAS_BACKGROUNDS[0].value;
+
 export const STROKE_WIDTHS = [
   { value: 1, label: 'Thin' },
   { value: 2, label: 'Bold' },

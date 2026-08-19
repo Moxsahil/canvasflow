@@ -31,6 +31,11 @@ export const SHORTCUTS: ShortcutCategory[] = [
   {
     title: 'Editor',
     entries: [
+      { keys: 'mod+o', description: 'Open a board file' },
+      { keys: 'mod+s', description: 'Save the board to a file' },
+      { keys: 'mod+shift+e', description: 'Export as an image' },
+      { keys: 'mod+f', description: 'Find on canvas' },
+      { keys: 'enter', altKeys: 'shift+enter', description: 'Next / previous match' },
       { keys: 'mod+z', description: 'Undo' },
       { keys: 'mod+shift+z', altKeys: 'ctrl+y', description: 'Redo' },
       { keys: 'mod+c', description: 'Copy selection' },
@@ -60,7 +65,8 @@ export const SHORTCUTS: ShortcutCategory[] = [
       { keys: 'mod+1', description: 'Zoom to 100%' },
       { keys: 'mod+2', description: 'Zoom to fit all' },
       { keys: 'mod+3', description: 'Zoom to selection' },
-      { keys: '?', description: 'Show this dialog' },
+      { keys: 'alt+shift+d', description: 'Toggle light / dark theme' },
+      { keys: 'shift+?', description: 'Show this dialog' },
     ],
   },
 ];

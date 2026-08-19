@@ -1,7 +1,11 @@
+/* Centred on the right edge: opposite the menu rail, which widens to 15rem on
+   hover and would cover a left-hand panel every time the pointer passed it,
+   and clear of the top-right corner, which is reserved for other controls. */
 .cf-properties-container {
   position: absolute;
-  top: 1rem;
-  left: 1rem;
+  top: 50%;
+  right: 1rem;
+  transform: translateY(-50%);
   z-index: var(--zIndex-layerUI);
 }
 
@@ -30,6 +34,9 @@
 
 /* ---------- swatches ---------- */
 
+/* Wears the theme filter, like every other preview of a canvas colour: dark
+   mode inverts the board, so an un-inverted swatch would promise a colour the
+   shape never takes. */
 .cf-swatch {
   display: inline-block;
   box-sizing: border-box;
@@ -39,6 +46,7 @@
   border: 1px solid var(--default-border-color);
   border-radius: var(--border-radius-md);
   transition: transform 100ms ease;
+  filter: var(--theme-filter);
 }
 
 /* Only the pickable swatches react — the trailing preview is a readout. */
@@ -133,10 +141,11 @@ button.cf-swatch:hover {
 
 /* ---------- colour picker ---------- */
 
-/* Sits beside the panel, not inside it: the Island scrolls and would clip it. */
+/* Sits beside the panel, not inside it: the Island scrolls and would clip it.
+   Opens inward (leftward), since the panel is against the right edge. */
 .cf-color-popover {
   position: absolute;
-  left: calc(100% + 0.5rem);
+  right: calc(100% + 0.5rem);
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -152,6 +161,14 @@ button.cf-swatch:hover {
   position: relative;
   align-self: center;
   line-height: 0;
+}
+
+/* The wheel and the brightness track preview canvas colours too, so they take
+   the same filter — including the markers riding on them, which keeps the
+   handles legible against the inverted gradient. */
+.cf-wheel,
+.cf-color-popover__value {
+  filter: var(--theme-filter);
 }
 
 .cf-wheel__canvas {

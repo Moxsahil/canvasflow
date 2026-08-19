@@ -97,6 +97,7 @@ export function TextEditor({
           background: 'transparent',
           font,
           color,
+          filter: 'var(--theme-filter)',
           resize: 'none',
           outline: 'none',
           overflow: 'hidden',

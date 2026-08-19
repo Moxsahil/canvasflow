@@ -73,6 +73,24 @@ export class BoardDocument {
     this.undoManager.redo();
   }
 
+  /**
+   * An opaque handle to the edit that the next undo would revert (and, for
+   * `peekRedoItem`, the next redo).
+   *
+   * These exist so a caller can pair state of its own with one specific edit —
+   * the editor uses them to put the camera back when an opened file is undone,
+   * since that action moved the viewport as well as the document. Identity is
+   * the whole point: a handle only ever matches the edit it came from, so a
+   * later edit can't be mistaken for it.
+   */
+  peekUndoItem(): object | null {
+    return this.undoManager.undoStack[this.undoManager.undoStack.length - 1] ?? null;
+  }
+
+  peekRedoItem(): object | null {
+    return this.undoManager.redoStack[this.undoManager.redoStack.length - 1] ?? null;
+  }
+
   setUserId(userId: string | null): void {
     this.userId = userId;
   }
@@ -131,6 +149,29 @@ export class BoardDocument {
       const yMap = shapeToYMap(shapeWithZ);
       this.setAttribution(yMap);
       this.yShapes.push([yMap]);
+    }, 'local');
+  }
+
+  /**
+   * Swap the board's entire contents — the file-open path.
+   *
+   * One transact, so it lands as a single undo step and a single sync update:
+   * a collaborator sees the board change once, rather than watching the old
+   * shapes vanish one by one and the new ones arrive after. zIndexes are
+   * regenerated in array order, so the file's stacking order is what shows.
+   */
+  replaceShapes(shapes: readonly Shape[]): void {
+    this.yDoc.transact(() => {
+      if (this.yShapes.length > 0) {
+        this.yShapes.delete(0, this.yShapes.length);
+      }
+      let zIndex: string | null = null;
+      for (const shape of shapes) {
+        zIndex = generateKeyBetween(zIndex, null);
+        const yMap = shapeToYMap({ ...shape, zIndex } as Shape & { zIndex: string });
+        this.setAttribution(yMap);
+        this.yShapes.push([yMap]);
+      }
     }, 'local');
   }
 

@@ -14,18 +14,28 @@ export interface InteractiveSceneOptions {
     readonly y: number;
     readonly zoom: number;
   };
+
+  readonly search?: {
+    /** Every match currently on screen. */
+    readonly rects: readonly Rect[];
+    /** The match being navigated to; may be several rects if it wraps a line. */
+    readonly focusedRects: readonly Rect[];
+  };
 }
 
 const HANDLE_SIZE = 8; // screen pixels
 const SELECTION_COLOR = '#6366f1';
 const HANDLE_FILL = '#ffffff';
 
+const SEARCH_MATCH_FILL = 'rgba(255, 226, 0, 0.4)';
+const SEARCH_FOCUS_FILL = 'rgba(255, 124, 0, 0.45)';
+
 export function renderInteractiveScene(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   _canvas: HTMLCanvasElement | OffscreenCanvas,
   opts: InteractiveSceneOptions,
 ): void {
-  const { width, height, shapes, selectedIds, marquee, camera } = opts;
+  const { width, height, shapes, selectedIds, marquee, camera, search } = opts;
 
   clearCanvas(ctx, width, height);
 
@@ -36,6 +46,19 @@ export function renderInteractiveScene(
   }
 
   const zoom = camera?.zoom ?? 1;
+
+  // --- Search highlights — beneath the selection UI, so a selected shape's
+  // outline and handles stay readable over a highlighted match ---
+  if (search && (search.rects.length > 0 || search.focusedRects.length > 0)) {
+    ctx.fillStyle = SEARCH_MATCH_FILL;
+    for (const rect of search.rects) {
+      ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+    }
+    ctx.fillStyle = SEARCH_FOCUS_FILL;
+    for (const rect of search.focusedRects) {
+      ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+    }
+  }
 
   // --- Selection outlines ---
   if (selectedIds.length > 0) {
