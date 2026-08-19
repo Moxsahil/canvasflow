@@ -6,14 +6,19 @@ import {
   fitRectToViewport,
   hitTest,
   isText,
+  rectIntersectsViewport,
   shapesIntersectingSegment,
   SpatialIndex,
+  type Camera,
   type Shape,
 } from '@canvasflow/canvas-engine';
 import { readShapesFromClipboard, writeShapesToClipboard } from './clipboard';
 import { CanvasStack } from './canvas/CanvasStack';
 import { useCanvasResize } from './canvas/hooks/useCanvasResize';
+import { useCanvasBackground } from './canvas/useCanvasBackground';
+import { MainMenu } from './menu';
 import { Toolbar } from './toolbar/Toolbar';
+import { HistoryPanel } from './toolbar/HistoryPanel';
 import { TextEditor } from './text-editor/TextEditor';
 import { ZoomPanel } from './zoom-panel/ZoomPanel';
 import { toolMachine, resizeShape } from './machine/tool-machine';
@@ -28,8 +33,12 @@ import { PropertiesPanel, itemStyleFromShape } from './properties';
 import { TOOL_TO_SHAPE_KIND, type Tool } from './tools/tool';
 import type { ItemStyle, Point } from './machine/tool-machine.types';
 import { ShortcutsModal } from './help';
-import { ShortcutsHint } from './help/ShortcutsHint';
 import { decodeJwtUserId } from './auth/token';
+import { useAppTheme } from './theme';
+import { useOpenBoardFile, useSaveBoardFile } from './file';
+import { ExportImageDialog } from './export';
+import { FindBar, useCanvasSearch } from './search';
+import { Dialog } from './ui';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -44,6 +53,15 @@ export function Editor({ boardId }: EditorProps) {
   const { authToken, refresh: refreshAuthToken } = useAuthToken(boardId);
 
   const [helpOpen, setHelpOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const showExport = useCallback(() => setExportOpen(true), []);
+  const hideExport = useCallback(() => setExportOpen(false), []);
+  /** Shared by the open and save flows — whichever has something to report. */
+  const [notice, setNotice] = useState<string | null>(null);
+  const dismissNotice = useCallback(() => setNotice(null), []);
+
+  const { canvasBackground, setCanvasBackground } = useCanvasBackground(boardId);
+  const { theme, resolvedTheme, setTheme, toggleTheme } = useAppTheme();
 
   const handleShowHelp = useCallback(() => setHelpOpen(true), []);
   const handleCloseHelp = useCallback(() => setHelpOpen(false), []);
@@ -179,6 +197,40 @@ export function Editor({ boardId }: EditorProps) {
       sub2.unsubscribe();
     };
   }, [actorRef, doc]);
+
+  // --- initial view --------------------------------------------------------
+  /**
+   * Bring the board's content into view the first time it arrives.
+   *
+   * The camera starts at the origin and is never persisted, so a board whose
+   * shapes sit far from (0,0) reloads to what looks like an empty canvas even
+   * though every shape is present in the document — which is what opening a
+   * file does, since a drawing's own coordinates are rarely near our origin.
+   *
+   * Only fires when nothing is on screen already, so the ordinary case of
+   * content near the origin keeps the view exactly where it was.
+   */
+  const didInitialViewFitRef = useRef(false);
+
+  useEffect(() => {
+    didInitialViewFitRef.current = false;
+  }, [boardId]);
+
+  useEffect(() => {
+    if (didInitialViewFitRef.current) return;
+    // Wait for both the content and a measured viewport — fitting against a
+    // zero-sized canvas would put the camera somewhere meaningless.
+    if (shapes.length === 0 || width === 0 || height === 0) return;
+
+    didInitialViewFitRef.current = true;
+
+    const rect = computeBoundingRect(shapes);
+    if (!rect) return;
+    if (rectIntersectsViewport(rect, actorRef.getSnapshot().context.camera, { width, height })) {
+      return;
+    }
+    actorRef.send({ type: 'SET_CAMERA', camera: fitRectToViewport(rect, { width, height }) });
+  }, [shapes, width, height, actorRef]);
 
   const marqueeRef = useRef(marquee);
   useEffect(() => {
@@ -406,8 +458,8 @@ export function Editor({ boardId }: EditorProps) {
     () => actorRef.send({ type: 'SELECT_ALL', shapeIds: shapes.map((s) => s.id) }),
     [actorRef, shapes],
   );
-  const handleUndo = useCallback(() => doc.undo(), [doc]);
-  const handleRedo = useCallback(() => doc.redo(), [doc]);
+  // handleUndo/handleRedo are defined further down, with the open-file flow —
+  // they have to know about the camera an open moved.
 
   const handleNudge = useCallback(
     (dx: number, dy: number) => {
@@ -476,6 +528,105 @@ export function Editor({ boardId }: EditorProps) {
     actorRef.send({ type: 'SET_CAMERA', camera: newCamera });
   }, [actorRef, shapes, selectedIds, width, height]);
 
+  // --- opening a board file -----------------------------------------------
+  /**
+   * Opening a file moves the viewport as well as the document, so undoing it
+   * has to move the viewport back. Without this the board is restored where it
+   * always was while the camera stays parked over the opened file's
+   * coordinates — which look like an empty canvas, since a file's contents are
+   * rarely anywhere near the board's.
+   *
+   * The edits are held by identity rather than by position in the undo stack:
+   * a handle only matches the edit it came from, so later edits (which discard
+   * the redo stack anyway) can never be mistaken for the open.
+   */
+  const openViewRef = useRef<{
+    undoItem: object | null;
+    redoItem: object | null;
+    before: Camera;
+    after: Camera;
+  } | null>(null);
+
+  // Fit the camera to what was just loaded and drop the old selection, which
+  // points at shapes the replace has already removed.
+  const handleBoardFileLoaded = useCallback(
+    (loaded: readonly Shape[], background?: string) => {
+      if (background) setCanvasBackground(background);
+      actorRef.send({ type: 'SELECT_ALL', shapeIds: [] });
+
+      // Read through the actor rather than the render-time value, so this is
+      // the camera as it stands at the moment of the open.
+      const before = actorRef.getSnapshot().context.camera;
+      const rect = computeBoundingRect(loaded);
+      const after = rect ? fitRectToViewport(rect, { width, height }) : before;
+      if (rect) {
+        actorRef.send({ type: 'SET_CAMERA', camera: after });
+      }
+      openViewRef.current = {
+        undoItem: doc.peekUndoItem(),
+        redoItem: null,
+        before,
+        after,
+      };
+    },
+    [actorRef, doc, setCanvasBackground, width, height],
+  );
+
+  const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
+
+  const { openBoardFile, pendingReplace, confirmReplace, cancelReplace } = useOpenBoardFile({
+    doc,
+    shapeCount: shapes.length,
+    genId,
+    onLoaded: handleBoardFileLoaded,
+    fileHandleRef,
+    onNotice: setNotice,
+  });
+
+  const { saveBoardFileToDisk } = useSaveBoardFile({
+    shapes,
+    canvasBackground,
+    boardName: boardId,
+    fileHandleRef,
+    onNotice: setNotice,
+  });
+
+  const setCamera = useCallback(
+    (next: Camera) => actorRef.send({ type: 'SET_CAMERA', camera: next }),
+    [actorRef],
+  );
+
+  const search = useCanvasSearch({
+    shapes,
+    camera,
+    viewport: { width, height },
+    onCameraChange: setCamera,
+  });
+
+  const handleUndo = useCallback(() => {
+    const undoing = doc.peekUndoItem();
+    doc.undo();
+    const opened = openViewRef.current;
+    if (opened && undoing && undoing === opened.undoItem) {
+      actorRef.send({ type: 'SET_CAMERA', camera: opened.before });
+      // The redo of this undo is a fresh stack item; remember it so redoing
+      // the open takes the viewport forward again.
+      opened.undoItem = null;
+      opened.redoItem = doc.peekRedoItem();
+    }
+  }, [actorRef, doc]);
+
+  const handleRedo = useCallback(() => {
+    const redoing = doc.peekRedoItem();
+    doc.redo();
+    const opened = openViewRef.current;
+    if (opened && redoing && redoing === opened.redoItem) {
+      actorRef.send({ type: 'SET_CAMERA', camera: opened.after });
+      opened.redoItem = null;
+      opened.undoItem = doc.peekUndoItem();
+    }
+  }, [actorRef, doc]);
+
   const handleCopy = useCallback(async () => {
     if (selectedIds.length === 0) return;
     const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
@@ -543,8 +694,15 @@ export function Editor({ boardId }: EditorProps) {
     onCopy: handleCopy,
     onCut: handleCut,
     onPaste: handlePaste,
-    disabled: helpOpen,
     onShowHelp: handleShowHelp,
+    onToggleTheme: toggleTheme,
+    onOpenFile: openBoardFile,
+    onSaveFile: saveBoardFileToDisk,
+    onExportImage: showExport,
+    onFind: search.openSearch,
+    // The dialogs own the keyboard while they're up, so ⌘O can't stack a
+    // second picker on top of an unanswered replace confirmation.
+    disabled: helpOpen || exportOpen || pendingReplace !== null || notice !== null,
   });
 
   const handleCommitText = useCallback(
@@ -589,6 +747,7 @@ export function Editor({ boardId }: EditorProps) {
     <div
       ref={containerRef}
       className="cf-editor"
+      data-theme={resolvedTheme}
       style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}
     >
       <CanvasStack
@@ -607,9 +766,33 @@ export function Editor({ boardId }: EditorProps) {
         onWheelZoom={handleWheelZoom}
         onWheelPan={handleWheelPan}
         isPanning={isPanning}
+        backgroundColor={canvasBackground}
+        searchHighlights={search.highlights}
       />
 
-      <Toolbar activeTool={activeTool} onToolChange={handleToolChange} />
+      {/* A menu item goes live by being given a handler here; anything without
+          one renders disabled with a "Soon" badge, so the menu stays complete
+          while the features behind it land. */}
+      <MainMenu
+        boardName={boardId}
+        userLabel={userId}
+        canvasBackground={canvasBackground}
+        onCanvasBackgroundChange={setCanvasBackground}
+        theme={theme}
+        onThemeChange={setTheme}
+        actions={{
+          open: openBoardFile,
+          saveTo: saveBoardFileToDisk,
+          exportImage: showExport,
+          findOnCanvas: search.openSearch,
+          help: handleShowHelp,
+        }}
+      />
+
+      <div className="cf-bottom-dock">
+        <HistoryPanel canUndo={canUndo} canRedo={canRedo} onUndo={handleUndo} onRedo={handleRedo} />
+        <Toolbar activeTool={activeTool} onToolChange={handleToolChange} />
+      </div>
 
       {showProperties && (
         <PropertiesPanel
@@ -641,17 +824,42 @@ export function Editor({ boardId }: EditorProps) {
 
       <ZoomPanel
         zoom={camera.zoom}
-        canUndo={canUndo}
-        canRedo={canRedo}
         syncStatus={syncStatus}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onResetZoom={handleResetView}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
       />
-      <ShortcutsHint onClick={handleShowHelp} />
       <ShortcutsModal open={helpOpen} onClose={handleCloseHelp} />
+
+      <Dialog
+        open={pendingReplace !== null}
+        title="Replace board contents?"
+        confirmLabel="Replace"
+        destructive
+        onConfirm={confirmReplace}
+        onClose={cancelReplace}
+      >
+        Opening <strong>{pendingReplace?.fileName}</strong> replaces the {shapes.length} shape
+        {shapes.length === 1 ? '' : 's'} on this board for everyone in it. You can undo this with
+        ⌘Z.
+      </Dialog>
+
+      <FindBar search={search} />
+
+      <ExportImageDialog
+        open={exportOpen}
+        onClose={hideExport}
+        shapes={shapes}
+        selectedShapes={selectedShapes}
+        boardName={boardId}
+        canvasBackground={canvasBackground}
+        darkTheme={resolvedTheme === 'dark'}
+        portalContainer={containerRef.current}
+      />
+
+      <Dialog open={notice !== null} title="Open board" onClose={dismissNotice}>
+        {notice}
+      </Dialog>
     </div>
   );
 }

@@ -54,9 +54,9 @@ export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
           width: 900,
           maxWidth: '92vw',
           maxHeight: '85vh',
-          background: 'white',
+          background: 'var(--island-bg-color)',
           borderRadius: 12,
-          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+          boxShadow: '0 20px 40px rgb(0 0 0 / 0.25), 0 0 0 1px var(--default-border-color)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -67,7 +67,7 @@ export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
         <div
           style={{
             padding: '20px 28px',
-            borderBottom: '1px solid #e4e4e7',
+            borderBottom: '1px solid var(--default-border-color)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -79,7 +79,7 @@ export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
               margin: 0,
               fontSize: 18,
               fontWeight: 600,
-              color: '#18181b',
+              color: 'var(--text-primary-color)',
             }}
           >
             Keyboard shortcuts
@@ -98,10 +98,10 @@ export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
               borderRadius: 6,
               background: 'transparent',
               cursor: 'pointer',
-              color: '#71717a',
+              color: 'var(--keybinding-color)',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#f4f4f5';
+              e.currentTarget.style.background = 'var(--button-hover-bg)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = 'transparent';
@@ -128,7 +128,7 @@ export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
                   margin: '0 0 16px 0',
                   fontSize: 15,
                   fontWeight: 600,
-                  color: '#18181b',
+                  color: 'var(--text-primary-color)',
                 }}
               >
                 {category.title}
@@ -159,7 +159,7 @@ function ShortcutRow({ entry }: { entry: ShortcutEntry }) {
         gap: 12,
         minHeight: 28,
         fontSize: 13,
-        color: '#3f3f46',
+        color: 'var(--text-primary-color)',
       }}
     >
       <span style={{ flex: 1 }}>{entry.description}</span>
@@ -167,7 +167,9 @@ function ShortcutRow({ entry }: { entry: ShortcutEntry }) {
         <KeyPills keys={primaryKeys} />
         {altKeys && (
           <>
-            <span style={{ fontSize: 11, color: '#a1a1aa', fontStyle: 'italic' }}>or</span>
+            <span style={{ fontSize: 11, color: 'var(--keybinding-color)', fontStyle: 'italic' }}>
+              or
+            </span>
             <KeyPills keys={altKeys} />
           </>
         )}
@@ -188,10 +190,10 @@ function KeyPills({ keys }: { keys: string[] }) {
             padding: '2px 6px',
             minWidth: 20,
             textAlign: 'center',
-            background: '#f4f4f5',
+            background: 'var(--color-surface-low)',
             borderRadius: 4,
-            border: '1px solid #e4e4e7',
-            color: '#3f3f46',
+            border: '1px solid var(--default-border-color)',
+            color: 'var(--text-primary-color)',
             whiteSpace: 'nowrap',
             lineHeight: 1.4,
           }}

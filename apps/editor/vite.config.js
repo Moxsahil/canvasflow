@@ -2,16 +2,19 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import svgr from 'vite-plugin-svgr';
+import tailwindcss from '@tailwindcss/vite';
 /**
  * Vite config for the editor SPA.
  *
  * - React fast refresh via @vitejs/plugin-react
+ * - Tailwind v4 for the menu rail's shadcn-style components; the rest of the
+ *   editor chrome stays on plain CSS + theme.css tokens
  * - Path alias @/ for src/
  * - Port 3002 (web=3000, api-gateway=3001, editor=3002)
  * - Workspace packages transpiled by Vite via their dist/ output
  */
 export default defineConfig({
-  plugins: [react(), svgr()],
+  plugins: [react(), svgr(), tailwindcss()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

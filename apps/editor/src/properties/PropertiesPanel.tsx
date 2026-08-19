@@ -117,7 +117,7 @@ interface OpenPicker {
 }
 
 /**
- * The style panel at the top-left. It edits the selection when there is one,
+ * The style panel at the top-right. It edits the selection when there is one,
  * and otherwise the style the next drawn shape will take — which is why it
  * appears for an active drawing tool on an empty canvas.
  *

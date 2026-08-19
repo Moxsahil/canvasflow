@@ -15,23 +15,6 @@ import {
   UpdateTooLargeError,
 } from './persistence/board-updates-store.js';
 
-/**
- * State vector of the last state we persisted, per room.
- *
- * Borrowed from Excalidraw's `isSavedToFirebase`, which compares a scene
- * version before writing and returns early when nothing changed. The same
- * idea applies here with a stronger equality check: a Yjs state vector is
- * the set of (client, clock) pairs a document has seen, so an unchanged
- * vector means no operation has been added since the last save.
- *
- * Worth having because onStoreDocument fires on a timer after activity,
- * not only on real change — awareness churn, a reconnect, or a room
- * unloading can all trigger a save of bytes Postgres already holds. Each
- * of those costs a full round trip to a database an ocean away.
- *
- * Keyed by documentName and cleared in onDestroy so the map cannot grow
- * without bound across rooms.
- */
 const lastPersistedVector = new Map<string, Uint8Array>();
 
 function vectorsEqual(a: Uint8Array | undefined, b: Uint8Array): boolean {
@@ -60,13 +43,6 @@ const db = createClient(env.DATABASE_URL);
 const hocuspocus = Server.configure({
   port: env.PORT_WS,
 
-  /**
-   * Persistence cadence. Hocuspocus defaults to debounce 2s / maxDebounce
-   * 10s, which meant a busy board wrote a full snapshot every couple of
-   * seconds. Excalidraw saves its scene on a 20s throttle; we sit just
-   * inside that, which cuts write volume roughly fivefold while still
-   * bounding how much work an unexpected process death can cost.
-   */
   debounce: 10_000,
   maxDebounce: 30_000,
 

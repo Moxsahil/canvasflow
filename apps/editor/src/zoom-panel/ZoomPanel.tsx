@@ -1,30 +1,21 @@
-import type { FC, SVGProps } from 'react';
-import { UndoIcon, RedoIcon, ZoomInIcon, ZoomOutIcon } from '../assets/icons';
+import { ZoomInIcon, ZoomOutIcon } from '../assets/icons';
+import { IconButton } from '../ui';
 import type { SyncStatus } from '../sync/sync-status';
 
 interface ZoomPanelProps {
   zoom: number;
-  canUndo: boolean;
-  canRedo: boolean;
   syncStatus: SyncStatus;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetZoom: () => void;
-  onUndo: () => void;
-  onRedo: () => void;
 }
 
-export function ZoomPanel({
-  zoom,
-  canUndo,
-  canRedo,
-  syncStatus,
-  onZoomIn,
-  onZoomOut,
-  onResetZoom,
-  onUndo,
-  onRedo,
-}: ZoomPanelProps) {
+/**
+ * Zoom readout and sync status, bottom-right. Undo/redo used to live here too;
+ * they sit with the tool dock now (see HistoryPanel), leaving this panel to
+ * report on the view rather than mix in editing actions.
+ */
+export function ZoomPanel({ zoom, syncStatus, onZoomIn, onZoomOut, onResetZoom }: ZoomPanelProps) {
   const zoomPercent = Math.round(zoom * 100);
 
   return (
@@ -32,25 +23,30 @@ export function ZoomPanel({
       style={{
         position: 'absolute',
         bottom: 16,
-        left: 16,
+        right: 16,
         display: 'inline-flex',
         alignItems: 'center',
         gap: 0,
         padding: 4,
-        background: 'white',
+        background: 'var(--island-bg-color)',
         borderRadius: 8,
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04)',
+        boxShadow: 'var(--shadow-island)',
         zIndex: 10,
       }}
       role="toolbar"
-      aria-label="Zoom and history controls"
+      aria-label="Zoom controls"
     >
       <SyncStatusDot status={syncStatus} />
       <div
         aria-hidden="true"
-        style={{ width: 1, alignSelf: 'stretch', background: '#e4e4e7', margin: '4px 4px' }}
+        style={{
+          width: 1,
+          alignSelf: 'stretch',
+          background: 'var(--default-border-color)',
+          margin: '4px 4px',
+        }}
       />
-      <IconOnlyButton
+      <IconButton
         icon={ZoomOutIcon}
         onClick={onZoomOut}
         title="Zoom out (⌘−)"
@@ -71,14 +67,14 @@ export function ZoomPanel({
           border: 'none',
           borderRadius: 4,
           background: 'transparent',
-          color: '#3f3f46',
+          color: 'var(--text-primary-color)',
           fontSize: 12,
           fontFamily: 'ui-monospace, SFMono-Regular, monospace',
           cursor: 'pointer',
           transition: 'background 100ms ease',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = '#f4f4f5';
+          e.currentTarget.style.background = 'var(--button-hover-bg)';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.background = 'transparent';
@@ -86,85 +82,10 @@ export function ZoomPanel({
       >
         {zoomPercent}%
       </button>
-      <IconOnlyButton
-        icon={ZoomInIcon}
-        onClick={onZoomIn}
-        title="Zoom in (⌘+)"
-        aria-label="Zoom in"
-      />
-      <div
-        aria-hidden="true"
-        style={{ width: 1, alignSelf: 'stretch', background: '#e4e4e7', margin: '4px 4px' }}
-      />
-      <IconOnlyButton
-        icon={UndoIcon}
-        onClick={onUndo}
-        disabled={!canUndo}
-        title="Undo (⌘Z)"
-        aria-label="Undo"
-      />
-      <IconOnlyButton
-        icon={RedoIcon}
-        onClick={onRedo}
-        disabled={!canRedo}
-        title="Redo (⌘⇧Z)"
-        aria-label="Redo"
-      />
+      <IconButton icon={ZoomInIcon} onClick={onZoomIn} title="Zoom in (⌘+)" aria-label="Zoom in" />
     </div>
   );
 }
-interface IconOnlyButtonProps {
-  icon: FC<SVGProps<SVGSVGElement>>;
-  onClick: () => void;
-  title: string;
-  'aria-label': string;
-  disabled?: boolean;
-}
-
-/**
- * Square icon button sized to match the panel's 32px row. Hover feedback is
- * suppressed while disabled so undo/redo read as unavailable.
- */
-function IconOnlyButton({
-  icon: Icon,
-  onClick,
-  title,
-  'aria-label': ariaLabel,
-  disabled = false,
-}: IconOnlyButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      aria-label={ariaLabel}
-      style={{
-        width: 32,
-        height: 32,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        border: 'none',
-        borderRadius: 4,
-        background: 'transparent',
-        color: '#3f3f46',
-        opacity: disabled ? 0.35 : 1,
-        cursor: disabled ? 'default' : 'pointer',
-        transition: 'background 100ms ease',
-      }}
-      onMouseEnter={(e) => {
-        if (!disabled) e.currentTarget.style.background = '#f4f4f5';
-      }}
-      onMouseLeave={(e) => {
-        if (!disabled) e.currentTarget.style.background = 'transparent';
-      }}
-    >
-      <Icon width={16} height={16} />
-    </button>
-  );
-}
-
 interface SyncStatusDotProps {
   status: SyncStatus;
 }

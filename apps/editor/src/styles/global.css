@@ -1,6 +1,28 @@
 @import '@canvasflow/ui/styles.css';
 @import './theme.css';
 
+/* Tailwind arrives through @canvasflow/ui's stylesheet and is compiled by
+   @tailwindcss/vite (see vite.config.ts). Point its class scan at our own
+   sources, otherwise only the classes used inside packages/ui get generated. */
+@source '../**/*.{ts,tsx}';
+
+/* Popup entrance for Radix content, as a theme animation rather than the
+   tailwindcss-animate plugin shadcn normally leans on. */
+@theme {
+  --animate-popup-in: cf-popup-in 120ms ease-out;
+}
+
+@keyframes cf-popup-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 html, body, #root {
   height: 100%;
   margin: 0;
@@ -11,8 +33,25 @@ html, body, #root {
   color: var(--color-fg-primary);
 }
 
+/* The editor covers the page, so this only shows through at the edges — but it
+   also tells the browser to paint scrollbars and form controls dark. The
+   attribute is set on <html> by useAppTheme. */
+html[data-theme='dark'],
+html[data-theme='dark'] body,
+html[data-theme='dark'] #root {
+  background: #121212;
+  color-scheme: dark;
+}
+
 * {
   box-sizing: border-box;
+}
+
+/* The whole stack is inverted in dark mode: the container paints the canvas
+   background, and the three canvases above it hold the drawing and the
+   selection UI, so one filter covers board and chrome-on-canvas alike. */
+.canvas-stack {
+  filter: var(--theme-filter);
 }
 
 .canvas-stack,

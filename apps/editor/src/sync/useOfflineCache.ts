@@ -11,12 +11,6 @@ import type { BoardDocument } from '@canvasflow/canvas-engine';
  * with the page, so editing offline and then hitting refresh lost the work
  * silently. IndexedDB gives it a lifetime longer than the tab's.
  *
- * It also takes the network off the first-paint path, which is the same
- * move Excalidraw makes with its localStorage/IndexedDB cache: hydrate
- * from local storage immediately, then let the server reconcile in the
- * background. A warm board paints in milliseconds instead of waiting on a
- * round trip to a database in another region.
- *
  * This does NOT make local state authoritative. Whatever is cached here is
  * merged with the server's copy by the usual CRDT sync on reconnect, and
  * both sides converge on everything either one was missing.

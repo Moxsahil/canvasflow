@@ -14,6 +14,13 @@ export interface StaticSceneOptions {
     readonly y: number;
     readonly zoom: number;
   };
+  /**
+   * Painted over the full canvas before any shape. The live editor leaves this
+   * unset and lets the container's CSS paint the board colour, but an export
+   * has no container — the pixels are the whole artifact, so the renderer has
+   * to lay the background down itself (or not, for a transparent image).
+   */
+  readonly backgroundColor?: string | null;
 }
 
 /**
@@ -27,9 +34,16 @@ export function renderStaticScene(
   canvas: HTMLCanvasElement | OffscreenCanvas,
   opts: StaticSceneOptions,
 ): void {
-  const { width, height, shapes, camera, pendingErasureIds } = opts;
+  const { width, height, shapes, camera, pendingErasureIds, backgroundColor } = opts;
 
   clearCanvas(ctx, width, height);
+
+  // Before the camera transform, so it covers the canvas rather than a
+  // camera-sized rectangle somewhere in world space.
+  if (backgroundColor) {
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, width, height);
+  }
 
   ctx.save();
 

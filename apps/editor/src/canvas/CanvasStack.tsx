@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import type { Shape } from '@canvasflow/canvas-engine';
+import type { Rect, Shape } from '@canvasflow/canvas-engine';
 import type { Camera, Point } from '../machine/tool-machine.types';
 import type { Tool } from '../tools/tool';
 import { useCanvasResize } from './hooks/useCanvasResize';
@@ -20,6 +20,10 @@ interface CanvasStackProps {
   activeTool: Tool;
   camera: Camera;
   isSpacePressed: boolean;
+  /** Painted behind the (transparent) canvases — see useCanvasBackground. */
+  backgroundColor: string;
+  /** Find-on-canvas highlights, in world space. */
+  searchHighlights?: { rects: readonly Rect[]; focusedRects: readonly Rect[] };
   onPointerDown: (point: Point, screenPoint: Point, button: number, shiftKey: boolean) => void;
   onPointerMove: (point: Point, screenPoint: Point, screenDelta: Point, altKey: boolean) => void;
   onPointerUp: (point: Point, screenPoint: Point) => void;
@@ -38,6 +42,8 @@ export function CanvasStack({
   activeTool,
   camera,
   isSpacePressed,
+  backgroundColor,
+  searchHighlights,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -77,6 +83,7 @@ export function CanvasStack({
     marquee,
     camera,
     devicePixelRatio: dpr,
+    search: searchHighlights,
   });
 
   const screenToWorldFn = useCallback(
@@ -141,7 +148,7 @@ export function CanvasStack({
       style={{
         position: 'absolute',
         inset: 0,
-        background: '#fafaf9',
+        background: backgroundColor,
       }}
     >
       <canvas ref={staticCanvasRef} style={canvasStyle} aria-label="Static canvas" />

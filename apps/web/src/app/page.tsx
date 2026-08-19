@@ -8,8 +8,7 @@ export default function HomePage() {
         CanvasFlow
       </Heading>
       <Text size="lg" tone="secondary" className="mb-8 max-w-xl">
-        An enterprise-grade collaborative whiteboard. Excalidraw warmth meets Figma collaborative
-        meets Notion workspace primitives
+        Homepage
       </Text>
       <Link href="/boards">
         <Button variant="primary" size="lg">
