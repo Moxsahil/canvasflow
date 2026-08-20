@@ -71,16 +71,23 @@ export function CanvasBackgroundControl({
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {/* One row, label then swatches pushed right — the same shape as the
+          Theme control immediately below. It used to stack the label above the
+          swatches, which left the trigger swatch floating at the midpoint of a
+          two-line block and the presets starting under the label rather than
+          lining up with Theme's buttons. "Background" rather than "Canvas
+          background" because the full label leaves no room for five swatches
+          on one line; the trigger's tooltip still says it in full. */}
       <motion.div
         variants={railLabelVariants}
         aria-hidden={!expanded}
         className={cn(
-          'flex min-w-0 flex-1 flex-col gap-1 pr-2',
+          'flex min-w-0 flex-1 items-center gap-2 pr-2',
           !expanded && 'pointer-events-none',
         )}
       >
-        <span className="truncate text-xs text-(--text-primary-color)">Canvas background</span>
-        <span className="flex items-center gap-1">
+        <span className="truncate text-xs text-(--text-primary-color)">Background</span>
+        <span className="ml-auto flex shrink-0 items-center gap-1">
           {CANVAS_BACKGROUNDS.map(({ value: color, label }) => (
             <button
               key={color}

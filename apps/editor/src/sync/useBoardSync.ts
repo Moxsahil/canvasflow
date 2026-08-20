@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BoardDocument } from '@canvasflow/canvas-engine';
 import type { SyncStatus } from './sync-status';
-import { WebSocketSync } from './WebSocketSync';
+import { WebSocketSync, type SyncAwareness } from './WebSocketSync';
 import { useOfflineCache } from './useOfflineCache';
 
 interface UseBoardSyncOptions {
@@ -17,6 +17,14 @@ interface UseBoardSyncResult {
   status: SyncStatus;
   error: Error | null;
   notifyActivity: () => void;
+  /**
+   * The presence channel for this board, once connected.
+   *
+   * Held in state rather than read off the ref, because the collaboration layer
+   * has to re-subscribe when the connection is rebuilt — a ref assignment
+   * wouldn't tell it that happened.
+   */
+  awareness: SyncAwareness | null;
 }
 
 /**
@@ -39,6 +47,7 @@ export function useBoardSync(
 ): UseBoardSyncResult {
   const [status, setStatus] = useState<SyncStatus>('idle');
   const [error, setError] = useState<Error | null>(null);
+  const [awareness, setAwareness] = useState<SyncAwareness | null>(null);
 
   const wsRef = useRef<WebSocketSync | null>(null);
 
@@ -99,11 +108,15 @@ export function useBoardSync(
       },
     });
     wsRef.current = ws;
+    setAwareness(ws.awareness);
 
     return () => {
       cancelled = true;
       ws.dispose();
       wsRef.current = null;
+      // Clear before the next connection publishes, so the presence layer can
+      // never paint peers from a socket that has already gone away.
+      setAwareness(null);
     };
   }, [doc, boardId, apiUrl, syncUrl, hasToken, cacheHydrated]);
 
@@ -111,5 +124,5 @@ export function useBoardSync(
     wsRef.current?.notifyActivity();
   }, []);
 
-  return { status, error, notifyActivity };
+  return { status, error, notifyActivity, awareness };
 }

@@ -327,7 +327,6 @@ export const toolMachine = setup({
       const newCameraY = worldY - event.anchor.y / newZoom;
       return { camera: { x: newCameraX, y: newCameraY, zoom: newZoom } };
     }),
-    resetView: assign({ camera: IDENTITY_CAMERA }),
 
     // --- Selection actions ---
 
@@ -445,7 +444,6 @@ export const toolMachine = setup({
     SPACE_DOWN: { actions: 'trackSpaceDown' },
     SPACE_UP: { actions: 'trackSpaceUp' },
     ZOOM_BY: { actions: 'applyZoom' },
-    RESET_VIEW: { actions: 'resetView' },
     SET_CAMERA: {
       actions: assign(({ event }) => {
         if (event.type !== 'SET_CAMERA') return {};

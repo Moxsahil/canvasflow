@@ -47,6 +47,20 @@ html[data-theme='dark'] #root {
   box-sizing: border-box;
 }
 
+/* Top-right chrome, on one axis: find-on-canvas then the collaborator bar.
+   Mirrors .cf-bottom-dock — the dock owns placement so its children can size
+   themselves freely. They previously positioned themselves, both landing on
+   top:1rem/right:1rem, and the search dock painted over the avatars. */
+.cf-top-right-dock {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: var(--zIndex-layerUI);
+}
+
 /* The whole stack is inverted in dark mode: the container paints the canvas
    background, and the three canvases above it hold the drawing and the
    selection UI, so one filter covers board and chrome-on-canvas alike. */

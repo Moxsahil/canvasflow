@@ -82,6 +82,37 @@ export function MainMenu({
 
   const trackPopup = useCallback((open: boolean) => {
     setOpenPopups((count) => Math.max(0, count + (open ? 1 : -1)));
+
+    if (open) return;
+
+    /**
+     * Re-read hover from the DOM once the popup is gone.
+     *
+     * Radix marks the rest of the page `pointer-events: none` while a menu is
+     * open, so the rail's mouseenter/mouseleave stop firing for as long as it
+     * is up. Whatever `hovered` held when the popup opened is therefore stale
+     * on close — typically stuck true, which pinned the rail open until you
+     * clicked somewhere else. Asking the element where the pointer actually is
+     * settles it. Deferred a frame because Radix restores pointer events as
+     * part of closing.
+     */
+    requestAnimationFrame(() => {
+      const rail = railRef.current;
+      setHovered(rail ? rail.matches(':hover') : false);
+    });
+  }, []);
+
+  /**
+   * Keyboard focus holds the rail open; mouse focus does not.
+   *
+   * You cannot hover with a keyboard, so tabbing in has to pin the rail — but
+   * Radix returns focus to the trigger when a popup closes, and that trigger
+   * lives inside the rail. Treating that as "focused" kept the rail expanded
+   * after every colour or theme pick, until the user clicked elsewhere.
+   */
+  const handleFocus = useCallback((event: React.FocusEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement;
+    setFocusWithin(typeof target.matches === 'function' && target.matches(':focus-visible'));
   }, []);
 
   const expanded = hovered || focusWithin || openPopups > 0;
@@ -99,7 +130,7 @@ export function MainMenu({
       style={{ width: RAIL_WIDTH_COLLAPSED }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onFocus={() => setFocusWithin(true)}
+      onFocus={handleFocus}
       // Only collapse when focus actually leaves the rail — React's onBlur also
       // fires when focus moves between two rows inside it.
       onBlur={(event) => {

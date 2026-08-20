@@ -22,6 +22,7 @@ export class BoardDocument {
   private listeners = new Set<() => void>();
   private undoListeners = new Set<() => void>();
   private userId: string | null = null;
+  private readOnly = false;
 
   constructor(doc?: Y.Doc, userId?: string | null) {
     this.yDoc = doc ?? new Y.Doc();
@@ -47,6 +48,30 @@ export class BoardDocument {
     this.undoManager.on('stack-cleared', notifyUndo);
   }
 
+  /**
+   * Refuse locally-originated edits.
+   *
+   * Set for viewers, whose connection the sync-server marks read-only. Without
+   * a guard here a viewer's drawing would apply to their local Y.Doc, be
+   * rejected by the server, and stay — leaving them looking at shapes nobody
+   * else can see and no way to reconcile.
+   *
+   * Deliberately at the document boundary rather than in the UI: every write
+   * path — drag, paste, delete, nudge, undo, text commit — funnels through
+   * these methods, so this is the one place that cannot be routed around.
+   * Disabling toolbar buttons is presentation; this is the rule.
+   *
+   * Remote updates are unaffected: `applyUpdate` is inbound state, not a local
+   * edit, and a viewer must still receive everyone else's work.
+   */
+  setReadOnly(readOnly: boolean): void {
+    this.readOnly = readOnly;
+  }
+
+  isReadOnly(): boolean {
+    return this.readOnly;
+  }
+
   onChange(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -66,10 +91,12 @@ export class BoardDocument {
   }
 
   undo(): void {
+    if (this.readOnly) return;
     this.undoManager.undo();
   }
 
   redo(): void {
+    if (this.readOnly) return;
     this.undoManager.redo();
   }
 
@@ -142,6 +169,7 @@ export class BoardDocument {
   }
 
   addShape(shape: Shape): void {
+    if (this.readOnly) return;
     this.yDoc.transact(() => {
       const currentMax = this.getMaxZIndex();
       const newZIndex = generateKeyBetween(currentMax, null);
@@ -161,6 +189,7 @@ export class BoardDocument {
    * regenerated in array order, so the file's stacking order is what shows.
    */
   replaceShapes(shapes: readonly Shape[]): void {
+    if (this.readOnly) return;
     this.yDoc.transact(() => {
       if (this.yShapes.length > 0) {
         this.yShapes.delete(0, this.yShapes.length);
@@ -176,6 +205,7 @@ export class BoardDocument {
   }
 
   updateShape(id: string, patch: Partial<Shape>): void {
+    if (this.readOnly) return;
     this.yDoc.transact(() => {
       for (let i = 0; i < this.yShapes.length; i++) {
         const yMap = this.yShapes.get(i);
@@ -192,6 +222,7 @@ export class BoardDocument {
   }
 
   deleteShapes(ids: readonly string[]): void {
+    if (this.readOnly) return;
     const idSet = new Set(ids);
     this.yDoc.transact(() => {
       for (let i = this.yShapes.length - 1; i >= 0; i--) {
@@ -204,6 +235,7 @@ export class BoardDocument {
   }
 
   bringToFront(id: string): void {
+    if (this.readOnly) return;
     this.yDoc.transact(() => {
       const currentMax = this.getMaxZIndex();
       const newZIndex = generateKeyBetween(currentMax, null);
@@ -212,6 +244,7 @@ export class BoardDocument {
   }
 
   sendToBack(id: string): void {
+    if (this.readOnly) return;
     this.yDoc.transact(() => {
       let currentMin: string | null = null;
       for (let i = 0; i < this.yShapes.length; i++) {
@@ -232,6 +265,7 @@ export class BoardDocument {
    * If already at the top, no-op.
    */
   bringForward(id: string): void {
+    if (this.readOnly) return;
     this.yDoc.transact(() => {
       const sorted = this.getSortedZIndexes();
       const currentIdx = sorted.findIndex((s) => s.id === id);
@@ -252,6 +286,7 @@ export class BoardDocument {
    * If already at the bottom, no-op.
    */
   sendBackward(id: string): void {
+    if (this.readOnly) return;
     this.yDoc.transact(() => {
       const sorted = this.getSortedZIndexes();
       const currentIdx = sorted.findIndex((s) => s.id === id);
@@ -272,6 +307,7 @@ export class BoardDocument {
    * Wrapped in a single transact so it's one undo step.
    */
   nudgeShapes(ids: readonly string[], dx: number, dy: number): void {
+    if (this.readOnly) return;
     if (ids.length === 0 || (dx === 0 && dy === 0)) return;
     const idSet = new Set(ids);
     this.yDoc.transact(() => {
@@ -300,6 +336,7 @@ export class BoardDocument {
     offset: { dx: number; dy: number },
     genId: () => string,
   ): string[] {
+    if (this.readOnly) return [];
     const idSet = new Set(ids);
     const originals: Array<{ yMap: Y.Map<unknown>; newId: string }> = [];
 

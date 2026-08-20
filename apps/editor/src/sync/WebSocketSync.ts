@@ -2,6 +2,16 @@ import { HocuspocusProvider, WebSocketStatus } from '@hocuspocus/provider';
 import type { BoardDocument } from '@canvasflow/canvas-engine';
 import type { SyncStatus } from './sync-status';
 
+/**
+ * The Yjs awareness instance the provider manages.
+ *
+ * Derived from the provider's own type rather than imported from
+ * `y-protocols`, which reaches us only as a transitive dependency of
+ * Hocuspocus — naming it directly would mean depending on a package we never
+ * install ourselves.
+ */
+export type SyncAwareness = NonNullable<HocuspocusProvider['awareness']>;
+
 export interface WebSocketSyncConfig {
   boardId: string;
   syncUrl: string;
@@ -54,6 +64,18 @@ export class WebSocketSync {
   ) {
     this.connect();
     this.installVisibilityListener();
+  }
+
+  /**
+   * The presence channel.
+   *
+   * Hocuspocus creates this alongside the document and relays it on a separate
+   * message type, so anything written here reaches peers without ever entering
+   * the Y.Doc — and therefore without ever reaching Postgres. That is the whole
+   * reason cursors can be sent at frame rate.
+   */
+  get awareness(): SyncAwareness | null {
+    return this.provider?.awareness ?? null;
   }
 
   private connect(): void {

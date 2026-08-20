@@ -30,7 +30,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "verify:sharing": "tsx scripts/verify-sharing.mts"
   },
   "dependencies": {
     "@canvasflow/types": "workspace:*",

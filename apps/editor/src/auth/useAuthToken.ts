@@ -108,6 +108,23 @@ export function useAuthToken(boardId: string): {
     setState(readInitialToken(boardId));
   }, [boardId]);
 
+  /**
+   * Arriving with no token at all — someone pasted a board URL rather than
+   * clicking through from the dashboard — is recoverable: ask the web app for
+   * one using the session cookie the browser already has.
+   *
+   * Without this a plain board link is inert. The editor would sit at "not
+   * connected" forever even for the board's own owner, because a token only
+   * ever arrived via the redirect fragment.
+   *
+   * Runs at most once per board: a rejection leaves `token` null, and this
+   * effect only re-fires when that value changes.
+   */
+  useEffect(() => {
+    if (state.token !== null) return;
+    void refresh();
+  }, [state.token, refresh]);
+
   // Schedule automatic refresh before expiry
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
