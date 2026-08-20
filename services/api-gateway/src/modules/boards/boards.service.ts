@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../infra/database/database.service.js';
-import { boards, memberships, workspaces, type BoardRow } from '@canvasflow/db';
+import { boards, memberships, workspaces, resolveBoardAccess, type BoardRow } from '@canvasflow/db';
 import { eq, isNull, and, inArray, asc, getTableColumns } from 'drizzle-orm';
 
 export interface CreateBoardInput {
@@ -28,28 +28,27 @@ export class BoardsService {
   }
 
   /**
-   * Fetch a single board ONLY if the user is a member of its workspace.
-   * Returns null if the board doesn't exist, is soft-deleted, OR the
-   * user lacks access. Callers should treat null as 404 — never leak
-   * "exists but forbidden" because that's its own info disclosure.
+   * Fetch a single board ONLY if the user may access it.
    *
-   * Uses a single JOIN query rather than two sequential round trips.
-   * Matches the same optimization in
-   * services/sync-server/src/auth/check-board-access.ts and
-   * apps/web/src/lib/boards/access.ts.
+   * Authorization is delegated to `resolveBoardAccess` in @canvasflow/db, the
+   * one place that knows the rule — owner, then explicit board membership,
+   * then workspace fallback, with a revocation beating the fallback. This
+   * service, sync-server and the web app each used to carry their own copy of
+   * the workspace join, which could only ever see workspace members and so
+   * would not honour a board shared with an outsider.
    *
-   * getTableColumns(boards) keeps the result flat as BoardRow — a bare
-   * .select() alongside a join would nest it as { boards, memberships }.
-   *
-   * MIRRORS: sync-server + web app helpers.
-   * ANY CHANGE HERE MUST BE MIRRORED TO BOTH.
+   * Returns null if the board doesn't exist, is soft-deleted, OR the user
+   * lacks access. Callers must treat null as 404 — never leak "exists but
+   * forbidden", which is its own information disclosure.
    */
   async findByIdForUser(id: string, userId: string): Promise<BoardRow | null> {
+    const access = await resolveBoardAccess(this.database.db, userId, id);
+    if (!access) return null;
+
     const rows = await this.database.db
       .select(getTableColumns(boards))
       .from(boards)
-      .innerJoin(memberships, eq(memberships.workspaceId, boards.workspaceId))
-      .where(and(eq(boards.id, id), eq(memberships.userId, userId), isNull(boards.deletedAt)))
+      .where(eq(boards.id, id))
       .limit(1);
 
     return rows[0] ?? null;

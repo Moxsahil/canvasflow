@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Server } from '@hocuspocus/server';
 import express from 'express';
-import { createClient } from '@canvasflow/db';
+import { createClient, canEdit } from '@canvasflow/db';
 import { parseEnv } from './config/env.js';
 import { createLogger } from './logging/logger.js';
 import { verifyEditorToken } from './auth/verify-token.js';
@@ -106,12 +106,29 @@ const hocuspocus = Server.configure({
 
     // Use the live role, not the one baked into the token — role could
     // have been changed since mint time.
+    const readOnly = !canEdit(access.role);
+
+    /**
+     * Mark the connection read-only for viewers.
+     *
+     * This MUST be a mutation of `data.connection`, not a field on the context
+     * object returned below. Hocuspocus reads `hookPayload.connection.readOnly`
+     * when it constructs the Connection and when it decides whether to apply an
+     * incoming update; anything returned from this hook lands in `data.context`
+     * and is never consulted for authorization. Returning `readOnly` looks
+     * exactly like enforcement and does nothing at all — a viewer's edits were
+     * applied and broadcast like anyone else's.
+     */
+    data.connection.readOnly = readOnly;
+
     connLog.info('authenticated', {
       userId: payload.userId,
       email: payload.email,
       boardId: payload.boardId,
       workspaceId: access.workspaceId,
       role: access.role,
+      source: access.source,
+      readOnly,
     });
 
     return {
@@ -122,6 +139,9 @@ const hocuspocus = Server.configure({
       boardId: payload.boardId,
       workspaceId: access.workspaceId,
       role: access.role,
+      // Informational only — the enforcement is data.connection.readOnly above.
+      // Kept so downstream hooks can log why a write never arrived.
+      readOnly,
     };
   },
   /**

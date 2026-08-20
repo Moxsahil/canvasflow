@@ -33,11 +33,13 @@ import { PropertiesPanel, itemStyleFromShape } from './properties';
 import { TOOL_TO_SHAPE_KIND, type Tool } from './tools/tool';
 import type { ItemStyle, Point } from './machine/tool-machine.types';
 import { ShortcutsModal } from './help';
-import { decodeJwtUserId } from './auth/token';
+import { decodeJwtUser } from './auth/token';
+import { CollabBar, useCollabPresence, useIdleDetector } from './collab';
 import { useAppTheme } from './theme';
 import { useOpenBoardFile, useSaveBoardFile } from './file';
 import { ExportImageDialog } from './export';
 import { FindBar, useCanvasSearch } from './search';
+import { ShareDialog } from './share';
 import { Dialog } from './ui';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -54,11 +56,25 @@ export function Editor({ boardId }: EditorProps) {
 
   const [helpOpen, setHelpOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const showExport = useCallback(() => setExportOpen(true), []);
   const hideExport = useCallback(() => setExportOpen(false), []);
+  const showShare = useCallback(() => setShareOpen(true), []);
+  const hideShare = useCallback(() => setShareOpen(false), []);
   /** Shared by the open and save flows — whichever has something to report. */
-  const [notice, setNotice] = useState<string | null>(null);
+  // Carries its own heading: the open, save and copy-link flows all report
+  // through here, and a shared dialog titled for only one of them mislabels
+  // the other two.
+  const [notice, setNotice] = useState<{ title: string; body: string } | null>(null);
   const dismissNotice = useCallback(() => setNotice(null), []);
+  const showOpenNotice = useCallback(
+    (body: string) => setNotice({ title: 'Open board', body }),
+    [],
+  );
+  const showSaveNotice = useCallback(
+    (body: string) => setNotice({ title: 'Save board', body }),
+    [],
+  );
 
   const { canvasBackground, setCanvasBackground } = useCanvasBackground(boardId);
   const { theme, resolvedTheme, setTheme, toggleTheme } = useAppTheme();
@@ -66,13 +82,38 @@ export function Editor({ boardId }: EditorProps) {
   const handleShowHelp = useCallback(() => setHelpOpen(true), []);
   const handleCloseHelp = useCallback(() => setHelpOpen(false), []);
 
-  const userId = authToken ? decodeJwtUserId(authToken) : null;
+  // The token has always carried the user's name and role alongside the id;
+  // until presence needed them the editor only read the id, which is why the
+  // menu's account row has been showing a raw UUID.
+  const user = useMemo(() => (authToken ? decodeJwtUser(authToken) : null), [authToken]);
+  const userId = user?.id ?? null;
 
   const doc = useBoardDocument(boardId, userId);
+
+  /**
+   * Viewers may look but not touch.
+   *
+   * Held on the document rather than checked at each call site, so every write
+   * path is covered by construction. The real enforcement is the sync-server
+   * marking their socket read-only; this stops a viewer's rejected edits
+   * lingering in their local doc as shapes nobody else can see.
+   *
+   * Defaults to read-only until a token has been decoded — briefly refusing an
+   * edit is recoverable, briefly permitting one is not.
+   */
+  const readOnly = user?.readOnly ?? true;
+
+  useEffect(() => {
+    doc.setReadOnly(readOnly);
+  }, [doc, readOnly]);
   const shapes = useYjsShapes(doc);
   const { canUndo, canRedo } = useUndoState(doc);
 
-  const { status: syncStatus, notifyActivity } = useBoardSync(doc, {
+  const {
+    status: syncStatus,
+    notifyActivity,
+    awareness,
+  } = useBoardSync(doc, {
     boardId,
     apiUrl: env.VITE_API_URL,
     syncUrl: env.VITE_SYNC_URL,
@@ -80,6 +121,18 @@ export function Editor({ boardId }: EditorProps) {
     userId,
     onAuthError: refreshAuthToken,
   });
+
+  // Suspended while disconnected: a frozen cursor from a socket that has gone
+  // away is worse than no cursor.
+  const activity = useIdleDetector({ enabled: awareness !== null });
+  const presenceTheme = resolvedTheme === 'dark' ? 'dark' : 'light';
+  const { peersRef, subscribe, roster, publishCursor, publishButton, publishSelection } =
+    useCollabPresence({ awareness, user, activity });
+
+  const presence = useMemo(
+    () => ({ peersRef, subscribe, theme: presenceTheme }) as const,
+    [peersRef, subscribe, presenceTheme],
+  );
 
   const actorRef = useActorRef(toolMachine);
 
@@ -163,7 +216,9 @@ export function Editor({ boardId }: EditorProps) {
     ? itemStyleFromShape(firstSelected, itemStyle)
     : itemStyle;
 
-  const showProperties = selectedShapes.length > 0 || toolShapeKind !== null;
+  // Nothing in the properties panel does anything for a viewer, and offering
+  // controls that silently no-op is worse than not offering them.
+  const showProperties = !readOnly && (selectedShapes.length > 0 || toolShapeKind !== null);
 
   const handleStyleChange = useCallback(
     (patch: Partial<ItemStyle>, transient = false) => {
@@ -184,6 +239,13 @@ export function Editor({ boardId }: EditorProps) {
   const pointerDownWorldRef = useRef<Point | null>(null);
   /** Previous point of the eraser stroke, so each move sweeps a segment. */
   const lastErasePointRef = useRef<Point | null>(null);
+
+  // Selection is a transition, not a stream — publishing it from an effect
+  // rather than the pointer handlers means marquee, click, shortcut and undo
+  // all reach collaborators through the same path.
+  useEffect(() => {
+    publishSelection(selectedIds);
+  }, [selectedIds, publishSelection]);
 
   useEffect(() => {
     const sub1 = actorRef.on('shape.committed', (emitted) => {
@@ -229,7 +291,10 @@ export function Editor({ boardId }: EditorProps) {
     if (rectIntersectsViewport(rect, actorRef.getSnapshot().context.camera, { width, height })) {
       return;
     }
-    actorRef.send({ type: 'SET_CAMERA', camera: fitRectToViewport(rect, { width, height }) });
+    actorRef.send({
+      type: 'SET_CAMERA',
+      camera: fitRectToViewport(rect, { width, height }, { maxZoom: 1 }),
+    });
   }, [shapes, width, height, actorRef]);
 
   const marqueeRef = useRef(marquee);
@@ -247,6 +312,7 @@ export function Editor({ boardId }: EditorProps) {
   const handlePointerDown = useCallback(
     (point: Point, _screenPoint: Point, button: number, shiftKey: boolean) => {
       notifyActivity();
+      publishButton('down');
       // The canvas's pointerdown suppresses the browser's default focus
       // handling (see usePointerEvents), which also suppresses the native
       // blur a click-away would normally trigger on an open text editor.
@@ -329,6 +395,7 @@ export function Editor({ boardId }: EditorProps) {
       spatialIndex,
       camera.zoom,
       notifyActivity,
+      publishButton,
     ],
   );
 
@@ -388,6 +455,7 @@ export function Editor({ boardId }: EditorProps) {
 
   const handlePointerUp = useCallback(
     (point: Point) => {
+      publishButton('up');
       const snap = actorRef.getSnapshot();
       const wasInteracting = snap.matches('draggingSelection') || snap.matches('resizingSelection');
 
@@ -402,7 +470,7 @@ export function Editor({ boardId }: EditorProps) {
         doc.breakUndoGroup();
       }
     },
-    [actorRef, doc],
+    [actorRef, doc, publishButton],
   );
 
   // Double-clicking a text shape (with any tool active) reopens it for editing.
@@ -452,7 +520,6 @@ export function Editor({ boardId }: EditorProps) {
     () => actorRef.send({ type: 'ZOOM_BY', delta: 0.8, anchor: { x: width / 2, y: height / 2 } }),
     [actorRef, width, height],
   );
-  const handleResetView = useCallback(() => actorRef.send({ type: 'RESET_VIEW' }), [actorRef]);
   const handleDelete = useCallback(() => actorRef.send({ type: 'DELETE_SELECTED' }), [actorRef]);
   const handleSelectAll = useCallback(
     () => actorRef.send({ type: 'SELECT_ALL', shapeIds: shapes.map((s) => s.id) }),
@@ -558,7 +625,7 @@ export function Editor({ boardId }: EditorProps) {
       // the camera as it stands at the moment of the open.
       const before = actorRef.getSnapshot().context.camera;
       const rect = computeBoundingRect(loaded);
-      const after = rect ? fitRectToViewport(rect, { width, height }) : before;
+      const after = rect ? fitRectToViewport(rect, { width, height }, { maxZoom: 1 }) : before;
       if (rect) {
         actorRef.send({ type: 'SET_CAMERA', camera: after });
       }
@@ -580,7 +647,7 @@ export function Editor({ boardId }: EditorProps) {
     genId,
     onLoaded: handleBoardFileLoaded,
     fileHandleRef,
-    onNotice: setNotice,
+    onNotice: showOpenNotice,
   });
 
   const { saveBoardFileToDisk } = useSaveBoardFile({
@@ -588,7 +655,7 @@ export function Editor({ boardId }: EditorProps) {
     canvasBackground,
     boardName: boardId,
     fileHandleRef,
-    onNotice: setNotice,
+    onNotice: showSaveNotice,
   });
 
   const setCamera = useCallback(
@@ -626,6 +693,30 @@ export function Editor({ boardId }: EditorProps) {
       opened.undoItem = doc.peekUndoItem();
     }
   }, [actorRef, doc]);
+
+  /**
+   * Copy this board's own URL.
+   *
+   * Distinct from the share dialog: this is the link for people who can
+   * already reach the board, and it mints nothing. Opening it signs the
+   * recipient in against their own access — see useAuthToken, which now
+   * recovers a token when a board is opened without one. Someone with no
+   * access needs a share link instead.
+   */
+  const handleCopyBoardLink = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setNotice({
+        title: 'Link copied',
+        body: 'Anyone who already has access can open this board with it. To invite someone new, use Live collaboration.',
+      });
+    } catch {
+      setNotice({
+        title: 'Link copied',
+        body: 'Could not copy the link. Copy it from the address bar instead.',
+      });
+    }
+  }, []);
 
   const handleCopy = useCallback(async () => {
     if (selectedIds.length === 0) return;
@@ -677,7 +768,7 @@ export function Editor({ boardId }: EditorProps) {
     onSpaceUp: handleSpaceUp,
     onZoomIn: handleZoomIn,
     onZoomOut: handleZoomOut,
-    onResetView: handleResetView,
+    onResetView: handleZoomTo100,
     onDelete: handleDelete,
     onSelectAll: handleSelectAll,
     onUndo: handleUndo,
@@ -702,7 +793,7 @@ export function Editor({ boardId }: EditorProps) {
     onFind: search.openSearch,
     // The dialogs own the keyboard while they're up, so ⌘O can't stack a
     // second picker on top of an unanswered replace confirmation.
-    disabled: helpOpen || exportOpen || pendingReplace !== null || notice !== null,
+    disabled: helpOpen || exportOpen || shareOpen || pendingReplace !== null || notice !== null,
   });
 
   const handleCommitText = useCallback(
@@ -768,14 +859,29 @@ export function Editor({ boardId }: EditorProps) {
         isPanning={isPanning}
         backgroundColor={canvasBackground}
         searchHighlights={search.highlights}
+        presence={presence}
+        onPointerHover={publishCursor}
       />
+
+      {/* Top-right chrome shares one axis; the dock places them so neither
+          child has to know the other's width. */}
+      <div className="cf-top-right-dock">
+        <FindBar search={search} />
+        <CollabBar
+          roster={roster}
+          theme={presenceTheme}
+          onShare={showShare}
+          readOnly={readOnly}
+          portalContainer={containerRef.current}
+        />
+      </div>
 
       {/* A menu item goes live by being given a handler here; anything without
           one renders disabled with a "Soon" badge, so the menu stays complete
           while the features behind it land. */}
       <MainMenu
         boardName={boardId}
-        userLabel={userId}
+        userLabel={user?.name}
         canvasBackground={canvasBackground}
         onCanvasBackgroundChange={setCanvasBackground}
         theme={theme}
@@ -784,14 +890,23 @@ export function Editor({ boardId }: EditorProps) {
           open: openBoardFile,
           saveTo: saveBoardFileToDisk,
           exportImage: showExport,
+          liveCollaboration: showShare,
+          copyLink: handleCopyBoardLink,
           findOnCanvas: search.openSearch,
           help: handleShowHelp,
         }}
       />
 
       <div className="cf-bottom-dock">
-        <HistoryPanel canUndo={canUndo} canRedo={canRedo} onUndo={handleUndo} onRedo={handleRedo} />
-        <Toolbar activeTool={activeTool} onToolChange={handleToolChange} />
+        {!readOnly && (
+          <HistoryPanel
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+          />
+        )}
+        <Toolbar activeTool={activeTool} onToolChange={handleToolChange} readOnly={readOnly} />
       </div>
 
       {showProperties && (
@@ -827,9 +942,16 @@ export function Editor({ boardId }: EditorProps) {
         syncStatus={syncStatus}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
-        onResetZoom={handleResetView}
+        onResetZoom={handleZoomTo100}
       />
       <ShortcutsModal open={helpOpen} onClose={handleCloseHelp} />
+
+      <ShareDialog
+        open={shareOpen}
+        onClose={hideShare}
+        boardId={boardId}
+        portalContainer={containerRef.current}
+      />
 
       <Dialog
         open={pendingReplace !== null}
@@ -844,8 +966,6 @@ export function Editor({ boardId }: EditorProps) {
         ⌘Z.
       </Dialog>
 
-      <FindBar search={search} />
-
       <ExportImageDialog
         open={exportOpen}
         onClose={hideExport}
@@ -857,8 +977,8 @@ export function Editor({ boardId }: EditorProps) {
         portalContainer={containerRef.current}
       />
 
-      <Dialog open={notice !== null} title="Open board" onClose={dismissNotice}>
-        {notice}
+      <Dialog open={notice !== null} title={notice?.title ?? ''} onClose={dismissNotice}>
+        {notice?.body}
       </Dialog>
     </div>
   );

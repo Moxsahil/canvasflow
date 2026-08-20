@@ -17,7 +17,10 @@ export function FindBar({ search }: { search: CanvasSearch }) {
   const total = search.truncated ? `${search.matchCount}+` : String(search.matchCount);
 
   return (
-    <div className="absolute right-4 top-4 z-(--zIndex-layerUI)">
+    // Unpositioned: the top-right dock lays this out beside the collaborator
+    // bar. Positioning itself is what made it cover the avatars — both were
+    // pinned to the same corner, and this one paints second.
+    <div>
       <ExpandingSearchDock
         expanded={search.open}
         onExpand={search.openSearch}

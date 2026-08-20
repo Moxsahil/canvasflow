@@ -6,6 +6,15 @@ interface UsePointerEventsOptions {
   onPointerMove: (point: Point, screenPoint: Point, screenDelta: Point, altKey: boolean) => void;
   onPointerUp: (point: Point, screenPoint: Point) => void;
   onDoubleClick: (point: Point, screenPoint: Point) => void;
+  /**
+   * Every pointer position over the canvas, pressed or not — and `null` once
+   * the pointer leaves.
+   *
+   * Separate from `onPointerMove`, which fires only while a button is held
+   * because that is what drag and resize need. Collaboration needs the other
+   * kind: a cursor is worth showing long before anyone clicks anything.
+   */
+  onPointerHover?: (point: Point | null) => void;
   screenToWorld: (screenX: number, screenY: number) => Point;
   eventToCanvasScreen: (event: PointerEvent) => Point;
 }
@@ -17,6 +26,7 @@ export function usePointerEvents(
     onPointerMove,
     onPointerUp,
     onDoubleClick,
+    onPointerHover,
     screenToWorld,
     eventToCanvasScreen,
   }: UsePointerEventsOptions,
@@ -42,14 +52,20 @@ export function usePointerEvents(
     };
 
     const handlePointerMove = (e: PointerEvent) => {
+      const world = screenToWorld(e.clientX, e.clientY);
+      // Before the pressed-only guard: hover is reported whether or not a
+      // button is down, so a collaborator's cursor doesn't freeze mid-drag.
+      onPointerHover?.(world);
+
       if (!isDownRef.current) return;
       const screen = eventToCanvasScreen(e);
-      const world = screenToWorld(e.clientX, e.clientY);
       const last = lastScreenRef.current ?? screen;
       const delta = { x: screen.x - last.x, y: screen.y - last.y };
       lastScreenRef.current = screen;
       onPointerMove(world, screen, delta, e.altKey);
     };
+
+    const handlePointerLeave = () => onPointerHover?.(null);
 
     const handlePointerUp = (e: PointerEvent) => {
       if (!isDownRef.current) return;
@@ -77,6 +93,7 @@ export function usePointerEvents(
     canvas.addEventListener('pointermove', handlePointerMove);
     canvas.addEventListener('pointerup', handlePointerUp);
     canvas.addEventListener('pointercancel', handlePointerUp);
+    canvas.addEventListener('pointerleave', handlePointerLeave);
     canvas.addEventListener('dblclick', handleDoubleClick);
 
     return () => {
@@ -84,6 +101,7 @@ export function usePointerEvents(
       canvas.removeEventListener('pointermove', handlePointerMove);
       canvas.removeEventListener('pointerup', handlePointerUp);
       canvas.removeEventListener('pointercancel', handlePointerUp);
+      canvas.removeEventListener('pointerleave', handlePointerLeave);
       canvas.removeEventListener('dblclick', handleDoubleClick);
     };
   }, [
@@ -92,6 +110,7 @@ export function usePointerEvents(
     onPointerMove,
     onPointerUp,
     onDoubleClick,
+    onPointerHover,
     screenToWorld,
     eventToCanvasScreen,
   ]);

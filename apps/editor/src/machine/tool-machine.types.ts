@@ -137,7 +137,6 @@ export type ToolMachineEvent =
   | { type: 'SPACE_UP' }
   | { type: 'PAN_BY'; dx: number; dy: number }
   | { type: 'ZOOM_BY'; delta: number; anchor: Point }
-  | { type: 'RESET_VIEW' }
   | { type: 'SET_CAMERA'; camera: Camera }
   | { type: 'DELETE_SELECTED' }
   | { type: 'SELECT_ALL'; shapeIds: string[] }

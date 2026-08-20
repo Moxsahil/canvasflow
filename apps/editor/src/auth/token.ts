@@ -12,22 +12,40 @@ export function clearAuthTokenFromHash(): void {
   window.history.replaceState(null, '', cleanUrl);
 }
 
+interface EditorTokenClaims {
+  id?: string;
+  email?: string;
+  name?: string;
+  boardId?: string;
+  workspaceId?: string;
+  role?: string;
+  exp?: number;
+}
+
 /**
- * Reads the `exp` claim (seconds since epoch) out of a JWT without
- * verifying its signature — fine here since it's only used to schedule
- * a refresh, not to establish trust. The server re-validates on every call.
+ * Reads a JWT's payload without verifying its signature.
+ *
+ * Safe for everything below because none of it establishes trust: the claims
+ * are used to schedule a refresh, to check a cached token still belongs to the
+ * board on screen, and to label the local user in the UI. The sync-server
+ * verifies the signature on every connection, and re-checks board access
+ * against the database besides.
  */
-export function decodeJwtExpiry(token: string): number | null {
+function decodeClaims(token: string): EditorTokenClaims | null {
   try {
     const payload = token.split('.')[1];
     if (!payload) return null;
     const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const json = atob(base64);
-    const claims = JSON.parse(json) as { exp?: number };
-    return typeof claims.exp === 'number' ? claims.exp * 1000 : null;
+    return JSON.parse(atob(base64)) as EditorTokenClaims;
   } catch {
     return null;
   }
+}
+
+/** Expiry in milliseconds since epoch, or null. Used to schedule the refresh. */
+export function decodeJwtExpiry(token: string): number | null {
+  const exp = decodeClaims(token)?.exp;
+  return typeof exp === 'number' ? exp * 1000 : null;
 }
 
 /**
@@ -37,29 +55,62 @@ export function decodeJwtExpiry(token: string): number | null {
  * URL, we must not reuse a token scoped to the previous board.
  */
 export function decodeJwtBoardId(token: string): string | null {
-  try {
-    const payload = token.split('.')[1];
-    if (!payload) return null;
-    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const json = atob(base64);
-    const claims = JSON.parse(json) as { boardId?: string };
-    return typeof claims.boardId === 'string' ? claims.boardId : null;
-  } catch {
-    return null;
-  }
+  const boardId = decodeClaims(token)?.boardId;
+  return typeof boardId === 'string' ? boardId : null;
 }
 
 export function decodeJwtUserId(token: string): string | null {
-  try {
-    const payload = token.split('.')[1];
-    if (!payload) return null;
-    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const json = atob(base64);
-    const claims = JSON.parse(json) as { id?: string };
-    return typeof claims.id === 'string' ? claims.id : null;
-  } catch {
-    return null;
-  }
+  return decodeJwtUser(token)?.id ?? null;
+}
+
+/**
+ * The user's role on this board, which decides whether the session may edit.
+ *
+ * A *board* role, not a workspace one: someone invited by share link is not a
+ * workspace member at all. Enforcement lives on the socket — the sync-server
+ * marks viewer connections read-only — so this only drives what the UI offers.
+ */
+export type EditorRole = 'owner' | 'editor' | 'viewer';
+
+export interface EditorUser {
+  readonly id: string;
+  /** Display name, falling back to the local part of the email, then "Anonymous". */
+  readonly name: string;
+  readonly email: string | null;
+  readonly role: EditorRole | null;
+  /** True when this session may not write. Viewers, and anything unrecognised. */
+  readonly readOnly: boolean;
+}
+
+/**
+ * The signed-in user, as the editor token describes them.
+ *
+ * `/api/editor-token` already signs `name`, `email` and `role` alongside the
+ * id; until presence needed them the editor only ever read `id`, which is why
+ * the account row in the menu rail has been showing a raw UUID.
+ */
+export function decodeJwtUser(token: string): EditorUser | null {
+  const claims = decodeClaims(token);
+  if (!claims || typeof claims.id !== 'string' || claims.id.length === 0) return null;
+
+  const email = typeof claims.email === 'string' && claims.email ? claims.email : null;
+  const name = typeof claims.name === 'string' ? claims.name.trim() : '';
+  const claimed = claims.role;
+  const role: EditorRole | null =
+    claimed === 'owner' || claimed === 'editor' || claimed === 'viewer' ? claimed : null;
+
+  return {
+    id: claims.id,
+    // A board where everyone is called "Anonymous" is barely better than no
+    // names at all, so fall back through the email before giving up on one.
+    name: name || email?.split('@')[0] || 'Anonymous',
+    email,
+    role,
+    // Unrecognised roles read as read-only rather than as full access: an
+    // older token, or one this build doesn't understand, must not be treated
+    // as permission to write.
+    readOnly: role !== 'owner' && role !== 'editor',
+  };
 }
 
 export interface RefreshedToken {
