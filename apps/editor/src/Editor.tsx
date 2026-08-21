@@ -34,7 +34,16 @@ import { TOOL_TO_SHAPE_KIND, type Tool } from './tools/tool';
 import type { ItemStyle, Point } from './machine/tool-machine.types';
 import { ShortcutsModal } from './help';
 import { decodeJwtUser } from './auth/token';
-import { CollabBar, useCollabPresence, useIdleDetector } from './collab';
+import {
+  CursorLayer,
+  FollowingChip,
+  PeerList,
+  PresenceChannel,
+  useFollowMode,
+  useIdleDetector,
+  usePeerPresence,
+  useSelfPresence,
+} from './collab';
 import { useAppTheme } from './theme';
 import { useOpenBoardFile, useSaveBoardFile } from './file';
 import { ExportImageDialog } from './export';
@@ -120,19 +129,32 @@ export function Editor({ boardId }: EditorProps) {
     authToken,
     userId,
     onAuthError: refreshAuthToken,
+    // The server changed our role on this live connection. Re-mint the token
+    // so `readOnly` and the chrome follow within a second, rather than at the
+    // next scheduled refresh up to five minutes away.
+    onAccessChanged: refreshAuthToken,
   });
 
   // Suspended while disconnected: a frozen cursor from a socket that has gone
   // away is worse than no cursor.
-  const activity = useIdleDetector({ enabled: awareness !== null });
+  const activity = useIdleDetector(awareness !== null);
   const presenceTheme = resolvedTheme === 'dark' ? 'dark' : 'light';
-  const { peersRef, subscribe, roster, publishCursor, publishButton, publishSelection } =
-    useCollabPresence({ awareness, user, activity });
 
-  const presence = useMemo(
-    () => ({ peersRef, subscribe, theme: presenceTheme }) as const,
-    [peersRef, subscribe, presenceTheme],
-  );
+  // One channel per connection. A reconnect issues a fresh transport, so the
+  // channel is rebuilt with it rather than being patched in place.
+  const [channel, setChannel] = useState<PresenceChannel | null>(null);
+  useEffect(() => {
+    if (!awareness) {
+      setChannel(null);
+      return;
+    }
+    const next = new PresenceChannel(awareness);
+    setChannel(next);
+    return () => {
+      next.dispose();
+      setChannel(null);
+    };
+  }, [awareness]);
 
   const actorRef = useActorRef(toolMachine);
 
@@ -162,6 +184,41 @@ export function Editor({ boardId }: EditorProps) {
   const marquee = useSelector(actorRef, (s) => s.context.marquee);
   const itemStyle = useSelector(actorRef, (s) => s.context.itemStyle);
   const erasePending = useSelector(actorRef, (s) => s.context.erasePending);
+
+  // --- presence -----------------------------------------------------------
+  // Placed after the camera exists: following needs to read and write it, and
+  // publishing our own viewport needs its current value.
+  const screen = useMemo(() => ({ width, height }), [width, height]);
+
+  const cameraRef = useRef(camera);
+  cameraRef.current = camera;
+
+  const follow = useFollowMode({
+    channel,
+    selfUserId: user?.id ?? null,
+    screen,
+    getCamera: () => cameraRef.current,
+    setCamera: (next) => actorRef.send({ type: 'SET_CAMERA', camera: next }),
+  });
+
+  const { setCursor, setSelection } = useSelfPresence({
+    channel,
+    user,
+    activity,
+    camera,
+    screen,
+    following: follow.following,
+  });
+
+  const { peersRef, subscribe, roster } = usePeerPresence({
+    channel,
+    self: user ? { id: user.id, name: user.name } : null,
+    selfActivity: activity,
+  });
+
+  const followedPeer = follow.following
+    ? roster.find((entry) => entry.userId === follow.following)
+    : undefined;
 
   const shapesForRender = useMemo(
     () => (editingTextShapeId ? shapes.filter((s) => s.id !== editingTextShapeId) : shapes),
@@ -244,8 +301,8 @@ export function Editor({ boardId }: EditorProps) {
   // rather than the pointer handlers means marquee, click, shortcut and undo
   // all reach collaborators through the same path.
   useEffect(() => {
-    publishSelection(selectedIds);
-  }, [selectedIds, publishSelection]);
+    setSelection(selectedIds);
+  }, [selectedIds, setSelection]);
 
   useEffect(() => {
     const sub1 = actorRef.on('shape.committed', (emitted) => {
@@ -312,7 +369,6 @@ export function Editor({ boardId }: EditorProps) {
   const handlePointerDown = useCallback(
     (point: Point, _screenPoint: Point, button: number, shiftKey: boolean) => {
       notifyActivity();
-      publishButton('down');
       // The canvas's pointerdown suppresses the browser's default focus
       // handling (see usePointerEvents), which also suppresses the native
       // blur a click-away would normally trigger on an open text editor.
@@ -395,7 +451,6 @@ export function Editor({ boardId }: EditorProps) {
       spatialIndex,
       camera.zoom,
       notifyActivity,
-      publishButton,
     ],
   );
 
@@ -455,7 +510,6 @@ export function Editor({ boardId }: EditorProps) {
 
   const handlePointerUp = useCallback(
     (point: Point) => {
-      publishButton('up');
       const snap = actorRef.getSnapshot();
       const wasInteracting = snap.matches('draggingSelection') || snap.matches('resizingSelection');
 
@@ -470,7 +524,7 @@ export function Editor({ boardId }: EditorProps) {
         doc.breakUndoGroup();
       }
     },
-    [actorRef, doc, publishButton],
+    [actorRef, doc],
   );
 
   // Double-clicking a text shape (with any tool active) reopens it for editing.
@@ -489,13 +543,22 @@ export function Editor({ boardId }: EditorProps) {
     [actorRef, shapes, spatialIndex],
   );
 
+  // Moving the view yourself ends a follow. You cannot be carried and steer at
+  // the same time, and a chase that silently fights your scrolling feels broken
+  // rather than deliberate.
   const handleWheelZoom = useCallback(
-    (delta: number, anchor: Point) => actorRef.send({ type: 'ZOOM_BY', delta, anchor }),
-    [actorRef],
+    (delta: number, anchor: Point) => {
+      follow.notifyUserCameraInput();
+      actorRef.send({ type: 'ZOOM_BY', delta, anchor });
+    },
+    [actorRef, follow],
   );
   const handleWheelPan = useCallback(
-    (dx: number, dy: number) => actorRef.send({ type: 'PAN_BY', dx, dy }),
-    [actorRef],
+    (dx: number, dy: number) => {
+      follow.notifyUserCameraInput();
+      actorRef.send({ type: 'PAN_BY', dx, dy });
+    },
+    [actorRef, follow],
   );
   const handleToolChange = useCallback(
     (tool: Tool) => {
@@ -859,17 +922,39 @@ export function Editor({ boardId }: EditorProps) {
         isPanning={isPanning}
         backgroundColor={canvasBackground}
         searchHighlights={search.highlights}
-        presence={presence}
-        onPointerHover={publishCursor}
+        onPointerHover={setCursor}
       />
+
+      {/* Collaborator cursors. A sibling of CanvasStack, never inside it —
+          .canvas-stack carries the dark-mode inversion filter, which would
+          flip every peer colour. */}
+      <CursorLayer
+        peersRef={peersRef}
+        subscribe={subscribe}
+        camera={camera}
+        screen={screen}
+        theme={presenceTheme}
+      />
+
+      {followedPeer && (
+        <FollowingChip
+          name={followedPeer.name}
+          userId={followedPeer.userId}
+          theme={presenceTheme}
+          onStop={follow.stop}
+        />
+      )}
 
       {/* Top-right chrome shares one axis; the dock places them so neither
           child has to know the other's width. */}
       <div className="cf-top-right-dock">
         <FindBar search={search} />
-        <CollabBar
+        <PeerList
           roster={roster}
           theme={presenceTheme}
+          following={follow.following}
+          onFollow={follow.follow}
+          onStopFollowing={follow.stop}
           onShare={showShare}
           readOnly={readOnly}
           portalContainer={containerRef.current}

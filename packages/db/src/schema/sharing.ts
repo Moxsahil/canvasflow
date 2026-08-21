@@ -38,14 +38,7 @@ export const boardShareLinks = pgTable(
     createdBy: uuid('created_by')
       .notNull()
       .references(() => users.id),
-    /**
-     * Whether someone without an account can open this link.
-     *
-     * This is the Excalidraw-style switch. Off, the link still works but sends
-     * visitors through sign-in and grants access to their real account, which
-     * is what an audited workspace usually wants. On, it behaves like an
-     * Excalidraw room: anyone holding it can draw.
-     */
+
     allowGuests: boolean('allow_guests').notNull().default(true),
     /** Null means no expiry. */
     expiresAt: timestamp('expires_at', { withTimezone: true }),

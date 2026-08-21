@@ -1,19 +1,5 @@
 import { useEffect, useState } from 'react';
 
-/**
- * A QR code for the share link, so a phone can join by pointing a camera.
- *
- * The generator is loaded on demand. It is dead weight in the main bundle for
- * a dialog most sessions never open — the same reason Excalidraw keeps theirs
- * in a separate chunk.
- *
- * Unlike Excalidraw's, this renders real SVG elements from the module matrix
- * rather than injecting a pre-built markup string. That keeps
- * dangerouslySetInnerHTML out of the tree and, more usefully, lets the dark
- * modules take a theme token: a hardcoded black QR is unreadable on a dark
- * surface, and an inverted one does not scan at all.
- */
-
 interface QRCodeProps {
   value: string;
   /** Rendered size in CSS pixels. */

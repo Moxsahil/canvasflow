@@ -6,6 +6,7 @@ import { parseEnv } from './config/env.js';
 import { createLogger } from './logging/logger.js';
 import { verifyEditorToken } from './auth/verify-token.js';
 import { checkBoardAccess } from './auth/check-board-access.js';
+import { startReauthorizeLoop, REAUTHORIZE_INTERVAL_MS } from './auth/reauthorize.js';
 import { getAllowedOrigins, isOriginAllowed } from './security/allowed-origins.js';
 import * as Y from 'yjs';
 import {
@@ -324,9 +325,18 @@ app.get('/health', (_req, res) => {
   });
 });
 
+let stopReauthorize: (() => void) | null = null;
+
 async function bootstrap(): Promise<void> {
   await hocuspocus.listen();
   log.info('WebSocket listening', { port: env.PORT_WS });
+
+  // Access is resolved at connect time, which would otherwise let someone
+  // demoted to viewer keep writing until they happened to reconnect. This
+  // re-checks live connections so a role change lands on the session the
+  // person is actually in.
+  stopReauthorize = startReauthorizeLoop({ server: hocuspocus, db, log });
+  log.info('re-authorization sweep started', { intervalMs: REAUTHORIZE_INTERVAL_MS });
 
   app.listen(env.PORT_HTTP, () => {
     log.info('HTTP (health) listening', { port: env.PORT_HTTP });
@@ -349,6 +359,7 @@ bootstrap().catch((err) => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   log.info('SIGTERM received, shutting down');
+  stopReauthorize?.();
   await hocuspocus.destroy();
   process.exit(0);
 });

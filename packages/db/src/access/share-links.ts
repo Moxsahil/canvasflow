@@ -44,29 +44,35 @@ function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-/** Mint a new share link. The plaintext token is returned only here. */
 export async function createShareLink(
   db: Database,
   input: CreateShareLinkInput,
 ): Promise<CreatedShareLink> {
   const token = randomBytes(TOKEN_BYTES).toString('base64url');
 
-  const inserted = await db
-    .insert(boardShareLinks)
-    .values({
-      boardId: input.boardId,
-      tokenHash: hashToken(token),
-      role: input.role ?? 'editor',
-      createdBy: input.createdBy,
-      allowGuests: input.allowGuests ?? true,
-      expiresAt: input.expiresAt ?? null,
-      maxUses: input.maxUses ?? null,
-    })
-    .returning();
+  return db.transaction(async (tx) => {
+    await tx
+      .update(boardShareLinks)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(boardShareLinks.boardId, input.boardId), isNull(boardShareLinks.revokedAt)));
 
-  const link = inserted[0];
-  if (!link) throw new Error('Failed to create share link');
-  return { link, token };
+    const inserted = await tx
+      .insert(boardShareLinks)
+      .values({
+        boardId: input.boardId,
+        tokenHash: hashToken(token),
+        role: input.role ?? 'editor',
+        createdBy: input.createdBy,
+        allowGuests: input.allowGuests ?? true,
+        expiresAt: input.expiresAt ?? null,
+        maxUses: input.maxUses ?? null,
+      })
+      .returning();
+
+    const link = inserted[0];
+    if (!link) throw new Error('Failed to create share link');
+    return { link, token };
+  });
 }
 
 export type ShareLinkRejection =

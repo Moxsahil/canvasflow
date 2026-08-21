@@ -1,0 +1,275 @@
+/**
+ * Collaborator cursors.
+ *
+ * This layer is mounted as a SIBLING of `.canvas-stack`, never inside it. That
+ * container carries `filter: var(--theme-filter)`, an invert plus hue-rotate in
+ * dark mode, so anything drawn within it comes out the wrong colour — a teal
+ * collaborator would render orange for half the room. Placement in the tree is
+ * load-bearing here, not incidental.
+ */
+
+.cf-cursor-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /* Never intercept drawing: the canvas underneath owns every pointer event. */
+  pointer-events: none;
+  z-index: var(--zIndex-wysiwyg);
+}
+
+.cf-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* Positioned by transform rather than top/left so moving a cursor never
+     triggers layout — only compositing. */
+  transform-origin: top left;
+  will-change: transform;
+}
+
+/**
+ * Both send positions and draw them as they arrive; smoothness comes purely
+ * from send rate. A short linear transition turns that stream of discrete
+ * points into continuous motion, which is what makes a remote cursor read like
+ * a real one rather than a series of jumps.
+ *
+ * Linear and short, deliberately. An ease curve makes the cursor appear to lag
+ * then overshoot, and anything much past this duration reads as latency instead
+ * of smoothness.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .cf-cursor {
+    transition: transform 90ms linear;
+  }
+}
+
+.cf-cursor__arrow {
+  display: block;
+  /* Sits under the name tag so a long name never covers the pointer tip. */
+  position: relative;
+  z-index: 1;
+}
+
+.cf-cursor__name {
+  position: absolute;
+  top: 15px;
+  left: 12px;
+  max-width: 140px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+/* Idle peers stay on the board but stop competing for attention. Removing them
+   would make the board flicker every time somebody paused to read. */
+.cf-cursor--idle {
+  opacity: 0.4;
+}
+
+/* Off-screen peers: a small directional marker at the border rather than a
+   clamped cursor with a name tag, which piles up once several people are away
+   from your view. */
+.cf-cursor-hint {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  transform-origin: center;
+  border-radius: 50%;
+  opacity: 0.75;
+}
+
+.cf-cursor-hint__dot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
+/* ---------- peer list (top-right island) ---------- */
+
+.cf-peer-list {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  background: var(--island-bg-color);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-island);
+}
+
+.cf-peer-list__badge {
+  padding: 2px 8px;
+  border: 1px solid var(--default-border-color);
+  border-radius: var(--border-radius-md);
+  color: var(--keybinding-color);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.cf-peer-list__avatars {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.cf-peer-list__disc {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  user-select: none;
+  /* Separates overlapping avatars from each other, not just from the island. */
+  border: 2px solid var(--island-bg-color);
+  box-sizing: content-box;
+  transition: opacity 150ms ease;
+}
+
+.cf-peer-list__disc--overflow {
+  width: 26px;
+  height: 26px;
+  background: var(--button-hover-bg);
+  color: var(--text-primary-color);
+  font-size: 11px;
+}
+
+.cf-peer-list__disc--sm {
+  width: 20px;
+  height: 20px;
+  border: none;
+  font-size: 10px;
+}
+
+.cf-peer-list__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--border-radius-md);
+  background: transparent;
+  color: var(--text-primary-color);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cf-peer-list__row:disabled {
+  cursor: default;
+}
+
+.cf-peer-list__row:not(:disabled):hover {
+  background: var(--button-hover-bg);
+}
+
+.cf-peer-list__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cf-peer-list__hint {
+  color: var(--keybinding-color);
+  font-size: 11px;
+}
+
+.cf-peer-list__hint--active {
+  color: var(--color-brand-active);
+  font-weight: 600;
+}
+
+.cf-peer-list__share {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--border-radius-md);
+  background: var(--color-surface-primary-container);
+  color: var(--color-on-primary-container);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+/* Green while people are actually here — the answer to "did the link work?" */
+.cf-peer-list__share--live {
+  background: #0f9d58;
+  color: #ffffff;
+}
+
+.cf-peer-list__count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #0f9d58;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--island-bg-color);
+}
+
+/* ---------- following banner ---------- */
+
+.cf-following-chip {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px 5px 12px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-island);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: var(--zIndex-layerUI);
+}
+
+.cf-following-chip__stop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  color: inherit;
+  cursor: pointer;
+  line-height: 1;
+}
