@@ -10,3 +10,4 @@ export * from './env.js';
 export * from './access/board-access.js';
 export * from './access/access-requests.js';
 export * from './access/share-links.js';
+export * from './access/board-roles.js';

@@ -91,3 +91,60 @@ export async function revokeShareLink(boardId: string, linkId: string): Promise<
   });
   if (!res.ok) throw new Error(await failureMessage(res));
 }
+
+// ---------------------------------------------------------------------------
+// Membership
+// ---------------------------------------------------------------------------
+
+export type BoardRole = 'owner' | 'editor' | 'viewer';
+
+export interface BoardMember {
+  userId: string;
+  name: string;
+  email: string;
+  isGuest: boolean;
+  role: BoardRole;
+  status: 'active' | 'revoked';
+  isOwner: boolean;
+}
+
+function membersUrl(boardId: string): string {
+  return `${env.VITE_WEB_URL}/api/boards/${boardId}/members`;
+}
+
+export async function listMembers(boardId: string): Promise<BoardMember[]> {
+  const res = await fetch(membersUrl(boardId), { credentials: 'include' });
+  if (!res.ok) throw new Error(await failureMessage(res));
+  const body = (await res.json()) as { data: BoardMember[] };
+  return body.data;
+}
+
+/**
+ * Move someone between editor and viewer.
+ *
+ * Lands on their live session: the sync-server re-checks open connections on a
+ * short interval, so a demoted editor loses the drawing tools within seconds
+ * rather than at their next reconnect.
+ */
+export async function setMemberRole(
+  boardId: string,
+  userId: string,
+  role: 'editor' | 'viewer',
+): Promise<void> {
+  const res = await fetch(`${membersUrl(boardId)}/${userId}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role }),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res));
+}
+
+/** Remove someone from the board entirely. Their socket is closed on the next sweep. */
+export async function removeMember(boardId: string, userId: string): Promise<void> {
+  const res = await fetch(`${membersUrl(boardId)}/${userId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(await failureMessage(res));
+}

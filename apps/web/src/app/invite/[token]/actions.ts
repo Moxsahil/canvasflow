@@ -20,8 +20,6 @@ export interface JoinResult {
 }
 
 /**
- * Join a board as a guest — no account, Excalidraw-style.
- *
  * Redeeming mints a `users` row flagged `isGuest` and a `board_members` row
  * for exactly this board. The guest is a real principal from that point on, so
  * their edits persist, attribute, and audit like anyone else's; what they

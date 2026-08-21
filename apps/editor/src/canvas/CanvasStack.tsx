@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import type { Peer, PresenceTheme, Rect, Shape } from '@canvasflow/canvas-engine';
+import type { Rect, Shape } from '@canvasflow/canvas-engine';
 import type { Camera, Point } from '../machine/tool-machine.types';
 import type { Tool } from '../tools/tool';
 import { useCanvasResize } from './hooks/useCanvasResize';
@@ -7,19 +7,9 @@ import { useDevicePixelRatio } from './hooks/useDevicePixelRatio';
 import { useStaticRender } from './hooks/useStaticRender';
 import { useNewElementRender } from './hooks/useNewElementRender';
 import { useInteractiveRender } from './hooks/useInteractiveRender';
-import { usePresenceRender } from './hooks/usePresenceRender';
 import { usePointerEvents } from '../pointer/usePointerEvents';
 import { useWheelEvents } from '../pointer/useWheelEvents';
 import { screenToWorld, eventToCanvasScreen } from '../pointer/coords';
-
-export interface CanvasPresence {
-  peersRef: React.MutableRefObject<readonly Peer[]>;
-  subscribe: (listener: () => void) => () => void;
-  theme: PresenceTheme;
-}
-
-const NO_PEERS: readonly Peer[] = [];
-const noopSubscribe = () => () => {};
 
 interface CanvasStackProps {
   shapes: readonly Shape[];
@@ -35,7 +25,6 @@ interface CanvasStackProps {
   /** Find-on-canvas highlights, in world space. */
   searchHighlights?: { rects: readonly Rect[]; focusedRects: readonly Rect[] };
   /** Remote collaborators. Absent until a connection exists. */
-  presence?: CanvasPresence;
   /** Pointer position in world space, for publishing to collaborators. */
   onPointerHover?: (point: Point | null) => void;
   onPointerDown: (point: Point, screenPoint: Point, button: number, shiftKey: boolean) => void;
@@ -58,7 +47,6 @@ export function CanvasStack({
   isSpacePressed,
   backgroundColor,
   searchHighlights,
-  presence,
   onPointerHover,
   onPointerDown,
   onPointerMove,
@@ -72,8 +60,6 @@ export function CanvasStack({
   const staticCanvasRef = useRef<HTMLCanvasElement>(null);
   const newElementCanvasRef = useRef<HTMLCanvasElement>(null);
   const interactiveCanvasRef = useRef<HTMLCanvasElement>(null);
-  const presenceCanvasRef = useRef<HTMLCanvasElement>(null);
-  const fallbackPeersRef = useRef<readonly Peer[]>(NO_PEERS);
 
   const { width, height } = useCanvasResize(containerRef);
   const dpr = useDevicePixelRatio();
@@ -102,16 +88,6 @@ export function CanvasStack({
     camera,
     devicePixelRatio: dpr,
     search: searchHighlights,
-  });
-  usePresenceRender(presenceCanvasRef, {
-    width,
-    height,
-    camera,
-    devicePixelRatio: dpr,
-    theme: presence?.theme ?? 'light',
-    shapes,
-    peersRef: presence?.peersRef ?? fallbackPeersRef,
-    subscribe: presence?.subscribe ?? noopSubscribe,
   });
 
   const screenToWorldFn = useCallback(
@@ -184,21 +160,6 @@ export function CanvasStack({
         <canvas ref={newElementCanvasRef} style={canvasStyle} aria-label="New element canvas" />
         <canvas ref={interactiveCanvasRef} style={canvasStyle} aria-label="Interactive canvas" />
       </div>
-
-      {/* Outside .canvas-stack on purpose. That element carries
-          `filter: var(--theme-filter)`, which inverts its subtree in dark mode
-          so the board and its chrome invert together — but a collaborator's
-          colour has to mean the same thing on every screen, and an inverted
-          teal is orange. Kept a sibling, presence colours are authored once and
-          rendered as written in both themes.
-
-          pointer-events: none so the interactive canvas underneath keeps
-          receiving every pointer event and the tool cursor still shows. */}
-      <canvas
-        ref={presenceCanvasRef}
-        style={{ ...canvasStyle, pointerEvents: 'none' }}
-        aria-hidden="true"
-      />
     </div>
   );
 }

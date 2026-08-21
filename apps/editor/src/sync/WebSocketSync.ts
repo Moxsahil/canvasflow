@@ -20,6 +20,12 @@ export interface WebSocketSyncConfig {
   onAuthError?: () => void;
   onStatusChange?: (status: SyncStatus) => void;
   onError?: (err: Error) => void;
+  /**
+   * The server changed what this session may do — a role edit landing on a
+   * live connection. Carries no authority itself; the caller re-mints its
+   * token, and the server has already flipped the connection's own flag.
+   */
+  onAccessChanged?: () => void;
 }
 
 /**
@@ -93,12 +99,33 @@ export class WebSocketSync {
       token: () => this.config.getToken() ?? '',
       // Hocuspocus defaults: initial 1s, doubles up to 30s
       onStatus: ({ status }) => this.handleStatusChange(status),
+      onStateless: ({ payload }) => this.handleStateless(payload),
       onAuthenticationFailed: () => {
         // Editor's useBoardSync handles this by calling refresh on useAuthToken
         this.config.onError?.(new Error('Sync authentication failed (401)'));
         this.config.onAuthError?.();
       },
     });
+  }
+
+  /**
+   * Out-of-band messages from the server.
+   *
+   * Used for permission changes: the re-authorization sweep flips the
+   * connection's read-only flag server-side and then says so here, so the
+   * client can update its own chrome immediately instead of discovering the
+   * change when its five-minute token next refreshes.
+   */
+  private handleStateless(payload: string): void {
+    if (this.disposed) return;
+    try {
+      const message = JSON.parse(payload) as { type?: string };
+      if (message.type === 'access-changed') {
+        this.config.onAccessChanged?.();
+      }
+    } catch {
+      // A malformed stateless payload is not worth breaking the session over.
+    }
   }
 
   /**

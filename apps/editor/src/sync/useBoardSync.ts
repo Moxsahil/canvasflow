@@ -11,6 +11,8 @@ interface UseBoardSyncOptions {
   authToken: string | null;
   userId: string | null;
   onAuthError?: () => void;
+  /** Permissions changed on the live connection; re-mint the token. */
+  onAccessChanged?: () => void;
 }
 
 interface UseBoardSyncResult {
@@ -43,7 +45,15 @@ interface UseBoardSyncResult {
  */
 export function useBoardSync(
   doc: BoardDocument,
-  { boardId, apiUrl, syncUrl, authToken, userId, onAuthError }: UseBoardSyncOptions,
+  {
+    boardId,
+    apiUrl,
+    syncUrl,
+    authToken,
+    userId,
+    onAuthError,
+    onAccessChanged,
+  }: UseBoardSyncOptions,
 ): UseBoardSyncResult {
   const [status, setStatus] = useState<SyncStatus>('idle');
   const [error, setError] = useState<Error | null>(null);
@@ -61,6 +71,7 @@ export function useBoardSync(
   // Held in a ref for the same reason: the connection must not restart
   // just because a callback's identity changed between renders.
   const onAuthErrorRef = useRef(onAuthError);
+  const onAccessChangedRef = useRef(onAccessChanged);
 
   const cacheHydrated = useOfflineCache(doc, boardId, userId);
 
@@ -71,6 +82,10 @@ export function useBoardSync(
   useEffect(() => {
     onAuthErrorRef.current = onAuthError;
   }, [onAuthError]);
+
+  useEffect(() => {
+    onAccessChangedRef.current = onAccessChanged;
+  }, [onAccessChanged]);
 
   const hasToken = authToken !== null;
 
@@ -98,6 +113,7 @@ export function useBoardSync(
       apiUrl,
       getToken: () => tokenRef.current,
       onAuthError: () => onAuthErrorRef.current?.(),
+      onAccessChanged: () => onAccessChangedRef.current?.(),
       onStatusChange: (next) => {
         if (cancelled) return;
         setStatus(next);
