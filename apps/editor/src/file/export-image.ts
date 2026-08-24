@@ -44,9 +44,11 @@ export interface RenderedExport {
 /**
  * Render the shapes to an off-screen canvas at export settings.
  *
- * Dark mode is a filtered copy of the finished image rather than a per-shape
- * colour change, because that is exactly what the editor does on screen — the
- * file then matches the board instead of merely resembling it.
+ * Dark mode filters the drawing but not the background, because that is what
+ * the editor does on screen: the board's colour is chosen per theme and painted
+ * outside the inversion, so filtering it here would export a colour the board
+ * never shows. `backgroundColor` therefore arrives already resolved for the
+ * theme being exported.
  */
 export function renderExportCanvas(
   shapes: readonly Shape[],
@@ -55,17 +57,34 @@ export function renderExportCanvas(
   const { width, height } = measureExportSize(shapes, { scale: settings.scale });
   if (width * height > MAX_EXPORT_PIXELS) throw new ExportTooLargeError();
 
+  const background = backgroundFor(settings);
+
   const canvas = document.createElement('canvas');
   renderSceneToCanvas(canvas, shapes, {
     scale: settings.scale,
-    backgroundColor: backgroundFor(settings),
+    // Held back in dark mode so the filter below lands on the drawing alone.
+    backgroundColor: settings.dark ? null : background,
   });
 
   if (!settings.dark) return { canvas, darkApplied: false };
 
   const filtered = document.createElement('canvas');
   const darkApplied = applyDarkFilter(canvas, filtered);
-  return { canvas: darkApplied ? filtered : canvas, darkApplied };
+  if (!darkApplied) return { canvas, darkApplied };
+  if (!background) return { canvas: filtered, darkApplied };
+
+  const composed = document.createElement('canvas');
+  composed.width = filtered.width;
+  composed.height = filtered.height;
+  const ctx = composed.getContext('2d');
+  // No 2D context means no compositing; the filtered drawing on its own
+  // transparent background is still a correct export, just without the tint.
+  if (!ctx) return { canvas: filtered, darkApplied };
+
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, composed.width, composed.height);
+  ctx.drawImage(filtered, 0, 0);
+  return { canvas: composed, darkApplied };
 }
 
 /** PNG bytes for a rendered canvas. */
@@ -82,9 +101,9 @@ export function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
 /**
  * SVG for the same scene.
  *
- * Dark mode is expressed as a filter on the root group: an SVG has no pixels
- * to post-process, and this is the same transform applied to the same
- * composed image, so it matches the PNG and the screen.
+ * The filter goes on the shape group rather than the root, so it matches the
+ * PNG and the screen: the background rect is a sibling of that group and stays
+ * the colour chosen for this theme instead of being inverted into another one.
  */
 export function exportSvgString(shapes: readonly Shape[], settings: ImageExportSettings): string {
   const svg = renderSceneToSvgString(shapes, {
@@ -92,7 +111,7 @@ export function exportSvgString(shapes: readonly Shape[], settings: ImageExportS
     backgroundColor: backgroundFor(settings),
   });
   const themed = settings.dark
-    ? svg.replace('<svg ', '<svg style="filter: invert(93%) hue-rotate(180deg)" ')
+    ? svg.replace('<g transform=', '<g style="filter: invert(93%) hue-rotate(180deg)" transform=')
     : svg;
   return SVG_DOCUMENT_PREAMBLE + themed;
 }

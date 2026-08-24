@@ -6,6 +6,7 @@ import {
   fitRectToViewport,
   hitTest,
   isText,
+  presenceColorFor,
   rectIntersectsViewport,
   shapesIntersectingSegment,
   SpatialIndex,
@@ -14,11 +15,15 @@ import {
 } from '@canvasflow/canvas-engine';
 import { readShapesFromClipboard, writeShapesToClipboard } from './clipboard';
 import { CanvasStack } from './canvas/CanvasStack';
+import { pointerCursorValue } from './canvas/pointer-cursor';
+import { resolveCanvasBackground } from './properties/palette';
 import { useCanvasResize } from './canvas/hooks/useCanvasResize';
 import { useCanvasBackground } from './canvas/useCanvasBackground';
-import { MainMenu } from './menu';
+import { AppSidebar, readSidebarState } from './menu';
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Toolbar } from './toolbar/Toolbar';
 import { HistoryPanel } from './toolbar/HistoryPanel';
+import { GlassDock, GlassDockSeparator } from '@/components/ui/glass-dock';
 import { TextEditor } from './text-editor/TextEditor';
 import { ZoomPanel } from './zoom-panel/ZoomPanel';
 import { toolMachine, resizeShape } from './machine/tool-machine';
@@ -33,7 +38,8 @@ import { PropertiesPanel, itemStyleFromShape } from './properties';
 import { TOOL_TO_SHAPE_KIND, type Tool } from './tools/tool';
 import type { ItemStyle, Point } from './machine/tool-machine.types';
 import { ShortcutsModal } from './help';
-import { decodeJwtUser } from './auth/token';
+import { decodeJwtUser, decodeJwtWorkspaceId } from './auth/token';
+import { useBoardSwitcher } from './workspace';
 import {
   CursorLayer,
   FollowingChip,
@@ -58,8 +64,23 @@ interface EditorProps {
 }
 
 export function Editor({ boardId }: EditorProps) {
+  /** The editor root. Every popup portals here, for the theme tokens on it. */
+  const editorRef = useRef<HTMLDivElement>(null);
+  /** The space left of the sidebar: what the canvas fills and measures. */
   const containerRef = useRef<HTMLDivElement>(null);
   const { width, height } = useCanvasResize(containerRef);
+
+  /**
+   * Held in state rather than read straight off the ref: a ref is still null on
+   * the first render, and nothing would necessarily re-render to pick it up, so
+   * popups would portal to <body> and paint with unresolved tokens.
+   */
+  const [editorRoot, setEditorRoot] = useState<HTMLElement | null>(null);
+  useEffect(() => setEditorRoot(editorRef.current), []);
+
+  // Read once: the sidebar owns the value from here on, and re-reading its
+  // cookie mid-session would fight whatever the user has just toggled.
+  const [sidebarDefaultOpen] = useState(readSidebarState);
 
   const { authToken, refresh: refreshAuthToken } = useAuthToken(boardId);
 
@@ -96,6 +117,15 @@ export function Editor({ boardId }: EditorProps) {
   // menu's account row has been showing a raw UUID.
   const user = useMemo(() => (authToken ? decodeJwtUser(authToken) : null), [authToken]);
   const userId = user?.id ?? null;
+
+  // The board's identity in the rail: its title, the workspace it sits in, and
+  // the rest of the account's boards. Also the only place the board's real
+  // title is known — everything else here has nothing but its id.
+  const boardSwitcher = useBoardSwitcher({
+    boardId,
+    workspaceId: authToken ? decodeJwtWorkspaceId(authToken) : null,
+  });
+  const boardTitle = boardSwitcher.title;
 
   const doc = useBoardDocument(boardId, userId);
 
@@ -219,6 +249,25 @@ export function Editor({ boardId }: EditorProps) {
   const followedPeer = follow.following
     ? roster.find((entry) => entry.userId === follow.following)
     : undefined;
+
+  /**
+   * Your pointer takes your presence colour only while somebody else is on the
+   * board, where it means something: the arrow on your screen is then the one
+   * they see. Alone, a coloured pointer is just an unexplained colour, so the
+   * theme's own black-on-light / white-on-dark default stands.
+   *
+   * `undefined` deliberately, rather than a neutral colour computed here — it
+   * leaves --cursor-select unset so the value in cursors.css applies, and that
+   * one already follows the theme.
+   */
+  const collaborating = roster.some((entry) => !entry.isSelf);
+  const pointerCursor = useMemo(
+    () =>
+      collaborating && userId
+        ? pointerCursorValue(presenceColorFor(userId, presenceTheme))
+        : undefined,
+    [collaborating, userId, presenceTheme],
+  );
 
   const shapesForRender = useMemo(
     () => (editingTextShapeId ? shapes.filter((s) => s.id !== editingTextShapeId) : shapes),
@@ -716,7 +765,7 @@ export function Editor({ boardId }: EditorProps) {
   const { saveBoardFileToDisk } = useSaveBoardFile({
     shapes,
     canvasBackground,
-    boardName: boardId,
+    boardName: boardTitle,
     fileHandleRef,
     onNotice: showSaveNotice,
   });
@@ -899,172 +948,205 @@ export function Editor({ boardId }: EditorProps) {
 
   return (
     <div
-      ref={containerRef}
+      ref={editorRef}
       className="cf-editor"
       data-theme={resolvedTheme}
-      style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}
+      style={
+        {
+          position: 'fixed',
+          inset: 0,
+          overflow: 'hidden',
+          // Overrides the neutral default in cursors.css for the whole editor.
+          ...(pointerCursor ? { '--cursor-select': pointerCursor } : {}),
+        } as React.CSSProperties
+      }
     >
-      <CanvasStack
-        shapes={shapesForRender}
-        pendingErasureIds={pendingErasureIds}
-        newElement={newElement}
-        selectedIds={selectedIds}
-        marquee={marquee}
-        activeTool={activeTool}
-        camera={camera}
-        isSpacePressed={isSpacePressed}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onDoubleClick={handleDoubleClick}
-        onWheelZoom={handleWheelZoom}
-        onWheelPan={handleWheelPan}
-        isPanning={isPanning}
-        backgroundColor={canvasBackground}
-        searchHighlights={search.highlights}
-        onPointerHover={setCursor}
-      />
-
-      {/* Collaborator cursors. A sibling of CanvasStack, never inside it —
-          .canvas-stack carries the dark-mode inversion filter, which would
-          flip every peer colour. */}
-      <CursorLayer
-        peersRef={peersRef}
-        subscribe={subscribe}
-        camera={camera}
-        screen={screen}
-        theme={presenceTheme}
-      />
-
-      {followedPeer && (
-        <FollowingChip
-          name={followedPeer.name}
-          userId={followedPeer.userId}
-          theme={presenceTheme}
-          onStop={follow.stop}
-        />
-      )}
-
-      {/* Top-right chrome shares one axis; the dock places them so neither
-          child has to know the other's width. */}
-      <div className="cf-top-right-dock">
-        <FindBar search={search} />
-        <PeerList
-          roster={roster}
-          theme={presenceTheme}
-          following={follow.following}
-          onFollow={follow.follow}
-          onStopFollowing={follow.stop}
-          onShare={showShare}
-          readOnly={readOnly}
-          portalContainer={containerRef.current}
-        />
-      </div>
-
-      {/* A menu item goes live by being given a handler here; anything without
-          one renders disabled with a "Soon" badge, so the menu stays complete
-          while the features behind it land. */}
-      <MainMenu
-        boardName={boardId}
-        userLabel={user?.name}
-        canvasBackground={canvasBackground}
-        onCanvasBackgroundChange={setCanvasBackground}
-        theme={theme}
-        onThemeChange={setTheme}
-        actions={{
-          open: openBoardFile,
-          saveTo: saveBoardFileToDisk,
-          exportImage: showExport,
-          liveCollaboration: showShare,
-          copyLink: handleCopyBoardLink,
-          findOnCanvas: search.openSearch,
-          help: handleShowHelp,
-        }}
-      />
-
-      <div className="cf-bottom-dock">
-        {!readOnly && (
-          <HistoryPanel
-            canUndo={canUndo}
-            canRedo={canRedo}
-            onUndo={handleUndo}
-            onRedo={handleRedo}
-          />
-        )}
-        <Toolbar activeTool={activeTool} onToolChange={handleToolChange} readOnly={readOnly} />
-      </div>
-
-      {showProperties && (
-        <PropertiesPanel
-          style={propertyStyle}
-          shapeKinds={propertyShapeKinds}
-          canReorder={selectedIds.length === 1}
-          onStyleChange={handleStyleChange}
-          layerActions={{
-            onSendToBack: handleSendToBack,
-            onSendBackward: handleSendBackward,
-            onBringForward: handleBringForward,
-            onBringToFront: handleBringToFront,
+      <SidebarProvider defaultOpen={sidebarDefaultOpen} className="h-full min-h-0">
+        <AppSidebar
+          boardSwitcher={boardSwitcher}
+          user={user && { name: user.name, email: user.email }}
+          canvasBackground={canvasBackground}
+          onCanvasBackgroundChange={setCanvasBackground}
+          canvasTheme={presenceTheme}
+          theme={theme}
+          onThemeChange={setTheme}
+          portalContainer={editorRoot}
+          /* A menu item goes live by being given a handler here; anything
+             without one renders disabled with a "Soon" badge, so the menu stays
+             complete while the features behind it land. */
+          actions={{
+            open: openBoardFile,
+            saveTo: saveBoardFileToDisk,
+            exportImage: showExport,
+            liveCollaboration: showShare,
+            copyLink: handleCopyBoardLink,
+            findOnCanvas: search.openSearch,
+            help: handleShowHelp,
           }}
         />
-      )}
 
-      {textEditorScreenPosition && (
-        <TextEditor
-          key={textEditingKeyRef.current}
-          position={textEditorScreenPosition}
-          fontSize={textEditorFontSize}
-          fontFamily={textEditorFontFamily}
-          color={textEditorColor}
-          initialText={editingTextInitialValue}
-          onCommit={handleCommitText}
-          onCancel={handleCancelText}
-        />
-      )}
+        {/* The canvas and everything floating over it. Positioned, so the
+            chrome inside anchors to the space left of the sidebar rather than
+            to the window — and measured, so the canvas resizes with it. */}
+        <SidebarInset className="relative min-w-0 overflow-hidden">
+          <div ref={containerRef} className="absolute inset-0">
+            <CanvasStack
+              shapes={shapesForRender}
+              pendingErasureIds={pendingErasureIds}
+              newElement={newElement}
+              selectedIds={selectedIds}
+              marquee={marquee}
+              activeTool={activeTool}
+              camera={camera}
+              isSpacePressed={isSpacePressed}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onDoubleClick={handleDoubleClick}
+              onWheelZoom={handleWheelZoom}
+              onWheelPan={handleWheelPan}
+              isPanning={isPanning}
+              backgroundColor={resolveCanvasBackground(canvasBackground, presenceTheme)}
+              searchHighlights={search.highlights}
+              onPointerHover={setCursor}
+            />
 
-      <ZoomPanel
-        zoom={camera.zoom}
-        syncStatus={syncStatus}
-        onZoomIn={handleZoomIn}
-        onZoomOut={handleZoomOut}
-        onResetZoom={handleZoomTo100}
-      />
-      <ShortcutsModal open={helpOpen} onClose={handleCloseHelp} />
+            {/* Collaborator cursors. A sibling of CanvasStack, never inside it —
+          .canvas-stack carries the dark-mode inversion filter, which would
+          flip every peer colour. */}
+            <CursorLayer
+              peersRef={peersRef}
+              subscribe={subscribe}
+              camera={camera}
+              screen={screen}
+              theme={presenceTheme}
+            />
 
-      <ShareDialog
-        open={shareOpen}
-        onClose={hideShare}
-        boardId={boardId}
-        portalContainer={containerRef.current}
-      />
+            {followedPeer && (
+              <FollowingChip
+                name={followedPeer.name}
+                userId={followedPeer.userId}
+                theme={presenceTheme}
+                onStop={follow.stop}
+              />
+            )}
 
-      <Dialog
-        open={pendingReplace !== null}
-        title="Replace board contents?"
-        confirmLabel="Replace"
-        destructive
-        onConfirm={confirmReplace}
-        onClose={cancelReplace}
-      >
-        Opening <strong>{pendingReplace?.fileName}</strong> replaces the {shapes.length} shape
-        {shapes.length === 1 ? '' : 's'} on this board for everyone in it. You can undo this with
-        ⌘Z.
-      </Dialog>
+            {/* Top-right chrome shares one axis; the dock places them so neither
+          child has to know the other's width. */}
+            <div className="cf-top-right-dock">
+              <FindBar search={search} />
+              <PeerList
+                roster={roster}
+                theme={presenceTheme}
+                following={follow.following}
+                onFollow={follow.follow}
+                onStopFollowing={follow.stop}
+                onShare={showShare}
+                readOnly={readOnly}
+                portalContainer={editorRoot}
+              />
+            </div>
 
-      <ExportImageDialog
-        open={exportOpen}
-        onClose={hideExport}
-        shapes={shapes}
-        selectedShapes={selectedShapes}
-        boardName={boardId}
-        canvasBackground={canvasBackground}
-        darkTheme={resolvedTheme === 'dark'}
-        portalContainer={containerRef.current}
-      />
+            {/* Collapses and expands the sidebar. Floating over the canvas because
+          the editor has no header bar to seat it in, and it is the only way
+          back to the sidebar on a viewport too narrow to keep one on screen. */}
+            <SidebarTrigger className="absolute top-4 left-4 z-(--zIndex-layerUI)" />
 
-      <Dialog open={notice !== null} title={notice?.title ?? ''} onClose={dismissNotice}>
-        {notice?.body}
-      </Dialog>
+            <div className="cf-bottom-dock">
+              <GlassDock aria-label="Editing tools">
+                {!readOnly && (
+                  <>
+                    <HistoryPanel
+                      canUndo={canUndo}
+                      canRedo={canRedo}
+                      onUndo={handleUndo}
+                      onRedo={handleRedo}
+                    />
+                    <GlassDockSeparator />
+                  </>
+                )}
+                <Toolbar
+                  activeTool={activeTool}
+                  onToolChange={handleToolChange}
+                  readOnly={readOnly}
+                />
+              </GlassDock>
+            </div>
+
+            {showProperties && (
+              <PropertiesPanel
+                style={propertyStyle}
+                shapeKinds={propertyShapeKinds}
+                canReorder={selectedIds.length === 1}
+                onStyleChange={handleStyleChange}
+                layerActions={{
+                  onSendToBack: handleSendToBack,
+                  onSendBackward: handleSendBackward,
+                  onBringForward: handleBringForward,
+                  onBringToFront: handleBringToFront,
+                }}
+              />
+            )}
+
+            {textEditorScreenPosition && (
+              <TextEditor
+                key={textEditingKeyRef.current}
+                position={textEditorScreenPosition}
+                fontSize={textEditorFontSize}
+                fontFamily={textEditorFontFamily}
+                color={textEditorColor}
+                initialText={editingTextInitialValue}
+                onCommit={handleCommitText}
+                onCancel={handleCancelText}
+              />
+            )}
+
+            <ZoomPanel
+              zoom={camera.zoom}
+              syncStatus={syncStatus}
+              onZoomIn={handleZoomIn}
+              onZoomOut={handleZoomOut}
+              onResetZoom={handleZoomTo100}
+            />
+            <ShortcutsModal open={helpOpen} onClose={handleCloseHelp} />
+
+            <ShareDialog
+              open={shareOpen}
+              onClose={hideShare}
+              boardId={boardId}
+              portalContainer={editorRoot}
+            />
+
+            <Dialog
+              open={pendingReplace !== null}
+              title="Replace board contents?"
+              confirmLabel="Replace"
+              destructive
+              onConfirm={confirmReplace}
+              onClose={cancelReplace}
+            >
+              Opening <strong>{pendingReplace?.fileName}</strong> replaces the {shapes.length} shape
+              {shapes.length === 1 ? '' : 's'} on this board for everyone in it. You can undo this
+              with ⌘Z.
+            </Dialog>
+
+            <ExportImageDialog
+              open={exportOpen}
+              onClose={hideExport}
+              shapes={shapes}
+              selectedShapes={selectedShapes}
+              boardName={boardTitle}
+              canvasBackground={canvasBackground}
+              darkTheme={resolvedTheme === 'dark'}
+              portalContainer={editorRoot}
+            />
+
+            <Dialog open={notice !== null} title={notice?.title ?? ''} onClose={dismissNotice}>
+              {notice?.body}
+            </Dialog>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
     </div>
   );
 }

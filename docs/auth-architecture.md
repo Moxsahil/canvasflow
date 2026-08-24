@@ -31,16 +31,14 @@ flowchart TD
         T_VTOKENS[("verifications_token\nidentifier · token · expires")]
     end
 
-    subgraph GATEWAY["🛡️ API Gateway (NestJS)"]
-        JWTGUARD["JwtAuthGuard\njose.jwtVerify · AUTH_SECRET (HS256)"]
-        CURRENTUSER["@CurrentUser() decorator"]
-        BOARDSCTRL["BoardsController\n/boards"]
+    subgraph EDITORAPP["🎨 Editor (apps/editor, own origin)"]
+        EDITOR["/boards/:id#token\nboard switcher · canvas"]
     end
 
     %% --- Browser entry points ---
     BROWSER --> MW
     MW -- "unauthenticated" --> LOGIN
-    MW -- "authenticated" --> BOARDS_PAGE["/boards (BoardGrid)"]
+    MW -- "authenticated" --> OPEN["/open\nlast board (or a first one)\n+ editor token"]
     BROWSER --> SIGNUP
     BROWSER --> VERIFY
 
@@ -70,11 +68,14 @@ flowchart TD
     PROV_GITHUB --> CONFIG
     CONFIG -- "JWT cookie (session)" --> BROWSER
 
-    %% --- Authenticated API calls ---
-    BOARDS_PAGE -- "auth() session" --> CONFIG
-    BOARDS_PAGE -- "sign short-lived JWT\n(AUTH_SECRET)" --> JWTGUARD
-    JWTGUARD --> CURRENTUSER --> BOARDSCTRL
-    BOARDSCTRL -- "memberships + boards" --> DB
+    %% --- Into the editor ---
+    OPEN -- "auth() session" --> CONFIG
+    OPEN -- "mintEditorToken\n(AUTH_SECRET, 5 min, board-scoped)" --> EDITOR
+    OPEN -- "ensureBoardForUser" --> DB
+
+    %% --- Editor calling back, cross-origin with the session cookie ---
+    EDITOR -- "/api/editor-token · /api/workspaces\ncredentials: include" --> CONFIG
+    EDITOR -- "workspaces · boards · membership" --> DB
 ```
 
 ## Flow summary
@@ -94,7 +95,17 @@ flowchart TD
 - **Session strategy** → JWT (no DB session lookups on each request); `jwt`/`session`
   callbacks copy `user.id` onto `token.id` / `session.user.id`.
 - **Route protection** → `middleware.ts` allows `/`, `/login`, `/signup`, `/verify`,
-  and `/api/auth/*`; everything else requires `req.auth` or redirects to `/login`.
-- **Cross-service auth** → `boards.client.ts` signs a short-lived HS256 JWT with
-  `AUTH_SECRET` containing `{ id, email, name }`; `api-gateway`'s `JwtAuthGuard`
-  verifies it with the same secret and attaches `request.user`.
+  `/invite/*` and `/api/auth/*`; everything else requires `req.auth` or redirects to
+  `/login`. The editor's own routes (`/api/editor-token`, `/api/boards/*`,
+  `/api/workspaces*`) are let through so a cookieless CORS preflight is answered
+  rather than redirected — each of them authenticates in the handler instead.
+- **Landing after sign-in** → there is no board list page; `/open` resolves the user's
+  most recent board (creating a first board and personal workspace if they have none),
+  mints an editor token and redirects to the editor with it in the URL fragment.
+- **Editor session** → the editor runs on its own origin and holds no session. It calls
+  back to the web app credentialed (`credentials: 'include'`) for a board-scoped token
+  and for the workspaces and boards behind the board switcher; the cookie is what
+  authenticates, and membership is re-derived from the database on every call.
+- **Cross-service auth** → tokens are HS256 over `AUTH_SECRET`, which `api-gateway`'s
+  `JwtAuthGuard` and the sync-server both verify with the same secret before attaching
+  the caller.

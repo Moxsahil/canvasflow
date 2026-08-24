@@ -4,7 +4,8 @@ import './IconButton.css';
 interface IconButtonProps {
   icon: FC<SVGProps<SVGSVGElement>>;
   onClick: () => void;
-  title: string;
+  /** Native tooltip. Omitted inside the dock, which draws its own. */
+  title?: string;
   'aria-label': string;
   disabled?: boolean;
 }

@@ -37,8 +37,10 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     container?: HTMLElement | null;
+    /** Off for content that carries its own dismissing actions. */
+    showClose?: boolean;
   }
->(function DialogContent({ className, children, container, ...props }, ref) {
+>(function DialogContent({ className, children, container, showClose = true, ...props }, ref) {
   return (
     <DialogPrimitive.Portal container={container ?? undefined}>
       <DialogOverlay />
@@ -51,12 +53,14 @@ const DialogContent = React.forwardRef<
         {...props}
       >
         {children}
-        <DialogPrimitive.Close
-          className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-(--border-radius-md) text-(--keybinding-color) transition-colors hover:bg-(--button-hover-bg) hover:text-(--text-primary-color) focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none"
-          aria-label="Close"
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
-        </DialogPrimitive.Close>
+        {showClose && (
+          <DialogPrimitive.Close
+            className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-(--border-radius-md) text-(--keybinding-color) transition-colors hover:bg-(--button-hover-bg) hover:text-(--text-primary-color) focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </DialogPrimitive.Close>
+        )}
       </DialogPrimitive.Content>
     </DialogPrimitive.Portal>
   );

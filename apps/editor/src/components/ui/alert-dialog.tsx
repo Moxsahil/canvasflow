@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
  * staggers the header and footer in behind it.
  *
  * Two deliberate departures from the upstream component:
- *  - it animates with `framer-motion`, which the menu rail already pulls in,
+ *  - it animates with `framer-motion`, which the editor already pulls in,
  *    rather than adding the `motion` package as a second copy of the same
  *    library;
  *  - colours come from the editor's theme tokens instead of shadcn's

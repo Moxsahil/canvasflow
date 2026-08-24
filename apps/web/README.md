@@ -1,6 +1,8 @@
 # @canvasflow/web
 
-Next.js 15 application — marketing site and dashboard.
+Next.js 15 application — marketing site, authentication, and the hand-off into the
+editor. Boards themselves are browsed inside the editor's board switcher; this app has
+no board list page.
 
 ## Run locally
 
@@ -19,7 +21,8 @@ pnpm dev
 Then visit:
 
 - `http://localhost:3000/` — landing page
-- `http://localhost:3000/boards` — board list (live data from api-gateway)
+- `http://localhost:3000/open` — resolves your most recent board (creating a first one
+  if you have none) and redirects into the editor with a short-lived token
 - `http://localhost:3000/api/healthz` — frontend health check
 
 ## Stack
@@ -31,18 +34,15 @@ Then visit:
 
 ## Architecture
 
-- `src/app/` — App Router pages and route groups
-  - `(dashboard)/` — authenticated dashboard layout (no auth yet)
-  - `api/` — Next.js route handlers (healthz only for now)
-- `src/features/<feature>/` — feature-first organization
-  - `api/` — API client wrappers
-  - `hooks/` — TanStack Query hooks
-  - `components/` — feature-specific components
-- `src/components/` — cross-cutting UI (layout shells)
-- `src/lib/` — app-level utilities (env, query client)
+- `src/app/` — App Router pages and route handlers
+  - `open/` — the way into the app: picks a board, mints an editor token, redirects
+  - `invite/[token]/` — share-link landing page, public by design
+  - `api/` — route handlers. `editor-token`, `boards/*` and `workspaces/*` are called
+    by the editor cross-origin with the session cookie, so they carry CORS headers and
+    authenticate in the handler rather than in the middleware
+- `src/lib/` — app-level utilities (env, auth, board access, CORS)
 
 ## What's next
 
-- Auth.js for sign-in / sign-up (PR #8)
-- Board create / rename / delete (PR #9)
-- Workspace switcher
+- Board rename / delete
+- Workspace member management

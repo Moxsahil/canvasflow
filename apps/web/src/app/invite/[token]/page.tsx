@@ -1,7 +1,9 @@
-import { Card, CardContent, CardHeader, CardTitle, Text } from '@canvasflow/ui';
 import Link from 'next/link';
 import { boards, createClient, lookupShareLink } from '@canvasflow/db';
 import { eq } from 'drizzle-orm';
+import { Edit3, Eye, Link2Off } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { env } from '@/lib/env';
 import { auth } from '@/lib/auth';
 import { JoinForm } from './join-form';
@@ -16,6 +18,9 @@ import { JoinForm } from './join-form';
  * Nothing is granted by loading this page. Access is written when the visitor
  * acts, in the server actions, so a crawler or a link preview cannot consume
  * a single-use invite.
+ *
+ * Wears the same card as the dialog that produced the link: whoever sent it
+ * was looking at this exact header a moment ago.
  */
 
 const db = createClient(env.DATABASE_URL);
@@ -44,7 +49,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
   const session = await auth();
 
   return (
-    <InviteShell title="You've been invited">
+    <InviteShell title={boardTitle} role={found.link.role}>
       <JoinForm
         token={token}
         boardTitle={boardTitle}
@@ -79,32 +84,68 @@ function rejectionBody(reason: string): string {
 function InviteShell({
   title,
   message,
+  role,
   children,
 }: {
   title: string;
   message?: string;
+  /** Present only for a link that still works — it decides the whole header. */
+  role?: 'owner' | 'editor' | 'viewer';
   children?: React.ReactNode;
 }) {
+  const PermissionIcon = role === 'viewer' ? Eye : Edit3;
+
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
+    <main className="flex min-h-screen items-center justify-center bg-background p-6">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0">
+              {role ? (
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
+                  {getInitials(title)}
+                </span>
+              ) : (
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <Link2Off size={20} />
+                </span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <CardTitle className="truncate text-lg font-semibold">{title}</CardTitle>
+              <p className="flex items-center gap-1 text-sm text-muted-foreground">
+                {role ? (
+                  <>
+                    <PermissionIcon size={14} />
+                    You&rsquo;ve been invited to {role === 'viewer' ? 'view' : 'edit'}
+                  </>
+                ) : (
+                  'Shared board link'
+                )}
+              </p>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {message && (
-            <Text tone="secondary" size="sm">
-              {message}
-            </Text>
-          )}
+
+        <CardContent className="flex flex-col gap-6">
+          {message && <p className="text-sm text-muted-foreground">{message}</p>}
           {children}
           {!children && (
-            <Link href="/boards" className="text-sm underline">
-              Go to your boards
-            </Link>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/open">Go to your own boards</Link>
+            </Button>
           )}
         </CardContent>
       </Card>
     </main>
   );
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 }

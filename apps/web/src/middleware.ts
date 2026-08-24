@@ -21,7 +21,7 @@ const PUBLIC_PATHS = ['/', '/login', '/signup', '/verify'];
  * here is therefore not a hole: it moves the check from the middleware into
  * the handler, it does not remove it.
  */
-const EDITOR_API_PREFIXES = ['/api/editor-token', '/api/boards/'];
+const EDITOR_API_PREFIXES = ['/api/editor-token', '/api/boards/', '/api/workspaces'];
 
 export default auth((req) => {
   const isPublic =
@@ -46,7 +46,7 @@ export default auth((req) => {
     // Validate the path before using it as a redirect target.
     // Without this, the middleware would forward any malicious 'next'
     // value, defeating the safeRedirect protection on the login page
-    const safeNext = safeRedirect(req.nextUrl.pathname, '/boards');
+    const safeNext = safeRedirect(req.nextUrl.pathname, '/open');
     loginUrl.searchParams.set('next', safeNext);
     return NextResponse.redirect(loginUrl);
   }

@@ -1,1 +1,55 @@
-@import '@canvasflow/ui/styles.css'
+@import '@canvasflow/ui/styles.css';
+
+/* Let Tailwind see the classes used in this app's own sources — the design
+   system's stylesheet only points the scan at its own package. */
+@source '../**/*.{ts,tsx}';
+
+/* ---------------------------------------------------------------------------
+   Component palette
+   ---------------------------------------------------------------------------
+   The same scale the editor's share card is built on, so a link and the dialog
+   that produced it look like one product. Its components read `bg-card`,
+   `text-muted-foreground`, `border-border` and so on, so the names have to be
+   these; @theme is what makes Tailwind emit the utilities. */
+@theme {
+  --color-background: hsl(0 0% 100%);
+  --color-foreground: hsl(0 0% 14%);
+  --color-card: hsl(0 0% 99%);
+  --color-card-foreground: hsl(0 0% 14%);
+  --color-primary: hsl(235 100% 60%);
+  --color-primary-foreground: hsl(0 0% 98%);
+  --color-secondary: hsl(0 0% 97%);
+  --color-secondary-foreground: hsl(0 0% 20%);
+  --color-muted: hsl(0 0% 97%);
+  --color-muted-foreground: hsl(0 0% 56%);
+  --color-accent: hsl(0 0% 96%);
+  --color-accent-foreground: hsl(0 0% 20%);
+  --color-destructive: hsl(9 96% 47%);
+  --color-destructive-foreground: hsl(0 0% 98%);
+  --color-border: hsl(0 0% 92%);
+  --color-input: hsl(0 0% 100%);
+  --color-ring: hsl(0 0% 71%);
+
+  --radius-ele: 8px;
+  --radius-card: 10px;
+}
+
+.dark {
+  --color-background: hsl(0 0% 7%);
+  --color-foreground: hsl(0 0% 100%);
+  --color-card: hsl(0 0% 9%);
+  --color-card-foreground: hsl(0 0% 100%);
+  --color-primary: hsl(235 100% 60%);
+  --color-primary-foreground: hsl(0 0% 98%);
+  --color-secondary: hsl(0 0% 15%);
+  --color-secondary-foreground: hsl(0 0% 100%);
+  --color-muted: hsl(0 0% 15%);
+  --color-muted-foreground: hsl(0 0% 71%);
+  --color-accent: hsl(0 0% 15%);
+  --color-accent-foreground: hsl(0 0% 100%);
+  --color-destructive: hsl(0 84% 50%);
+  --color-destructive-foreground: hsl(0 0% 98%);
+  --color-border: hsl(0 0% 100% / 10%);
+  --color-input: hsl(0 0% 100% / 5%);
+  --color-ring: hsl(0 0% 56%);
+}

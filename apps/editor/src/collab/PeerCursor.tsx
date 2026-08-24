@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { presenceTagTextColor, type PresenceTheme } from '@canvasflow/canvas-engine';
+import type { PresenceTheme } from '@canvasflow/canvas-engine';
+import { Cursor, CursorBody, CursorName, CursorPointer } from '@/components/ui/cursor';
 
 interface PeerCursorProps {
   x: number;
@@ -10,6 +11,18 @@ interface PeerCursorProps {
   theme: PresenceTheme;
 }
 
+/**
+ * The name tag is a wash of the peer's colour rather than a solid fill of it:
+ * the palette entry plays the saturated role (Tailwind's `-500`/`-700`), and
+ * the tag background is that colour let down towards the board (`-50`). One
+ * palette entry drives both, so a peer stays one recognisable colour.
+ */
+function tagBackground(color: string, theme: PresenceTheme): string {
+  return theme === 'dark'
+    ? `color-mix(in srgb, ${color} 22%, #121212)`
+    : `color-mix(in srgb, ${color} 12%, #ffffff)`;
+}
+
 export const PeerCursor = memo(function PeerCursor({
   x,
   y,
@@ -18,31 +31,23 @@ export const PeerCursor = memo(function PeerCursor({
   idle,
   theme,
 }: PeerCursorProps) {
-  const halo = theme === 'dark' ? '#121212' : '#FFFFFF';
-
   return (
-    <div
+    <Cursor
       className={`cf-cursor${idle ? ' cf-cursor--idle' : ''}`}
       style={{ transform: `translate(${x}px, ${y}px)` }}
       aria-hidden="true"
     >
-      <svg className="cf-cursor__arrow" width="13" height="17" viewBox="-1 -1 13 17">
-        <path
-          d="M0 0 L0 14 L4 9 L11 8 Z"
-          fill={color}
-          stroke={halo}
-          strokeWidth="2"
-          strokeLinejoin="round"
-        />
-      </svg>
+      <CursorPointer className="cf-cursor__arrow" style={{ color }} />
       {name && (
-        <span
+        <CursorBody
           className="cf-cursor__name"
-          style={{ background: color, color: presenceTagTextColor(theme) }}
+          // Inline rather than a class: the colour is a runtime value, so
+          // Tailwind has nothing to generate at build time.
+          style={{ background: tagBackground(color, theme), color }}
         >
-          {name}
-        </span>
+          <CursorName>{name}</CursorName>
+        </CursorBody>
       )}
-    </div>
+    </Cursor>
   );
 });

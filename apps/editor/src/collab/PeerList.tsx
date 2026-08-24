@@ -1,4 +1,3 @@
-import { Users } from 'lucide-react';
 import {
   presenceColorFor,
   presenceInitial,
@@ -11,6 +10,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
+import { AvatarStack } from '@/components/kibo-ui/avatar-stack';
+import { cn } from '@/lib/utils';
 import type { RosterEntry } from './usePeerPresence';
 
 interface PeerListProps {
@@ -27,7 +30,6 @@ interface PeerListProps {
 
 const MAX_VISIBLE = 3;
 const AVATAR = 26;
-const OVERLAP = 8;
 
 /**
  * Who is on the board, top-right.
@@ -36,9 +38,11 @@ const OVERLAP = 8;
  * centres itself on the right edge specifically to stay "clear of the top-right
  * corner, which is reserved for other controls".
  *
- * The share button turns green with a live count while anyone else is here.
- * That colour answers the one question a host has after sending a link — did it
- * work — which the share dialog cannot answer, because by then it is closed.
+ * Who is here and the invitation to bring someone are two separate controls, so
+ * they are two separate surfaces — the dock spaces them apart. The share button
+ * turns green with a live count while anyone else is here. That colour answers
+ * the one question a host has after sending a link — did it work — which the
+ * share dialog cannot answer, because by then it is closed.
  */
 export function PeerList({
   roster,
@@ -60,7 +64,7 @@ export function PeerList({
   const overflow = ordered.length - visible.length;
 
   return (
-    <div className="cf-peer-list">
+    <>
       {readOnly && (
         <span className="cf-peer-list__badge" title="You can watch this board, but not change it">
           View only
@@ -68,103 +72,105 @@ export function PeerList({
       )}
 
       {isLive && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="cf-peer-list__avatars"
-              title={`${others.length} ${others.length === 1 ? 'person' : 'people'} here`}
-              aria-label={`${others.length} ${others.length === 1 ? 'collaborator' : 'collaborators'} — show who is here`}
-            >
-              {visible.map((entry, index) => (
-                <Avatar
+        <div className="cf-peer-stack">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="cf-peer-stack__trigger"
+                title={`${others.length} ${others.length === 1 ? 'person' : 'people'} here`}
+                aria-label={`${others.length} ${others.length === 1 ? 'collaborator' : 'collaborators'} — show who is here`}
+              >
+                <AvatarStack size={AVATAR} animate>
+                  {visible.map((entry) => (
+                    <PeerAvatar key={entry.userId} entry={entry} theme={theme} />
+                  ))}
+                  {overflow > 0 && (
+                    <Avatar>
+                      <AvatarFallback className="bg-(--button-hover-bg) text-[11px] text-(--text-primary-color)">
+                        +{overflow}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                </AvatarStack>
+              </button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end" container={portalContainer} className="min-w-60">
+              <DropdownMenuLabel className="text-(--keybinding-color)">
+                Click someone to follow them
+              </DropdownMenuLabel>
+              {ordered.map((entry) => (
+                <PeerRow
                   key={entry.userId}
                   entry={entry}
                   theme={theme}
-                  offset={index === 0 ? 0 : -OVERLAP}
+                  isFollowing={following === entry.userId}
+                  onSelect={() =>
+                    entry.isSelf
+                      ? undefined
+                      : following === entry.userId
+                        ? onStopFollowing()
+                        : onFollow(entry.userId)
+                  }
                 />
               ))}
-              {overflow > 0 && (
-                <span
-                  className="cf-peer-list__disc cf-peer-list__disc--overflow"
-                  style={{ marginLeft: -OVERLAP }}
-                >
-                  +{overflow}
-                </span>
-              )}
-            </button>
-          </DropdownMenuTrigger>
-
-          <DropdownMenuContent align="end" container={portalContainer} className="min-w-60">
-            <DropdownMenuLabel className="text-(--keybinding-color)">
-              Click someone to follow them
-            </DropdownMenuLabel>
-            {ordered.map((entry) => (
-              <PeerRow
-                key={entry.userId}
-                entry={entry}
-                theme={theme}
-                isFollowing={following === entry.userId}
-                onSelect={() =>
-                  entry.isSelf
-                    ? undefined
-                    : following === entry.userId
-                      ? onStopFollowing()
-                      : onFollow(entry.userId)
-                }
-              />
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       )}
 
-      <button
-        type="button"
-        onClick={onShare}
-        className={`cf-peer-list__share${isLive ? ' cf-peer-list__share--live' : ''}`}
-        title={isLive ? 'Collaboration is live — manage links' : 'Share this board'}
-      >
-        <Users className="h-4 w-4" aria-hidden="true" />
-        Share
+      {/* The count rides on the wrapper, not inside the button: the button
+          clips its own overflow so the fill can sweep across it, which would
+          crop a badge sitting on the corner. */}
+      <span className="relative inline-flex">
+        <InteractiveHoverButton
+          type="button"
+          text="Share"
+          onClick={onShare}
+          title={isLive ? 'Collaboration is live — manage links' : 'Share this board'}
+          aria-label={isLive ? 'Collaboration is live — manage links' : 'Share this board'}
+          className={cn(
+            // Chrome tokens rather than the component palette, so this reads as
+            // one family with the search button sitting next to it.
+            'h-10 w-28 text-[13px] shadow-(--shadow-island) [&_svg]:size-4',
+            'border-(--default-border-color) bg-(--island-bg-color) text-(--text-primary-color)',
+            // Green while people are actually here — the answer to "did the
+            // link work?". Recolouring the token rather than the utilities
+            // keeps the sweep, its text and the badge in step.
+            isLive && '[--color-primary:#0f9d58] [--color-primary-foreground:#ffffff]',
+          )}
+        />
         {isLive && (
-          <span className="cf-peer-list__count" aria-hidden="true">
+          <span className="cf-share-button__count" aria-hidden="true">
             {roster.length}
           </span>
         )}
-      </button>
-    </div>
+      </span>
+    </>
   );
 }
 
-function Avatar({
-  entry,
-  theme,
-  offset,
-}: {
-  entry: RosterEntry;
-  theme: PresenceTheme;
-  offset: number;
-}) {
-  const color = presenceColorFor(entry.userId, theme);
+function PeerAvatar({ entry, theme }: { entry: RosterEntry; theme: PresenceTheme }) {
   const label = entry.isSelf ? `${entry.name} (you)` : entry.name;
 
   return (
-    <span
-      className="cf-peer-list__disc"
+    <Avatar
       title={entry.activity === 'away' ? `${label} — away` : label}
-      style={{
-        marginLeft: offset,
-        background: color,
-        color: presenceTagTextColor(theme),
-        // Dimmed rather than hidden: someone idle is still in the room, and
-        // removing them would make the bar jump whenever a person pauses.
-        opacity: entry.activity === 'active' ? 1 : 0.45,
-        width: AVATAR,
-        height: AVATAR,
-      }}
+      // Dimmed rather than hidden: someone idle is still in the room, and
+      // removing them would make the bar jump whenever a person pauses.
+      style={{ opacity: entry.activity === 'active' ? 1 : 0.45 }}
     >
-      {presenceInitial(entry.name)}
-    </span>
+      <AvatarFallback
+        className="text-[11px]"
+        style={{
+          background: presenceColorFor(entry.userId, theme),
+          color: presenceTagTextColor(theme),
+        }}
+      >
+        {presenceInitial(entry.name)}
+      </AvatarFallback>
+    </Avatar>
   );
 }
 

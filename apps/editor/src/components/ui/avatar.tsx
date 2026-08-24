@@ -10,6 +10,9 @@ const Avatar = React.forwardRef<
   return (
     <AvatarPrimitive.Root
       ref={ref}
+      // The slot attribute is how a wrapper finds the avatar inside it —
+      // AvatarStack sizes its children through exactly this selector.
+      data-slot="avatar"
       className={cn('relative flex h-8 w-8 shrink-0 overflow-hidden rounded-full', className)}
       {...props}
     />

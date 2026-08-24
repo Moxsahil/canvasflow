@@ -10,9 +10,11 @@ export default function HomePage() {
       <Text size="lg" tone="secondary" className="mb-8 max-w-xl">
         Homepage
       </Text>
-      <Link href="/boards">
+      {/* /open resolves which board to land on and hands off to the editor —
+          there is no board list page to send anyone to. */}
+      <Link href="/open">
         <Button variant="primary" size="lg">
-          View your boards
+          Open your canvas
         </Button>
       </Link>
     </main>

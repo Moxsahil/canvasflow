@@ -1,5 +1,10 @@
 @import '@canvasflow/ui/styles.css';
 @import './theme.css';
+@import './cursors.css';
+
+/* shadcn writes this as `.dark`; this app marks the theme with a `data-theme`
+   attribute, on <html> and on the editor root alike (see theme/useAppTheme). */
+@custom-variant dark (&:is(.dark *, [data-theme='dark'] *));
 
 /* Tailwind arrives through @canvasflow/ui's stylesheet and is compiled by
    @tailwindcss/vite (see vite.config.ts). Point its class scan at our own
@@ -23,7 +28,9 @@
   }
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
   padding: 0;
@@ -45,6 +52,19 @@ html[data-theme='dark'] #root {
 
 * {
   box-sizing: border-box;
+}
+
+/* The bottom-centre dock. Positioning only — the glass surface, the hover
+   magnification and the tooltip belong to the GlassDock component. Kept out
+   there so the bar stays centred as a group however many buttons it holds. */
+.cf-bottom-dock {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  z-index: var(--zIndex-layerUI);
 }
 
 /* Top-right chrome, on one axis: find-on-canvas then the collaborator bar.
@@ -75,37 +95,9 @@ html[data-theme='dark'] #root {
   touch-action: none;
 }
 
-/* Tool-specific cursor styles applied dynamically via data attribute */
-.canvas-stack[data-tool='hand']:active { cursor: grabbing; }
-.canvas-stack[data-tool='select'] {
-  cursor: default;
-}
-.canvas-stack[data-tool='text'] {
-  cursor: text;
-}
-.canvas-stack[data-tool='rectangle'],
-.canvas-stack[data-tool='ellipse'],
-.canvas-stack[data-tool='diamond'],
-.canvas-stack[data-tool='line'],
-.canvas-stack[data-tool='arrow'] {
-  cursor: crosshair;
-}
-.canvas-stack[data-tool='freehand'] {
-  cursor: crosshair;
-}
-/* A small circle at the pointer, echoing the eraser's reach. */
-.canvas-stack[data-tool='eraser'] {
-  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Ccircle cx='10' cy='10' r='7' fill='rgba(255,255,255,0.6)' stroke='%231e1e1e' stroke-width='1.5'/%3E%3C/svg%3E")
-      10 10,
-    crosshair;
-}
-
-.canvas-stack[data-tool='hand'] { cursor: grab; }
-.canvas-stack[data-tool='grab'] { cursor: grab; }
-.canvas-stack[data-tool='grabbing'] { cursor: grabbing; }
-
 @keyframes sync-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -113,4 +105,40 @@ html[data-theme='dark'] #root {
     opacity: 0.5;
     transform: scale(0.85);
   }
+}
+
+:root {
+  --sidebar: hsl(0 0% 98%);
+  --sidebar-foreground: hsl(240 5.3% 26.1%);
+  --sidebar-primary: hsl(240 5.9% 10%);
+  --sidebar-primary-foreground: hsl(0 0% 98%);
+  --sidebar-accent: hsl(240 4.8% 95.9%);
+  --sidebar-accent-foreground: hsl(240 5.9% 10%);
+  --sidebar-border: hsl(220 13% 91%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+}
+
+/* The values are exactly the ones the sidebar ships with; only the selector is
+   this app's, since it themes by attribute rather than by a `.dark` class. */
+.dark,
+[data-theme='dark'] {
+  --sidebar: hsl(240 5.9% 10%);
+  --sidebar-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-primary: hsl(224.3 76.3% 48%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(240 3.7% 15.9%);
+  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-border: hsl(240 3.7% 15.9%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+}
+
+@theme inline {
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 }
