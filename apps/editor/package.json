@@ -15,6 +15,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@base-ui-components/react": "1.0.0-rc.0",
     "@canvasflow/canvas-engine": "workspace:*",
     "@canvasflow/types": "workspace:*",
     "@canvasflow/ui": "workspace:*",

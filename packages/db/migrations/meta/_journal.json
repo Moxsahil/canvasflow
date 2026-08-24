@@ -43,6 +43,13 @@
       "when": 1787157839832,
       "tag": "0005_slim_shen",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787586862750,
+      "tag": "0006_normal_peter_quill",
+      "breakpoints": true
     }
   ]
 }

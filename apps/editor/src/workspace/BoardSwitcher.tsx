@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Check, ChevronRight, ChevronsUpDown, Plus } from 'lucide-react';
+import { Check, ChevronRight, ChevronsUpDown, Pencil, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   identityDetailClasses,
@@ -9,8 +9,9 @@ import {
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { SidebarMenuItem } from '@/components/ui/sidebar';
 import { Workspaces, WorkspaceContent, WorkspaceTrigger } from '@/components/ui/workspaces';
+import { boardSwatch } from './board-colors';
 import type { BoardSwitcherState } from './useBoardSwitcher';
-import type { WorkspaceSummary } from './workspace-api';
+import type { BoardColor, WorkspaceSummary } from './workspace-api';
 
 interface BoardSwitcherProps {
   state: BoardSwitcherState;
@@ -25,14 +26,33 @@ const rowClasses =
 const panelClasses = 'flex max-h-80 w-64 flex-col p-0';
 
 /**
+ * A board row holds two controls — open, and rename — so it is a container
+ * rather than the single button the other rows are. The hover and focus
+ * treatment moves to the container so the row still lights up as one thing.
+ */
+const boardRowClasses =
+  'group/board flex w-full items-center gap-1 rounded-md py-1.5 pl-2 pr-1 text-left text-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground has-[:focus-visible]:bg-sidebar-accent';
+
+/** The board's colour tag. Purely decorative — the name beside it is the label. */
+function ColorDot({ color, className }: { color: BoardColor; className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn('size-2.5 shrink-0 rounded-full', className)}
+      style={{ backgroundColor: boardSwatch(color) }}
+    />
+  );
+}
+
+/**
  * The board identity in the sidebar header, and the only way to reach another
  * board.
  *
  * Clicking it opens the workspaces the user belongs to; expanding one shows
- * its boards beside it, which is where a board is opened or created. This
- * replaced a separate board-list page in the web app — the editor is the app,
- * so browsing boards belongs in it rather than a route you have to leave the
- * canvas for.
+ * its boards beside it, which is where a board is opened, created, or renamed.
+ * This replaced a separate board-list page in the web app — the editor is the
+ * app, so browsing boards belongs in it rather than a route you have to leave
+ * the canvas for.
  *
  * A caller with no workspaces to show — a guest let in by share link — gets
  * the plain, unclickable header instead of a menu that could only be empty.
@@ -41,7 +61,7 @@ export function BoardSwitcher({ state, portalContainer }: BoardSwitcherProps) {
   const [open, setOpen] = useState(false);
   const [namingWorkspace, setNamingWorkspace] = useState(false);
 
-  const { workspaces, expandWorkspace, dismissError } = state;
+  const { workspaces, expandWorkspace, dismissError, beginRename } = state;
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -56,6 +76,18 @@ export function BoardSwitcher({ state, portalContainer }: BoardSwitcherProps) {
     [expandWorkspace, dismissError],
   );
 
+  // The dialog is modal, so the menu that opened it steps out of the way
+  // rather than sitting behind the backdrop waiting to be dismissed twice.
+  // The dialog itself belongs to the sidebar, which also opens it from its own
+  // "Rename board" row without going through this menu at all.
+  const handleRename = useCallback(
+    (id: string) => {
+      beginRename(id);
+      handleOpenChange(false);
+    },
+    [beginRename, handleOpenChange],
+  );
+
   const byId = useMemo(
     () => new Map((workspaces ?? []).map((workspace) => [workspace.id, workspace])),
     [workspaces],
@@ -65,16 +97,25 @@ export function BoardSwitcher({ state, portalContainer }: BoardSwitcherProps) {
   // two lines together say where you are, as the account row does at the foot.
   const workspaceName = workspaces?.find((workspace) => workspace.id === state.workspaceId)?.name;
 
+  // Whether there is a board list behind the header. It also decides whether
+  // the colour tag is worth drawing: without the list the board's own colour
+  // hasn't been fetched, and a dot showing gray for a purple board is worse
+  // than no dot at all.
+  const hasList = state.available && workspaces !== null && workspaces.length > 0;
+
   const identity = (
     <>
       <InitialBadge label={state.title} />
       <span
         className={cn('grid min-w-0 flex-1 text-left text-sm leading-tight', identityDetailClasses)}
       >
-        <span className="truncate font-medium">{state.title}</span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          {hasList && <ColorDot color={state.color} />}
+          <span className="truncate font-medium">{state.title}</span>
+        </span>
         <span className="truncate text-xs opacity-70">{workspaceName ?? 'Board'}</span>
       </span>
-      {workspaces && workspaces.length > 0 && (
+      {hasList && (
         <ChevronsUpDown className={cn('ml-auto size-4 shrink-0', identityDetailClasses)} />
       )}
     </>
@@ -83,7 +124,7 @@ export function BoardSwitcher({ state, portalContainer }: BoardSwitcherProps) {
   // No list to show: the header is a plain label rather than a button that
   // opens nothing. Not a SidebarMenuButton either — it does nothing on click,
   // so it should not offer the hover and focus affordances of one.
-  if (!state.available || !workspaces || workspaces.length === 0) {
+  if (!hasList) {
     return (
       <SidebarMenuItem>
         {/* Not interactive, so it takes the row's shape without its affordances. */}
@@ -134,6 +175,7 @@ export function BoardSwitcher({ state, portalContainer }: BoardSwitcherProps) {
                 state={state}
                 portalContainer={portalContainer}
                 expanded={state.expandedWorkspaceId === full.id}
+                onRename={handleRename}
               />
             ) : null;
           }}
@@ -170,6 +212,7 @@ interface WorkspaceRowProps {
   state: BoardSwitcherState;
   portalContainer: HTMLElement | null;
   expanded: boolean;
+  onRename: (boardId: string) => void;
 }
 
 /**
@@ -179,7 +222,13 @@ interface WorkspaceRowProps {
  * with whichever workspace the pointer is on. Hover opens it — this reads as a
  * submenu — and clicking does the same, which is what a keyboard gets.
  */
-function WorkspaceRow({ workspace, state, portalContainer, expanded }: WorkspaceRowProps) {
+function WorkspaceRow({
+  workspace,
+  state,
+  portalContainer,
+  expanded,
+  onRename,
+}: WorkspaceRowProps) {
   const entry = state.boardsFor(workspace.id);
 
   return (
@@ -254,25 +303,44 @@ function WorkspaceRow({ workspace, state, portalContainer, expanded }: Workspace
             entry.boards.map((board) => {
               const current = board.id === state.boardId;
               return (
-                <button
+                <div
                   key={board.id}
-                  type="button"
                   className={cn(
-                    rowClasses,
+                    boardRowClasses,
                     current && 'bg-sidebar-accent text-sidebar-accent-foreground',
                   )}
-                  aria-current={current ? 'page' : undefined}
-                  onClick={() => state.openBoard(board.id)}
                 >
-                  <span className="min-w-0 flex-1 truncate">{board.title}</span>
-                  {current ? (
-                    <Check className="size-4 shrink-0" aria-hidden="true" />
-                  ) : (
-                    <span className="shrink-0 text-xs opacity-60">
-                      {formatUpdatedAt(board.updatedAt)}
-                    </span>
-                  )}
-                </button>
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-sm outline-hidden ring-sidebar-ring focus-visible:ring-2"
+                    aria-current={current ? 'page' : undefined}
+                    onClick={() => state.openBoard(board.id)}
+                  >
+                    <ColorDot color={board.color} />
+                    <span className="min-w-0 flex-1 truncate">{board.title}</span>
+                    {current ? (
+                      <Check className="size-4 shrink-0" aria-hidden="true" />
+                    ) : (
+                      <span className="shrink-0 text-xs opacity-60">
+                        {formatUpdatedAt(board.updatedAt)}
+                      </span>
+                    )}
+                  </button>
+                  {/* Revealed by hovering the row, and by focus for a keyboard,
+                      so the list stays a list of names rather than of controls. */}
+                  <button
+                    type="button"
+                    // Opacity says whether it is revealed; colour says whether
+                    // it is under the pointer. Two properties rather than two
+                    // opacities, which would fight over which variant wins.
+                    className="shrink-0 rounded-sm p-1 text-sidebar-foreground/60 opacity-0 outline-hidden ring-sidebar-ring transition-opacity hover:text-sidebar-foreground focus-visible:opacity-100 focus-visible:ring-2 group-hover/board:opacity-100"
+                    aria-label={`Rename ${board.title}`}
+                    title="Rename board"
+                    onClick={() => onRename(board.id)}
+                  >
+                    <Pencil className="size-3.5" aria-hidden="true" />
+                  </button>
+                </div>
               );
             })}
         </div>
