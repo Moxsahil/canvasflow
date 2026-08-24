@@ -8,21 +8,38 @@
   --color-surface-primary-container: #e0dfff;
   --color-on-primary-container: #030064;
   --color-brand-active: #4440bf;
-  --color-muted: #b8b8b8;
+  /* Named for the chrome rather than plain "muted": the component palette
+     further down owns --color-muted, and both live on this element. */
+  --color-chrome-muted: #b8b8b8;
   --color-danger: #e03131;
 
-  /* ---------- semantic roles ---------- */
-  --island-bg-color: var(--color-surface-lowest);
+  /* ---------- semantic roles ----------
+     Every floating surface — the toolbar, the zoom panel, the search dock, the
+     share button, the properties panel, every popup — paints the sidebar's own
+     colour. One surface colour for the whole application, and it follows the
+     theme by itself: --sidebar already flips, so none of these need a second
+     definition in the dark block below. */
+  --island-bg-color: var(--sidebar);
   --shadow-island:
     0 0 1px 0 rgb(0 0 0 / 0.17), 0 0 3px 0 rgb(0 0 0 / 0.08), 0 7px 14px 0 rgb(0 0 0 / 0.05);
-  --default-border-color: var(--color-surface-high);
+  --default-border-color: var(--sidebar-border);
   --icon-fill-color: var(--color-on-surface);
   --text-primary-color: var(--color-on-surface);
-  --keybinding-color: var(--color-muted);
-  --button-hover-bg: var(--color-surface-high);
+  --keybinding-color: var(--color-chrome-muted);
+  --button-hover-bg: var(--sidebar-accent);
   --button-active-border: var(--color-brand-active);
   --focus-highlight-color: #a5d8ff;
 
+  /* The bottom dock used to carry a translucent surface of its own so it could
+     blur the board behind it. It matches every other island now, which is what
+     "one surface colour" costs: the blur no longer shows through an opaque
+     colour, and the glass effect is gone with it. */
+  --dock-bg-color: var(--sidebar);
+  --dock-border-color: var(--sidebar-border);
+  --dock-separator-color: var(--sidebar-border);
+  --dock-shadow: 0 8px 32px rgb(0 0 0 / 0.12), 0 2px 8px rgb(0 0 0 / 0.08);
+  --dock-tooltip-bg: #1b1b1f;
+  --dock-tooltip-fg: #ffffff;
 
   --theme-filter: none;
 
@@ -34,11 +51,6 @@
   --default-icon-size: 1rem;
   --border-radius-md: 0.375rem;
   --border-radius-lg: 0.5rem;
-
-  /* Left menu rail, collapsed and hover-expanded. Chrome pinned to the left
-     edge offsets itself by the collapsed width so nothing hides under it. */
-  --menu-rail-width: 3.05rem;
-  --menu-rail-width-expanded: 15rem;
 
   /* ---------- z-index ladder ----------
      Named so no chrome component invents its own stacking number. */
@@ -59,13 +71,75 @@
   --color-surface-primary-container: #403e6a;
   --color-on-primary-container: #e0dfff;
   --color-brand-active: #d0ccff;
-  --color-muted: #7a7a7a;
+  --color-chrome-muted: #7a7a7a;
   --color-danger: #ff8383;
 
   --theme-filter: invert(93%) hue-rotate(180deg);
 
-  --island-bg-color: #232329;
+  /* No surface or border colours here: they all resolve through --sidebar,
+     which this theme has already flipped. Only what the sidebar has no say in
+     — shadows, the focus ring, the tooltip — is restated. */
   --shadow-island:
     0 0 1px 0 rgb(0 0 0 / 0.4), 0 0 3px 0 rgb(0 0 0 / 0.3), 0 7px 14px 0 rgb(0 0 0 / 0.25);
   --focus-highlight-color: #228be6;
+
+  --dock-shadow: 0 8px 32px rgb(0 0 0 / 0.45), 0 2px 8px rgb(0 0 0 / 0.3);
+  --dock-tooltip-bg: #e3e3e8;
+  --dock-tooltip-fg: #1b1b1f;
+}
+
+/* ---------------------------------------------------------------------------
+   Component palette
+   ---------------------------------------------------------------------------
+   The scale the share dialog's component set is built on, kept exactly as it
+   ships rather than remapped onto the chrome tokens above: its components read
+   `bg-card`, `text-muted-foreground`, `border-border` and so on, so the names
+   have to be these. Registered through @theme because that is what makes
+   Tailwind emit the utilities; the dark values then override the same custom
+   properties on the editor root, which is inside every portal we open. */
+@theme {
+  --color-background: hsl(0 0% 100%);
+  --color-foreground: hsl(0 0% 14%);
+  --color-card: hsl(0 0% 99%);
+  --color-card-foreground: hsl(0 0% 14%);
+  --color-primary: hsl(235 100% 60%);
+  --color-primary-foreground: hsl(0 0% 98%);
+  --color-secondary: hsl(0 0% 97%);
+  --color-secondary-foreground: hsl(0 0% 20%);
+  --color-muted: hsl(0 0% 97%);
+  --color-muted-foreground: hsl(0 0% 56%);
+  --color-accent: hsl(0 0% 96%);
+  --color-accent-foreground: hsl(0 0% 20%);
+  --color-destructive: hsl(9 96% 47%);
+  --color-destructive-foreground: hsl(0 0% 98%);
+  --color-border: hsl(0 0% 92%);
+  --color-input: hsl(0 0% 100%);
+  --color-ring: hsl(0 0% 71%);
+
+  --radius-ele: 8px;
+  --radius-card: 10px;
+}
+
+/* `html` as well as the editor root: the sidebar's tooltips portal to <body>,
+   which is outside .cf-editor, and would otherwise paint with the light values
+   whatever the theme. useAppTheme sets the attribute on both. */
+html[data-theme='dark'],
+.cf-editor[data-theme='dark'] {
+  --color-background: hsl(0 0% 7%);
+  --color-foreground: hsl(0 0% 100%);
+  --color-card: hsl(0 0% 9%);
+  --color-card-foreground: hsl(0 0% 100%);
+  --color-primary: hsl(235 100% 60%);
+  --color-primary-foreground: hsl(0 0% 98%);
+  --color-secondary: hsl(0 0% 15%);
+  --color-secondary-foreground: hsl(0 0% 100%);
+  --color-muted: hsl(0 0% 15%);
+  --color-muted-foreground: hsl(0 0% 71%);
+  --color-accent: hsl(0 0% 15%);
+  --color-accent-foreground: hsl(0 0% 100%);
+  --color-destructive: hsl(0 84% 50%);
+  --color-destructive-foreground: hsl(0 0% 98%);
+  --color-border: hsl(0 0% 100% / 10%);
+  --color-input: hsl(0 0% 100% / 5%);
+  --color-ring: hsl(0 0% 56%);
 }

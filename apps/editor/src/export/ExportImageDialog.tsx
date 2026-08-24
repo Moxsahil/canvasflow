@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { measureExportSize, type Shape } from '@canvasflow/canvas-engine';
 import { cn } from '@/lib/utils';
+import { resolveCanvasBackground } from '../properties/palette';
 import {
   Dialog,
   DialogContent,
@@ -72,7 +73,16 @@ export function ExportImageDialog({
   );
 
   const settings: ImageExportSettings = useMemo(
-    () => ({ scale, withBackground, dark, embedScene, backgroundColor: canvasBackground }),
+    () => ({
+      scale,
+      withBackground,
+      dark,
+      embedScene,
+      // Resolved against this dialog's own toggle, not the editor's theme:
+      // you can export a dark image from a light board, and the background
+      // has to follow the checkbox rather than the screen.
+      backgroundColor: resolveCanvasBackground(canvasBackground, dark ? 'dark' : 'light'),
+    }),
     [scale, withBackground, dark, embedScene, canvasBackground],
   );
 

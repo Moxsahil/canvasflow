@@ -1,13 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, Copy, Loader2, Play, Share2, Square, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { TeamInvite, type PermissionLevel, type TeamMember } from '@/components/ui/team-invite';
 import {
   createShareLink,
   listMembers,
@@ -25,11 +18,26 @@ interface ShareDialogProps {
   open: boolean;
   onClose: () => void;
   boardId: string;
+  /** Shown as the card's heading; falls back to the id, as the menu does. */
+  boardName?: string;
   /** Radix portals out of the tree; the theme tokens live on `.cf-editor`. */
   portalContainer: HTMLElement | null;
 }
 
-export function ShareDialog({ open, onClose, boardId, portalContainer }: ShareDialogProps) {
+/**
+ * The sharing card, in a dialog.
+ *
+ * Everything visible belongs to TeamInvite — this owns the board's sharing
+ * state and translates between it and that card's vocabulary: a session link
+ * is what people join by, and "can view"/"can edit" is the role it carries.
+ */
+export function ShareDialog({
+  open,
+  onClose,
+  boardId,
+  boardName,
+  portalContainer,
+}: ShareDialogProps) {
   const [links, setLinks] = useState<ShareLinkSummary[]>([]);
   const [members, setMembers] = useState<BoardMember[]>([]);
   const [role, setRole] = useState<ShareRole>('editor');
@@ -123,7 +131,8 @@ export function ShareDialog({ open, onClose, boardId, portalContainer }: ShareDi
     }
   };
 
-  const handleRoleChange = async (userId: string, next: 'editor' | 'viewer') => {
+  const handleRoleChange = async (userId: string, permission: PermissionLevel) => {
+    const next: 'editor' | 'viewer' = permission === 'can-view' ? 'viewer' : 'editor';
     setError(null);
     // Optimistic: the request is a single indexed update, and the list snapping
     // back on failure reads better than a select box that freezes.
@@ -146,272 +155,63 @@ export function ShareDialog({ open, onClose, boardId, portalContainer }: ShareDi
     }
   };
 
+  const people = useMemo<TeamMember[]>(
+    () =>
+      members
+        .filter((member) => member.status === 'active')
+        .map((member) => ({
+          id: member.userId,
+          name: member.name,
+          email: member.isGuest ? 'Guest' : member.email,
+          role: toPermission(member.role),
+          isOwner: member.isOwner,
+        })),
+    [members],
+  );
+
+  // A live session's terms are fixed at creation, so once one is running the
+  // card shows what it granted rather than what is selected for the next one.
+  const permission = session ? toPermission(session.role) : toPermission(role);
+
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent container={portalContainer} className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{session ? 'Live collaboration' : 'Share this board'}</DialogTitle>
-          <DialogDescription>
-            {session
-              ? 'This board is open to anyone with the link.'
-              : 'Start a session to let other people onto this board — and only this board.'}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex flex-col gap-4">
-          {session ? (
-            <ActiveSession
-              session={session}
-              url={url}
-              copied={copied}
-              busy={busy}
-              onCopy={handleCopy}
-              onStop={handleStop}
-            />
-          ) : (
-            <StartSession
-              role={role}
-              onRoleChange={setRole}
-              allowGuests={allowGuests}
-              onAllowGuestsChange={setAllowGuests}
-              busy={busy}
-              onStart={handleStart}
-            />
-          )}
-
-          {error && <p className="text-xs text-(--color-danger)">{error}</p>}
-
-          <MemberList members={members} onRoleChange={handleRoleChange} onRemove={handleRemove} />
-        </div>
+      <DialogContent
+        container={portalContainer}
+        showClose={false}
+        aria-describedby={undefined}
+        className="w-[min(100%-2rem,32rem)] border-0 bg-transparent p-0 shadow-none"
+      >
+        <DialogTitle className="sr-only">Share this board</DialogTitle>
+        <TeamInvite
+          teamName={boardName ?? boardId}
+          totalMembers={people.length}
+          members={people}
+          link={url}
+          live={session !== null}
+          busy={busy}
+          copied={copied}
+          error={error}
+          permission={permission}
+          onPermissionChange={(next) => setRole(next === 'can-view' ? 'viewer' : 'editor')}
+          allowGuests={session ? session.allowGuests : allowGuests}
+          onAllowGuestsChange={setAllowGuests}
+          onStart={handleStart}
+          onStop={handleStop}
+          onCopy={handleCopy}
+          qr={url ? <QRCode value={url} size={128} /> : undefined}
+          onUpdateMemberPermission={handleRoleChange}
+          onRemoveMember={handleRemove}
+          onCancel={onClose}
+          portalContainer={portalContainer}
+        />
       </DialogContent>
     </Dialog>
   );
 }
 
-function StartSession({
-  role,
-  onRoleChange,
-  allowGuests,
-  onAllowGuestsChange,
-  busy,
-  onStart,
-}: {
-  role: ShareRole;
-  onRoleChange: (role: ShareRole) => void;
-  allowGuests: boolean;
-  onAllowGuestsChange: (value: boolean) => void;
-  busy: boolean;
-  onStart: () => void;
-}) {
-  return (
-    <>
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-1 text-xs font-medium">People who join can</legend>
-        <div className="flex gap-2">
-          <RoleOption
-            label="Edit"
-            description="Draw and change things"
-            selected={role === 'editor'}
-            onSelect={() => onRoleChange('editor')}
-          />
-          <RoleOption
-            label="View"
-            description="Watch, but not change"
-            selected={role === 'viewer'}
-            onSelect={() => onRoleChange('viewer')}
-          />
-        </div>
-      </fieldset>
-
-      <label className="flex items-start gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={allowGuests}
-          onChange={(event) => onAllowGuestsChange(event.target.checked)}
-          className="mt-1"
-        />
-        <span>
-          Allow people without an account
-          <span className="block text-xs text-(--keybinding-color)">
-            They pick a display name and join straight away.
-          </span>
-        </span>
-      </label>
-
-      <Button onClick={onStart} disabled={busy} className="w-full">
-        {busy ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        ) : (
-          <Play className="h-4 w-4" aria-hidden="true" />
-        )}
-        {busy ? 'Starting…' : 'Start session'}
-      </Button>
-    </>
-  );
-}
-
-function ActiveSession({
-  session,
-  url,
-  copied,
-  busy,
-  onCopy,
-  onStop,
-}: {
-  session: ShareLinkSummary;
-  url: string | null;
-  copied: boolean;
-  busy: boolean;
-  onCopy: () => void;
-  onStop: () => void;
-}) {
-  const canShare = typeof navigator !== 'undefined' && 'share' in navigator;
-
-  return (
-    <>
-      <div className="flex items-start gap-3">
-        {url && <QRCode value={url} />}
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          {url ? (
-            <>
-              <input
-                readOnly
-                value={url}
-                onFocus={(event) => event.currentTarget.select()}
-                className="w-full rounded-(--border-radius-md) border border-(--default-border-color) bg-transparent px-2 py-1 text-xs"
-                aria-label="Session link"
-              />
-              <div className="flex gap-2">
-                <Button size="sm" onClick={onCopy} className="flex-1">
-                  {copied ? (
-                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-                  )}
-                  {copied ? 'Copied' : 'Copy link'}
-                </Button>
-                {canShare && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void navigator.share({ url }).catch(() => {})}
-                  >
-                    <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    Share
-                  </Button>
-                )}
-              </div>
-            </>
-          ) : (
-            // The token is stored only as a hash, so a session started in
-            // another browser cannot have its link shown again here.
-            <p className="text-xs text-(--keybinding-color)">
-              A session is running, but its link was created elsewhere and can&rsquo;t be shown
-              again. Stop it to start a new one.
-            </p>
-          )}
-          <p className="text-xs text-(--keybinding-color)">
-            Joining people can {session.role === 'viewer' ? 'view' : 'edit'}
-            {session.allowGuests ? '' : ' · sign-in required'} ·{' '}
-            {session.useCount === 0 ? 'not used yet' : `used ${session.useCount}×`}
-          </p>
-        </div>
-      </div>
-
-      <Button variant="outline" onClick={onStop} disabled={busy} className="w-full">
-        <Square className="h-4 w-4" aria-hidden="true" />
-        Stop session
-      </Button>
-      <p className="text-xs text-(--keybinding-color)">
-        Stopping closes the link to anyone new. People already on the board keep their access —
-        remove them below.
-      </p>
-    </>
-  );
-}
-
-function MemberList({
-  members,
-  onRoleChange,
-  onRemove,
-}: {
-  members: BoardMember[];
-  onRoleChange: (userId: string, role: 'editor' | 'viewer') => void;
-  onRemove: (userId: string) => void;
-}) {
-  const active = members.filter((member) => member.status === 'active');
-  if (active.length === 0) return null;
-
-  return (
-    <section className="flex flex-col gap-2 border-t border-(--default-border-color) pt-3">
-      <h3 className="text-xs font-medium">People with access</h3>
-      <ul className="flex flex-col gap-1">
-        {active.map((member) => (
-          <li key={member.userId} className="flex items-center gap-2 text-xs">
-            <span className="min-w-0 flex-1 truncate" title={member.email}>
-              {member.name}
-              {member.isGuest && <span className="ml-1 text-(--keybinding-color)">· guest</span>}
-            </span>
-
-            {member.isOwner ? (
-              <span className="text-(--keybinding-color)">Owner</span>
-            ) : (
-              <>
-                <select
-                  value={member.role === 'viewer' ? 'viewer' : 'editor'}
-                  onChange={(event) =>
-                    onRoleChange(member.userId, event.target.value as 'editor' | 'viewer')
-                  }
-                  className="rounded-(--border-radius-md) border border-(--default-border-color) bg-transparent px-1 py-0.5 text-xs"
-                  aria-label={`Role for ${member.name}`}
-                >
-                  <option value="editor">Can edit</option>
-                  <option value="viewer">Can view</option>
-                </select>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => onRemove(member.userId)}
-                  title={`Remove ${member.name}`}
-                  aria-label={`Remove ${member.name}`}
-                >
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                </Button>
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function RoleOption({
-  label,
-  description,
-  selected,
-  onSelect,
-}: {
-  label: string;
-  description: string;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={`flex-1 rounded-(--border-radius-md) border p-2 text-left transition-colors ${
-        selected
-          ? 'border-(--button-active-border) bg-(--color-surface-primary-container)'
-          : 'border-(--default-border-color) hover:bg-(--button-hover-bg)'
-      }`}
-    >
-      <span className="block text-sm font-medium">{label}</span>
-      <span className="block text-xs text-(--keybinding-color)">{description}</span>
-    </button>
-  );
+function toPermission(role: BoardMember['role']): PermissionLevel {
+  if (role === 'owner') return 'admin';
+  return role === 'viewer' ? 'can-view' : 'can-edit';
 }
 
 // --- link memory -----------------------------------------------------------

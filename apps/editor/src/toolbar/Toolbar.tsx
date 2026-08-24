@@ -1,7 +1,6 @@
+import { GlassDockGroup, GlassDockItem } from '@/components/ui/glass-dock';
 import { TOOLS, type Tool } from '../tools/tool';
-import { Island, Stack } from '../ui';
 import { ToolButton } from './ToolButton';
-import './Toolbar.css';
 
 const TOOL_GROUP = 'cf-active-tool';
 
@@ -24,20 +23,23 @@ export function Toolbar({ activeTool, onToolChange, readOnly = false }: ToolbarP
   const tools = readOnly ? TOOLS.filter((meta) => VIEW_ONLY_TOOLS.has(meta.id)) : TOOLS;
 
   return (
-    <div className="cf-toolbar-container" role="radiogroup" aria-label="Drawing tools">
-      <Island padding={1}>
-        <Stack.Row gap={1} align="center">
-          {tools.map((meta) => (
-            <ToolButton
-              key={meta.id}
-              meta={meta}
-              active={activeTool === meta.id}
-              group={TOOL_GROUP}
-              onSelect={onToolChange}
-            />
-          ))}
-        </Stack.Row>
-      </Island>
-    </div>
+    <GlassDockGroup role="radiogroup" aria-label="Drawing tools">
+      {tools.map((meta) => (
+        <GlassDockItem
+          key={meta.id}
+          id={`tool-${meta.id}`}
+          // The dock's own tooltip carries the shortcut, so ToolButton no
+          // longer sets `title` — two tooltips would stack on one button.
+          label={`${meta.label} · ${meta.shortcut}`}
+        >
+          <ToolButton
+            meta={meta}
+            active={activeTool === meta.id}
+            group={TOOL_GROUP}
+            onSelect={onToolChange}
+          />
+        </GlassDockItem>
+      ))}
+    </GlassDockGroup>
   );
 }

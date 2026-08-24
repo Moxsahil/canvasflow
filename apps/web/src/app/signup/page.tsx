@@ -64,14 +64,14 @@ export default function SignupPage() {
             <Button
               variant="outline"
               className="w-full"
-              onClick={() => signIn('google', { callbackUrl: '/boards' })}
+              onClick={() => signIn('google', { callbackUrl: '/open' })}
             >
               Continue with Google
             </Button>
             <Button
               variant="outline"
               className="w-full"
-              onClick={() => signIn('github', { callbackUrl: '/boards' })}
+              onClick={() => signIn('github', { callbackUrl: '/open' })}
             >
               Continue with GitHub
             </Button>

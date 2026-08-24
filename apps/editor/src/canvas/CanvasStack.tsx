@@ -146,14 +146,18 @@ export function CanvasStack({
   }
 
   return (
-    <div ref={containerRef} style={{ position: 'absolute', inset: 0 }}>
+    // The background is painted out here, not on .canvas-stack, because that
+    // element carries the dark-mode inversion filter. Inside it, a chosen
+    // colour would be inverted into a different one; out here each theme's
+    // colour lands exactly as written, while the canvases within still invert
+    // so existing drawings stay readable.
+    <div ref={containerRef} style={{ position: 'absolute', inset: 0, background: backgroundColor }}>
       <div
         className="canvas-stack"
         data-tool={cursorClass}
         style={{
           position: 'absolute',
           inset: 0,
-          background: backgroundColor,
         }}
       >
         <canvas ref={staticCanvasRef} style={canvasStyle} aria-label="Static canvas" />

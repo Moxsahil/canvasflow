@@ -10,7 +10,7 @@ import { safeRedirect } from '@/lib/safe-redirect';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = safeRedirect(searchParams.get('next'), '/boards');
+  const next = safeRedirect(searchParams.get('next'), '/open');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

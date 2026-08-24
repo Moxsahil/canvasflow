@@ -1,0 +1,215 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  createBoard as requestCreateBoard,
+  createWorkspace as requestCreateWorkspace,
+  listWorkspaceBoards,
+  listWorkspaces,
+  WorkspaceApiError,
+  type BoardSummary,
+  type WorkspaceSummary,
+} from './workspace-api';
+
+/** One workspace's board list, as far as it has got. */
+export type WorkspaceBoards =
+  | { status: 'loading' }
+  | { status: 'ready'; boards: BoardSummary[] }
+  | { status: 'error'; error: string };
+
+export interface BoardSwitcherState {
+  boardId: string;
+  /** The board's title once it is known, and its id until then. */
+  title: string;
+  /** The board's own workspace, from the editor token. Null for a guest. */
+  workspaceId: string | null;
+  /** Null until the list has loaded. */
+  workspaces: WorkspaceSummary[] | null;
+  /**
+   * False when the web app won't answer for this caller — a guest admitted by
+   * share link has one board and no workspace. The switcher then renders as a
+   * plain label rather than offering a menu that would be empty.
+   */
+  available: boolean;
+  /** The workspace whose boards are showing beside the list. */
+  expandedWorkspaceId: string | null;
+  expandWorkspace: (workspaceId: string | null) => void;
+  boardsFor: (workspaceId: string) => WorkspaceBoards | undefined;
+  openBoard: (boardId: string) => void;
+  createBoard: (workspaceId: string) => void;
+  createWorkspace: (name: string) => void;
+  /** A create is in flight; the menu disables its buttons rather than queueing. */
+  busy: boolean;
+  error: string | null;
+  dismissError: () => void;
+}
+
+interface UseBoardSwitcherOptions {
+  boardId: string;
+  /** From the editor token's `workspaceId` claim; null before it decodes. */
+  workspaceId: string | null;
+}
+
+function messageOf(err: unknown): string {
+  return err instanceof Error ? err.message : 'Something went wrong.';
+}
+
+/**
+ * The board switcher's data: which workspaces the user belongs to, which
+ * boards are in each, and how to open or add one.
+ *
+ * Two requests on mount — the workspace list, and the boards of the board's
+ * own workspace, which is also where its title comes from. Every other
+ * workspace is fetched the first time it is expanded, so a person with a dozen
+ * of them pays for the one they look at.
+ *
+ * Opening a board is a route change rather than a reload: the editor is keyed
+ * by board id, so it remounts clean, and its token hook mints a token for the
+ * new board from the user's session.
+ */
+export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptions) {
+  const navigate = useNavigate();
+
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[] | null>(null);
+  const [available, setAvailable] = useState(true);
+  const [boards, setBoards] = useState<Record<string, WorkspaceBoards>>({});
+  const [expandedWorkspaceId, setExpandedWorkspaceId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Which workspaces have been asked for already. A ref rather than derived
+  // from `boards`, so a hover that re-fires while a request is in flight
+  // doesn't start a second one.
+  const requestedRef = useRef<Set<string>>(new Set());
+
+  const loadBoards = useCallback((id: string) => {
+    if (requestedRef.current.has(id)) return;
+    requestedRef.current.add(id);
+    setBoards((prev) => ({ ...prev, [id]: { status: 'loading' } }));
+
+    listWorkspaceBoards(id)
+      .then((list) => {
+        setBoards((prev) => ({ ...prev, [id]: { status: 'ready', boards: list } }));
+      })
+      .catch((err: unknown) => {
+        // Dropped from the requested set so expanding again retries.
+        requestedRef.current.delete(id);
+        setBoards((prev) => ({ ...prev, [id]: { status: 'error', error: messageOf(err) } }));
+      });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    listWorkspaces()
+      .then((list) => {
+        if (!cancelled) setWorkspaces(list);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        // 401 is the ordinary answer for a guest, not a fault worth reporting.
+        if (err instanceof WorkspaceApiError && err.status === 401) {
+          setAvailable(false);
+          return;
+        }
+        setError(messageOf(err));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // The board's own workspace, for the title in the rail header and so the
+  // list beside it is already there the first time it opens.
+  useEffect(() => {
+    if (workspaceId) loadBoards(workspaceId);
+  }, [workspaceId, loadBoards]);
+
+  const title = useMemo(() => {
+    const entry = workspaceId ? boards[workspaceId] : undefined;
+    if (entry?.status !== 'ready') return boardId;
+    return entry.boards.find((board) => board.id === boardId)?.title ?? boardId;
+  }, [boards, workspaceId, boardId]);
+
+  const expandWorkspace = useCallback(
+    (id: string | null) => {
+      setExpandedWorkspaceId(id);
+      if (id) loadBoards(id);
+    },
+    [loadBoards],
+  );
+
+  const boardsFor = useCallback((id: string) => boards[id], [boards]);
+
+  const openBoard = useCallback(
+    (id: string) => {
+      if (id === boardId) return;
+      navigate(`/boards/${id}`);
+    },
+    [boardId, navigate],
+  );
+
+  const createBoard = useCallback(
+    (id: string) => {
+      setBusy(true);
+      setError(null);
+      requestCreateBoard(id)
+        .then((board) => navigate(`/boards/${board.id}`))
+        .catch((err: unknown) => setError(messageOf(err)))
+        .finally(() => setBusy(false));
+    },
+    [navigate],
+  );
+
+  const createWorkspace = useCallback((name: string) => {
+    setBusy(true);
+    setError(null);
+    requestCreateWorkspace(name)
+      .then((workspace) => {
+        setWorkspaces((prev) => [...(prev ?? []), workspace]);
+        // Nothing to fetch: it was created empty a moment ago.
+        requestedRef.current.add(workspace.id);
+        setBoards((prev) => ({ ...prev, [workspace.id]: { status: 'ready', boards: [] } }));
+        setExpandedWorkspaceId(workspace.id);
+      })
+      .catch((err: unknown) => setError(messageOf(err)))
+      .finally(() => setBusy(false));
+  }, []);
+
+  const dismissError = useCallback(() => setError(null), []);
+
+  return useMemo<BoardSwitcherState>(
+    () => ({
+      boardId,
+      title,
+      workspaceId,
+      workspaces,
+      available,
+      expandedWorkspaceId,
+      expandWorkspace,
+      boardsFor,
+      openBoard,
+      createBoard,
+      createWorkspace,
+      busy,
+      error,
+      dismissError,
+    }),
+    [
+      boardId,
+      title,
+      workspaceId,
+      workspaces,
+      available,
+      expandedWorkspaceId,
+      expandWorkspace,
+      boardsFor,
+      openBoard,
+      createBoard,
+      createWorkspace,
+      busy,
+      error,
+      dismissError,
+    ],
+  );
+}

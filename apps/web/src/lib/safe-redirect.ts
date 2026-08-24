@@ -11,7 +11,7 @@
  *
  * @example
  *   const next = searchParams.get('next');
- *   const dest = safeRedirect(next, '/boards');
+ *   const dest = safeRedirect(next, '/open');
  *   router.push(dest);
  */
 export function safeRedirect(target: string | null | undefined, fallback: string): string {

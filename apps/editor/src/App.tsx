@@ -17,5 +17,8 @@ function EditorRoute() {
   if (!boardId) {
     return <div>Invalid board URL</div>;
   }
-  return <Editor boardId={boardId} />;
+  // Keyed by board so switching boards from the sidebar remounts the editor
+  // rather than re-pointing it: the camera, the tool machine, the undo stack
+  // and the sync connection all belong to the board that built them.
+  return <Editor key={boardId} boardId={boardId} />;
 }

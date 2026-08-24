@@ -18,7 +18,7 @@ Enterprise-grade collaborative whiteboard platform.
 
 ```
 apps/
-└── web/                # Next.js dashboard
+└── web/                # Next.js marketing site, auth, and editor hand-off
 
 services/
 └── api-gateway/        # NestJS HTTP API

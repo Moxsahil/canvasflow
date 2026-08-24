@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
-import { Button, Input, Text } from '@canvasflow/ui';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { joinAsGuest, joinAsUser } from './actions';
 
 interface JoinFormProps {
@@ -38,18 +40,15 @@ export function JoinForm({
 
   if (signedIn) {
     return (
-      <div className="space-y-4">
-        <Text tone="secondary" size="sm">
-          You&rsquo;ll be able to {capability} <strong>{boardTitle}</strong>.
-        </Text>
-        {error && (
-          <Text tone="danger" size="sm">
-            {error}
-          </Text>
-        )}
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-muted-foreground">
+          You&rsquo;ll be able to {capability}{' '}
+          <strong className="font-medium text-foreground">{boardTitle}</strong>.
+        </p>
+        {error && <p className="text-xs text-destructive">{error}</p>}
         <Button
           className="w-full"
-          disabled={pending}
+          loading={pending}
           onClick={() =>
             startTransition(async () => {
               // A successful join redirects, which throws — so anything that
@@ -59,7 +58,7 @@ export function JoinForm({
             })
           }
         >
-          {pending ? 'Opening…' : 'Open board'}
+          Open board
         </Button>
       </div>
     );
@@ -67,20 +66,20 @@ export function JoinForm({
 
   if (!allowGuests) {
     return (
-      <div className="space-y-4">
-        <Text tone="secondary" size="sm">
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-muted-foreground">
           This board is shared with signed-in people only.
-        </Text>
-        <Link href={signInHref}>
-          <Button className="w-full">Sign in to continue</Button>
-        </Link>
+        </p>
+        <Button asChild className="w-full">
+          <Link href={signInHref}>Sign in to continue</Link>
+        </Button>
       </div>
     );
   }
 
   return (
     <form
-      className="space-y-4"
+      className="flex flex-col gap-4"
       action={(formData) =>
         startTransition(async () => {
           const result = await joinAsGuest(token, formData);
@@ -88,10 +87,10 @@ export function JoinForm({
         })
       }
     >
-      <div className="space-y-2">
-        <label htmlFor="name" className="text-sm font-medium">
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="name" className="font-medium">
           Your name
-        </label>
+        </Label>
         <Input
           id="name"
           name="name"
@@ -100,28 +99,23 @@ export function JoinForm({
           autoFocus
           autoComplete="name"
         />
-        <Text tone="secondary" size="sm">
-          Shown on your cursor so people know who&rsquo;s who. You&rsquo;ll be able to {capability}{' '}
-          <strong>{boardTitle}</strong>.
-        </Text>
+        <p className="text-xs text-muted-foreground">
+          Shown on your cursor so people know who&rsquo;s who.
+        </p>
       </div>
 
-      {error && (
-        <Text tone="danger" size="sm">
-          {error}
-        </Text>
-      )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
 
-      <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? 'Joining…' : 'Join board'}
+      <Button type="submit" className="w-full" loading={pending}>
+        Join board
       </Button>
 
-      <Text tone="secondary" size="sm" className="text-center">
+      <p className="text-center text-xs text-muted-foreground">
         Have an account?{' '}
-        <Link href={signInHref} className="underline">
+        <Link href={signInHref} className="text-foreground underline underline-offset-4">
           Sign in instead
         </Link>
-      </Text>
+      </p>
     </form>
   );
 }

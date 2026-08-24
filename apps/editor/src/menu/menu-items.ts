@@ -2,13 +2,16 @@ import {
   CircleQuestionMark,
   CircleUser,
   Command,
+  Files,
   FolderOpen,
+  Frame,
   ImageDown,
   Link2,
   LogOut,
   Save,
   Search,
   Settings2,
+  Share2,
   Trash2,
   Users,
   type LucideIcon,
@@ -75,23 +78,44 @@ export const MENU_ITEMS: Readonly<Record<MenuItemId, MenuItemMeta>> = {
   signOut: { id: 'signOut', label: 'Sign out', icon: LogOut },
 };
 
+export interface MenuSection {
+  readonly id: string;
+  readonly label: string;
+  readonly icon: LucideIcon;
+  readonly items: readonly MenuItemId[];
+  /** Expanded on first render. Only the first section is, as the design has it. */
+  readonly defaultOpen?: boolean;
+}
+
 /**
- * Groups shown as icon rows in the rail body, separated in this order.
+ * The sidebar body: a named, collapsible section per group of actions, each
+ * expanding to its own items.
  *
  * Board-level actions sit here rather than behind the board badge: a menu you
- * have to discover by clicking a board id isn't a menu. Reset stays alone at
- * the end, kept away from the rest by its own separator — it is the one entry
- * that discards work.
+ * have to discover by clicking a board id isn't a menu. Reset stays last within
+ * its section — it is the one entry that discards work.
  */
-export const RAIL_GROUPS: readonly (readonly MenuItemId[])[] = [
-  ['open', 'saveTo', 'exportImage'],
-  ['liveCollaboration', 'copyLink'],
-  ['commandPalette', 'findOnCanvas'],
-  ['help'],
-  ['resetCanvas'],
+export const SIDEBAR_SECTIONS: readonly MenuSection[] = [
+  {
+    id: 'board',
+    label: 'Board',
+    icon: Files,
+    defaultOpen: true,
+    items: ['open', 'saveTo', 'exportImage'],
+  },
+  { id: 'share', label: 'Share', icon: Share2, items: ['liveCollaboration', 'copyLink'] },
+  {
+    id: 'canvas',
+    label: 'Canvas',
+    icon: Frame,
+    items: ['commandPalette', 'findOnCanvas', 'resetCanvas'],
+  },
 ];
 
-/** Account actions, behind the avatar at the bottom of the rail. */
+/** Rows that stand on their own, under the sections. */
+export const SIDEBAR_ITEMS: readonly MenuItemId[] = ['help'];
+
+/** Account actions, behind the avatar at the bottom of the sidebar. */
 export const ACCOUNT_MENU_GROUPS: readonly (readonly MenuItemId[])[] = [['profile'], ['signOut']];
 
 /**

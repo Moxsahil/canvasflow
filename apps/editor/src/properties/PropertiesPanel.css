@@ -1,6 +1,6 @@
-/* Centred on the right edge: opposite the menu rail, which widens to 15rem on
-   hover and would cover a left-hand panel every time the pointer passed it,
-   and clear of the top-right corner, which is reserved for other controls. */
+/* Centred on the right edge: opposite the sidebar, which expands to 16rem and
+   would squeeze a left-hand panel every time it opened, and clear of the
+   top-right corner, which is reserved for other controls. */
 .cf-properties-container {
   position: absolute;
   top: 50%;
@@ -59,7 +59,9 @@ button.cf-swatch:hover {
 }
 
 .cf-swatch--active {
-  box-shadow: 0 0 0 1px var(--island-bg-color), 0 0 0 3px var(--color-brand-active);
+  box-shadow:
+    0 0 0 1px var(--island-bg-color),
+    0 0 0 3px var(--color-brand-active);
 }
 
 .cf-swatch:focus-visible {
@@ -76,7 +78,11 @@ button.cf-swatch:hover {
     linear-gradient(45deg, transparent 75%, #d6d6d6 75%),
     linear-gradient(-45deg, transparent 75%, #d6d6d6 75%);
   background-size: 8px 8px;
-  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+  background-position:
+    0 0,
+    0 4px,
+    4px -4px,
+    -4px 0;
 }
 
 .cf-swatch-row__divider {
@@ -124,7 +130,7 @@ button.cf-swatch:hover {
 
 .cf-option-button:disabled {
   cursor: default;
-  color: var(--color-muted);
+  color: var(--color-chrome-muted);
 }
 
 .cf-option-button--mirrored svg {
@@ -276,5 +282,5 @@ button.cf-swatch:hover {
   margin-top: 0.125rem;
   font-family: var(--font-sans);
   font-size: 0.6875rem;
-  color: var(--color-muted);
+  color: var(--color-chrome-muted);
 }

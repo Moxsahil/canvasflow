@@ -1,0 +1,103 @@
+/**
+ * Application cursors.
+ *
+ * Native CSS cursors rather than an element that follows the pointer: the
+ * board is a drawing surface, and a rendered follower always trails the real
+ * pointer by at least a frame — you would see the gap on every stroke. These
+ * are composited by the OS, so they cannot lag.
+ *
+ * Each glyph reuses its own toolbar icon path from assets/icons.tsx, drawn as
+ * a wide halo stroke with the visible stroke on top. The halo is what keeps
+ * the pointer readable over a dark shape, a photo, or a blank board alike.
+ *
+ * Every value ends in a keyword fallback. Safari has never supported SVG
+ * cursors, and a url() with no fallback there leaves the pointer as `auto`.
+ *
+ * Theme-aware because the OS draws cursors outside the page: `--theme-filter`
+ * inverts .canvas-stack in dark mode but cannot touch the cursor, so dark mode
+ * needs its own light-on-dark artwork.
+ */
+
+.cf-editor {
+  --cursor-select:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 20 20'%3E%3Cpath d='M19.438 6.716 1.115.05A.832.832 0 0 0 .05 1.116L6.712 19.45a.834.834 0 0 0 1.557.025l3.198-8 7.995-3.2a.833.833 0 0 0 0-1.559h-.024Z' fill='%231b1b1f'/%3E%3C/svg%3E")
+      0 0, default;
+  --cursor-hand:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23ffffff' stroke-width='3.5'%3E%3Cpath d='M8 13V5.5a1.5 1.5 0 0 1 3 0V12'/%3E%3Cpath d='M11 5.5v-2a1.5 1.5 0 1 1 3 0v8.5'/%3E%3Cpath d='M14 5.5a1.5 1.5 0 0 1 3 0V12'/%3E%3Cpath d='M17 7.5a1.5 1.5 0 0 1 3 0V16a6 6 0 0 1-6 6h-2a6 6 0 0 1-5-2.7l-2.5-3.8a1.5 1.5 0 0 1 2.5-1.7L8 15.5'/%3E%3C/g%3E%3Cg stroke='%231b1b1f' stroke-width='1.5'%3E%3Cpath d='M8 13V5.5a1.5 1.5 0 0 1 3 0V12'/%3E%3Cpath d='M11 5.5v-2a1.5 1.5 0 1 1 3 0v8.5'/%3E%3Cpath d='M14 5.5a1.5 1.5 0 0 1 3 0V12'/%3E%3Cpath d='M17 7.5a1.5 1.5 0 0 1 3 0V16a6 6 0 0 1-6 6h-2a6 6 0 0 1-5-2.7l-2.5-3.8a1.5 1.5 0 0 1 2.5-1.7L8 15.5'/%3E%3C/g%3E%3C/svg%3E")
+      12 12, grab;
+  --cursor-grabbing:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23ffffff' stroke-width='3.5'%3E%3Cpath d='M8 14.5v-2a1.5 1.5 0 0 1 3 0v1'/%3E%3Cpath d='M11 12.5v-1a1.5 1.5 0 1 1 3 0v2'/%3E%3Cpath d='M14 12.5a1.5 1.5 0 0 1 3 0v1'/%3E%3Cpath d='M17 12.5a1.5 1.5 0 0 1 3 0V16a6 6 0 0 1-6 6h-2a6 6 0 0 1-5-2.7l-2.5-3.8a1.5 1.5 0 0 1 2.5-1.7L8 15.5'/%3E%3C/g%3E%3Cg stroke='%231b1b1f' stroke-width='1.5'%3E%3Cpath d='M8 14.5v-2a1.5 1.5 0 0 1 3 0v1'/%3E%3Cpath d='M11 12.5v-1a1.5 1.5 0 1 1 3 0v2'/%3E%3Cpath d='M14 12.5a1.5 1.5 0 0 1 3 0v1'/%3E%3Cpath d='M17 12.5a1.5 1.5 0 0 1 3 0V16a6 6 0 0 1-6 6h-2a6 6 0 0 1-5-2.7l-2.5-3.8a1.5 1.5 0 0 1 2.5-1.7L8 15.5'/%3E%3C/g%3E%3C/svg%3E")
+      12 12, grabbing;
+  --cursor-crosshair:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23ffffff' stroke-width='3.5'%3E%3Cpath d='M12 3.5v5.5'/%3E%3Cpath d='M12 15v5.5'/%3E%3Cpath d='M3.5 12h5.5'/%3E%3Cpath d='M15 12h5.5'/%3E%3C/g%3E%3Cg stroke='%231b1b1f' stroke-width='1.5'%3E%3Cpath d='M12 3.5v5.5'/%3E%3Cpath d='M12 15v5.5'/%3E%3Cpath d='M3.5 12h5.5'/%3E%3Cpath d='M15 12h5.5'/%3E%3C/g%3E%3Ccircle cx='12' cy='12' r='1' fill='%231b1b1f' stroke='none'/%3E%3C/svg%3E")
+      12 12, crosshair;
+  --cursor-text:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23ffffff' stroke-width='3.5'%3E%3Cpath d='M9 4.5h6'/%3E%3Cpath d='M9 19.5h6'/%3E%3Cpath d='M12 4.5v15'/%3E%3C/g%3E%3Cg stroke='%231b1b1f' stroke-width='1.5'%3E%3Cpath d='M9 4.5h6'/%3E%3Cpath d='M9 19.5h6'/%3E%3Cpath d='M12 4.5v15'/%3E%3C/g%3E%3C/svg%3E")
+      12 12, text;
+  --cursor-eraser:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23ffffff' stroke-width='3.5'%3E%3Cpath d='M12 5a7 7 0 1 0 0.01 0z'/%3E%3C/g%3E%3Cg stroke='%231b1b1f' stroke-width='1.5'%3E%3Cpath d='M12 5a7 7 0 1 0 0.01 0z'/%3E%3C/g%3E%3C/svg%3E")
+      12 12, crosshair;
+}
+
+.cf-editor[data-theme='dark'] {
+
+  --cursor-select:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 20 20'%3E%3Cpath d='M19.438 6.716 1.115.05A.832.832 0 0 0 .05 1.116L6.712 19.45a.834.834 0 0 0 1.557.025l3.198-8 7.995-3.2a.833.833 0 0 0 0-1.559h-.024Z' fill='%23e3e3e8'/%3E%3C/svg%3E")
+      0 0, default;
+  --cursor-hand:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23121212' stroke-width='3.5'%3E%3Cpath d='M8 13V5.5a1.5 1.5 0 0 1 3 0V12'/%3E%3Cpath d='M11 5.5v-2a1.5 1.5 0 1 1 3 0v8.5'/%3E%3Cpath d='M14 5.5a1.5 1.5 0 0 1 3 0V12'/%3E%3Cpath d='M17 7.5a1.5 1.5 0 0 1 3 0V16a6 6 0 0 1-6 6h-2a6 6 0 0 1-5-2.7l-2.5-3.8a1.5 1.5 0 0 1 2.5-1.7L8 15.5'/%3E%3C/g%3E%3Cg stroke='%23e3e3e8' stroke-width='1.5'%3E%3Cpath d='M8 13V5.5a1.5 1.5 0 0 1 3 0V12'/%3E%3Cpath d='M11 5.5v-2a1.5 1.5 0 1 1 3 0v8.5'/%3E%3Cpath d='M14 5.5a1.5 1.5 0 0 1 3 0V12'/%3E%3Cpath d='M17 7.5a1.5 1.5 0 0 1 3 0V16a6 6 0 0 1-6 6h-2a6 6 0 0 1-5-2.7l-2.5-3.8a1.5 1.5 0 0 1 2.5-1.7L8 15.5'/%3E%3C/g%3E%3C/svg%3E")
+      12 12, grab;
+  --cursor-grabbing:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23121212' stroke-width='3.5'%3E%3Cpath d='M8 14.5v-2a1.5 1.5 0 0 1 3 0v1'/%3E%3Cpath d='M11 12.5v-1a1.5 1.5 0 1 1 3 0v2'/%3E%3Cpath d='M14 12.5a1.5 1.5 0 0 1 3 0v1'/%3E%3Cpath d='M17 12.5a1.5 1.5 0 0 1 3 0V16a6 6 0 0 1-6 6h-2a6 6 0 0 1-5-2.7l-2.5-3.8a1.5 1.5 0 0 1 2.5-1.7L8 15.5'/%3E%3C/g%3E%3Cg stroke='%23e3e3e8' stroke-width='1.5'%3E%3Cpath d='M8 14.5v-2a1.5 1.5 0 0 1 3 0v1'/%3E%3Cpath d='M11 12.5v-1a1.5 1.5 0 1 1 3 0v2'/%3E%3Cpath d='M14 12.5a1.5 1.5 0 0 1 3 0v1'/%3E%3Cpath d='M17 12.5a1.5 1.5 0 0 1 3 0V16a6 6 0 0 1-6 6h-2a6 6 0 0 1-5-2.7l-2.5-3.8a1.5 1.5 0 0 1 2.5-1.7L8 15.5'/%3E%3C/g%3E%3C/svg%3E")
+      12 12, grabbing;
+  --cursor-crosshair:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23121212' stroke-width='3.5'%3E%3Cpath d='M12 3.5v5.5'/%3E%3Cpath d='M12 15v5.5'/%3E%3Cpath d='M3.5 12h5.5'/%3E%3Cpath d='M15 12h5.5'/%3E%3C/g%3E%3Cg stroke='%23e3e3e8' stroke-width='1.5'%3E%3Cpath d='M12 3.5v5.5'/%3E%3Cpath d='M12 15v5.5'/%3E%3Cpath d='M3.5 12h5.5'/%3E%3Cpath d='M15 12h5.5'/%3E%3C/g%3E%3Ccircle cx='12' cy='12' r='1' fill='%23e3e3e8' stroke='none'/%3E%3C/svg%3E")
+      12 12, crosshair;
+  --cursor-text:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23121212' stroke-width='3.5'%3E%3Cpath d='M9 4.5h6'/%3E%3Cpath d='M9 19.5h6'/%3E%3Cpath d='M12 4.5v15'/%3E%3C/g%3E%3Cg stroke='%23e3e3e8' stroke-width='1.5'%3E%3Cpath d='M9 4.5h6'/%3E%3Cpath d='M9 19.5h6'/%3E%3Cpath d='M12 4.5v15'/%3E%3C/g%3E%3C/svg%3E")
+      12 12, text;
+  --cursor-eraser:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23121212' stroke-width='3.5'%3E%3Cpath d='M12 5a7 7 0 1 0 0.01 0z'/%3E%3C/g%3E%3Cg stroke='%23e3e3e8' stroke-width='1.5'%3E%3Cpath d='M12 5a7 7 0 1 0 0.01 0z'/%3E%3C/g%3E%3C/svg%3E")
+      12 12, crosshair;
+}
+
+/* Tool cursors. The canvas owns the pointer for every tool; chrome above it
+   keeps the arrow. */
+.canvas-stack {
+  cursor: var(--cursor-select);
+}
+
+.canvas-stack[data-tool='hand'] {
+  cursor: var(--cursor-hand);
+}
+
+.canvas-stack[data-tool='hand']:active,
+.canvas-stack[data-tool='grabbing'] {
+  cursor: var(--cursor-grabbing);
+}
+
+.canvas-stack[data-tool='grab'] {
+  cursor: var(--cursor-hand);
+}
+
+.canvas-stack[data-tool='select'] {
+  cursor: var(--cursor-select);
+}
+
+.canvas-stack[data-tool='text'] {
+  cursor: var(--cursor-text);
+}
+
+.canvas-stack[data-tool='rectangle'],
+.canvas-stack[data-tool='ellipse'],
+.canvas-stack[data-tool='diamond'],
+.canvas-stack[data-tool='line'],
+.canvas-stack[data-tool='arrow'],
+.canvas-stack[data-tool='freehand'] {
+  cursor: var(--cursor-crosshair);
+}
+
+/* A ring at the pointer, echoing the eraser's reach. */
+.canvas-stack[data-tool='eraser'] {
+  cursor: var(--cursor-eraser);
+}

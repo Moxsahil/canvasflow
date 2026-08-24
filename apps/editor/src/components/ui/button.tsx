@@ -4,29 +4,29 @@ import { cva, type VariantProps } from 'class-variance-authority';
 
 import { cn } from '@/lib/utils';
 
-/**
- * shadcn's Button, with the palette re-pointed at the editor's theme tokens
- * (see styles/theme.css) instead of shadcn's own `--primary`/`--accent` set —
- * that way a button inside the editor follows light/dark with the rest of the
- * chrome, and there is still only one place colours are defined.
- */
 const buttonVariants = cva(
-  'inline-flex items-center justify-center whitespace-nowrap rounded-(--border-radius-md) text-sm font-medium transition-colors focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-ele text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
         default:
-          'bg-(--color-surface-primary-container) text-(--color-on-primary-container) hover:brightness-[0.97]',
+          'bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring shadow-sm/2',
+        destructive:
+          'bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive shadow-sm/2',
         outline:
-          'border border-(--default-border-color) bg-transparent hover:bg-(--button-hover-bg)',
-        ghost: 'hover:bg-(--button-hover-bg)',
-        link: 'text-(--color-brand-active) underline-offset-4 hover:underline',
+          'border border-border text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring shadow-sm/2',
+        secondary:
+          'bg-secondary text-secondary-foreground hover:bg-secondary/80 focus-visible:ring-ring',
+        ghost:
+          'text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring',
+        link: 'text-secondary-foreground underline-offset-4 hover:underline focus-visible:ring-ring',
       },
       size: {
-        default: 'h-8 px-3',
-        sm: 'h-7 px-2 text-xs',
-        lg: 'h-10 px-6',
-        icon: 'h-8 w-8',
+        default: 'h-9 px-4 py-2',
+        sm: 'h-8 px-3 text-xs',
+        lg: 'h-10 px-8',
+        xl: 'h-12 px-10 text-base',
+        icon: 'h-9 w-9',
       },
     },
     defaultVariants: {
@@ -36,17 +36,73 @@ const buttonVariants = cva(
   },
 );
 
+export type CustomButtonProps = Omit<ButtonProps, keyof React.ComponentProps<'button'>>;
+
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   asChild?: boolean;
+  loading?: boolean;
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { className, variant, size, asChild = false, ...props },
+  {
+    className,
+    variant,
+    size,
+    asChild = false,
+    loading = false,
+    leftIcon,
+    rightIcon,
+    children,
+    disabled,
+    ...props
+  },
   ref,
 ) {
   const Comp = asChild ? Slot : 'button';
-  return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+
+  const content = (
+    <>
+      {loading && (
+        <svg
+          className="h-4 w-4 animate-spin"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          />
+        </svg>
+      )}
+      {leftIcon && !loading && leftIcon}
+      {children}
+      {rightIcon && !loading && rightIcon}
+    </>
+  );
+
+  return (
+    <Comp
+      className={cn(buttonVariants({ variant, size, className }))}
+      ref={ref}
+      disabled={disabled || loading}
+      {...props}
+    >
+      {asChild ? children : content}
+    </Comp>
+  );
 });
 
 export { Button, buttonVariants };

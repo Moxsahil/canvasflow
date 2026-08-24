@@ -21,7 +21,7 @@ export function ToolButton({ meta, active, group, onSelect }: ToolButtonProps) {
   const shortcutHint = numericKey ? `${shortcut} or ${numericKey}` : shortcut;
 
   return (
-    <label className="cf-tool-button" title={`${label} — ${shortcutHint}`}>
+    <label className="cf-tool-button">
       <input
         className="cf-tool-button__input"
         type="radio"

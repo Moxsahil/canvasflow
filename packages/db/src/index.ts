@@ -8,6 +8,7 @@ export * from './env.js';
  * rather than reimplementing the join — see resolveBoardAccess.
  */
 export * from './access/board-access.js';
+export * from './access/workspaces.js';
 export * from './access/access-requests.js';
 export * from './access/share-links.js';
 export * from './access/board-roles.js';

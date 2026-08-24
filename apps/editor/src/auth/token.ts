@@ -64,6 +64,18 @@ export function decodeJwtUserId(token: string): string | null {
 }
 
 /**
+ * The workspace this board belongs to, as the token records it.
+ *
+ * Read by the board switcher so it can show the board's own workspace open
+ * from the start. Not a permission — the web app re-derives membership on
+ * every request the switcher makes.
+ */
+export function decodeJwtWorkspaceId(token: string): string | null {
+  const workspaceId = decodeClaims(token)?.workspaceId;
+  return typeof workspaceId === 'string' ? workspaceId : null;
+}
+
+/**
  * The user's role on this board, which decides whether the session may edit.
  *
  * A *board* role, not a workspace one: someone invited by share link is not a
@@ -87,7 +99,7 @@ export interface EditorUser {
  *
  * `/api/editor-token` already signs `name`, `email` and `role` alongside the
  * id; until presence needed them the editor only ever read `id`, which is why
- * the account row in the menu rail has been showing a raw UUID.
+ * the account row in the sidebar has been showing a raw UUID.
  */
 export function decodeJwtUser(token: string): EditorUser | null {
   const claims = decodeClaims(token);
