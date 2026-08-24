@@ -2,12 +2,16 @@ import type { BoardId, WorkspaceId, UserId, BoardVersionId, ISODateString } from
 
 export type BoardVisibility = 'private' | 'workspace' | 'public-link';
 
+/** The tag colour beside a board in the switcher. `gray` means untagged. */
+export type BoardColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'gray';
+
 export interface Board {
   id: BoardId;
   workspaceId: WorkspaceId;
   title: string;
   ownerId: UserId;
   visibility: BoardVisibility;
+  color: BoardColor;
   thumbnailUrl: string | null;
   createdAt: ISODateString;
   updatedAt: ISODateString;

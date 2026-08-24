@@ -8,6 +8,7 @@ import {
   ImageDown,
   Link2,
   LogOut,
+  Pencil,
   Save,
   Search,
   Settings2,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 
 export type MenuItemId =
+  | 'renameBoard'
   | 'open'
   | 'saveTo'
   | 'exportImage'
@@ -54,6 +56,9 @@ export interface MenuItemMeta {
 export const MENU_ITEMS: Readonly<Record<MenuItemId, MenuItemMeta>> = {
   open: { id: 'open', label: 'Open', icon: FolderOpen, shortcut: 'mod+o' },
   saveTo: { id: 'saveTo', label: 'Save to…', icon: Save, shortcut: 'mod+s' },
+  // The ellipsis is the promise of a dialog: this one also carries the board's
+  // colour tag, which is more than the label alone would lead you to expect.
+  renameBoard: { id: 'renameBoard', label: 'Rename board…', icon: Pencil },
   exportImage: {
     id: 'exportImage',
     label: 'Export image…',
@@ -101,7 +106,7 @@ export const SIDEBAR_SECTIONS: readonly MenuSection[] = [
     label: 'Board',
     icon: Files,
     defaultOpen: true,
-    items: ['open', 'saveTo', 'exportImage'],
+    items: ['open', 'saveTo', 'exportImage', 'renameBoard'],
   },
   { id: 'share', label: 'Share', icon: Share2, items: ['liveCollaboration', 'copyLink'] },
   {

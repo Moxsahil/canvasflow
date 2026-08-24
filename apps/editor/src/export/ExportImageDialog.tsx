@@ -1,14 +1,22 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { measureExportSize, type Shape } from '@canvasflow/canvas-engine';
+import { Copy, FileCode2, ImageDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { resolveCanvasBackground } from '../properties/palette';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { initialsOf } from '@/lib/initials';
 import {
   canvasToPngBlob,
   copyPngToClipboard,
@@ -45,6 +53,7 @@ export function ExportImageDialog({
   darkTheme,
   portalContainer,
 }: ExportImageDialogProps) {
+  const fieldId = useId();
   const hasSelection = selectedShapes.length > 0;
 
   const [name, setName] = useState(boardName);
@@ -181,100 +190,152 @@ export function ExportImageDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent container={portalContainer} aria-describedby={undefined}>
-        <DialogHeader>
-          <DialogTitle>Export image</DialogTitle>
-          <DialogDescription>
-            {empty
-              ? 'There is nothing on the canvas to export.'
-              : dimensions
-                ? `${dimensions.width} × ${dimensions.height} px`
-                : null}
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent
+        container={portalContainer}
+        showClose={false}
+        aria-describedby={undefined}
+        className="w-[min(100%-2rem,32rem)] border-0 bg-transparent p-0 shadow-none"
+      >
+        <DialogTitle className="sr-only">Export image</DialogTitle>
 
-        <div
-          className="flex min-h-[9rem] items-center justify-center rounded-(--border-radius-lg) border border-(--default-border-color) bg-[repeating-conic-gradient(var(--color-surface-low)_0%_25%,transparent_0%_50%)] bg-[length:16px_16px] p-3"
-          aria-live="polite"
-        >
-          {preview ? (
-            <img
-              src={preview}
-              alt="Export preview"
-              className="max-h-[16rem] max-w-full object-contain"
-            />
-          ) : (
-            <span className="text-[0.8125rem] text-(--keybinding-color)">
-              {empty ? 'Nothing to preview' : 'Preparing preview…'}
-            </span>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-(--keybinding-color)">File name</span>
-            <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              className="h-9 rounded-(--border-radius-md) border border-(--default-border-color) bg-transparent px-2.5 text-[0.8125rem] text-(--text-primary-color) focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none"
-            />
-          </label>
-
-          <div className="flex flex-wrap gap-2">
-            <Toggle
-              label="Only selected"
-              checked={selectionOnly && hasSelection}
-              disabled={!hasSelection}
-              onChange={setSelectionOnly}
-            />
-            <Toggle label="Background" checked={withBackground} onChange={setWithBackground} />
-            <Toggle label="Dark mode" checked={dark} onChange={setDark} />
-            <Toggle label="Embed scene" checked={embedScene} onChange={setEmbedScene} />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-(--keybinding-color)">Scale</span>
-            <div className="flex gap-1" role="radiogroup" aria-label="Export scale">
-              {EXPORT_SCALES.map((choice) => (
-                <button
-                  key={choice}
-                  type="button"
-                  role="radio"
-                  aria-checked={scale === choice}
-                  onClick={() => setScale(choice)}
-                  className={cn(
-                    'h-7 rounded-(--border-radius-md) border px-2.5 text-xs font-medium transition-colors focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none',
-                    scale === choice
-                      ? 'border-(--button-active-border) bg-(--color-surface-primary-container) text-(--color-on-primary-container)'
-                      : 'border-(--default-border-color) hover:bg-(--button-hover-bg)',
-                  )}
-                >
-                  {choice}×
-                </button>
-              ))}
+        <Card className="w-full max-w-lg">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="shrink-0">
+                <Avatar className="h-12 w-12">
+                  <AvatarFallback className="bg-primary text-sm font-medium text-primary-foreground">
+                    {initialsOf(boardName)}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+              <div className="min-w-0 flex-1">
+                <CardTitle className="truncate text-lg font-semibold">{boardName}</CardTitle>
+                <p className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <ImageDown size={14} />
+                  {empty
+                    ? 'Nothing on the canvas to export'
+                    : dimensions
+                      ? `${dimensions.width} × ${dimensions.height} px`
+                      : 'Export as an image'}
+                </p>
+              </div>
             </div>
-          </div>
-        </div>
+          </CardHeader>
 
-        {error && <p className="text-[0.8125rem] text-(--color-danger)">{error}</p>}
+          <CardContent className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4">
+              <Label className="font-medium">Preview</Label>
+              <div
+                className="flex min-h-36 items-center justify-center rounded-ele border border-border bg-[repeating-conic-gradient(var(--color-muted)_0%_25%,transparent_0%_50%)] bg-size-[16px_16px] p-3"
+                aria-live="polite"
+              >
+                {preview ? (
+                  <img
+                    src={preview}
+                    alt="Export preview"
+                    className="max-h-64 max-w-full object-contain"
+                  />
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    {empty ? 'Nothing to preview' : 'Preparing preview…'}
+                  </span>
+                )}
+              </div>
+            </div>
 
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <ActionButton onClick={copyPng} disabled={empty || busy} variant="secondary">
-            Copy to clipboard
-          </ActionButton>
-          <ActionButton onClick={exportSvg} disabled={empty || busy} variant="secondary">
-            SVG
-          </ActionButton>
-          <ActionButton onClick={exportPng} disabled={empty || busy} variant="primary">
-            PNG
-          </ActionButton>
-        </div>
+            <div className="flex flex-col gap-4">
+              <Label htmlFor={`${fieldId}-name`} className="font-medium">
+                File
+              </Label>
+              {/* Name and scale on one row, as the share card pairs the link
+                  with what the people joining by it may do. */}
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Input
+                    id={`${fieldId}-name`}
+                    value={name}
+                    aria-label="File name"
+                    className="h-9"
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                </div>
+                <div>
+                  <Select value={String(scale)} onValueChange={(value) => setScale(Number(value))}>
+                    <SelectTrigger className="h-9 text-xs" aria-label="Export scale">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent container={portalContainer}>
+                      {EXPORT_SCALES.map((choice) => (
+                        <SelectItem key={choice} value={String(choice)}>
+                          {choice}×
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <ExportOption
+                  label="Only the selection"
+                  checked={selectionOnly && hasSelection}
+                  disabled={!hasSelection}
+                  onChange={setSelectionOnly}
+                />
+                <ExportOption
+                  label="With background"
+                  checked={withBackground}
+                  onChange={setWithBackground}
+                />
+                <ExportOption label="Dark mode" checked={dark} onChange={setDark} />
+                <ExportOption
+                  label="Embed the scene, so the image opens as a board"
+                  checked={embedScene}
+                  onChange={setEmbedScene}
+                />
+              </div>
+            </div>
+
+            {error && <p className="text-xs text-destructive">{error}</p>}
+
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="ghost" size="sm" className="h-9" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9"
+                onClick={copyPng}
+                disabled={empty || busy}
+              >
+                <Copy size={14} />
+                Copy to clipboard
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9"
+                onClick={exportSvg}
+                disabled={empty || busy}
+              >
+                <FileCode2 size={14} />
+                SVG
+              </Button>
+              <Button size="sm" className="h-9" onClick={exportPng} disabled={empty || busy}>
+                <ImageDown size={14} />
+                PNG
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </DialogContent>
     </Dialog>
   );
 }
 
-function Toggle({
+/** One of the export's booleans, in the share card's checkbox idiom. */
+function ExportOption({
   label,
   checked,
   disabled = false,
@@ -286,49 +347,20 @@ function Toggle({
   onChange: (next: boolean) => void;
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
+    <label
       className={cn(
-        'h-8 rounded-(--border-radius-md) border px-3 text-xs font-medium transition-colors focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none',
-        disabled && 'cursor-default opacity-45',
-        checked
-          ? 'border-(--button-active-border) bg-(--color-surface-primary-container) text-(--color-on-primary-container)'
-          : 'border-(--default-border-color) hover:bg-(--button-hover-bg)',
+        'flex items-center gap-2 text-xs text-muted-foreground',
+        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
       )}
     >
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+        className="h-3.5 w-3.5 accent-primary"
+      />
       {label}
-    </button>
-  );
-}
-
-function ActionButton({
-  onClick,
-  disabled,
-  variant,
-  children,
-}: {
-  onClick: () => void;
-  disabled: boolean;
-  variant: 'primary' | 'secondary';
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        'inline-flex min-h-9 items-center justify-center rounded-(--border-radius-md) px-3.5 text-[0.8125rem] font-medium transition-[transform,filter] duration-200 hover:-translate-y-px active:translate-y-0 disabled:pointer-events-none disabled:opacity-50 focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none',
-        variant === 'primary'
-          ? 'bg-(--color-surface-primary-container) text-(--color-on-primary-container) hover:brightness-[0.97]'
-          : 'border border-(--default-border-color) hover:bg-(--button-hover-bg)',
-      )}
-    >
-      {children}
-    </button>
+    </label>
   );
 }

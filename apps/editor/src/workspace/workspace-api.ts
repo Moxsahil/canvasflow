@@ -23,13 +23,23 @@ export interface WorkspaceSummary {
   boardCount: number;
 }
 
+/** The tag colours a board can carry. `gray` is what an untagged board has. */
+export type BoardColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'gray';
+
 export interface BoardSummary {
   id: string;
   workspaceId: string;
   title: string;
   visibility: 'private' | 'workspace' | 'public-link';
+  color: BoardColor;
   /** ISO-8601, as JSON leaves it. */
   updatedAt: string;
+}
+
+/** A rename, a re-tag, or both. An absent field is left as it is. */
+export interface BoardDetailsPatch {
+  title?: string;
+  color?: BoardColor;
 }
 
 /** Carries the status so callers can tell "not signed in" from "went wrong". */
@@ -47,18 +57,24 @@ function workspacesUrl(path = ''): string {
   return `${env.VITE_WEB_URL}/api/workspaces${path}`;
 }
 
+function boardsUrl(path = ''): string {
+  return `${env.VITE_WEB_URL}/api/boards${path}`;
+}
+
 /**
  * Turn a failed response into something worth showing a person.
  *
- * 404 covers both "no such workspace" and "not yours" — that ambiguity is
- * deliberate on the server, so this doesn't try to undo it here.
+ * 404 covers both "no such thing" and "not yours" — that ambiguity is
+ * deliberate on the server, so this doesn't try to undo it here. `subject`
+ * only names what was asked for, since the routes answer for boards as well
+ * as workspaces.
  */
-async function failure(res: Response): Promise<WorkspaceApiError> {
+async function failure(res: Response, subject: 'workspace' | 'board'): Promise<WorkspaceApiError> {
   if (res.status === 401) {
     return new WorkspaceApiError('Your session expired. Reload the board and try again.', 401);
   }
   if (res.status === 404) {
-    return new WorkspaceApiError('That workspace is no longer available.', 404);
+    return new WorkspaceApiError(`That ${subject} is no longer available.`, 404);
   }
   try {
     const body = (await res.json()) as { error?: string };
@@ -71,14 +87,14 @@ async function failure(res: Response): Promise<WorkspaceApiError> {
 
 export async function listWorkspaces(): Promise<WorkspaceSummary[]> {
   const res = await fetch(workspacesUrl(), { credentials: 'include' });
-  if (!res.ok) throw await failure(res);
+  if (!res.ok) throw await failure(res, 'workspace');
   const body = (await res.json()) as { data: WorkspaceSummary[] };
   return body.data;
 }
 
 export async function listWorkspaceBoards(workspaceId: string): Promise<BoardSummary[]> {
   const res = await fetch(workspacesUrl(`/${workspaceId}/boards`), { credentials: 'include' });
-  if (!res.ok) throw await failure(res);
+  if (!res.ok) throw await failure(res, 'workspace');
   const body = (await res.json()) as { data: BoardSummary[] };
   return body.data;
 }
@@ -90,7 +106,7 @@ export async function createWorkspace(name: string): Promise<WorkspaceSummary> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
   });
-  if (!res.ok) throw await failure(res);
+  if (!res.ok) throw await failure(res, 'workspace');
   const body = (await res.json()) as { data: WorkspaceSummary };
   return body.data;
 }
@@ -102,7 +118,29 @@ export async function createBoard(workspaceId: string, title?: string): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(title ? { title } : {}),
   });
-  if (!res.ok) throw await failure(res);
+  if (!res.ok) throw await failure(res, 'workspace');
+  const body = (await res.json()) as { data: BoardSummary };
+  return body.data;
+}
+
+/**
+ * Rename a board and/or re-tag it.
+ *
+ * The board is addressed directly rather than through its workspace: the
+ * caller's right to edit it comes from the board, not from where it sits, and
+ * a guest admitted by share link has no workspace to route through.
+ */
+export async function updateBoard(
+  boardId: string,
+  patch: BoardDetailsPatch,
+): Promise<BoardSummary> {
+  const res = await fetch(boardsUrl(`/${boardId}`), {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw await failure(res, 'board');
   const body = (await res.json()) as { data: BoardSummary };
   return body.data;
 }

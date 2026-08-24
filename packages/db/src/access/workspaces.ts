@@ -36,17 +36,21 @@ export interface BoardSummary {
   workspaceId: string;
   title: string;
   visibility: BoardRow['visibility'];
+  /** The tag colour beside the title in the switcher. `gray` is untagged. */
+  color: BoardRow['color'];
   updatedAt: Date;
 }
 
-const DEFAULT_BOARD_TITLE = 'Untitled board';
+export const DEFAULT_BOARD_TITLE = 'Untitled board';
 
-function toBoardSummary(row: BoardRow): BoardSummary {
+/** The one shape the board switcher reads, shared with the board mutations. */
+export function toBoardSummary(row: BoardRow): BoardSummary {
   return {
     id: row.id,
     workspaceId: row.workspaceId,
     title: row.title,
     visibility: row.visibility,
+    color: row.color,
     updatedAt: row.updatedAt,
   };
 }

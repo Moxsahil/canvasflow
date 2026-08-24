@@ -9,6 +9,24 @@ export const boardVisibilityEnum = pgEnum('board_visibility', [
   'public-link',
 ]);
 
+/**
+ * The tag colour shown beside a board in the switcher.
+ *
+ * A closed set rather than a free hex value: the dots have to stay legible on
+ * the sidebar's surface in both themes, and a fixed palette is what lets the
+ * client own the actual colours. `gray` is the untagged default, so a board
+ * that was never tagged still has a dot to render.
+ */
+export const boardColorEnum = pgEnum('board_color', [
+  'red',
+  'orange',
+  'yellow',
+  'green',
+  'blue',
+  'purple',
+  'gray',
+]);
+
 export const boards = pgTable(
   'boards',
   {
@@ -21,6 +39,7 @@ export const boards = pgTable(
       .notNull()
       .references(() => users.id),
     visibility: boardVisibilityEnum('visibility').notNull().default('workspace'),
+    color: boardColorEnum('color').notNull().default('gray'),
     thumbnailUrl: text('thumbnail_url'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

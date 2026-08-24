@@ -126,6 +126,10 @@ export function Editor({ boardId }: EditorProps) {
     workspaceId: authToken ? decodeJwtWorkspaceId(authToken) : null,
   });
   const boardTitle = boardSwitcher.title;
+  // With no argument it targets the board on screen, which is what the
+  // sidebar's "Rename board" row means.
+  const { beginRename, canRename } = boardSwitcher;
+  const handleRenameBoard = useCallback(() => beginRename(), [beginRename]);
 
   const doc = useBoardDocument(boardId, userId);
 
@@ -975,6 +979,7 @@ export function Editor({ boardId }: EditorProps) {
              without one renders disabled with a "Soon" badge, so the menu stays
              complete while the features behind it land. */
           actions={{
+            renameBoard: canRename ? handleRenameBoard : undefined,
             open: openBoardFile,
             saveTo: saveBoardFileToDisk,
             exportImage: showExport,
@@ -1104,9 +1109,13 @@ export function Editor({ boardId }: EditorProps) {
             <ZoomPanel
               zoom={camera.zoom}
               syncStatus={syncStatus}
+              theme={resolvedTheme}
+              onThemeChange={setTheme}
+              canZoomToFit={shapes.length > 0}
               onZoomIn={handleZoomIn}
               onZoomOut={handleZoomOut}
               onResetZoom={handleZoomTo100}
+              onZoomToFit={handleZoomToFit}
             />
             <ShortcutsModal open={helpOpen} onClose={handleCloseHelp} />
 

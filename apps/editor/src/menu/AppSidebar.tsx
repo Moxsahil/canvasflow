@@ -15,7 +15,7 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar';
 import { formatShortcut } from '../help/platform';
-import { BoardSwitcher, type BoardSwitcherState } from '../workspace';
+import { BoardSwitcher, RenameBoardDialog, type BoardSwitcherState } from '../workspace';
 import type { ThemePreference } from '../theme';
 import type { CanvasTheme } from '../properties/palette';
 import { BackgroundSection, ThemeSection } from './AppearanceSections';
@@ -131,6 +131,20 @@ export function AppSidebar({
       </SidebarFooter>
 
       <SidebarRail />
+
+      {/* Mounted here rather than inside the switcher, because the Board
+          section's own "Rename board" row opens it without the switcher ever
+          being touched — and the switcher's menu closes as the dialog opens,
+          which would take a dialog living inside it down with it. */}
+      <RenameBoardDialog
+        target={boardSwitcher.renameTarget}
+        onOpenChange={(open) => {
+          if (!open) boardSwitcher.endRename();
+        }}
+        onSubmit={boardSwitcher.renameBoard}
+        busy={boardSwitcher.busy}
+        portalContainer={portalContainer}
+      />
     </Sidebar>
   );
 }
