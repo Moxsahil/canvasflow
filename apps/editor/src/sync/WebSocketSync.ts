@@ -26,7 +26,22 @@ export interface WebSocketSyncConfig {
    * token, and the server has already flipped the connection's own flag.
    */
   onAccessChanged?: () => void;
+  /**
+   * This session is over: the server says there is no access to this board any
+   * more. Fires once, and the connection is torn down rather than retried —
+   * every reconnect would be refused the same way.
+   */
+  onAccessRevoked?: () => void;
 }
+
+/**
+ * The `reason` the sync-server writes into a refused connect when the problem
+ * is authorization rather than the token itself.
+ *
+ * Kept in step with ACCESS_REVOKED_REASON in
+ * `services/sync-server/src/auth/reauthorize.ts`.
+ */
+const ACCESS_REVOKED_REASON = 'access-revoked';
 
 /**
  * WebSocket sync layer, wrapping Hocuspocus provider with our resilience:
@@ -54,6 +69,8 @@ export class WebSocketSync {
   private wsStatus: WebSocketStatus = WebSocketStatus.Connecting;
   private lastActivityAt = Date.now();
   private visibilityHandler: (() => void) | null = null;
+  /** Latched, so a revocation is reported once however many ways it arrives. */
+  private accessRevoked = false;
 
   /** Threshold for "long idle" before firing a warm-up ping. */
   private static readonly WARM_UP_IDLE_MS = 30_000;
@@ -100,12 +117,41 @@ export class WebSocketSync {
       // Hocuspocus defaults: initial 1s, doubles up to 30s
       onStatus: ({ status }) => this.handleStatusChange(status),
       onStateless: ({ payload }) => this.handleStateless(payload),
-      onAuthenticationFailed: () => {
+      onAuthenticationFailed: ({ reason }) => {
+        // Two very different failures arrive here. A lapsed token is worth
+        // re-minting and retrying; being removed from the board is not, and
+        // retrying it is what left a removed collaborator watching a
+        // reconnect spinner over a board they could still read.
+        if (reason === ACCESS_REVOKED_REASON) {
+          this.handleAccessRevoked();
+          return;
+        }
         // Editor's useBoardSync handles this by calling refresh on useAuthToken
         this.config.onError?.(new Error('Sync authentication failed (401)'));
         this.config.onAuthError?.();
       },
     });
+  }
+
+  /**
+   * The board is no longer ours.
+   *
+   * Tearing the provider down is the point: left alone it would reconnect on
+   * its usual backoff, be refused every time, and report the whole thing as a
+   * network problem. The caller takes it from here — there is nothing this
+   * layer can retry into.
+   */
+  private handleAccessRevoked(): void {
+    if (this.disposed || this.accessRevoked) return;
+    this.accessRevoked = true;
+
+    this.config.onStatusChange?.('error');
+    this.config.onAccessRevoked?.();
+
+    // Deferred rather than torn down inline: this runs inside the provider's
+    // own message handling, and destroying it from there unwinds the listener
+    // chain it is standing on.
+    setTimeout(() => this.dispose(), 0);
   }
 
   /**
@@ -123,6 +169,11 @@ export class WebSocketSync {
       if (message.type === 'access-changed') {
         this.config.onAccessChanged?.();
       }
+      // Sent immediately before the server closes the socket, which is the
+      // only thing that distinguishes a revocation from a dropped connection.
+      if (message.type === 'access-revoked') {
+        this.handleAccessRevoked();
+      }
     } catch {
       // A malformed stateless payload is not worth breaking the session over.
     }
@@ -134,6 +185,9 @@ export class WebSocketSync {
    */
   private handleStatusChange(status: WebSocketStatus): void {
     if (this.disposed) return;
+    // The socket closing is the expected next thing after a revocation, and
+    // reporting it as "reconnecting" would talk over the message that matters.
+    if (this.accessRevoked) return;
 
     switch (status) {
       case WebSocketStatus.Connecting:
@@ -168,7 +222,7 @@ export class WebSocketSync {
   }
 
   private forceReconnect(): void {
-    if (this.disposed) return;
+    if (this.disposed || this.accessRevoked) return;
     if (!this.provider) return;
     if (this.wsStatus === WebSocketStatus.Connected) return;
 

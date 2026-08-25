@@ -16,6 +16,7 @@ interface EditorTokenClaims {
   id?: string;
   email?: string;
   name?: string;
+  isGuest?: boolean;
   boardId?: string;
   workspaceId?: string;
   role?: string;
@@ -92,6 +93,16 @@ export interface EditorUser {
   readonly role: EditorRole | null;
   /** True when this session may not write. Viewers, and anything unrecognised. */
   readonly readOnly: boolean;
+  /**
+   * Someone who joined by share link without an account.
+   *
+   * Changes what we can offer them when a session ends: an account holder has
+   * their own boards to go back to, a guest has nowhere and is offered an
+   * account instead. Defaults to false for a token minted before this claim
+   * existed — the account path is the one that degrades gracefully, since it
+   * lands on a page that signs them in if they aren't.
+   */
+  readonly isGuest: boolean;
 }
 
 /**
@@ -122,6 +133,7 @@ export function decodeJwtUser(token: string): EditorUser | null {
     // older token, or one this build doesn't understand, must not be treated
     // as permission to write.
     readOnly: role !== 'owner' && role !== 'editor',
+    isGuest: claims.isGuest === true,
   };
 }
 
@@ -129,6 +141,25 @@ export interface RefreshedToken {
   token: string;
   expiresAt: number;
   boardId: string;
+}
+
+/**
+ * A refusal from the token route, carrying the status that explains it.
+ *
+ * The status is the difference between "try again shortly" and "stop": a 404
+ * means this account cannot open this board at all — removed from it, or the
+ * board is gone — and re-asking will be refused every time.
+ */
+export class TokenRefreshError extends Error {
+  constructor(readonly status: number) {
+    super(`Token refresh failed: ${status}`);
+    this.name = 'TokenRefreshError';
+  }
+
+  /** No path back for this session. See the route: 404 covers both cases. */
+  get accessDenied(): boolean {
+    return this.status === 404;
+  }
 }
 
 /**
@@ -149,7 +180,7 @@ export async function refreshAuthToken(webUrl: string, boardId: string): Promise
 
   const res = await fetch(url.toString(), { credentials: 'include' });
   if (!res.ok) {
-    throw new Error(`Token refresh failed: ${res.status}`);
+    throw new TokenRefreshError(res.status);
   }
   const json = (await res.json()) as {
     token: string;

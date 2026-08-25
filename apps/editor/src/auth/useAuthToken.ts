@@ -6,6 +6,7 @@ import {
   decodeJwtExpiry,
   getAuthTokenFromHash,
   refreshAuthToken,
+  TokenRefreshError,
 } from './token';
 
 const STORAGE_KEY_PREFIX = 'editor:authToken:';
@@ -85,8 +86,15 @@ function readInitialToken(boardId: string): AuthTokenState {
 export function useAuthToken(boardId: string): {
   authToken: string | null;
   refresh: () => Promise<void>;
+  /**
+   * The web app says this account cannot open this board — removed from it, or
+   * the board is gone. Distinct from every other refresh failure, which are
+   * worth retrying; this one never is.
+   */
+  accessDenied: boolean;
 } {
   const [state, setState] = useState<AuthTokenState>(() => readInitialToken(boardId));
+  const [accessDenied, setAccessDenied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAttemptRef = useRef(0);
 
@@ -99,6 +107,14 @@ export function useAuthToken(boardId: string): {
       window.sessionStorage.setItem(storageKeyFor(boardId), next.token);
       setState({ token: next.token, expiresAt: next.expiresAt });
     } catch (err) {
+      // A refusal that will be repeated forever is not a transient failure,
+      // and leaving it to the console is what let a removed collaborator sit
+      // on a board that had stopped being theirs. Everything else — a network
+      // blip, a lapsed web session — keeps the existing quiet retry.
+      if (err instanceof TokenRefreshError && err.accessDenied) {
+        setAccessDenied(true);
+        return;
+      }
       console.error('Failed to refresh editor auth token:', err);
     }
   }, [boardId]);
@@ -106,6 +122,7 @@ export function useAuthToken(boardId: string): {
   // When boardId changes, re-read initial token for the new board
   useEffect(() => {
     setState(readInitialToken(boardId));
+    setAccessDenied(false);
   }, [boardId]);
 
   /**
@@ -138,5 +155,5 @@ export function useAuthToken(boardId: string): {
     };
   }, [state.expiresAt, refresh]);
 
-  return { authToken: state.token, refresh };
+  return { authToken: state.token, refresh, accessDenied };
 }

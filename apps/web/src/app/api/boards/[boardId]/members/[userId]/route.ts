@@ -10,14 +10,17 @@ import { env } from '@/lib/env';
 import { auth } from '@/lib/auth';
 import { checkBoardAccess } from '@/lib/boards/access';
 import { corsJson, corsPreflight } from '@/lib/api/cors';
+import { notifyBoardAccessChanged } from '@/lib/sync/internal';
 
 /**
  * Change or remove one person's access to a board.
  *
- * Both take effect on live connections: the sync-server re-checks every open
- * socket on a short interval, flips its read-only flag, and tells the client to
- * re-mint. Someone demoted mid-session stops being able to draw within seconds
- * rather than at their next reconnect.
+ * Both take effect on the person's live session rather than at their next
+ * reconnect: the write below lands in the database, and the sync-server is
+ * then told to look at that one person's open sockets straight away. It also
+ * re-checks every socket on a short interval regardless, so the change still
+ * arrives if this service cannot be reached — the push is what makes it
+ * immediate, the sweep is what makes it certain.
  */
 
 const db = createClient(env.DATABASE_URL);
@@ -82,6 +85,8 @@ export async function PATCH(
     return corsJson({ error: 'Board not found' }, { status: 404 });
   }
 
+  await notifyBoardAccessChanged(boardId, userId);
+
   return corsJson({ ok: true, role: outcome.role });
 }
 
@@ -103,6 +108,13 @@ export async function DELETE(
     }
     return corsJson({ error: 'Board not found' }, { status: 404 });
   }
+
+  // Awaited, unlike a fire-and-forget would be: the caller's next act is to
+  // re-read the member list, and answering before the removed person's socket
+  // has been told would let the owner watch a list update while the person
+  // they removed is still drawing. It cannot fail the request — see
+  // notifyBoardAccessChanged — and gives up after two seconds.
+  await notifyBoardAccessChanged(boardId, userId);
 
   return corsJson({ ok: true });
 }

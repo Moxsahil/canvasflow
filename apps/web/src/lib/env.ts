@@ -9,6 +9,11 @@ const envSchema = z.object({
   AUTH_URL: z.string().url().default('http://localhost:3000'),
   NEXT_PUBLIC_EDITOR_URL: z.string().url().default('http://localhost:3002'),
 
+  // sync-server's HTTP port — the one serving /health, not the WebSocket.
+  // Server-to-server only: this is where access changes are pushed so they
+  // land on live sessions immediately instead of at the next sweep.
+  SYNC_INTERNAL_URL: z.string().url().default('http://localhost:4001'),
+
   // OAuth providers
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
@@ -32,6 +37,7 @@ function parseEnv(): Env {
     AUTH_SECRET: process.env.AUTH_SECRET,
     AUTH_URL: process.env.AUTH_URL,
     NEXT_PUBLIC_EDITOR_URL: process.env.NEXT_PUBLIC_EDITOR_URL,
+    SYNC_INTERNAL_URL: process.env.SYNC_INTERNAL_URL,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
     GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
