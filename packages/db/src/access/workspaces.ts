@@ -19,6 +19,9 @@ import {
  * 404 and keep workspace ids unprobeable.
  */
 
+/** Where someone stands in a workspace. The gate on renaming and deleting it. */
+export type WorkspaceRole = MembershipRow['role'];
+
 export interface WorkspaceSummary {
   id: string;
   name: string;
@@ -26,9 +29,29 @@ export interface WorkspaceSummary {
   plan: WorkspaceRow['plan'];
   logoUrl: string | null;
   /** The caller's role in this workspace, not the board role. */
-  role: MembershipRow['role'];
+  role: WorkspaceRole;
   /** Boards not soft-deleted. Shown next to the name so an empty one reads as empty. */
   boardCount: number;
+}
+
+/**
+ * Who may rename a workspace: the people who administer it.
+ *
+ * A lower bar than deleting, deliberately — a name is something a team fixes
+ * together, and getting it wrong is undone by typing the old one back.
+ */
+export function canRenameWorkspace(role: WorkspaceRole): boolean {
+  return role === 'owner' || role === 'admin';
+}
+
+/**
+ * Who may delete a workspace: only an owner.
+ *
+ * It takes every board in the workspace down with it, which is more than an
+ * admin should be able to do to everyone else's work on their own.
+ */
+export function canDeleteWorkspace(role: WorkspaceRole): boolean {
+  return role === 'owner';
 }
 
 export interface BoardSummary {
@@ -81,11 +104,41 @@ export async function listWorkspacesForUser(
     // Joined rather than counted in a subquery so one round trip fills the
     // whole switcher; the null-check keeps soft-deleted boards out of the count.
     .leftJoin(boards, and(eq(boards.workspaceId, workspaces.id), isNull(boards.deletedAt)))
-    .where(eq(memberships.userId, userId))
+    // Membership rows outlive a deleted workspace — the row is kept so the
+    // delete can be undone — so the workspace's own tombstone is what hides it.
+    .where(and(eq(memberships.userId, userId), isNull(workspaces.deletedAt)))
     .groupBy(workspaces.id, memberships.role, memberships.joinedAt)
     .orderBy(asc(memberships.joinedAt));
 
   return rows;
+}
+
+/**
+ * The user's role in this workspace, or null if they aren't in it — or if it
+ * has been deleted, which callers must treat identically so a deleted
+ * workspace stops answering the moment it goes.
+ *
+ * The gate on everything below, and what the routes authorize against.
+ */
+export async function workspaceRoleOf(
+  db: Database,
+  userId: string,
+  workspaceId: string,
+): Promise<WorkspaceRole | null> {
+  const rows = await db
+    .select({ role: memberships.role })
+    .from(memberships)
+    .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
+    .where(
+      and(
+        eq(memberships.workspaceId, workspaceId),
+        eq(memberships.userId, userId),
+        isNull(workspaces.deletedAt),
+      ),
+    )
+    .limit(1);
+
+  return rows[0]?.role ?? null;
 }
 
 /** Whether the user is a member of this workspace. The gate on everything below. */
@@ -94,13 +147,7 @@ export async function isWorkspaceMember(
   userId: string,
   workspaceId: string,
 ): Promise<boolean> {
-  const rows = await db
-    .select({ id: memberships.id })
-    .from(memberships)
-    .where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.userId, userId)))
-    .limit(1);
-
-  return rows.length > 0;
+  return (await workspaceRoleOf(db, userId, workspaceId)) !== null;
 }
 
 /**
@@ -210,6 +257,94 @@ export async function createWorkspaceForUser(
   });
 }
 
+/**
+ * Rename a workspace.
+ *
+ * The slug is deliberately left alone. It is what the workspace is addressed
+ * by, and quietly re-deriving it on every rename would break links that are
+ * already out there — a name is a label, a slug is an identifier.
+ *
+ * `role` is the caller's, resolved by the route a moment earlier and carried
+ * through only so the answer is the same `WorkspaceSummary` the switcher
+ * already holds and can patch in place. Authorization is the route's job, as
+ * it is for boards; see access/boards.ts for why it isn't done here.
+ */
+export async function renameWorkspace(
+  db: Database,
+  workspaceId: string,
+  name: string,
+  role: WorkspaceRole,
+): Promise<WorkspaceSummary | null> {
+  const [workspace] = await db
+    .update(workspaces)
+    .set({ name, updatedAt: new Date() })
+    .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)))
+    .returning();
+
+  if (!workspace) return null;
+
+  const [counted] = await db
+    .select({ boardCount: sql<number>`count(${boards.id})`.mapWith(Number) })
+    .from(boards)
+    .where(and(eq(boards.workspaceId, workspaceId), isNull(boards.deletedAt)));
+
+  return {
+    id: workspace.id,
+    name: workspace.name,
+    slug: workspace.slug,
+    plan: workspace.plan,
+    logoUrl: workspace.logoUrl,
+    role,
+    boardCount: counted?.boardCount ?? 0,
+  };
+}
+
+export interface DeleteWorkspaceResult {
+  /** How many boards went with it, for the message shown afterwards. */
+  boardsDeleted: number;
+}
+
+/**
+ * Delete a workspace and every board in it.
+ *
+ * Both are soft deletes, in one transaction, so the whole act is recoverable
+ * and a half-finished one leaves nothing behind. That is also why the
+ * workspace row itself is kept rather than deleted outright: the `boards` and
+ * `memberships` foreign keys cascade, so a real DELETE here would erase the
+ * documents before their own `deletedAt` could ever mean anything.
+ *
+ * Anyone with one of these boards open loses it at the sync-server's next
+ * re-authorization sweep, without needing to be told separately —
+ * `resolveBoardAccess` refuses a soft-deleted board.
+ *
+ * Returns null when the workspace is already gone, so a double-submit reads as
+ * "not found" rather than reporting a second successful delete.
+ */
+export async function deleteWorkspace(
+  db: Database,
+  workspaceId: string,
+): Promise<DeleteWorkspaceResult | null> {
+  const deletedAt = new Date();
+
+  return db.transaction(async (tx) => {
+    const [workspace] = await tx
+      .update(workspaces)
+      .set({ deletedAt, updatedAt: deletedAt })
+      .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)))
+      .returning({ id: workspaces.id });
+
+    if (!workspace) return null;
+
+    const removed = await tx
+      .update(boards)
+      .set({ deletedAt })
+      .where(and(eq(boards.workspaceId, workspaceId), isNull(boards.deletedAt)))
+      .returning({ id: boards.id });
+
+    return { boardsDeleted: removed.length };
+  });
+}
+
 export interface CreateBoardInput {
   userId: string;
   workspaceId: string;
@@ -257,7 +392,8 @@ export async function findMostRecentBoardForUser(
     await db
       .select({ workspaceId: memberships.workspaceId })
       .from(memberships)
-      .where(eq(memberships.userId, userId))
+      .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
+      .where(and(eq(memberships.userId, userId), isNull(workspaces.deletedAt)))
   ).map((row) => row.workspaceId);
 
   if (workspaceIds.length === 0) return null;
@@ -307,7 +443,10 @@ async function ensureDefaultWorkspace(db: Database, input: EnsureBoardInput): Pr
   const [existing] = await db
     .select({ workspaceId: memberships.workspaceId })
     .from(memberships)
-    .where(eq(memberships.userId, input.userId))
+    .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
+    // Skipping the deleted ones is what stops someone who deleted their only
+    // workspace from landing back in it; they get a fresh personal one instead.
+    .where(and(eq(memberships.userId, input.userId), isNull(workspaces.deletedAt)))
     .orderBy(asc(memberships.joinedAt))
     .limit(1);
 

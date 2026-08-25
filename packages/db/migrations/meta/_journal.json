@@ -50,6 +50,13 @@
       "when": 1787586862750,
       "tag": "0006_normal_peter_quill",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787636887278,
+      "tag": "0007_stiff_korath",
+      "breakpoints": true
     }
   ]
 }

@@ -13,6 +13,18 @@ export const workspaces = pgTable('workspace', {
   plan: workspacePlanEnum('plan').notNull().default('free'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  /**
+   * Soft delete, as boards have.
+   *
+   * A hard delete would cascade through `memberships` and `boards` and take
+   * every document in the workspace with it — the boards' own `deletedAt`
+   * would never get a chance to mean anything. Keeping the row lets a delete
+   * be undone by an operator, and lets the slug stay claimed so a stale link
+   * resolves to nothing rather than to whatever was created next.
+   *
+   * Every read of a workspace has to exclude these; see access/workspaces.ts.
+   */
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 });
 
 export const memberships = pgTable(

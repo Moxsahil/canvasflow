@@ -99,6 +99,43 @@ export async function listWorkspaceBoards(workspaceId: string): Promise<BoardSum
   return body.data;
 }
 
+/**
+ * Rename a workspace.
+ *
+ * Refused with 403 for a member who is neither owner nor admin — the switcher
+ * hides the control for them, but the server is what actually decides.
+ */
+export async function renameWorkspace(
+  workspaceId: string,
+  name: string,
+): Promise<WorkspaceSummary> {
+  const res = await fetch(workspacesUrl(`/${workspaceId}`), {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) throw await failure(res, 'workspace');
+  const body = (await res.json()) as { data: WorkspaceSummary };
+  return body.data;
+}
+
+/** What a workspace took with it, so the caller can say so afterwards. */
+export interface DeleteWorkspaceResult {
+  boardsDeleted: number;
+}
+
+/** Delete a workspace and every board in it. Owner only, refused with 403. */
+export async function deleteWorkspace(workspaceId: string): Promise<DeleteWorkspaceResult> {
+  const res = await fetch(workspacesUrl(`/${workspaceId}`), {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) throw await failure(res, 'workspace');
+  const body = (await res.json()) as { data: DeleteWorkspaceResult };
+  return body.data;
+}
+
 export async function createWorkspace(name: string): Promise<WorkspaceSummary> {
   const res = await fetch(workspacesUrl(), {
     method: 'POST',
@@ -139,6 +176,24 @@ export async function updateBoard(
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw await failure(res, 'board');
+  const body = (await res.json()) as { data: BoardSummary };
+  return body.data;
+}
+
+/**
+ * Delete a board.
+ *
+ * Addressed directly, like the rename above, and held to a higher bar by the
+ * server: the board's owner or an admin of its workspace, not merely someone
+ * who may edit it. The returned summary is the board as it was, which is what
+ * lets the caller name it in the message afterwards.
+ */
+export async function deleteBoard(boardId: string): Promise<BoardSummary> {
+  const res = await fetch(boardsUrl(`/${boardId}`), {
+    method: 'DELETE',
+    credentials: 'include',
   });
   if (!res.ok) throw await failure(res, 'board');
   const body = (await res.json()) as { data: BoardSummary };

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Check, ChevronRight, ChevronsUpDown, Pencil, Plus } from 'lucide-react';
+import { Check, ChevronRight, ChevronsUpDown, Pencil, Plus, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   identityDetailClasses,
@@ -9,9 +9,9 @@ import {
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { SidebarMenuItem } from '@/components/ui/sidebar';
 import { Workspaces, WorkspaceContent, WorkspaceTrigger } from '@/components/ui/workspaces';
-import { boardSwatch } from './board-colors';
-import type { BoardSwitcherState } from './useBoardSwitcher';
-import type { BoardColor, WorkspaceSummary } from './workspace-api';
+import { ColorDot, formatUpdatedAt } from './board-presentation';
+import type { BoardSwitcherState, ManageTarget } from './useBoardSwitcher';
+import type { WorkspaceSummary } from './workspace-api';
 
 interface BoardSwitcherProps {
   state: BoardSwitcherState;
@@ -33,17 +33,6 @@ const panelClasses = 'flex max-h-80 w-64 flex-col p-0';
 const boardRowClasses =
   'group/board flex w-full items-center gap-1 rounded-md py-1.5 pl-2 pr-1 text-left text-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground has-[:focus-visible]:bg-sidebar-accent';
 
-/** The board's colour tag. Purely decorative — the name beside it is the label. */
-function ColorDot({ color, className }: { color: BoardColor; className?: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={cn('size-2.5 shrink-0 rounded-full', className)}
-      style={{ backgroundColor: boardSwatch(color) }}
-    />
-  );
-}
-
 /**
  * The board identity in the sidebar header, and the only way to reach another
  * board.
@@ -61,7 +50,7 @@ export function BoardSwitcher({ state, portalContainer }: BoardSwitcherProps) {
   const [open, setOpen] = useState(false);
   const [namingWorkspace, setNamingWorkspace] = useState(false);
 
-  const { workspaces, expandWorkspace, dismissError, beginRename } = state;
+  const { workspaces, expandWorkspace, dismissError, beginRename, beginManage } = state;
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -86,6 +75,15 @@ export function BoardSwitcher({ state, portalContainer }: BoardSwitcherProps) {
       handleOpenChange(false);
     },
     [beginRename, handleOpenChange],
+  );
+
+  // Same arrangement for the manage dialog, and for the same reason.
+  const handleManage = useCallback(
+    (target: ManageTarget) => {
+      beginManage(target);
+      handleOpenChange(false);
+    },
+    [beginManage, handleOpenChange],
   );
 
   const byId = useMemo(
@@ -176,6 +174,7 @@ export function BoardSwitcher({ state, portalContainer }: BoardSwitcherProps) {
                 portalContainer={portalContainer}
                 expanded={state.expandedWorkspaceId === full.id}
                 onRename={handleRename}
+                onManage={handleManage}
               />
             ) : null;
           }}
@@ -201,6 +200,17 @@ export function BoardSwitcher({ state, portalContainer }: BoardSwitcherProps) {
               <span>Create workspace</span>
             </button>
           )}
+          {/* Last in the footer: creating is the common errand, tidying up is
+              the occasional one, and this is the row that opens a dialog. */}
+          <button
+            type="button"
+            className={cn(rowClasses, 'text-sidebar-foreground/70')}
+            data-testid="manage-workspaces"
+            onClick={() => handleManage({ kind: 'workspaces' })}
+          >
+            <Settings2 className="size-4 shrink-0" aria-hidden="true" />
+            <span>Manage workspaces</span>
+          </button>
         </WorkspaceContent>
       </Workspaces>
     </SidebarMenuItem>
@@ -213,6 +223,7 @@ interface WorkspaceRowProps {
   portalContainer: HTMLElement | null;
   expanded: boolean;
   onRename: (boardId: string) => void;
+  onManage: (target: ManageTarget) => void;
 }
 
 /**
@@ -228,6 +239,7 @@ function WorkspaceRow({
   portalContainer,
   expanded,
   onRename,
+  onManage,
 }: WorkspaceRowProps) {
   const entry = state.boardsFor(workspace.id);
 
@@ -355,6 +367,17 @@ function WorkspaceRow({
             <Plus className="size-4 shrink-0" aria-hidden="true" />
             <span>New board</span>
           </button>
+          {/* Scoped to this workspace, so the dialog opens straight onto the
+              list that is already on screen rather than making you find it. */}
+          <button
+            type="button"
+            className={cn(rowClasses, 'text-sidebar-foreground/70')}
+            data-testid="manage-boards"
+            onClick={() => onManage({ kind: 'boards', workspaceId: workspace.id })}
+          >
+            <Settings2 className="size-4 shrink-0" aria-hidden="true" />
+            <span>Manage boards</span>
+          </button>
         </div>
       </PopoverContent>
     </Popover>
@@ -407,13 +430,6 @@ function NewWorkspaceForm({ busy, onCreate, onCancel }: NewWorkspaceFormProps) {
       </button>
     </form>
   );
-}
-
-/** Short enough to sit beside a title without crowding it. */
-function formatUpdatedAt(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 /** Whether an event landed in the switcher's other panel rather than outside it. */
