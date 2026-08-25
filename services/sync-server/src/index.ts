@@ -6,8 +6,14 @@ import { parseEnv } from './config/env.js';
 import { createLogger } from './logging/logger.js';
 import { verifyEditorToken } from './auth/verify-token.js';
 import { checkBoardAccess } from './auth/check-board-access.js';
-import { startReauthorizeLoop, REAUTHORIZE_INTERVAL_MS } from './auth/reauthorize.js';
+import {
+  startReauthorizeLoop,
+  reauthorizeUser,
+  ACCESS_REVOKED_REASON,
+  REAUTHORIZE_INTERVAL_MS,
+} from './auth/reauthorize.js';
 import { getAllowedOrigins, isOriginAllowed } from './security/allowed-origins.js';
+import { INTERNAL_AUTH_HEADER, isInternalCaller } from './security/internal-auth.js';
 import * as Y from 'yjs';
 import {
   loadSnapshot,
@@ -102,7 +108,19 @@ const hocuspocus = Server.configure({
         userId: payload.userId,
         boardId: payload.boardId,
       });
-      throw new Error('Access denied');
+      /**
+       * The `reason` rides into the permission-denied frame Hocuspocus writes
+       * for a rejected connect, and reaches the client as
+       * onAuthenticationFailed({ reason }).
+       *
+       * Naming it matters because the client's two responses are opposite: a
+       * token that has merely lapsed should be re-minted and retried, while
+       * this one must not be — retrying is refused every time, and the person
+       * needs to be told rather than left watching a reconnect spinner. It
+       * covers a deleted board too, which is the same answer from where they
+       * are standing.
+       */
+      throw Object.assign(new Error('Access denied'), { reason: ACCESS_REVOKED_REASON });
     }
 
     // Use the live role, not the one baked into the token — role could
@@ -323,6 +341,52 @@ app.get('/health', (_req, res) => {
     documents: hocuspocus.getDocumentsCount(),
     timestamp: new Date().toISOString(),
   });
+});
+
+/**
+ * "This person's access to this board just changed — look at them now."
+ *
+ * Called by the web app the moment an owner removes someone or moves them
+ * between editor and viewer. It carries no authority of its own: the board id
+ * and user id only say where to look, and the answer still comes from
+ * resolveBoardAccess against the database. A forged call can therefore do
+ * nothing worse than make this service re-read a row it was going to re-read
+ * within five seconds anyway — which is why the shared secret below is enough
+ * and this needs no user session.
+ *
+ * The periodic sweep remains the guarantee. This is what makes the common case
+ * feel immediate instead of taking up to one sweep interval.
+ */
+app.post('/internal/board-access', express.json({ limit: '1kb' }), async (req, res) => {
+  if (!isInternalCaller(req.headers[INTERNAL_AUTH_HEADER], env.AUTH_SECRET)) {
+    log.warn('rejected internal call: bad or missing credential');
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
+
+  const body = req.body as { boardId?: unknown; userId?: unknown };
+  const boardId = typeof body.boardId === 'string' ? body.boardId : null;
+  const userId = typeof body.userId === 'string' ? body.userId : null;
+
+  if (!boardId || !userId) {
+    res.status(400).json({ error: 'boardId and userId are required' });
+    return;
+  }
+
+  try {
+    const outcome = await reauthorizeUser({ server: hocuspocus, db, log }, boardId, userId);
+    log.info('re-authorized on request', { boardId, userId, ...outcome });
+    res.json({ ok: true, ...outcome });
+  } catch (err) {
+    // The caller treats this as advisory and does not retry — the sweep will
+    // reach the same connections shortly.
+    log.error('internal re-authorization failed', {
+      boardId,
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: 'Re-authorization failed' });
+  }
 });
 
 let stopReauthorize: (() => void) | null = null;

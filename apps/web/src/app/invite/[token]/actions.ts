@@ -47,7 +47,7 @@ export async function joinAsGuest(token: string, formData: FormData): Promise<Jo
   await setGuestSession(outcome.userId);
 
   const minted = await mintEditorToken(
-    { id: outcome.userId, email: null, name: displayName.trim() || 'Guest' },
+    { id: outcome.userId, email: null, name: displayName.trim() || 'Guest', isGuest: true },
     access,
   );
 
@@ -78,6 +78,7 @@ export async function joinAsUser(token: string): Promise<JoinResult> {
       id: session.user.id,
       email: session.user.email ?? null,
       name: session.user.name ?? null,
+      isGuest: false,
     },
     access,
   );

@@ -54,7 +54,7 @@ import { useAppTheme } from './theme';
 import { useOpenBoardFile, useSaveBoardFile } from './file';
 import { ExportImageDialog } from './export';
 import { FindBar, useCanvasSearch } from './search';
-import { ShareDialog } from './share';
+import { AccessRevokedDialog, ShareDialog } from './share';
 import { Dialog } from './ui';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -82,11 +82,25 @@ export function Editor({ boardId }: EditorProps) {
   // cookie mid-session would fight whatever the user has just toggled.
   const [sidebarDefaultOpen] = useState(readSidebarState);
 
-  const { authToken, refresh: refreshAuthToken } = useAuthToken(boardId);
+  const {
+    authToken,
+    refresh: refreshAuthToken,
+    accessDenied: tokenAccessDenied,
+  } = useAuthToken(boardId);
 
   const [helpOpen, setHelpOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  /**
+   * This session has lost the board.
+   *
+   * Latched rather than derived, because it has to survive the teardown that
+   * follows it: the socket goes, the token stops being re-mintable, and none
+   * of what remains would still say why. It arrives by whichever route
+   * notices first — the server pushing a revocation onto the live connection,
+   * a refused reconnect, or a token refresh being turned down.
+   */
+  const [accessRevoked, setAccessRevoked] = useState(false);
   const showExport = useCallback(() => setExportOpen(true), []);
   const hideExport = useCallback(() => setExportOpen(false), []);
   const showShare = useCallback(() => setShareOpen(true), []);
@@ -143,8 +157,12 @@ export function Editor({ boardId }: EditorProps) {
    *
    * Defaults to read-only until a token has been decoded — briefly refusing an
    * edit is recoverable, briefly permitting one is not.
+   *
+   * A revoked session is read-only for the same reason and then some: there is
+   * no longer a socket to reject its writes, so this is the only thing between
+   * a keystroke and a shape appearing in a document nobody will ever collect.
    */
-  const readOnly = user?.readOnly ?? true;
+  const readOnly = accessRevoked || (user?.readOnly ?? true);
 
   useEffect(() => {
     doc.setReadOnly(readOnly);
@@ -156,6 +174,7 @@ export function Editor({ boardId }: EditorProps) {
     status: syncStatus,
     notifyActivity,
     awareness,
+    purgeCache,
   } = useBoardSync(doc, {
     boardId,
     apiUrl: env.VITE_API_URL,
@@ -167,7 +186,31 @@ export function Editor({ boardId }: EditorProps) {
     // so `readOnly` and the chrome follow within a second, rather than at the
     // next scheduled refresh up to five minutes away.
     onAccessChanged: refreshAuthToken,
+    onAccessRevoked: () => setAccessRevoked(true),
   });
+
+  // The same conclusion reached the slow way: the token route refuses to mint
+  // for a board this account cannot open. Covers the reload — where there is
+  // no live connection to be told anything on — and someone arriving at a
+  // board URL they were never on.
+  useEffect(() => {
+    if (tokenAccessDenied) setAccessRevoked(true);
+  }, [tokenAccessDenied]);
+
+  /**
+   * Let go of the cached copy, once.
+   *
+   * This is what would otherwise repaint the whole board on the next visit to
+   * this URL — with no server left to correct it, and no dialog either, since
+   * nothing at that point would know what had happened. The document itself
+   * is sealed through `readOnly` above.
+   */
+  const cachePurgedRef = useRef(false);
+  useEffect(() => {
+    if (!accessRevoked || cachePurgedRef.current) return;
+    cachePurgedRef.current = true;
+    purgeCache();
+  }, [accessRevoked, purgeCache]);
 
   // Suspended while disconnected: a frozen cursor from a socket that has gone
   // away is worse than no cursor.
@@ -253,6 +296,22 @@ export function Editor({ boardId }: EditorProps) {
   const followedPeer = follow.following
     ? roster.find((entry) => entry.userId === follow.following)
     : undefined;
+
+  /**
+   * Who is on the board, as a value that changes only when the set does.
+   *
+   * The roster is rebuilt for an activity change as well as an arrival, and
+   * sorted because its order follows whichever socket spoke first. What the
+   * share card wants to hear about is somebody new, not somebody going idle.
+   */
+  const presenceKey = useMemo(
+    () =>
+      roster
+        .map((entry) => entry.userId)
+        .sort()
+        .join(','),
+    [roster],
+  );
 
   /**
    * Your pointer takes your presence colour only while somebody else is on the
@@ -909,7 +968,13 @@ export function Editor({ boardId }: EditorProps) {
     onFind: search.openSearch,
     // The dialogs own the keyboard while they're up, so ⌘O can't stack a
     // second picker on top of an unanswered replace confirmation.
-    disabled: helpOpen || exportOpen || shareOpen || pendingReplace !== null || notice !== null,
+    disabled:
+      helpOpen ||
+      exportOpen ||
+      shareOpen ||
+      pendingReplace !== null ||
+      notice !== null ||
+      accessRevoked,
   });
 
   const handleCommitText = useCallback(
@@ -1127,6 +1192,8 @@ export function Editor({ boardId }: EditorProps) {
               open={shareOpen}
               onClose={hideShare}
               boardId={boardId}
+              boardName={boardTitle}
+              presenceKey={presenceKey}
               portalContainer={editorRoot}
             />
 
@@ -1157,6 +1224,15 @@ export function Editor({ boardId }: EditorProps) {
             <Dialog open={notice !== null} title={notice?.title ?? ''} onClose={dismissNotice}>
               {notice?.body}
             </Dialog>
+
+            {/* Last, so it paints over every other dialog. Losing the board
+                outranks whatever was being confirmed when it happened. */}
+            <AccessRevokedDialog
+              open={accessRevoked}
+              boardName={boardTitle}
+              isGuest={user?.isGuest ?? false}
+              container={editorRoot}
+            />
           </div>
         </SidebarInset>
       </SidebarProvider>

@@ -20,9 +20,29 @@ interface ShareDialogProps {
   boardId: string;
   /** Shown as the card's heading; falls back to the id, as the menu does. */
   boardName?: string;
+  /**
+   * Who is on the board right now, as a value that changes only when the set
+   * of people does.
+   *
+   * The card's whole problem is that membership is fetched and joining is not
+   * an event it can see. Presence is that event, already arriving over the
+   * board's own socket — someone redeeming a share link has a membership row
+   * before their editor finishes loading, so by the time their cursor shows
+   * up the list this refetches is guaranteed to include them.
+   */
+  presenceKey: string;
   /** Radix portals out of the tree; the theme tokens live on `.cf-editor`. */
   portalContainer: HTMLElement | null;
 }
+
+/**
+ * Backstop poll while the card is open.
+ *
+ * Presence covers everyone who actually connects, which is everyone who joins
+ * by link. This is for the rest — a row that appears without a socket behind
+ * it — and it runs only while somebody is looking at the card.
+ */
+const REFRESH_INTERVAL_MS = 15_000;
 
 /**
  * The sharing card, in a dialog.
@@ -36,6 +56,7 @@ export function ShareDialog({
   onClose,
   boardId,
   boardName,
+  presenceKey,
   portalContainer,
 }: ShareDialogProps) {
   const [links, setLinks] = useState<ShareLinkSummary[]>([]);
@@ -51,30 +72,61 @@ export function ShareDialog({
   // At most one link is ever live — see createShareLink.
   const session = links[0] ?? null;
 
-  const refresh = useCallback(async () => {
-    try {
-      const [nextLinks, nextMembers] = await Promise.all([
-        listShareLinks(boardId),
-        listMembers(boardId),
-      ]);
-      setLinks(nextLinks);
-      setMembers(nextMembers);
+  /**
+   * `quiet` is for the refreshes nobody asked for — the presence-driven one
+   * and the poll. A failure there is not something the reader did and not
+   * something they can act on, and putting it in the card's error line would
+   * mean a blip on a background request looks like their last click failed.
+   */
+  const refresh = useCallback(
+    async ({ quiet = false }: { quiet?: boolean } = {}) => {
+      try {
+        const [nextLinks, nextMembers] = await Promise.all([
+          listShareLinks(boardId),
+          listMembers(boardId),
+        ]);
+        setLinks(nextLinks);
+        setMembers(nextMembers);
 
-      // The plaintext token exists only in the response that created it, so a
-      // reload cannot reconstruct the URL from the server. Remember it for this
-      // browser; if it does not match the live session, the session is still
-      // shown but without a copyable link.
-      const stored = readStoredLink(boardId);
-      setUrl(stored && nextLinks[0] && stored.linkId === nextLinks[0].id ? stored.url : null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load sharing details.');
-    }
-  }, [boardId]);
+        // The plaintext token exists only in the response that created it, so a
+        // reload cannot reconstruct the URL from the server. Remember it for this
+        // browser; if it does not match the live session, the session is still
+        // shown but without a copyable link.
+        const stored = readStoredLink(boardId);
+        setUrl(stored && nextLinks[0] && stored.linkId === nextLinks[0].id ? stored.url : null);
+      } catch (err) {
+        if (quiet) return;
+        setError(err instanceof Error ? err.message : 'Could not load sharing details.');
+      }
+    },
+    [boardId],
+  );
 
   useEffect(() => {
     if (!open) return;
     setError(null);
     void refresh();
+  }, [open, refresh]);
+
+  /**
+   * Re-read when the people on the board change.
+   *
+   * This is what stops a newly joined collaborator sitting invisible until the
+   * card is closed and reopened. The key is tracked in a ref so this fires on
+   * an actual change rather than also duplicating the fetch above on open.
+   */
+  const lastPresenceKey = useRef(presenceKey);
+  useEffect(() => {
+    const changed = lastPresenceKey.current !== presenceKey;
+    lastPresenceKey.current = presenceKey;
+    if (!open || !changed) return;
+    void refresh({ quiet: true });
+  }, [open, presenceKey, refresh]);
+
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setInterval(() => void refresh({ quiet: true }), REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(timer);
   }, [open, refresh]);
 
   useEffect(() => {

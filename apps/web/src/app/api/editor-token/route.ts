@@ -43,7 +43,12 @@ export async function GET(request: NextRequest) {
   const sessionUser = session?.user;
 
   const identity: EditorIdentity | null = sessionUser?.id
-    ? { id: sessionUser.id, email: sessionUser.email ?? null, name: sessionUser.name ?? null }
+    ? {
+        id: sessionUser.id,
+        email: sessionUser.email ?? null,
+        name: sessionUser.name ?? null,
+        isGuest: false,
+      }
     : await loadGuestIdentityFromCookie();
 
   if (!identity) {
@@ -87,5 +92,5 @@ async function loadGuestIdentityFromCookie(): Promise<EditorIdentity | null> {
     .limit(1);
 
   const guest = rows[0];
-  return guest ? { id: guest.id, email: null, name: guest.name } : null;
+  return guest ? { id: guest.id, email: null, name: guest.name, isGuest: true } : null;
 }

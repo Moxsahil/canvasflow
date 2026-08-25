@@ -13,6 +13,8 @@ interface UseBoardSyncOptions {
   onAuthError?: () => void;
   /** Permissions changed on the live connection; re-mint the token. */
   onAccessChanged?: () => void;
+  /** Access to this board is gone. The connection is down and stays down. */
+  onAccessRevoked?: () => void;
 }
 
 interface UseBoardSyncResult {
@@ -27,6 +29,12 @@ interface UseBoardSyncResult {
    * wouldn't tell it that happened.
    */
   awareness: SyncAwareness | null;
+  /**
+   * Discard this board's local cache. Exposed for the one caller that has to:
+   * a session that has lost access, where the cached copy would otherwise
+   * outlive the access that justified holding it.
+   */
+  purgeCache: () => void;
 }
 
 /**
@@ -53,6 +61,7 @@ export function useBoardSync(
     userId,
     onAuthError,
     onAccessChanged,
+    onAccessRevoked,
   }: UseBoardSyncOptions,
 ): UseBoardSyncResult {
   const [status, setStatus] = useState<SyncStatus>('idle');
@@ -72,8 +81,9 @@ export function useBoardSync(
   // just because a callback's identity changed between renders.
   const onAuthErrorRef = useRef(onAuthError);
   const onAccessChangedRef = useRef(onAccessChanged);
+  const onAccessRevokedRef = useRef(onAccessRevoked);
 
-  const cacheHydrated = useOfflineCache(doc, boardId, userId);
+  const { hydrated: cacheHydrated, purge: purgeCache } = useOfflineCache(doc, boardId, userId);
 
   useEffect(() => {
     tokenRef.current = authToken;
@@ -86,6 +96,10 @@ export function useBoardSync(
   useEffect(() => {
     onAccessChangedRef.current = onAccessChanged;
   }, [onAccessChanged]);
+
+  useEffect(() => {
+    onAccessRevokedRef.current = onAccessRevoked;
+  }, [onAccessRevoked]);
 
   const hasToken = authToken !== null;
 
@@ -114,6 +128,10 @@ export function useBoardSync(
       getToken: () => tokenRef.current,
       onAuthError: () => onAuthErrorRef.current?.(),
       onAccessChanged: () => onAccessChangedRef.current?.(),
+      // Not gated on `cancelled`: this is the one event the caller must hear
+      // even as the effect is tearing the connection down, because the
+      // teardown is the very thing it is reporting.
+      onAccessRevoked: () => onAccessRevokedRef.current?.(),
       onStatusChange: (next) => {
         if (cancelled) return;
         setStatus(next);
@@ -140,5 +158,5 @@ export function useBoardSync(
     wsRef.current?.notifyActivity();
   }, []);
 
-  return { status, error, notifyActivity, awareness };
+  return { status, error, notifyActivity, awareness, purgeCache };
 }

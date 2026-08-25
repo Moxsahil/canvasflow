@@ -20,6 +20,15 @@ export interface EditorIdentity {
   id: string;
   email: string | null;
   name: string | null;
+  /**
+   * Whether this is someone who joined by share link without an account.
+   *
+   * Recorded because it changes what the editor can offer them when a session
+   * ends: an account holder is sent back to their own boards, while a guest
+   * has nowhere of their own to go and is offered one instead. Not a
+   * permission — a guest is a full principal on the board they were let into.
+   */
+  isGuest: boolean;
 }
 
 /**
@@ -42,6 +51,7 @@ export async function mintEditorToken(
     id: identity.id,
     email: identity.email,
     name: identity.name,
+    isGuest: identity.isGuest,
     boardId: access.boardId,
     workspaceId: access.workspaceId,
     role: access.role,
