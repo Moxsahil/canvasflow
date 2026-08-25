@@ -1117,7 +1117,11 @@ export function Editor({ boardId }: EditorProps) {
               onResetZoom={handleZoomTo100}
               onZoomToFit={handleZoomToFit}
             />
-            <ShortcutsModal open={helpOpen} onClose={handleCloseHelp} />
+            <ShortcutsModal
+              open={helpOpen}
+              onClose={handleCloseHelp}
+              portalContainer={editorRoot}
+            />
 
             <ShareDialog
               open={shareOpen}

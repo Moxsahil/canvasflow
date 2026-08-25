@@ -112,6 +112,10 @@
   --color-accent-foreground: hsl(0 0% 20%);
   --color-destructive: hsl(9 96% 47%);
   --color-destructive-foreground: hsl(0 0% 98%);
+  /* The red a delete button is filled with. Separate from --color-destructive,
+     which also has to carry small error text on a light card and so cannot be
+     lightened; this one only ever sits under white, in both themes. */
+  --color-destructive-solid: hsl(2 84% 62%);
   --color-border: hsl(0 0% 92%);
   --color-input: hsl(0 0% 100%);
   --color-ring: hsl(0 0% 71%);

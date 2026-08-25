@@ -15,7 +15,12 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar';
 import { formatShortcut } from '../help/platform';
-import { BoardSwitcher, RenameBoardDialog, type BoardSwitcherState } from '../workspace';
+import {
+  BoardSwitcher,
+  ManageDialog,
+  RenameBoardDialog,
+  type BoardSwitcherState,
+} from '../workspace';
 import type { ThemePreference } from '../theme';
 import type { CanvasTheme } from '../properties/palette';
 import { BackgroundSection, ThemeSection } from './AppearanceSections';
@@ -145,6 +150,10 @@ export function AppSidebar({
         busy={boardSwitcher.busy}
         portalContainer={portalContainer}
       />
+
+      {/* Same reasoning: the switcher's menu closes as this opens, and the
+          board rows inside it hand off to the rename dialog above. */}
+      <ManageDialog state={boardSwitcher} portalContainer={portalContainer} />
     </Sidebar>
   );
 }

@@ -278,17 +278,29 @@ const AlertDialogDescription = React.forwardRef<
   );
 });
 
+/**
+ * `asChild` hands the styling over entirely: a child that is already a button
+ * brings its own, and layering this component's on top would leave two sets of
+ * conflicting classes for the cascade to settle. Wrapping one is still worth
+ * it for the behaviour — Cancel is what Radix moves focus to when the dialog
+ * opens, and closes it on click.
+ */
 const AlertDialogCancel = React.forwardRef<
   HTMLButtonElement,
-  React.ButtonHTMLAttributes<HTMLButtonElement>
->(function AlertDialogCancel({ className, type = 'button', ...props }, ref) {
+  React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }
+>(function AlertDialogCancel({ className, type = 'button', asChild = false, ...props }, ref) {
   return (
     <AlertDialogPrimitive.Cancel
-      className={cn(
-        buttonBase,
-        'border border-(--default-border-color) bg-transparent text-(--text-primary-color) hover:bg-(--button-hover-bg)',
-        className,
-      )}
+      asChild={asChild}
+      className={
+        asChild
+          ? className
+          : cn(
+              buttonBase,
+              'border border-(--default-border-color) bg-transparent text-(--text-primary-color) hover:bg-(--button-hover-bg)',
+              className,
+            )
+      }
       ref={ref}
       type={type}
       {...props}
@@ -298,18 +310,26 @@ const AlertDialogCancel = React.forwardRef<
 
 const AlertDialogAction = React.forwardRef<
   HTMLButtonElement,
-  React.ButtonHTMLAttributes<HTMLButtonElement> & { destructive?: boolean }
->(function AlertDialogAction({ className, type = 'button', destructive = false, ...props }, ref) {
+  React.ButtonHTMLAttributes<HTMLButtonElement> & { destructive?: boolean; asChild?: boolean }
+>(function AlertDialogAction(
+  { className, type = 'button', destructive = false, asChild = false, ...props },
+  ref,
+) {
   return (
     <AlertDialogPrimitive.Action
-      className={cn(
-        buttonBase,
-        'hover:-translate-y-px active:translate-y-0 hover:brightness-[0.95] active:brightness-90',
-        destructive
-          ? 'bg-(--color-danger) text-white'
-          : 'bg-(--color-surface-primary-container) text-(--color-on-primary-container)',
-        className,
-      )}
+      asChild={asChild}
+      className={
+        asChild
+          ? className
+          : cn(
+              buttonBase,
+              'hover:-translate-y-px active:translate-y-0 hover:brightness-[0.95] active:brightness-90',
+              destructive
+                ? 'bg-(--color-danger) text-white'
+                : 'bg-(--color-surface-primary-container) text-(--color-on-primary-container)',
+              className,
+            )
+      }
       ref={ref}
       type={type}
       {...props}

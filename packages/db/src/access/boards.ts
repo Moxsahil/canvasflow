@@ -50,3 +50,25 @@ export async function updateBoardDetails(
 
   return board ? toBoardSummary(board) : null;
 }
+
+/**
+ * Delete a board, softly.
+ *
+ * The row and its update log stay put — every read path already filters on
+ * `deletedAt`, so a tombstoned board disappears from the switcher, stops
+ * resolving through `resolveBoardAccess`, and drops anyone who has it open at
+ * the sync-server's next re-authorization sweep. Nothing is actually
+ * destroyed, which is what makes this recoverable by an operator.
+ *
+ * Returns null for a board that doesn't exist or was already deleted, so a
+ * double-submit answers "not found" rather than a second success.
+ */
+export async function softDeleteBoard(db: Database, boardId: string): Promise<BoardSummary | null> {
+  const [board] = await db
+    .update(boards)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(boards.id, boardId), isNull(boards.deletedAt)))
+    .returning();
+
+  return board ? toBoardSummary(board) : null;
+}

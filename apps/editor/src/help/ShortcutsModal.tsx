@@ -1,148 +1,87 @@
-import { useEffect, useRef } from 'react';
-import { CloseIcon } from '../assets/icons';
+import { Command } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { SHORTCUTS, type ShortcutEntry } from './shortcuts-registry';
+import { balanceColumns } from './columns';
 import { formatShortcutKeys } from './platform';
 
 interface ShortcutsModalProps {
   open: boolean;
   onClose: () => void;
+  /** Radix portals out of the tree; the theme tokens live on `.cf-editor`. */
+  portalContainer: HTMLElement | null;
 }
 
-export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
-  const modalRef = useRef<HTMLDivElement>(null);
+const TOTAL_SHORTCUTS = SHORTCUTS.reduce((count, category) => count + category.entries.length, 0);
 
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.stopPropagation();
-        event.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [open, onClose]);
+/** Fixed at three: the widths below are what a row needs to stay on one line. */
+const COLUMNS = balanceColumns(SHORTCUTS, 3);
 
-  useEffect(() => {
-    if (open) modalRef.current?.focus();
-  }, [open]);
-
-  if (!open) return null;
-
+/**
+ * Everything the keyboard can do, in three columns.
+ *
+ * Built as the share and sidebar dialogs are — a Card carried by a dialog
+ * stripped to nothing — on a wider card than those, because the columns are
+ * what make this readable as a reference rather than a list to scroll.
+ *
+ * The columns are evened out rather than one per category, so the dialog is as
+ * tall as its fullest third instead of as tall as its longest group. Whatever
+ * is left over scrolls inside the card, under a heading and above a button that
+ * both stay put — the height is capped, so there is always a way down to the
+ * rest and always a way out.
+ *
+ * The ordinary dialog rather than the alert one: this is something you opened
+ * to read, so clicking away from it dismisses it. Escape and the focus trap are
+ * Radix's; the editor's own shortcuts are held off while it is open.
+ */
+export function ShortcutsModal({ open, onClose, portalContainer }: ShortcutsModalProps) {
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="shortcuts-title"
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0, 0, 0, 0.45)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-      }}
-    >
-      <div
-        ref={modalRef}
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: 900,
-          maxWidth: '92vw',
-          maxHeight: '85vh',
-          background: 'var(--island-bg-color)',
-          borderRadius: 12,
-          boxShadow: '0 20px 40px rgb(0 0 0 / 0.25), 0 0 0 1px var(--default-border-color)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          outline: 'none',
-        }}
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent
+        container={portalContainer}
+        showClose={false}
+        aria-describedby={undefined}
+        className="max-h-[85vh] w-[min(100%-2rem,64rem)] overflow-y-hidden border-0 bg-transparent p-0 shadow-none"
       >
-        {/* Header */}
-        <div
-          style={{
-            padding: '20px 28px',
-            borderBottom: '1px solid var(--default-border-color)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <h2
-            id="shortcuts-title"
-            style={{
-              margin: 0,
-              fontSize: 18,
-              fontWeight: 600,
-              color: 'var(--text-primary-color)',
-            }}
-          >
-            Keyboard shortcuts
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              width: 32,
-              height: 32,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: 'none',
-              borderRadius: 6,
-              background: 'transparent',
-              cursor: 'pointer',
-              color: 'var(--keybinding-color)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--button-hover-bg)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-            }}
-          >
-            <CloseIcon width={16} height={16} />
-          </button>
-        </div>
+        <DialogTitle className="sr-only">Keyboard shortcuts</DialogTitle>
 
-        {/* Body — three columns */}
-        <div
-          style={{
-            padding: '24px 28px',
-            overflowY: 'auto',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 32,
-          }}
-        >
-          {SHORTCUTS.map((category) => (
-            <div key={category.title}>
-              <h3
-                style={{
-                  margin: '0 0 16px 0',
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: 'var(--text-primary-color)',
-                }}
-              >
-                {category.title}
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {category.entries.map((entry) => (
-                  <ShortcutRow key={entry.keys + entry.description} entry={entry} />
-                ))}
-              </div>
+        <Card className="flex w-full min-h-0 flex-col">
+          <CardHeader className="shrink-0 gap-1 space-y-0 pb-4">
+            <CardTitle className="truncate text-lg font-semibold">Keyboard shortcuts</CardTitle>
+            <p className="flex items-center gap-1 text-sm text-muted-foreground">
+              <Command size={14} />
+              {TOTAL_SHORTCUTS} shortcuts
+            </p>
+          </CardHeader>
+
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-x-8 gap-y-6 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+              {COLUMNS.map((column) => (
+                <div key={column[0]?.title ?? 'empty'} className="flex flex-col gap-5">
+                  {column.map((category) => (
+                    <div key={category.title} className="flex flex-col gap-2">
+                      <h3 className="text-sm font-medium text-foreground">{category.title}</h3>
+                      <div className="flex flex-col gap-1">
+                        {category.entries.map((entry) => (
+                          <ShortcutRow key={entry.keys + entry.description} entry={entry} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
-    </div>
+
+            <div className="flex shrink-0 justify-end border-t border-border pt-4">
+              <Button type="button" onClick={onClose}>
+                Done
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -151,54 +90,30 @@ function ShortcutRow({ entry }: { entry: ShortcutEntry }) {
   const altKeys = entry.altKeys ? formatShortcutKeys(entry.altKeys) : null;
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 12,
-        minHeight: 28,
-        fontSize: 13,
-        color: 'var(--text-primary-color)',
-      }}
-    >
-      <span style={{ flex: 1 }}>{entry.description}</span>
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+    <div className="flex items-center justify-between gap-3 text-sm text-foreground">
+      <span className="min-w-0 flex-1">{entry.description}</span>
+      <span className="inline-flex shrink-0 items-center gap-1">
         <KeyPills keys={primaryKeys} />
         {altKeys && (
           <>
-            <span style={{ fontSize: 11, color: 'var(--keybinding-color)', fontStyle: 'italic' }}>
-              or
-            </span>
+            <span className="text-[0.6875rem] italic text-muted-foreground">or</span>
             <KeyPills keys={altKeys} />
           </>
         )}
-      </div>
+      </span>
     </div>
   );
 }
 
 function KeyPills({ keys }: { keys: string[] }) {
   return (
-    <span style={{ display: 'inline-flex', gap: 3 }}>
-      {keys.map((k, i) => (
+    <span className="inline-flex gap-1">
+      {keys.map((key, index) => (
         <kbd
-          key={i}
-          style={{
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-            fontSize: 11,
-            padding: '2px 6px',
-            minWidth: 20,
-            textAlign: 'center',
-            background: 'var(--color-surface-low)',
-            borderRadius: 4,
-            border: '1px solid var(--default-border-color)',
-            color: 'var(--text-primary-color)',
-            whiteSpace: 'nowrap',
-            lineHeight: 1.4,
-          }}
+          key={index}
+          className="min-w-5 rounded-md border border-border bg-muted px-1.5 py-1 text-center font-mono text-[0.6875rem] leading-none whitespace-nowrap text-foreground"
         >
-          {k}
+          {key}
         </kbd>
       ))}
     </span>

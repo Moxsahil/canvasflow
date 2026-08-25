@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { env } from '@/lib/env';
 import {
   createBoard as requestCreateBoard,
   createWorkspace as requestCreateWorkspace,
+  deleteBoard as requestDeleteBoard,
+  deleteWorkspace as requestDeleteWorkspace,
   listWorkspaceBoards,
   listWorkspaces,
+  renameWorkspace as requestRenameWorkspace,
   updateBoard as requestUpdateBoard,
   WorkspaceApiError,
   type BoardColor,
@@ -34,6 +38,15 @@ export interface RenameBoardTarget {
   title: string | null;
   color: BoardColor | null;
 }
+
+/**
+ * What the manage dialog is open on.
+ *
+ * Two panes rather than two dialogs: the workspace list and one workspace's
+ * board list are the same kind of surface, reached from the two panels of the
+ * switcher, and a person tidying up moves between them.
+ */
+export type ManageTarget = { kind: 'workspaces' } | { kind: 'boards'; workspaceId: string };
 
 export interface BoardSwitcherState {
   boardId: string;
@@ -80,6 +93,21 @@ export interface BoardSwitcherState {
   /** Opens the rename dialog. With no argument, on the board that is open. */
   beginRename: (boardId?: string) => void;
   endRename: () => void;
+  /**
+   * Rename a board and delete it, from the manage dialog.
+   *
+   * Both resolve once the server has answered and reject when it refuses, so
+   * the dialog can keep what was typed and say why. Deleting the board that is
+   * open navigates away from it — see `openNextBoard`.
+   */
+  deleteBoard: (boardId: string) => Promise<void>;
+  renameWorkspace: (workspaceId: string, name: string) => Promise<void>;
+  /** Deletes the workspace and every board in it. Owner only; the server decides. */
+  deleteWorkspace: (workspaceId: string) => Promise<void>;
+  /** What the manage dialog is showing, or null when it is closed. */
+  manageTarget: ManageTarget | null;
+  beginManage: (target: ManageTarget) => void;
+  endManage: () => void;
   /** A create is in flight; the menu disables its buttons rather than queueing. */
   busy: boolean;
   error: string | null;
@@ -122,6 +150,9 @@ export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptio
   // board" row opens the same dialog and never goes through the switcher. The
   // id alone: the values behind it are looked up live, below.
   const [renameBoardId, setRenameBoardId] = useState<string | null>(null);
+  // Held here for the same reason the rename target is: the menu that opens it
+  // closes as it appears, so the dialog cannot live inside the menu.
+  const [manageTarget, setManageTarget] = useState<ManageTarget | null>(null);
 
   // Which workspaces have been asked for already. A ref rather than derived
   // from `boards`, so a hover that re-fires while a request is in flight
@@ -306,6 +337,146 @@ export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptio
     setError(null);
   }, []);
 
+  /**
+   * Open some other board, after the one on screen stopped existing.
+   *
+   * The editor has to be showing a board — there is no empty state to fall
+   * back to — so this walks the lists already loaded, preferring the workspace
+   * the deleted board was in, and only then gives up and hands back to the web
+   * app. `/open` picks the most recent board across the whole account and
+   * creates a fresh one (with a workspace to hold it) when there are none
+   * left, which is exactly the case where nothing here can help.
+   *
+   * A full navigation rather than a route change, because that round trip also
+   * mints an editor token for whichever board it lands on.
+   */
+  const openNextBoard = useCallback(
+    (skip: { boardId?: string; workspaceId?: string; preferWorkspaceId?: string | null }) => {
+      const ids = Object.keys(boards);
+      const ordered = skip.preferWorkspaceId
+        ? [skip.preferWorkspaceId, ...ids.filter((id) => id !== skip.preferWorkspaceId)]
+        : ids;
+
+      for (const id of ordered) {
+        if (id === skip.workspaceId) continue;
+        const entry = boards[id];
+        if (entry?.status !== 'ready') continue;
+        const next = entry.boards.find((board) => board.id !== skip.boardId);
+        if (next) {
+          navigate(`/boards/${next.id}`);
+          return;
+        }
+      }
+
+      window.location.href = `${env.VITE_WEB_URL}/open`;
+    },
+    [boards, navigate],
+  );
+
+  const deleteBoard = useCallback(
+    async (id: string) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const removed = await requestDeleteBoard(id);
+
+        setBoards((prev) => {
+          const entry = prev[removed.workspaceId];
+          if (entry?.status !== 'ready') return prev;
+          return {
+            ...prev,
+            [removed.workspaceId]: {
+              status: 'ready',
+              boards: entry.boards.filter((board) => board.id !== removed.id),
+            },
+          };
+        });
+        // The count sits next to the workspace's name in the switcher, so it
+        // has to move with the list rather than wait for the next page load.
+        setWorkspaces((prev) =>
+          prev
+            ? prev.map((workspace) =>
+                workspace.id === removed.workspaceId
+                  ? { ...workspace, boardCount: Math.max(0, workspace.boardCount - 1) }
+                  : workspace,
+              )
+            : prev,
+        );
+
+        if (removed.id === boardId) {
+          openNextBoard({ boardId: removed.id, preferWorkspaceId: removed.workspaceId });
+        }
+      } catch (err: unknown) {
+        const message = messageOf(err);
+        setError(message);
+        // Rethrown so the dialog reports it instead of closing on a failure.
+        throw new Error(message, { cause: err });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [boardId, openNextBoard],
+  );
+
+  const renameWorkspace = useCallback(async (id: string, name: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await requestRenameWorkspace(id, name);
+      setWorkspaces((prev) =>
+        prev ? prev.map((workspace) => (workspace.id === updated.id ? updated : workspace)) : prev,
+      );
+    } catch (err: unknown) {
+      const message = messageOf(err);
+      setError(message);
+      throw new Error(message, { cause: err });
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const deleteWorkspace = useCallback(
+    async (id: string) => {
+      setBusy(true);
+      setError(null);
+      try {
+        await requestDeleteWorkspace(id);
+
+        setWorkspaces((prev) => prev?.filter((workspace) => workspace.id !== id) ?? prev);
+        setBoards((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        // Dropped from the requested set too, so a workspace re-created with
+        // the same id — an operator undoing this — would be fetched again
+        // rather than served from a list that is no longer there.
+        requestedRef.current.delete(id);
+        setExpandedWorkspaceId((current) => (current === id ? null : current));
+
+        // The open board was in it, and went with it.
+        if (workspaceId === id) openNextBoard({ workspaceId: id });
+      } catch (err: unknown) {
+        const message = messageOf(err);
+        setError(message);
+        throw new Error(message, { cause: err });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [workspaceId, openNextBoard],
+  );
+
+  const beginManage = useCallback((target: ManageTarget) => {
+    setError(null);
+    setManageTarget(target);
+  }, []);
+
+  const endManage = useCallback(() => {
+    setManageTarget(null);
+    setError(null);
+  }, []);
+
   const dismissError = useCallback(() => setError(null), []);
 
   return useMemo<BoardSwitcherState>(
@@ -327,6 +498,12 @@ export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptio
       canRename: current.known || !current.settled,
       beginRename,
       endRename,
+      deleteBoard,
+      renameWorkspace,
+      deleteWorkspace,
+      manageTarget,
+      beginManage,
+      endManage,
       busy,
       error,
       dismissError,
@@ -347,6 +524,12 @@ export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptio
       renameTarget,
       beginRename,
       endRename,
+      deleteBoard,
+      renameWorkspace,
+      deleteWorkspace,
+      manageTarget,
+      beginManage,
+      endManage,
       busy,
       error,
       dismissError,

@@ -21,9 +21,9 @@ interface MenuSectionProps {
  * A named row that expands to its own items — the sidebar's one grouping
  * device, used for every group of actions and for the appearance controls.
  *
- * The Collapsible sits inside the item rather than replacing it: `asChild` on a
- * component that doesn't forward a ref would drop it, and a div nests in an
- * `<li>` perfectly well.
+ * The Collapsible sits inside the item rather than replacing it — a div nests in
+ * an `<li>` perfectly well, and keeping the two separate leaves the `<li>` free
+ * to carry the menu-item styling hooks.
  *
  * Sub-items are hidden while the sidebar is collapsed, so a click there expands
  * the sidebar first — otherwise the icon would toggle something invisible.

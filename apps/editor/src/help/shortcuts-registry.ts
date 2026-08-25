@@ -29,13 +29,16 @@ export const SHORTCUTS: ShortcutCategory[] = [
     ],
   },
   {
-    title: 'Editor',
+    title: 'File',
     entries: [
       { keys: 'mod+o', description: 'Open a board file' },
       { keys: 'mod+s', description: 'Save the board to a file' },
       { keys: 'mod+shift+e', description: 'Export as an image' },
-      { keys: 'mod+f', description: 'Find on canvas' },
-      { keys: 'enter', altKeys: 'shift+enter', description: 'Next / previous match' },
+    ],
+  },
+  {
+    title: 'Edit',
+    entries: [
       { keys: 'mod+z', description: 'Undo' },
       { keys: 'mod+shift+z', altKeys: 'ctrl+y', description: 'Redo' },
       { keys: 'mod+c', description: 'Copy selection' },
@@ -45,12 +48,24 @@ export const SHORTCUTS: ShortcutCategory[] = [
       { keys: 'delete', altKeys: 'backspace', description: 'Delete selection' },
       { keys: 'mod+a', description: 'Select all' },
       { keys: 'escape', description: 'Deselect / cancel' },
+    ],
+  },
+  {
+    title: 'Arrange',
+    entries: [
       { keys: 'arrow-left', description: 'Nudge selection 1px' },
       { keys: 'shift+arrow-left', description: 'Nudge selection 10px' },
       { keys: ']', description: 'Bring forward' },
       { keys: '[', description: 'Send backward' },
       { keys: 'mod+]', description: 'Bring to front' },
       { keys: 'mod+[', description: 'Send to back' },
+    ],
+  },
+  {
+    title: 'Search',
+    entries: [
+      { keys: 'mod+f', description: 'Find on canvas' },
+      { keys: 'enter', altKeys: 'shift+enter', description: 'Next / previous match' },
     ],
   },
   {
