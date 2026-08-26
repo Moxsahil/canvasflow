@@ -1,6 +1,7 @@
 import type { RoughCanvas } from 'roughjs/bin/canvas';
 import type { Shape } from '../shapes/shape.js';
 import { assertNever } from '../shapes/shape.js';
+import { drawImageShape, type ImageSource } from './draw-image.js';
 import {
   generateRectangleDrawable,
   generateEllipseDrawable,
@@ -18,6 +19,24 @@ import {
 export const ERASE_PENDING_OPACITY = 20;
 
 /**
+ * Everything a shape might need beyond its own fields.
+ *
+ * Only image shapes read any of it, which is why every field is optional: a
+ * board with no images renders exactly as it did before, and the callers that
+ * never had images to paint do not have to learn about them.
+ */
+export interface SceneShapeContext {
+  /** Decoded bitmaps. Absent means every image paints as a placeholder. */
+  readonly images?: ImageSource;
+  /**
+   * Whether the finished canvas will have the dark-mode filter applied over it.
+   * Images pre-apply its inverse so their own colours survive it; nothing else
+   * cares, because being inverted is what makes the rest of the board dark.
+   */
+  readonly darkMode?: boolean;
+}
+
+/**
  * Paint one shape. Shared by the static and new-element renderers so a shape
  * in progress looks exactly like the same shape once committed.
  *
@@ -31,6 +50,7 @@ export function drawSceneShape(
   rc: RoughCanvas,
   shape: Shape,
   pendingErasure = false,
+  context: SceneShapeContext = {},
 ): void {
   const previousAlpha = ctx.globalAlpha;
   ctx.globalAlpha =
@@ -66,6 +86,9 @@ export function drawSceneShape(
     }
     case 'text':
       drawText(ctx, shape);
+      break;
+    case 'image':
+      drawImageShape(ctx, shape, context.images, context.darkMode ?? false);
       break;
     default:
       assertNever(shape);

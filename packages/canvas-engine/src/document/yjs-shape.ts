@@ -79,6 +79,18 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
       map.set('fontFamily', shape.fontFamily);
       map.set('textAlign', shape.textAlign);
       break;
+    // Only the content hash goes in — never the bytes. A shared board is sized
+    // by how many shapes it holds, and putting pixels here would make it sized
+    // by how many megapixels it holds, which the snapshot limit will not carry.
+    case 'image':
+      map.set('width', shape.width);
+      map.set('height', shape.height);
+      map.set('fileId', shape.fileId);
+      map.set('mimeType', shape.mimeType);
+      map.set('status', shape.status);
+      map.set('naturalWidth', shape.naturalWidth);
+      map.set('naturalHeight', shape.naturalHeight);
+      break;
   }
 
   return map;
@@ -98,6 +110,17 @@ function readTextValue(value: unknown): string {
   if (value === null || value === undefined) return '';
   // Y.Text and friends stringify to their content.
   return String(value);
+}
+
+/**
+ * Coerce a stored image status to one the renderer knows.
+ *
+ * An unknown value means the writer had a vocabulary this client doesn't, and
+ * `pending` is the safe reading: it shows the placeholder and leaves the bytes
+ * to be fetched, rather than declaring an image broken on a guess.
+ */
+function readImageStatus(value: unknown): 'pending' | 'saved' | 'error' {
+  return value === 'saved' || value === 'error' || value === 'pending' ? value : 'pending';
 }
 
 /**
@@ -194,6 +217,30 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
         fontFamily: (map.get('fontFamily') as string) ?? 'system-ui',
         textAlign: (map.get('textAlign') as 'left' | 'center' | 'right') ?? 'left',
       } as Shape);
+    case 'image': {
+      const fileId = map.get('fileId');
+      // Without a file id there is nothing to fetch and nothing to draw — only
+      // a grey box that can never resolve. Dropping it here keeps a truncated
+      // write from becoming a permanent artifact on someone's board.
+      if (typeof fileId !== 'string' || fileId === '') return null;
+
+      const width = (map.get('width') as number) ?? 0;
+      const height = (map.get('height') as number) ?? 0;
+
+      return withZ({
+        ...base,
+        kind: 'image',
+        width,
+        height,
+        fileId,
+        mimeType: (map.get('mimeType') as string) ?? 'image/png',
+        status: readImageStatus(map.get('status')),
+        // Falling back to the placed size keeps the aspect ratio self-consistent
+        // for anything written before these were recorded.
+        naturalWidth: (map.get('naturalWidth') as number) ?? width,
+        naturalHeight: (map.get('naturalHeight') as number) ?? height,
+      } as Shape);
+    }
     default:
       return null;
   }

@@ -1,9 +1,11 @@
 import {
   applyDarkFilter,
+  DARK_EXPORT_FILTER,
   measureExportSize,
   renderSceneToCanvas,
   renderSceneToSvgString,
   SVG_DOCUMENT_PREAMBLE,
+  type ImageSource,
   type Shape,
 } from '@canvasflow/canvas-engine';
 
@@ -53,6 +55,7 @@ export interface RenderedExport {
 export function renderExportCanvas(
   shapes: readonly Shape[],
   settings: ImageExportSettings,
+  images?: ImageSource,
 ): RenderedExport {
   const { width, height } = measureExportSize(shapes, { scale: settings.scale });
   if (width * height > MAX_EXPORT_PIXELS) throw new ExportTooLargeError();
@@ -64,6 +67,11 @@ export function renderExportCanvas(
     scale: settings.scale,
     // Held back in dark mode so the filter below lands on the drawing alone.
     backgroundColor: settings.dark ? null : background,
+    images,
+    // The dark filter is applied to the finished bitmap below, so photographs
+    // have to be painted pre-compensated for it here — exactly as they are on
+    // screen, where the same filter sits over the live canvas.
+    darkMode: settings.dark,
   });
 
   if (!settings.dark) return { canvas, darkApplied: false };
@@ -105,13 +113,18 @@ export function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
  * PNG and the screen: the background rect is a sibling of that group and stays
  * the colour chosen for this theme instead of being inverted into another one.
  */
-export function exportSvgString(shapes: readonly Shape[], settings: ImageExportSettings): string {
+export function exportSvgString(
+  shapes: readonly Shape[],
+  settings: ImageExportSettings,
+  imageDataUrls?: ReadonlyMap<string, string>,
+): string {
   const svg = renderSceneToSvgString(shapes, {
     scale: settings.scale,
     backgroundColor: backgroundFor(settings),
+    imageDataUrls,
   });
   const themed = settings.dark
-    ? svg.replace('<g transform=', '<g style="filter: invert(93%) hue-rotate(180deg)" transform=')
+    ? svg.replace('<g transform=', `<g style="filter: ${DARK_EXPORT_FILTER}" transform=`)
     : svg;
   return SVG_DOCUMENT_PREAMBLE + themed;
 }

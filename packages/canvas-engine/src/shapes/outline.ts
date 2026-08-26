@@ -50,7 +50,8 @@ function absolutePoints(shape: {
 export function shapeOutlineSegments(shape: Shape): Segment[] {
   switch (shape.kind) {
     case 'rectangle':
-    case 'text': {
+    case 'text':
+    case 'image': {
       const b = shapeBounds(shape);
       return polylineSegments(rectCorners(b.x, b.y, b.width, b.height), true);
     }
@@ -92,6 +93,11 @@ export function shapeHasSolidInterior(shape: Shape): boolean {
   switch (shape.kind) {
     case 'text':
       return true;
+    // Transparent pixels are common enough in a PNG, but treating an image as
+    // hollow would mean the eraser passed straight through the middle of a
+    // photo. Its box is what the user sees, so its box is what they can hit.
+    case 'image':
+      return true;
     case 'arrow':
       return false;
     case 'rectangle':
@@ -106,7 +112,7 @@ export function shapeHasSolidInterior(shape: Shape): boolean {
 
 /** Whether (x, y) falls inside the shape's outline. */
 export function shapeContainsPoint(shape: Shape, x: number, y: number): boolean {
-  if (shape.kind === 'rectangle' || shape.kind === 'text') {
+  if (shape.kind === 'rectangle' || shape.kind === 'text' || shape.kind === 'image') {
     const b = shapeBounds(shape);
     return x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height;
   }

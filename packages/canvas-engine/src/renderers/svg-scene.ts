@@ -1,7 +1,7 @@
 import type { Drawable } from 'roughjs/bin/core';
 import type { RoughGenerator } from 'roughjs/bin/generator';
 import { computeBoundingRect } from '../document/camera.js';
-import { assertNever, type Shape, type TextShape } from '../shapes/shape.js';
+import { assertNever, type ImageShape, type Shape, type TextShape } from '../shapes/shape.js';
 import {
   arrowheadMarks,
   createRoughGenerator,
@@ -51,7 +51,9 @@ export function renderSceneToSvgString(
   const viewHeight = rect.height + padding * 2;
   const generator = createRoughGenerator();
 
-  const body = shapes.map((shape) => shapeToSvg(generator, shape)).join('\n');
+  const body = shapes
+    .map((shape) => shapeToSvg(generator, shape, options.imageDataUrls))
+    .join('\n');
 
   const background = backgroundColor
     ? `<rect x="0" y="0" width="${num(viewWidth)}" height="${num(viewHeight)}" fill="${escapeXml(
@@ -131,7 +133,34 @@ function textToSvg(shape: TextShape): string {
     .join('');
 }
 
-function shapeToSvg(generator: RoughGenerator, shape: Shape): string {
+/**
+ * An image as an `<image>` element carrying its own bytes.
+ *
+ * The payload has to be inlined: an SVG that points at our API would render as
+ * a broken box for anyone who opens the file without a session, which is most
+ * of the point of exporting one. A file whose bytes the caller could not
+ * resolve becomes an empty outline rather than nothing at all, so the export
+ * still shows where the image sat.
+ */
+function imageToSvg(shape: ImageShape, dataUrl: string | undefined): string {
+  const box =
+    `x="${num(shape.x)}" y="${num(shape.y)}" ` +
+    `width="${num(shape.width)}" height="${num(shape.height)}"`;
+
+  if (!dataUrl) {
+    return `<rect ${box} fill="none" stroke="#c6c6cf" stroke-width="1"/>`;
+  }
+
+  // preserveAspectRatio="none" so the export matches the canvas, which stretches
+  // the bitmap to whatever box the user dragged it to.
+  return `<image ${box} preserveAspectRatio="none" href="${escapeXml(dataUrl)}"/>`;
+}
+
+function shapeToSvg(
+  generator: RoughGenerator,
+  shape: Shape,
+  imageDataUrls: ReadonlyMap<string, string> | undefined,
+): string {
   const source = { generator };
   let content = '';
 
@@ -191,6 +220,9 @@ function shapeToSvg(generator: RoughGenerator, shape: Shape): string {
     }
     case 'text':
       content = textToSvg(shape);
+      break;
+    case 'image':
+      content = imageToSvg(shape, imageDataUrls?.get(shape.fileId));
       break;
     default:
       assertNever(shape);

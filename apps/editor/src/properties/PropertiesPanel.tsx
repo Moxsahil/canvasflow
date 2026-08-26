@@ -153,8 +153,9 @@ export function PropertiesPanel({
   const showBackground = every((k) => FILLABLE_KINDS.has(k));
   // A hatch pattern is only visible once there's something to hatch.
   const showFill = showBackground && style.fillColor !== null;
-  // Text is sized by fontSize and drawn without Rough, so these don't apply.
-  const showStroke = !isTextOnly;
+  // Text is sized by fontSize and drawn without Rough; an image paints its own
+  // pixels and is never outlined. Neither has a stroke to configure.
+  const showStroke = !isTextOnly && !every((k) => k === 'image');
   const showEdges = every((k) => EDGED_KINDS.has(k));
   const showPressure = every((k) => k === 'freehand');
   const showArrow = every((k) => k === 'arrow');

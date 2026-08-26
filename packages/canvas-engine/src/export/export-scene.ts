@@ -1,15 +1,12 @@
 import type { Shape } from '../shapes/shape.js';
 import { computeBoundingRect } from '../document/camera.js';
 import { renderStaticScene } from '../renderers/static.js';
+import { DARK_EXPORT_FILTER } from '../theme-filter.js';
+import type { ImageSource } from '../renderers/draw-image.js';
 
 export const DEFAULT_EXPORT_PADDING = 10;
 
-/**
- * The colour transform dark mode applies. Identical to the CSS `--theme-filter`
- * the editor paints the live canvas with, so a dark export matches the dark
- * board exactly rather than approximately.
- */
-export const DARK_EXPORT_FILTER = 'invert(93%) hue-rotate(180deg)';
+export { DARK_EXPORT_FILTER };
 
 export interface ExportSceneOptions {
   /** World-unit margin around the content. */
@@ -18,6 +15,23 @@ export interface ExportSceneOptions {
   readonly scale?: number;
   /** Painted behind the shapes. Omit for a transparent image. */
   readonly backgroundColor?: string | null;
+  /**
+   * Decoded bitmaps for any image shapes, keyed by file id. A canvas export
+   * paints from these; without them images come out as empty outlines.
+   */
+  readonly images?: ImageSource;
+  /**
+   * Image bytes as data URIs, keyed by file id, for the SVG path only.
+   *
+   * SVG needs the payload rather than the decoded bitmap, because the export
+   * has to stay readable on a machine that has never authenticated with us.
+   * Resolving them is asynchronous, so it happens before the renderer is
+   * called rather than inside it — the string builder stays synchronous and
+   * free of any dependency on the DOM.
+   */
+  readonly imageDataUrls?: ReadonlyMap<string, string>;
+  /** Whether the export will have the dark-mode filter applied over it. */
+  readonly darkMode?: boolean;
 }
 
 export interface ExportSceneSize {
@@ -58,7 +72,13 @@ export function renderSceneToCanvas(
   shapes: readonly Shape[],
   options: ExportSceneOptions = {},
 ): ExportSceneSize {
-  const { padding = DEFAULT_EXPORT_PADDING, scale = 1, backgroundColor } = options;
+  const {
+    padding = DEFAULT_EXPORT_PADDING,
+    scale = 1,
+    backgroundColor,
+    images,
+    darkMode,
+  } = options;
 
   const rect = computeBoundingRect(shapes);
   if (!rect) throw new EmptySceneError();
@@ -77,6 +97,8 @@ export function renderSceneToCanvas(
     // Painted by the renderer, which clears the canvas first — filling here
     // would just be erased. Omitting it is what makes a transparent PNG.
     backgroundColor,
+    images,
+    darkMode,
     // Placing the padded top-left of the content at the canvas origin.
     camera: { x: rect.x - padding, y: rect.y - padding, zoom: scale },
   });

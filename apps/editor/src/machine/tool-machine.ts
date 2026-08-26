@@ -85,12 +85,19 @@ function resizeShape(original: Shape, handle: HandleIndex, dx: number, dy: numbe
     };
   }
 
-  // For rect/ellipse/diamond
+  // For rect/ellipse/diamond/image
   const shape = original as typeof original & { width: number; height: number };
   let x = shape.x;
   let y = shape.y;
   let width = shape.width;
   let height = shape.height;
+
+  // Corners on an image keep its proportions. Dragging a corner reads as
+  // "make this bigger", not "distort this", and a stretched photograph is
+  // almost never what was meant. The edge handles stay free, so deliberately
+  // squashing one is still one drag away.
+  const lockAspect =
+    original.kind === 'image' && (handle === 0 || handle === 2 || handle === 4 || handle === 6);
 
   // Horizontal axis
   if (handle === 0 || handle === 6 || handle === 7) {
@@ -110,6 +117,24 @@ function resizeShape(original: Shape, handle: HandleIndex, dx: number, dy: numbe
   } else if (handle === 4 || handle === 5 || handle === 6) {
     // bottom side handles
     height = shape.height + dy;
+  }
+
+  if (lockAspect && original.kind === 'image') {
+    // Driven by the source dimensions rather than the current box, so repeated
+    // corner drags converge on the true ratio instead of compounding whatever
+    // distortion an earlier edge drag left behind.
+    const ratio = original.naturalHeight / original.naturalWidth || 1;
+    // The larger of the two changes wins, so the image tracks the pointer on
+    // whichever axis the user is actually pulling.
+    if (Math.abs(width - shape.width) >= Math.abs(height - shape.height)) {
+      const next = width * ratio;
+      if (handle === 0 || handle === 2) y += height - next;
+      height = next;
+    } else {
+      const next = height / ratio;
+      if (handle === 0 || handle === 6) x += width - next;
+      width = next;
+    }
   }
 
   // Prevent inversion

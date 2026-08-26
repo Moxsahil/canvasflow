@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import type { Rect, Shape } from '@canvasflow/canvas-engine';
+import type { ImageSource, Rect, Shape } from '@canvasflow/canvas-engine';
 import type { Camera, Point } from '../machine/tool-machine.types';
 import type { Tool } from '../tools/tool';
 import { useCanvasResize } from './hooks/useCanvasResize';
@@ -10,6 +10,7 @@ import { useInteractiveRender } from './hooks/useInteractiveRender';
 import { usePointerEvents } from '../pointer/usePointerEvents';
 import { useWheelEvents } from '../pointer/useWheelEvents';
 import { screenToWorld, eventToCanvasScreen } from '../pointer/coords';
+import { imageFilesFromDataTransfer } from '../images';
 
 interface CanvasStackProps {
   shapes: readonly Shape[];
@@ -24,6 +25,13 @@ interface CanvasStackProps {
   backgroundColor: string;
   /** Find-on-canvas highlights, in world space. */
   searchHighlights?: { rects: readonly Rect[]; focusedRects: readonly Rect[] };
+  /** Decoded image bitmaps, and a counter that changes when one lands. */
+  images?: ImageSource;
+  imageRevision?: number;
+  /** Drives the compensating filter that keeps photographs out of the inversion. */
+  darkMode?: boolean;
+  /** Image files dropped onto the canvas, with the world point they landed on. */
+  onDropFiles?: (files: File[], at: Point) => void;
   /** Remote collaborators. Absent until a connection exists. */
   /** Pointer position in world space, for publishing to collaborators. */
   onPointerHover?: (point: Point | null) => void;
@@ -47,6 +55,10 @@ export function CanvasStack({
   isSpacePressed,
   backgroundColor,
   searchHighlights,
+  images,
+  imageRevision,
+  darkMode,
+  onDropFiles,
   onPointerHover,
   onPointerDown,
   onPointerMove,
@@ -71,6 +83,9 @@ export function CanvasStack({
     camera,
     devicePixelRatio: dpr,
     pendingErasureIds,
+    images,
+    imageRevision,
+    darkMode,
   });
   useNewElementRender(newElementCanvasRef, {
     width,
@@ -128,6 +143,41 @@ export function CanvasStack({
     eventToCanvasScreen: eventToCanvasScreenFn,
   });
 
+  /**
+   * Dropped images land where they were dropped, not at the viewport centre.
+   *
+   * `dragover` has to be cancelled as well as `drop`: without it the browser
+   * treats the canvas as a non-target and navigates away to the dropped file,
+   * losing the board.
+   */
+  const handleDragOver = useCallback(
+    (event: React.DragEvent) => {
+      if (!onDropFiles) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+    },
+    [onDropFiles],
+  );
+
+  const handleDrop = useCallback(
+    (event: React.DragEvent) => {
+      if (!onDropFiles) return;
+      const files = imageFilesFromDataTransfer(event.dataTransfer);
+      if (files.length === 0) return;
+      event.preventDefault();
+
+      // screenToWorld subtracts the canvas origin itself, so it wants the raw
+      // client coordinates rather than ones already made canvas-relative.
+      const canvas = interactiveCanvasRef.current;
+      const at = canvas
+        ? screenToWorld(event.clientX, event.clientY, canvas, camera)
+        : { x: camera.x, y: camera.y };
+
+      onDropFiles(files, at);
+    },
+    [onDropFiles, camera],
+  );
+
   const canvasStyle: React.CSSProperties = {
     position: 'absolute',
     inset: 0,
@@ -151,7 +201,12 @@ export function CanvasStack({
     // colour would be inverted into a different one; out here each theme's
     // colour lands exactly as written, while the canvases within still invert
     // so existing drawings stay readable.
-    <div ref={containerRef} style={{ position: 'absolute', inset: 0, background: backgroundColor }}>
+    <div
+      ref={containerRef}
+      style={{ position: 'absolute', inset: 0, background: backgroundColor }}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       <div
         className="canvas-stack"
         data-tool={cursorClass}

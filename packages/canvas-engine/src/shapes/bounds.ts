@@ -3,6 +3,7 @@ import { arrowBounds } from './arrow.js';
 import { diamondBounds } from './diamond.js';
 import { ellipseBounds } from './ellipse.js';
 import { freehandBounds } from './freehand.js';
+import { imageBounds } from './image.js';
 import { lineBounds } from './line.js';
 import { rectangleBounds } from './rectangle.js';
 import { assertNever, type Shape } from './shape.js';
@@ -24,6 +25,8 @@ export function shapeBounds(shape: Shape) {
       return freehandBounds(shape);
     case 'text':
       return textBoundsEstimate(shape);
+    case 'image':
+      return imageBounds(shape);
 
     default:
       return assertNever(shape);

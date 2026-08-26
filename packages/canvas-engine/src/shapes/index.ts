@@ -7,5 +7,6 @@ export * from './line.js';
 export * from './arrow.js';
 export * from './freehand.js';
 export * from './text.js';
+export * from './image.js';
 export * from './bounds.js';
 export * from './outline.js';
