@@ -13,7 +13,11 @@ import {
   type Camera,
   type Shape,
 } from '@canvasflow/canvas-engine';
-import { readShapesFromClipboard, writeShapesToClipboard } from './clipboard';
+import {
+  readImagesFromClipboard,
+  readShapesFromClipboard,
+  writeShapesToClipboard,
+} from './clipboard';
 import { CanvasStack } from './canvas/CanvasStack';
 import { pointerCursorValue } from './canvas/pointer-cursor';
 import { resolveCanvasBackground } from './properties/palette';
@@ -30,12 +34,13 @@ import { toolMachine, resizeShape } from './machine/tool-machine';
 import { useKeyboardShortcuts } from './tools/useKeyboardShortcuts';
 import { hitTestHandles } from './selection/handles';
 import { useBoardDocument, useYjsShapes } from './document/useYjsDocument';
+import { useBoardImages, pickImageFiles } from './images';
 import { useUndoState } from './document/useUndoState';
 import { useBoardSync } from './sync/useBoardSync';
 import { useAuthToken } from './auth/useAuthToken';
 import { env } from './lib/env';
 import { PropertiesPanel, itemStyleFromShape } from './properties';
-import { TOOL_TO_SHAPE_KIND, type Tool } from './tools/tool';
+import { TOOL_TO_SHAPE_KIND, isPickerTool, type Tool } from './tools/tool';
 import type { ItemStyle, Point } from './machine/tool-machine.types';
 import { ShortcutsModal } from './help';
 import { decodeJwtUser, decodeJwtWorkspaceId } from './auth/token';
@@ -336,6 +341,54 @@ export function Editor({ boardId }: EditorProps) {
     () => (editingTextShapeId ? shapes.filter((s) => s.id !== editingTextShapeId) : shapes),
     [shapes, editingTextShapeId],
   );
+
+  const showImageNotice = useCallback((body: string) => setNotice({ title: 'Image', body }), []);
+
+  const images = useBoardImages({
+    boardId,
+    doc,
+    shapes,
+    token: authToken,
+    canEdit: !readOnly,
+    onError: showImageNotice,
+  });
+
+  /** World-space centre of the viewport — where a picked image lands. */
+  const viewportCentre = useCallback(
+    () => ({
+      x: camera.x + width / 2 / camera.zoom,
+      y: camera.y + height / 2 / camera.zoom,
+    }),
+    [camera, width, height],
+  );
+
+  const handleInsertImages = useCallback(
+    (files: readonly File[], at?: Point) => {
+      void images.insertFiles(files, at ?? viewportCentre());
+    },
+    [images, viewportCentre],
+  );
+
+  /**
+   * Choosing the image tool is the whole gesture — the picker opens straight
+   * away and there is nothing to draw afterwards, so the toolbar hands back to
+   * select rather than leaving a tool armed that does nothing on the canvas.
+   */
+  const handlePickImage = useCallback(() => {
+    // The toolbar already hides this for viewers, but the keyboard shortcut
+    // doesn't — and opening a picker only to discard what it returns is worse
+    // than the button doing nothing.
+    if (readOnly) return;
+    void (async () => {
+      const centre = viewportCentre();
+      try {
+        const files = await pickImageFiles();
+        if (files.length > 0) await images.insertFiles(files, centre);
+      } catch {
+        showImageNotice("That file couldn't be opened.");
+      }
+    })();
+  }, [images, viewportCentre, showImageNotice, readOnly]);
 
   const textEditorScreenPosition = textEditingAt
     ? {
@@ -680,9 +733,13 @@ export function Editor({ boardId }: EditorProps) {
           active.blur();
         }
       }
+      if (isPickerTool(tool)) {
+        handlePickImage();
+        return;
+      }
       actorRef.send({ type: 'SELECT_TOOL', tool });
     },
-    [actorRef],
+    [actorRef, handlePickImage],
   );
   const handleEscape = useCallback(() => actorRef.send({ type: 'ESCAPE' }), [actorRef]);
   const handleSpaceDown = useCallback(() => actorRef.send({ type: 'SPACE_DOWN' }), [actorRef]);
@@ -910,6 +967,16 @@ export function Editor({ boardId }: EditorProps) {
   }, [shapes, selectedIds, actorRef]);
 
   const handlePaste = useCallback(async () => {
+    // Images first: a screenshot on the clipboard carries no text for the shape
+    // reader to find, so checking text first would silently drop the paste.
+    if (!readOnly) {
+      const pastedImages = await readImagesFromClipboard();
+      if (pastedImages.length > 0) {
+        handleInsertImages(pastedImages);
+        return;
+      }
+    }
+
     const pastedShapes = await readShapesFromClipboard(genId);
     if (pastedShapes.length === 0) return;
 
@@ -934,7 +1001,7 @@ export function Editor({ boardId }: EditorProps) {
       type: 'SELECT_ALL',
       shapeIds: offsetShapes.map((s) => s.id),
     });
-  }, [doc, actorRef]);
+  }, [doc, actorRef, readOnly, handleInsertImages]);
 
   useKeyboardShortcuts({
     onSelectTool: handleToolChange,
@@ -1066,6 +1133,10 @@ export function Editor({ boardId }: EditorProps) {
               newElement={newElement}
               selectedIds={selectedIds}
               marquee={marquee}
+              images={images.cache}
+              imageRevision={images.revision}
+              darkMode={resolvedTheme === 'dark'}
+              onDropFiles={readOnly ? undefined : handleInsertImages}
               activeTool={activeTool}
               camera={camera}
               isSpacePressed={isSpacePressed}
@@ -1219,6 +1290,8 @@ export function Editor({ boardId }: EditorProps) {
               canvasBackground={canvasBackground}
               darkTheme={resolvedTheme === 'dark'}
               portalContainer={editorRoot}
+              images={images.cache}
+              resolveImageDataUrls={images.resolveDataUrls}
             />
 
             <Dialog open={notice !== null} title={notice?.title ?? ''} onClose={dismissNotice}>

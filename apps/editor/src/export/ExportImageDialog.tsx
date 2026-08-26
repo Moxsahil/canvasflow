@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
-import { measureExportSize, type Shape } from '@canvasflow/canvas-engine';
+import { measureExportSize, type ImageSource, type Shape } from '@canvasflow/canvas-engine';
 import { Copy, FileCode2, ImageDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { resolveCanvasBackground } from '../properties/palette';
@@ -41,6 +41,10 @@ interface ExportImageDialogProps {
   /** Seeds the dark toggle from the theme the editor is already showing. */
   darkTheme: boolean;
   portalContainer: HTMLElement | null;
+  /** Decoded bitmaps for the canvas paths. */
+  images?: ImageSource;
+  /** Original image bytes as data URIs, for the SVG path. */
+  resolveImageDataUrls?: (shapes: readonly Shape[]) => Promise<ReadonlyMap<string, string>>;
 }
 
 export function ExportImageDialog({
@@ -52,6 +56,8 @@ export function ExportImageDialog({
   canvasBackground,
   darkTheme,
   portalContainer,
+  images,
+  resolveImageDataUrls,
 }: ExportImageDialogProps) {
   const fieldId = useId();
   const hasSelection = selectedShapes.length > 0;
@@ -113,7 +119,7 @@ export function ExportImageDialog({
     }
     let cancelled = false;
     try {
-      const { canvas } = renderExportCanvas(exported, { ...settings, scale: 1 });
+      const { canvas } = renderExportCanvas(exported, { ...settings, scale: 1 }, images);
       const url = canvas.toDataURL('image/png');
       if (!cancelled) setPreview(url);
     } catch {
@@ -122,7 +128,7 @@ export function ExportImageDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, exported, settings]);
+  }, [open, exported, settings, images]);
 
   const run = useCallback(async (action: () => Promise<void>) => {
     setBusy(true);
@@ -139,7 +145,7 @@ export function ExportImageDialog({
   const exportPng = useCallback(
     () =>
       run(async () => {
-        const { canvas, darkApplied } = renderExportCanvas(exported, settings);
+        const { canvas, darkApplied } = renderExportCanvas(exported, settings, images);
         if (settings.dark && !darkApplied) {
           throw new Error("This browser can't render a dark export.");
         }
@@ -156,13 +162,16 @@ export function ExportImageDialog({
         });
         if (result.status === 'saved') onClose();
       }),
-    [exported, settings, name, canvasBackground, onClose, run],
+    [exported, settings, name, canvasBackground, onClose, run, images],
   );
 
   const exportSvg = useCallback(
     () =>
       run(async () => {
-        const rendered = exportSvgString(exported, settings);
+        // Bytes are fetched rather than taken from the decoded cache, so a
+        // vector stays a vector in the exported file.
+        const dataUrls = await resolveImageDataUrls?.(exported);
+        const rendered = exportSvgString(exported, settings, dataUrls);
         const svg = settings.embedScene
           ? embedSceneInSvg(rendered, serializeBoardFile(exported, canvasBackground))
           : rendered;
@@ -173,17 +182,17 @@ export function ExportImageDialog({
         });
         if (result.status === 'saved') onClose();
       }),
-    [exported, settings, name, canvasBackground, onClose, run],
+    [exported, settings, name, canvasBackground, onClose, run, resolveImageDataUrls],
   );
 
   const copyPng = useCallback(
     () =>
       run(async () => {
-        const { canvas } = renderExportCanvas(exported, settings);
+        const { canvas } = renderExportCanvas(exported, settings, images);
         await copyPngToClipboard(await canvasToPngBlob(canvas));
         onClose();
       }),
-    [exported, settings, onClose, run],
+    [exported, settings, onClose, run, images],
   );
 
   const empty = exported.length === 0;

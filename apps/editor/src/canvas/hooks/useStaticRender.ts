@@ -1,5 +1,10 @@
 import { useEffect, type RefObject } from 'react';
-import { renderStaticScene, setupCanvas, type Shape } from '@canvasflow/canvas-engine';
+import {
+  renderStaticScene,
+  setupCanvas,
+  type ImageSource,
+  type Shape,
+} from '@canvasflow/canvas-engine';
 import type { Camera } from '../../machine/tool-machine.types';
 
 interface UseStaticRenderOptions {
@@ -10,6 +15,15 @@ interface UseStaticRenderOptions {
   devicePixelRatio: number;
   /** Shapes the eraser has marked; drawn faded until the stroke commits. */
   pendingErasureIds?: ReadonlySet<string>;
+  /** Decoded image bitmaps. */
+  images?: ImageSource;
+  /**
+   * Bumped whenever a decode finishes. The cache is a stable object, so nothing
+   * in the dependency list would otherwise change when an image lands — this is
+   * what turns "bytes arrived" into a repaint.
+   */
+  imageRevision?: number;
+  darkMode?: boolean;
 }
 
 /**
@@ -23,7 +37,17 @@ export function useStaticRender(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   options: UseStaticRenderOptions,
 ): void {
-  const { width, height, shapes, camera, devicePixelRatio, pendingErasureIds } = options;
+  const {
+    width,
+    height,
+    shapes,
+    camera,
+    devicePixelRatio,
+    pendingErasureIds,
+    images,
+    imageRevision,
+    darkMode,
+  } = options;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -37,6 +61,19 @@ export function useStaticRender(
       shapes,
       camera,
       pendingErasureIds,
+      images,
+      darkMode,
     });
-  }, [canvasRef, width, height, shapes, camera, devicePixelRatio, pendingErasureIds]);
+  }, [
+    canvasRef,
+    width,
+    height,
+    shapes,
+    camera,
+    devicePixelRatio,
+    pendingErasureIds,
+    images,
+    imageRevision,
+    darkMode,
+  ]);
 }

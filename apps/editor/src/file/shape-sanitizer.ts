@@ -181,6 +181,14 @@ export function sanitizeShape(candidate: unknown, genId: () => string): Shape | 
       });
     }
 
+    case 'image':
+      // Dropped deliberately, not overlooked. An image shape carries only the
+      // id of bytes held on the board it came from, and a board file has no
+      // way to bring those bytes with it — restoring the shape would place a
+      // grey box that can never resolve. The caller counts it as skipped, so
+      // the loss is reported rather than discovered later.
+      return null;
+
     default:
       // Unknown kind — a shape type from a newer version, or not a shape.
       return null;

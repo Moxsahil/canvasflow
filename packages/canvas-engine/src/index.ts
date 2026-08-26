@@ -16,3 +16,5 @@ export * from './export/index.js';
 export * from './search/index.js';
 
 export * from './presence/index.js';
+export * from './images/index.js';
+export * from './theme-filter.js';

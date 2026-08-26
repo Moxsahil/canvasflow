@@ -1,9 +1,9 @@
 import type { Shape } from '../shapes/shape.js';
 import { clearCanvas } from '../utils/canvas.js';
 import { createRoughCanvas } from '../utils/rough.js';
-import { drawSceneShape } from './draw-shape.js';
+import { drawSceneShape, type SceneShapeContext } from './draw-shape.js';
 
-export interface StaticSceneOptions {
+export interface StaticSceneOptions extends SceneShapeContext {
   readonly width: number;
   readonly height: number;
   readonly shapes: readonly Shape[];
@@ -34,7 +34,8 @@ export function renderStaticScene(
   canvas: HTMLCanvasElement | OffscreenCanvas,
   opts: StaticSceneOptions,
 ): void {
-  const { width, height, shapes, camera, pendingErasureIds, backgroundColor } = opts;
+  const { width, height, shapes, camera, pendingErasureIds, backgroundColor, images, darkMode } =
+    opts;
 
   clearCanvas(ctx, width, height);
 
@@ -55,7 +56,10 @@ export function renderStaticScene(
   const rc = createRoughCanvas(canvas);
 
   for (const shape of shapes) {
-    drawSceneShape(ctx, rc, shape, pendingErasureIds?.has(shape.id) ?? false);
+    drawSceneShape(ctx, rc, shape, pendingErasureIds?.has(shape.id) ?? false, {
+      images,
+      darkMode,
+    });
   }
 
   ctx.restore();

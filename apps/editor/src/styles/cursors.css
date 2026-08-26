@@ -93,7 +93,10 @@
 .canvas-stack[data-tool='diamond'],
 .canvas-stack[data-tool='line'],
 .canvas-stack[data-tool='arrow'],
-.canvas-stack[data-tool='freehand'] {
+.canvas-stack[data-tool='freehand'],
+/* The image tool places at a point rather than dragging out a box, but the
+   crosshair still says "this click lands something here". */
+.canvas-stack[data-tool='image'] {
   cursor: var(--cursor-crosshair);
 }
 

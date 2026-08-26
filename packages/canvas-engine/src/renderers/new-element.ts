@@ -1,9 +1,9 @@
 import type { Shape } from '../shapes/shape.js';
 import { clearCanvas } from '../utils/canvas.js';
 import { createRoughCanvas } from '../utils/rough.js';
-import { drawSceneShape } from './draw-shape.js';
+import { drawSceneShape, type SceneShapeContext } from './draw-shape.js';
 
-export interface NewElementSceneOptions {
+export interface NewElementSceneOptions extends SceneShapeContext {
   readonly width: number;
   readonly height: number;
   readonly newElement: Shape | null;
@@ -19,7 +19,7 @@ export function renderNewElementScene(
   canvas: HTMLCanvasElement | OffscreenCanvas,
   opts: NewElementSceneOptions,
 ): void {
-  const { width, height, newElement, camera } = opts;
+  const { width, height, newElement, camera, images, darkMode } = opts;
 
   clearCanvas(ctx, width, height);
 
@@ -32,7 +32,7 @@ export function renderNewElementScene(
     ctx.scale(camera.zoom, camera.zoom);
   }
 
-  drawSceneShape(ctx, createRoughCanvas(canvas), newElement);
+  drawSceneShape(ctx, createRoughCanvas(canvas), newElement, false, { images, darkMode });
 
   ctx.restore();
 }

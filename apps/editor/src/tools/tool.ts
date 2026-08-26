@@ -9,6 +9,7 @@ import {
   ArrowIcon,
   FreehandIcon,
   TextIcon,
+  ImageIcon,
   EraserIcon,
 } from '../assets/icons';
 
@@ -23,6 +24,7 @@ export type Tool =
   | 'arrow'
   | 'freehand'
   | 'text'
+  | 'image'
   | 'eraser';
 
 export const TOOL_TO_SHAPE_KIND = {
@@ -34,6 +36,7 @@ export const TOOL_TO_SHAPE_KIND = {
   arrow: 'arrow',
   freehand: 'freehand',
   text: 'text',
+  image: 'image',
 } as const satisfies Record<Exclude<Tool, 'hand' | 'select' | 'eraser'>, string>;
 
 export interface ToolMeta {
@@ -61,5 +64,15 @@ export const TOOLS: readonly ToolMeta[] = [
   { id: 'line', label: 'Line', icon: LineIcon, shortcut: 'L', numericKey: '6' },
   { id: 'freehand', label: 'Freehand', icon: FreehandIcon, shortcut: 'P', numericKey: '7' },
   { id: 'text', label: 'Text', icon: TextIcon, shortcut: 'T', numericKey: '8' },
+  { id: 'image', label: 'Image', icon: ImageIcon, shortcut: 'I', numericKey: '9' },
   { id: 'eraser', label: 'Eraser', icon: EraserIcon, shortcut: 'E', numericKey: '0' },
 ];
+
+/**
+ * Tools that open a file picker the moment they are chosen, rather than waiting
+ * for a drag on the canvas. Selecting one is already the whole gesture, so the
+ * toolbar hands straight off and drops back to select afterwards.
+ */
+export function isPickerTool(tool: Tool): boolean {
+  return tool === 'image';
+}

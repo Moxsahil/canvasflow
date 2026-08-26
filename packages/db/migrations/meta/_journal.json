@@ -57,6 +57,13 @@
       "when": 1787636887278,
       "tag": "0007_stiff_korath",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787722390598,
+      "tag": "0008_lush_wild_pack",
+      "breakpoints": true
     }
   ]
 }

@@ -74,6 +74,41 @@ export interface TextShape extends BaseShape {
   readonly textAlign: 'left' | 'center' | 'right';
 }
 
+// --- Image shape ---
+
+/**
+ * Whether this image's bytes have reached storage every collaborator can read.
+ *
+ * Not a loading state — whether a peer has the bitmap decoded is a local
+ * question, answered by the image cache. This is the one bit of *durability*
+ * that has to cross the wire: a peer receiving a shape whose bytes are still
+ * uploading would otherwise fetch a 404 and mark the image permanently broken.
+ * The uploading client flips `pending` to `saved` once the upload lands, and
+ * that flip is what tells everyone else the bytes are worth asking for.
+ */
+export type ImageStatus = 'pending' | 'saved' | 'error';
+
+export interface ImageShape extends BaseShape {
+  readonly kind: 'image';
+  readonly width: number;
+  readonly height: number;
+  /**
+   * Content hash of the original file, and the only reference to the bytes the
+   * document carries. Keeping the pixels out of the shape is what stops one
+   * photo from pushing a whole board past the snapshot size limit.
+   */
+  readonly fileId: string;
+  readonly mimeType: string;
+  readonly status: ImageStatus;
+  /**
+   * Source pixel dimensions. Denormalized onto the shape so a peer can lay out
+   * the placeholder at the right aspect ratio before the bitmap has arrived —
+   * and so a resize can stay proportional even if the fetch never succeeds.
+   */
+  readonly naturalWidth: number;
+  readonly naturalHeight: number;
+}
+
 // --- The union ---
 
 export type Shape =
@@ -83,7 +118,8 @@ export type Shape =
   | LineShape
   | ArrowShape
   | FreehandShape
-  | TextShape;
+  | TextShape
+  | ImageShape;
 
 /** Type guards — use these in renderer code for exhaustiveness checks. */
 export function isRectangle(s: Shape): s is RectangleShape {
@@ -108,6 +144,10 @@ export function isFreehand(s: Shape): s is FreehandShape {
 
 export function isText(s: Shape): s is TextShape {
   return s.kind === 'text';
+}
+
+export function isImage(s: Shape): s is ImageShape {
+  return s.kind === 'image';
 }
 
 export function assertNever(value: never): never {
