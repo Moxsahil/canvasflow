@@ -67,6 +67,17 @@ export const TextIcon = createIcon(
   </>,
 );
 
+export const LaserIcon = createIcon(
+  <>
+    <path d="M4.5 19.5L13 11" />
+    <path d="M15.5 8.5l2.5-2.5" />
+    <path d="M14 4.5V2" />
+    <path d="M18.5 9h2.5" />
+    <path d="M17.8 4.7l1.7-1.7" />
+    <circle cx="14.2" cy="9.8" r="2.6" />
+  </>,
+);
+
 export const ImageIcon = createIcon(
   <>
     <rect x="3.5" y="5" width="17" height="14" rx="2" />

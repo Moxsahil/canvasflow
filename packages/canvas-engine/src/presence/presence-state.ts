@@ -41,6 +41,16 @@ export interface PresenceState {
    */
   readonly cursor: PresencePoint | null;
   readonly selection: readonly string[];
+  /**
+   * Whether this peer is mid-laser-stroke right now.
+   *
+   * One bit rather than the trail itself. Awareness re-broadcasts a client's
+   * whole record on every change, so shipping the points would resend a growing
+   * array every frame; peers instead rebuild the trail from the cursor samples
+   * already arriving on this record, and this flag says which of those samples
+   * to join up.
+   */
+  readonly lasering: boolean;
 
   readonly camera: PresenceCamera | null;
   /** Paired with `camera`: the follower needs both to reconstruct a viewport. */
@@ -129,6 +139,9 @@ export function parsePresenceState(raw: unknown): PresenceState | null {
     selection: Array.isArray(candidate.selection)
       ? candidate.selection.filter((id): id is string => typeof id === 'string')
       : [],
+    // Anything other than an explicit `true` means not lasering. A peer on an
+    // older build simply omits it, and reading that as "no" is correct.
+    lasering: candidate.lasering === true,
     camera: parseCamera(candidate.camera),
     screen: parseScreen(candidate.screen),
     following: typeof candidate.following === 'string' ? candidate.following : null,

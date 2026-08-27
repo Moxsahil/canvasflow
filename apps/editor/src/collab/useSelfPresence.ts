@@ -29,6 +29,14 @@ export interface SelfPresence {
   /** World-space pointer position, or null when it leaves the canvas. */
   readonly setCursor: (point: { x: number; y: number } | null) => void;
   readonly setSelection: (ids: readonly string[]) => void;
+  /**
+   * Whether we are mid-laser-stroke.
+   *
+   * Peers rebuild the trail from the cursor stream already on this record, so
+   * this only has to mark where a stroke starts and stops — two writes per
+   * gesture, not one per point.
+   */
+  readonly setLasering: (active: boolean) => void;
 }
 
 /**
@@ -51,6 +59,7 @@ export function useSelfPresence({
   // rebind the canvas listeners continuously.
   const cursorRef = useRef<{ x: number; y: number } | null>(null);
   const selectionRef = useRef<readonly string[]>([]);
+  const laseringRef = useRef(false);
   const frameRef = useRef<number | null>(null);
 
   const followedRef = useRef(false);
@@ -72,6 +81,7 @@ export function useSelfPresence({
       user: { id: user.id, name: user.name },
       cursor: cursorRef.current,
       selection: selectionRef.current,
+      lasering: false,
       camera: null,
       screen: null,
       following: null,
@@ -138,6 +148,22 @@ export function useSelfPresence({
     [channel],
   );
 
+  /**
+   * Published immediately rather than coalesced with the cursor.
+   *
+   * The flag brackets a stroke, so a frame's delay on the leading edge would
+   * drop the first point of every peer's copy, and on the trailing edge would
+   * join the end of one gesture to the start of the next.
+   */
+  const setLasering = useCallback(
+    (active: boolean) => {
+      if (laseringRef.current === active) return;
+      laseringRef.current = active;
+      channel?.patch({ lasering: active });
+    },
+    [channel],
+  );
+
   useEffect(
     () => () => {
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
@@ -145,5 +171,8 @@ export function useSelfPresence({
     [],
   );
 
-  return useMemo(() => ({ setCursor, setSelection }), [setCursor, setSelection]);
+  return useMemo(
+    () => ({ setCursor, setSelection, setLasering }),
+    [setCursor, setSelection, setLasering],
+  );
 }

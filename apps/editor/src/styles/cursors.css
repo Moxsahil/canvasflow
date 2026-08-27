@@ -100,6 +100,11 @@
   cursor: var(--cursor-crosshair);
 }
 
+/* Crosshair, not a pen: the laser marks a spot rather than laying down ink. */
+.canvas-stack[data-tool='laser'] {
+  cursor: var(--cursor-crosshair);
+}
+
 /* A ring at the pointer, echoing the eraser's reach. */
 .canvas-stack[data-tool='eraser'] {
   cursor: var(--cursor-eraser);
