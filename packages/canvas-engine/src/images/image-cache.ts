@@ -35,10 +35,23 @@ export interface ImageCacheOptions {
   onLoaded?: (fileId: string) => void;
 }
 
+/**
+ * How long to leave an id alone after it came back empty.
+ *
+ * A null answer means the bytes are not there *yet*, so retrying is right —
+ * but `ensure` is driven by the shape list, which changes on every pointer move
+ * of a drag. Without a floor, one image awaiting upload turns any drag into a
+ * request per frame. A few seconds is far below how long an upload takes to
+ * notice and far above how often the document changes.
+ */
+const RETRY_AFTER_MISS_MS = 3000;
+
 export class ImageCache implements ImageSource {
   private readonly decoded = new Map<string, HTMLImageElement>();
   private readonly inFlight = new Map<string, Promise<void>>();
   private readonly failed = new Set<string>();
+  /** Id → the earliest time it may be requested again after coming back empty. */
+  private readonly retryAfter = new Map<string, number>();
   private readonly listeners = new Set<() => void>();
   private readonly fetchBytes: ImageFetcher;
   private readonly onError: ((fileId: string) => void) | undefined;
@@ -80,16 +93,21 @@ export class ImageCache implements ImageSource {
   /**
    * Ensure every one of these ids is decoded, fetching what is missing.
    *
-   * Safe to call on every render: ids already decoded, in flight, or known bad
-   * are skipped, so the steady state is a set lookup per shape. Failures are
-   * not retried on their own — a caller wanting another attempt says so with
-   * {@link forget}, which keeps a broken image from becoming a request loop.
+   * Safe to call on every render: ids already decoded, in flight, known bad, or
+   * recently missing are skipped, so the steady state is a set lookup per
+   * shape. Outright failures are never retried on their own — a caller wanting
+   * another attempt says so with {@link forget} — and an id that merely came
+   * back empty waits out a short cooldown first.
    */
   ensure(fileIds: Iterable<string>): void {
+    const now = Date.now();
     for (const fileId of fileIds) {
       if (this.decoded.has(fileId) || this.inFlight.has(fileId) || this.failed.has(fileId)) {
         continue;
       }
+      const notBefore = this.retryAfter.get(fileId);
+      if (notBefore !== undefined && now < notBefore) continue;
+
       this.inFlight.set(fileId, this.load(fileId));
     }
   }
@@ -101,9 +119,11 @@ export class ImageCache implements ImageSource {
       // still be in flight. Leaving it untracked lets the next ensure() retry,
       // which is what makes an image appear once its bytes land.
       if (blob === null) {
+        this.retryAfter.set(fileId, Date.now() + RETRY_AFTER_MISS_MS);
         this.inFlight.delete(fileId);
         return;
       }
+      this.retryAfter.delete(fileId);
 
       const image = await decodeBlob(blob);
       // A forget() between the request going out and it coming back means the
@@ -128,6 +148,7 @@ export class ImageCache implements ImageSource {
       this.decoded.delete(fileId);
       this.inFlight.delete(fileId);
       this.failed.delete(fileId);
+      this.retryAfter.delete(fileId);
     }
     this.notify();
   }
@@ -144,6 +165,7 @@ export class ImageCache implements ImageSource {
     this.decoded.clear();
     this.inFlight.clear();
     this.failed.clear();
+    this.retryAfter.clear();
     this.notify();
   }
 

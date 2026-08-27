@@ -15,11 +15,14 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js';
 
 /**
- * Room for one base64-encoded image, which is the largest body this API takes.
- * Express defaults to 100kb — enough for every other route here, and far short
- * of a 3 MB picture inflated by a third on the way through JSON.
+ * Room for one Yjs update, which is the largest body this API takes.
+ *
+ * Images used to be larger and set this ceiling, back when their bytes were
+ * posted through here. They now go straight from the browser to object storage
+ * over a signed URL, so nothing on this server ever holds one and the limit
+ * only has to cover the board snapshots.
  */
-const MAX_REQUEST_BODY = '6mb';
+const MAX_REQUEST_BODY = '2mb';
 
 async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');

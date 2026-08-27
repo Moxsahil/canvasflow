@@ -1,0 +1,1 @@
+ALTER TABLE "board_images" DROP COLUMN "bytes";

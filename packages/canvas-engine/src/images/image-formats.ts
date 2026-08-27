@@ -61,19 +61,23 @@ export function isAnimatedImageMimeType(type: string): boolean {
 /**
  * Largest file we accept from the user, before downscaling.
  *
- * Matches the cap the board-file picker already applies, so "too big" means
- * one thing across the editor.
+ * Generous because it is only a guard against reading something absurd into
+ * memory: a modern phone photo is routinely past ten megabytes, and rejecting
+ * it outright would be surprising when the downscaler is about to make it a
+ * fraction of that.
  */
-export const MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const MAX_IMAGE_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 /**
  * Largest payload we will store, after downscaling.
  *
- * Lower than the accept limit because a photo that arrives at 8 MB should
+ * Lower than the accept limit because a photo that arrives at 18 MB should
  * leave the downscaler far smaller; anything still above this after resizing
- * is pathological rather than ordinary, and every board load pays for it.
+ * is pathological rather than ordinary. The ceiling is about decode cost and
+ * load time rather than storage — the bytes go to object storage, where
+ * neither keeping them nor serving them is what costs anything.
  */
-export const MAX_STORED_IMAGE_BYTES = 3 * 1024 * 1024;
+export const MAX_STORED_IMAGE_BYTES = 10 * 1024 * 1024;
 
 /**
  * Longest edge, in pixels, that we keep.

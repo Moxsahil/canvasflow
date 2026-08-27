@@ -3,10 +3,16 @@ import { env } from '../lib/env';
 /**
  * Transport for image bytes.
  *
- * Separate from the API helpers the rest of the editor uses because these two
- * calls are the only ones that move a payload rather than a document: the
- * upload carries base64 and the download returns a blob, neither of which fits
- * a JSON-in/JSON-out helper.
+ * Uploads go in two steps. The API is asked to authorize one — it checks the
+ * board, then signs a URL — and the bytes are then PUT straight to object
+ * storage. Nothing large passes through our own server in either direction:
+ * the download route redirects rather than proxies, and `fetch` follows that
+ * without the caller noticing.
+ *
+ * The split exists for cost as much as for load. Bytes that pass through a
+ * server are paid for twice, and the previous version of this file sent them
+ * through the API and into Postgres, where every view of every image was
+ * charged against the database's transfer budget.
  */
 
 export class ImageUploadError extends Error {
@@ -16,46 +22,57 @@ export class ImageUploadError extends Error {
   }
 }
 
-function imagesUrl(boardId: string, fileId?: string): string {
+function imagesUrl(boardId: string, path?: string): string {
   const base = `${env.VITE_API_URL}/boards/${boardId}/images`;
-  return fileId ? `${base}/${fileId}` : base;
+  return path ? `${base}/${path}` : base;
 }
 
-/**
- * Base64 for a byte array, chunked.
- *
- * `String.fromCharCode(...bytes)` on a multi-megabyte array overflows the
- * argument limit and throws, so the string is built in slices small enough to
- * spread safely.
- */
-function toBase64(bytes: Uint8Array): string {
-  const CHUNK = 0x8000;
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  return btoa(binary);
+interface PresignedUpload {
+  url: string;
+  /** Sent verbatim: they are part of the signature, not decoration. */
+  headers: Record<string, string>;
 }
 
 export async function uploadImage(
   boardId: string,
   token: string,
   fileId: string,
+  mimeType: string,
   bytes: Uint8Array,
   signal?: AbortSignal,
 ): Promise<void> {
-  const response = await fetch(imagesUrl(boardId), {
+  const authorization = await fetch(imagesUrl(boardId, 'upload-url'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ fileId, data: toBase64(bytes) }),
+    body: JSON.stringify({ fileId, mimeType, sizeBytes: bytes.length }),
     ...(signal ? { signal } : {}),
   });
 
-  if (!response.ok) {
-    throw new ImageUploadError(await failureMessage(response));
+  if (!authorization.ok) {
+    throw new ImageUploadError(await failureMessage(authorization));
+  }
+
+  const { data } = (await authorization.json()) as { data: PresignedUpload };
+
+  const upload = await fetch(data.url, {
+    method: 'PUT',
+    headers: data.headers,
+    // A view of the exact bytes, not a copy: `bytes` may be a subarray of a
+    // larger buffer, and sending the whole buffer would fail the length the
+    // signature pins.
+    body: bytes.slice().buffer as ArrayBuffer,
+    ...(signal ? { signal } : {}),
+  });
+
+  if (!upload.ok) {
+    // The body here is the storage provider's XML, which is no use to anyone
+    // looking at a canvas. The status is the only part worth keeping.
+    throw new ImageUploadError(
+      `That image couldn't be uploaded (${upload.status}). Try again in a moment.`,
+    );
   }
 }
 
@@ -86,19 +103,37 @@ async function failureMessage(response: Response): Promise<string> {
  * see the shape the instant it is drawn, which is before the uploading client
  * has finished sending it. Returning null lets the cache try again later, while
  * a genuine failure throws and marks the image broken.
+ *
+ * Two steps, for the same reason the upload is. The API answers with a signed
+ * URL and the bytes are then read straight from storage, so nothing large
+ * passes through our own server.
+ *
+ * It has to be two requests rather than a redirect. Following a cross-origin
+ * redirect makes the browser send `Origin: null`, which the bucket does not
+ * recognise, so it withholds the CORS header and the response — a perfectly
+ * good 200 — becomes unreadable to script. Asking for the URL and fetching it
+ * ourselves keeps the real origin on the request.
  */
 export async function downloadImage(
   boardId: string,
   token: string,
   fileId: string,
 ): Promise<Blob | null> {
-  const response = await fetch(imagesUrl(boardId, fileId), {
+  const authorization = await fetch(imagesUrl(boardId, `${fileId}/url`), {
     headers: { Authorization: `Bearer ${token}` },
   });
 
-  if (response.status === 404) return null;
-  if (!response.ok) {
-    throw new Error(`Could not load image ${fileId} (${response.status})`);
+  if (authorization.status === 404) return null;
+  if (!authorization.ok) {
+    throw new Error(`Could not load image ${fileId} (${authorization.status})`);
   }
-  return response.blob();
+
+  const { data } = (await authorization.json()) as { data: { url: string } };
+
+  const bytes = await fetch(data.url);
+  if (bytes.status === 404) return null;
+  if (!bytes.ok) {
+    throw new Error(`Could not read image ${fileId} from storage (${bytes.status})`);
+  }
+  return bytes.blob();
 }

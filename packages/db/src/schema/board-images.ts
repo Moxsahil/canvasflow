@@ -1,44 +1,27 @@
-import {
-  pgTable,
-  uuid,
-  text,
-  timestamp,
-  bigint,
-  customType,
-  index,
-  primaryKey,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, bigint, index, primaryKey } from 'drizzle-orm/pg-core';
 import { boards } from './boards.js';
 import { users } from './users.js';
 
-const bytea = customType<{ data: Uint8Array; default: false }>({
-  dataType() {
-    return 'bytea';
-  },
-  toDriver(value: Uint8Array): Buffer {
-    return Buffer.from(value);
-  },
-  fromDriver(value: unknown): Uint8Array {
-    if (value instanceof Uint8Array) return value;
-    if (Buffer.isBuffer(value)) return new Uint8Array(value);
-    throw new Error('Unexpected bytea value type');
-  },
-});
-
 /**
- * Bytes for the images placed on a board.
+ * A record of the images placed on a board — metadata only.
  *
- * These live here rather than in the Yjs document for one hard reason: every
- * row of `board_updates` is a complete snapshot of the whole document, capped
- * at a megabyte. A single photo encoded into the document would push a board
- * past that cap and stop it saving at all. So the document carries only a
- * `fileId` and the pixels are fetched separately, which keeps a board's
- * snapshot sized by how much was drawn rather than how much was uploaded.
+ * The pixels live in object storage, keyed `boards/{board_id}/{file_id}`, and
+ * reach the browser directly over a signed URL. They were briefly kept here in
+ * a `bytea` column, which worked but put every image view through the
+ * database's data-transfer budget; a whiteboard is read-heavy by nature, so
+ * that is the one cost that grows without bound.
+ *
+ * What stays is what the object store cannot cheaply answer: which images a
+ * board has, how big they are, and who added them. The row is written when an
+ * upload is authorized rather than after it completes, so a row may briefly
+ * describe an object that does not exist yet. That is deliberate — whether the
+ * bytes have landed is already tracked on the shape itself, which is where
+ * collaborators look before fetching.
  *
  * `file_id` is a content hash of the original upload, which makes the primary
- * key do real work: the same picture dropped on a board five times is one row,
- * a re-upload after a failure is idempotent rather than a duplicate, and the
- * bytes behind an id can never change — so responses are safely immutable.
+ * key do real work: the same picture dropped on a board five times is one row
+ * and one object, and a re-upload after a failure overwrites itself rather
+ * than duplicating.
  *
  * Scoped per board rather than globally. Two boards holding the same image
  * store it twice, which is the price of never letting a `fileId` guessed from
@@ -53,7 +36,6 @@ export const boardImages = pgTable(
     /** Lowercase hex SHA-256 of the uploaded bytes. */
     fileId: text('file_id').notNull(),
     mimeType: text('mime_type').notNull(),
-    bytes: bytea('bytes').notNull(),
     sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
     /** Who first uploaded it. Kept for auditing, not for access control. */
     uploadedBy: uuid('uploaded_by')
@@ -63,7 +45,8 @@ export const boardImages = pgTable(
   },
   (table) => ({
     // Composite key rather than a surrogate id: it is what makes a repeated
-    // upload of the same bytes an upsert instead of a second copy.
+    // upload of the same bytes an upsert instead of a second copy, and it is
+    // the object's storage key with a slash between the halves.
     pk: primaryKey({ columns: [table.boardId, table.fileId] }),
     boardIdIdx: index('board_images_board_id_idx').on(table.boardId),
   }),
