@@ -223,7 +223,7 @@ export function useBoardImages({
       await Promise.all(
         placed.map(async ({ shape, item }) => {
           try {
-            await uploadImage(boardId, currentToken, item.fileId, item.bytes);
+            await uploadImage(boardId, currentToken, item.fileId, item.mimeType, item.bytes);
             // The one field that changes after insert, and the signal every
             // other client is waiting for.
             docRef.current.updateShape(shape.id, { status: 'saved' } as Partial<Shape>);

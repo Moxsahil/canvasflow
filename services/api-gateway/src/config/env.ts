@@ -16,6 +16,15 @@ const envSchema = z.object({
   OTEL_SERVICE_NAME: z.string().default('api-gateway'),
   WEB_URL: z.string().url().optional(),
   EDITOR_URL: z.string().url().optional(),
+
+  // === Object storage (Cloudflare R2) ===
+  // Optional as a group: a deployment without them still serves every route
+  // except the image ones, which fail with a clear message rather than at
+  // import time. That keeps a checkout runnable before a bucket exists.
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
