@@ -14,8 +14,12 @@ interface ToolbarProps {
 /**
  * Tools that change nothing about the document, and so remain available to a
  * viewer: they still need to select things to read them, and to pan around.
+ *
+ * The laser qualifies for exactly the same reason — its trail is presence, not
+ * document — and it is the one tool a viewer most needs during a live review,
+ * where the whole point is asking about a part of the board out loud.
  */
-const VIEW_ONLY_TOOLS = new Set<Tool>(['select', 'hand']);
+const VIEW_ONLY_TOOLS = new Set<Tool>(['select', 'hand', 'laser']);
 
 export function Toolbar({ activeTool, onToolChange, readOnly = false }: ToolbarProps) {
   // Filtered rather than disabled: a row of dead buttons invites clicking, and

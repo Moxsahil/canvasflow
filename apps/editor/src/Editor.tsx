@@ -35,6 +35,7 @@ import { useKeyboardShortcuts } from './tools/useKeyboardShortcuts';
 import { hitTestHandles } from './selection/handles';
 import { useBoardDocument, useYjsShapes } from './document/useYjsDocument';
 import { useBoardImages, pickImageFiles } from './images';
+import { LaserLayer, useLaserTrails } from './laser';
 import { useUndoState } from './document/useUndoState';
 import { useBoardSync } from './sync/useBoardSync';
 import { useAuthToken } from './auth/useAuthToken';
@@ -283,7 +284,7 @@ export function Editor({ boardId }: EditorProps) {
     setCamera: (next) => actorRef.send({ type: 'SET_CAMERA', camera: next }),
   });
 
-  const { setCursor, setSelection } = useSelfPresence({
+  const { setCursor, setSelection, setLasering } = useSelfPresence({
     channel,
     user,
     activity,
@@ -296,6 +297,15 @@ export function Editor({ boardId }: EditorProps) {
     channel,
     self: user ? { id: user.id, name: user.name } : null,
     selfActivity: activity,
+  });
+
+  // Peers' trails are rebuilt from the cursor stream on their presence record,
+  // so this reads the same roster the cursor layer does.
+  const laser = useLaserTrails({
+    peersRef,
+    subscribe,
+    userId,
+    theme: presenceTheme,
   });
 
   const followedPeer = follow.following
@@ -534,6 +544,15 @@ export function Editor({ boardId }: EditorProps) {
   const handlePointerDown = useCallback(
     (point: Point, _screenPoint: Point, button: number, shiftKey: boolean) => {
       notifyActivity();
+
+      // The laser never reaches the machine. It selects nothing, draws nothing,
+      // and marks nothing for erasure — letting POINTER_DOWN through would only
+      // give it a marquee it has no use for.
+      if (activeTool === 'laser') {
+        laser.begin(point.x, point.y);
+        setLasering(true);
+        return;
+      }
       // The canvas's pointerdown suppresses the browser's default focus
       // handling (see usePointerEvents), which also suppresses the native
       // blur a click-away would normally trigger on an open text editor.
@@ -610,6 +629,8 @@ export function Editor({ boardId }: EditorProps) {
     [
       actorRef,
       activeTool,
+      laser,
+      setLasering,
       isSpacePressed,
       selectedIds,
       shapes,
@@ -621,6 +642,13 @@ export function Editor({ boardId }: EditorProps) {
 
   const handlePointerMove = useCallback(
     (point: Point, _screenPoint: Point, screenDelta: Point, altKey = false) => {
+      if (activeTool === 'laser') {
+        // Only while the button is down. A laser tracks the cursor the way a
+        // real one does — it is off until you press it.
+        laser.extend(point.x, point.y);
+        return;
+      }
+
       actorRef.send({ type: 'POINTER_MOVE', point, screenDelta });
 
       const snap = actorRef.getSnapshot();
@@ -670,11 +698,17 @@ export function Editor({ boardId }: EditorProps) {
     },
     // shapes/spatialIndex/zoom feed the eraser hit-test; omitting them freezes
     // this callback on the first render's empty document.
-    [actorRef, doc, shapes, spatialIndex, camera.zoom],
+    [actorRef, activeTool, laser, doc, shapes, spatialIndex, camera.zoom],
   );
 
   const handlePointerUp = useCallback(
     (point: Point) => {
+      if (activeTool === 'laser') {
+        laser.end();
+        setLasering(false);
+        return;
+      }
+
       const snap = actorRef.getSnapshot();
       const wasInteracting = snap.matches('draggingSelection') || snap.matches('resizingSelection');
 
@@ -689,7 +723,7 @@ export function Editor({ boardId }: EditorProps) {
         doc.breakUndoGroup();
       }
     },
-    [actorRef, doc],
+    [actorRef, activeTool, laser, setLasering, doc],
   );
 
   // Double-clicking a text shape (with any tool active) reopens it for editing.
@@ -1151,6 +1185,11 @@ export function Editor({ boardId }: EditorProps) {
               searchHighlights={search.highlights}
               onPointerHover={setCursor}
             />
+
+            {/* Laser trails, ours and everyone's. Outside CanvasStack for the
+          same reason the cursors are, and painted by its own frame loop so a
+          fading trail never re-renders the scene. */}
+            <LaserLayer trails={laser} camera={camera} width={width} height={height} />
 
             {/* Collaborator cursors. A sibling of CanvasStack, never inside it —
           .canvas-stack carries the dark-mode inversion filter, which would

@@ -19,6 +19,7 @@ describe('parsePresenceState', () => {
     user: { id: 'u1', name: 'Sahil' },
     cursor: { x: 10, y: 20 },
     selection: ['s1'],
+    lasering: true,
     camera: { x: 5, y: 6, zoom: 2 },
     screen: { width: 800, height: 600 },
     following: 'u2',
@@ -65,12 +66,22 @@ describe('parsePresenceState', () => {
       user: { id: 'u1', name: '' },
       cursor: null,
       selection: [],
+      lasering: false,
       camera: null,
       screen: null,
       following: null,
       activity: 'active',
       lastActive: 0,
     });
+  });
+
+  it('reads anything but an explicit true as not lasering', () => {
+    // A peer on an older build omits the field entirely, and reading that
+    // absence as "not lasering" is the only safe interpretation.
+    expect(parsePresenceState({ ...valid, lasering: undefined })?.lasering).toBe(false);
+    expect(parsePresenceState({ ...valid, lasering: 'yes' })?.lasering).toBe(false);
+    expect(parsePresenceState({ ...valid, lasering: 1 })?.lasering).toBe(false);
+    expect(parsePresenceState({ ...valid, lasering: true })?.lasering).toBe(true);
   });
 
   it('keeps only the string entries of a selection', () => {

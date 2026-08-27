@@ -1,0 +1,12 @@
+/*
+ * A sibling of .canvas-stack, never a child: that element carries the dark-mode
+ * inversion filter, and a laser inside it would come out the complementary
+ * colour. The cursor layer sits out here for the same reason.
+ */
+.cf-laser-layer {
+  position: absolute;
+  inset: 0;
+  /* Never intercept drawing: the interactive canvas owns every pointer event. */
+  pointer-events: none;
+  z-index: var(--zIndex-wysiwyg);
+}
