@@ -54,6 +54,16 @@ export interface ToolMeta {
   readonly shortcut: string;
   /** Digit shortcut, shown as a superscript on the toolbar button. Hand has none. */
   readonly numericKey: string | null;
+  /**
+   * Lives behind the toolbar's overflow control rather than in the row itself.
+   *
+   * The row is a fixed piece of screen furniture and every tool added to it
+   * makes the board smaller. What earns a place in it is being reached for
+   * while drawing; a tool you pick deliberately, once, for a particular job
+   * can afford the extra click. New tools should default to here, and only
+   * move out when the row is genuinely where they belong.
+   */
+  readonly overflow?: boolean;
 }
 
 /**
@@ -72,12 +82,18 @@ export const TOOLS: readonly ToolMeta[] = [
   { id: 'freehand', label: 'Freehand', icon: FreehandIcon, shortcut: 'P', numericKey: '7' },
   { id: 'text', label: 'Text', icon: TextIcon, shortcut: 'T', numericKey: '8' },
   { id: 'image', label: 'Image', icon: ImageIcon, shortcut: 'I', numericKey: '9' },
-  // No digit: the row is full through 9, and a frame is scaffolding you reach
-  // for deliberately rather than something you flick between while drawing.
-  { id: 'frame', label: 'Frame', icon: FrameIcon, shortcut: 'F', numericKey: null },
-  // No digit: the row is full through 9, and the laser is a presenting tool
-  // reached deliberately rather than something you flick between mid-drawing.
-  { id: 'laser', label: 'Laser pointer', icon: LaserIcon, shortcut: 'K', numericKey: null },
+  // Both live in the overflow, and neither takes a digit: you lay out frames
+  // before the work and point with the laser while presenting it. Neither is
+  // something you flick to mid-drawing, which is what the row is for.
+  { id: 'frame', label: 'Frame', icon: FrameIcon, shortcut: 'F', numericKey: null, overflow: true },
+  {
+    id: 'laser',
+    label: 'Laser pointer',
+    icon: LaserIcon,
+    shortcut: 'K',
+    numericKey: null,
+    overflow: true,
+  },
   { id: 'eraser', label: 'Eraser', icon: EraserIcon, shortcut: 'E', numericKey: '0' },
 ];
 

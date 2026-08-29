@@ -1389,6 +1389,7 @@ export function Editor({ boardId }: EditorProps) {
                   activeTool={activeTool}
                   onToolChange={handleToolChange}
                   readOnly={readOnly}
+                  portalContainer={editorRoot}
                 />
               </GlassDock>
             </div>

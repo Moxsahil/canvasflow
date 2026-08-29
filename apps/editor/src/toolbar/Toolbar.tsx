@@ -1,6 +1,8 @@
+import { useMemo, useState } from 'react';
 import { GlassDockGroup, GlassDockItem } from '@/components/ui/glass-dock';
 import { TOOLS, type Tool } from '../tools/tool';
 import { ToolButton } from './ToolButton';
+import { ToolOverflow } from './ToolOverflow';
 
 const TOOL_GROUP = 'cf-active-tool';
 
@@ -9,6 +11,8 @@ interface ToolbarProps {
   onToolChange: (tool: Tool) => void;
   /** Viewers keep only the tools that move the view, not the drawing. */
   readOnly?: boolean;
+  /** Where the overflow list portals. Outside `.cf-editor` its tokens are empty. */
+  portalContainer?: HTMLElement | null;
 }
 
 /**
@@ -21,14 +25,27 @@ interface ToolbarProps {
  */
 const VIEW_ONLY_TOOLS = new Set<Tool>(['select', 'hand', 'laser']);
 
-export function Toolbar({ activeTool, onToolChange, readOnly = false }: ToolbarProps) {
+export function Toolbar({
+  activeTool,
+  onToolChange,
+  readOnly = false,
+  portalContainer = null,
+}: ToolbarProps) {
+  const [overflowOpen, setOverflowOpen] = useState(false);
+
   // Filtered rather than disabled: a row of dead buttons invites clicking, and
   // the document refuses their edits anyway (see BoardDocument.setReadOnly).
-  const tools = readOnly ? TOOLS.filter((meta) => VIEW_ONLY_TOOLS.has(meta.id)) : TOOLS;
+  const tools = useMemo(
+    () => (readOnly ? TOOLS.filter((meta) => VIEW_ONLY_TOOLS.has(meta.id)) : TOOLS),
+    [readOnly],
+  );
+
+  const rowTools = useMemo(() => tools.filter((meta) => !meta.overflow), [tools]);
+  const overflowTools = useMemo(() => tools.filter((meta) => meta.overflow), [tools]);
 
   return (
     <GlassDockGroup role="radiogroup" aria-label="Drawing tools">
-      {tools.map((meta) => (
+      {rowTools.map((meta) => (
         <GlassDockItem
           key={meta.id}
           id={`tool-${meta.id}`}
@@ -44,6 +61,35 @@ export function Toolbar({ activeTool, onToolChange, readOnly = false }: ToolbarP
           />
         </GlassDockItem>
       ))}
+
+      {/* Last, and only when it holds something: in read-only mode the laser
+          is the sole overflow tool left, and one item behind a chevron is
+          worse than one more button in the row. */}
+      {overflowTools.length > 1 && (
+        <ToolOverflow
+          tools={overflowTools}
+          activeTool={activeTool}
+          onToolChange={onToolChange}
+          open={overflowOpen}
+          onOpenChange={setOverflowOpen}
+          container={portalContainer}
+        />
+      )}
+      {overflowTools.length === 1 &&
+        overflowTools.map((meta) => (
+          <GlassDockItem
+            key={meta.id}
+            id={`tool-${meta.id}`}
+            label={`${meta.label} · ${meta.shortcut}`}
+          >
+            <ToolButton
+              meta={meta}
+              active={activeTool === meta.id}
+              group={TOOL_GROUP}
+              onSelect={onToolChange}
+            />
+          </GlassDockItem>
+        ))}
     </GlassDockGroup>
   );
 }

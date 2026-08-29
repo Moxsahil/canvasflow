@@ -104,6 +104,9 @@ export const EraserIcon = createIcon(
   </>,
 );
 
+/** Points up while the overflow is closed; the button rotates it when open. */
+export const ChevronUpIcon = createIcon(<path d="M5.5 14.5L12 8l6.5 6.5" />);
+
 // --- chrome ---
 
 export const UndoIcon = createIcon(
