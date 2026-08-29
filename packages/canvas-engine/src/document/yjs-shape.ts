@@ -45,6 +45,11 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
   if (shape.lastEditedAt !== undefined) {
     map.set('lastEditedAt', shape.lastEditedAt);
   }
+  // Written only when set, so a shape loose on the board carries no key for it
+  // — and so a board made before frames existed is untouched by reading it.
+  if (shape.frameId != null) {
+    map.set('frameId', shape.frameId);
+  }
 
   // Shape-kind-specific fields
   switch (shape.kind) {
@@ -91,6 +96,11 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
       map.set('naturalWidth', shape.naturalWidth);
       map.set('naturalHeight', shape.naturalHeight);
       break;
+    case 'frame':
+      map.set('width', shape.width);
+      map.set('height', shape.height);
+      map.set('name', shape.name);
+      break;
   }
 
   return map;
@@ -133,6 +143,7 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
 
   const lastEditedByRaw = map.get('lastEditedBy');
   const lastEditedAtRaw = map.get('lastEditedAt');
+  const frameIdRaw = map.get('frameId');
 
   // Every `??` here is the upgrade path for boards persisted before the field
   // existed; the defaults match the shape factories.
@@ -151,6 +162,10 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
     seed: (map.get('seed') as number) ?? 0,
     ...(typeof lastEditedByRaw === 'string' && { lastEditedBy: lastEditedByRaw }),
     ...(typeof lastEditedAtRaw === 'number' && { lastEditedAt: lastEditedAtRaw }),
+    // A frame that has since been deleted leaves its members pointing at
+    // nothing. That resolves to no frame everywhere it is read, so the stale
+    // id is harmless and gets rewritten the next time the shape moves.
+    ...(typeof frameIdRaw === 'string' && { frameId: frameIdRaw }),
   };
 
   const edges = (map.get('edges') as Edges) ?? 'sharp';
@@ -241,6 +256,16 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
         naturalHeight: (map.get('naturalHeight') as number) ?? height,
       } as Shape);
     }
+    case 'frame':
+      return withZ({
+        ...base,
+        kind: 'frame',
+        width: (map.get('width') as number) ?? 0,
+        height: (map.get('height') as number) ?? 0,
+        // Coerced like every other stored string: a frame is a container, and
+        // a non-string here would take the board down at the first draw.
+        name: readTextValue(map.get('name')),
+      } as Shape);
     default:
       return null;
   }

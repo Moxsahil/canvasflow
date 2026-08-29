@@ -2,6 +2,7 @@ import type { RoughCanvas } from 'roughjs/bin/canvas';
 import type { Shape } from '../shapes/shape.js';
 import { assertNever } from '../shapes/shape.js';
 import { drawImageShape, type ImageSource } from './draw-image.js';
+import { drawFrameBody } from './draw-frame.js';
 import {
   generateRectangleDrawable,
   generateEllipseDrawable,
@@ -89,6 +90,11 @@ export function drawSceneShape(
       break;
     case 'image':
       drawImageShape(ctx, shape, context.images, context.darkMode ?? false);
+      break;
+    // Body only. The label is chrome sized in screen pixels, so it needs the
+    // zoom the scene renderer has and this function does not.
+    case 'frame':
+      drawFrameBody(ctx, shape);
       break;
     default:
       assertNever(shape);

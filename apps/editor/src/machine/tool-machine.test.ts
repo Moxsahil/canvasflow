@@ -84,6 +84,53 @@ describe('toolMachine', () => {
     expect(actor.getSnapshot().context.newElement).toBeNull();
   });
 
+  it('grows a frame as it is dragged out', () => {
+    const actor = createActor(toolMachine).start();
+    actor.send({ type: 'SELECT_TOOL', tool: 'frame' });
+    actor.send({
+      type: 'POINTER_DOWN',
+      point: { x: 10, y: 10 },
+      button: 0,
+      shiftKey: false,
+      hitShapeId: null,
+      hitHandle: null,
+    });
+    actor.send({ type: 'POINTER_MOVE', point: { x: 210, y: 110 }, screenDelta: { x: 0, y: 0 } });
+
+    // The frame tool started life missing from the sizing switch, whose
+    // `default` returned no change — so every frame committed at the one
+    // pixel it was created with and landed on the board as a dot.
+    expect(actor.getSnapshot().context.newElement).toMatchObject({
+      kind: 'frame',
+      x: 10,
+      y: 10,
+      width: 200,
+      height: 100,
+    });
+  });
+
+  it('anchors a frame dragged up and to the left', () => {
+    const actor = createActor(toolMachine).start();
+    actor.send({ type: 'SELECT_TOOL', tool: 'frame' });
+    actor.send({
+      type: 'POINTER_DOWN',
+      point: { x: 300, y: 300 },
+      button: 0,
+      shiftKey: false,
+      hitShapeId: null,
+      hitHandle: null,
+    });
+    actor.send({ type: 'POINTER_MOVE', point: { x: 100, y: 200 }, screenDelta: { x: 0, y: 0 } });
+
+    expect(actor.getSnapshot().context.newElement).toMatchObject({
+      kind: 'frame',
+      x: 100,
+      y: 200,
+      width: 200,
+      height: 100,
+    });
+  });
+
   it('accumulates freehand points on POINTER_MOVE', () => {
     const actor = createActor(toolMachine).start();
     actor.send({ type: 'SELECT_TOOL', tool: 'freehand' });

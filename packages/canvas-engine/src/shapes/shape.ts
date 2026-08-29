@@ -16,6 +16,21 @@ export interface BaseShape {
   readonly seed: number;
   readonly lastEditedBy?: string;
   readonly lastEditedAt?: number;
+  /**
+   * The frame this shape is standing in, if any.
+   *
+   * A back-reference rather than a child list on the frame, and coordinates
+   * stay absolute either way. A frame is a region of the board that owns
+   * whatever is standing in it, not a parent whose transform its contents are
+   * expressed in — so every path that already exists (drag, resize, hit-test,
+   * erase, export, the spatial index) keeps working unchanged on a shape that
+   * happens to be in one, and membership is a single field recomputed from
+   * geometry when something moves rather than a structure to keep in step.
+   *
+   * Absent and null both mean "loose on the board". Absent is what every shape
+   * written before frames existed says, which is why there is no migration.
+   */
+  readonly frameId?: string | null;
 }
 
 export interface RectangleShape extends BaseShape {
@@ -109,6 +124,25 @@ export interface ImageShape extends BaseShape {
   readonly naturalHeight: number;
 }
 
+// --- Frame shape ---
+
+/**
+ * A named region that owns the shapes standing in it.
+ *
+ * Unlike every other shape here, a frame is defined as much by what it does to
+ * its neighbours as by what it draws: it moves and deletes as one object with
+ * its members, and it crops them at its edge. What it draws is deliberately
+ * plain — a border and a label — because a frame is scaffolding for the work
+ * on the board rather than part of it.
+ */
+export interface FrameShape extends BaseShape {
+  readonly kind: 'frame';
+  readonly width: number;
+  readonly height: number;
+  /** Shown above the top-left corner. Blank falls back to a default label. */
+  readonly name: string;
+}
+
 // --- The union ---
 
 export type Shape =
@@ -119,7 +153,8 @@ export type Shape =
   | ArrowShape
   | FreehandShape
   | TextShape
-  | ImageShape;
+  | ImageShape
+  | FrameShape;
 
 /** Type guards — use these in renderer code for exhaustiveness checks. */
 export function isRectangle(s: Shape): s is RectangleShape {
@@ -148,6 +183,10 @@ export function isText(s: Shape): s is TextShape {
 
 export function isImage(s: Shape): s is ImageShape {
   return s.kind === 'image';
+}
+
+export function isFrame(s: Shape): s is FrameShape {
+  return s.kind === 'frame';
 }
 
 export function assertNever(value: never): never {
