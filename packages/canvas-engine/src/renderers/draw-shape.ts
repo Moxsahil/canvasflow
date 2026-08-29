@@ -35,6 +35,13 @@ export interface SceneShapeContext {
    * cares, because being inverted is what makes the rest of the board dark.
    */
   readonly darkMode?: boolean;
+  /**
+   * Current zoom. Only frames read it, to hold their border and label at a
+   * constant weight on screen; every other shape is drawn in world units.
+   */
+  readonly zoom?: number;
+  /** Frames whose name is open for editing, drawn in the selection colour. */
+  readonly editingFrameIds?: ReadonlySet<string>;
 }
 
 /**
@@ -94,7 +101,10 @@ export function drawSceneShape(
     // Body only. The label is chrome sized in screen pixels, so it needs the
     // zoom the scene renderer has and this function does not.
     case 'frame':
-      drawFrameBody(ctx, shape);
+      drawFrameBody(ctx, shape, {
+        zoom: context.zoom ?? 1,
+        highlight: context.editingFrameIds?.has(shape.id),
+      });
       break;
     default:
       assertNever(shape);

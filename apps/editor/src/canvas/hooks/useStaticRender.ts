@@ -15,8 +15,8 @@ interface UseStaticRenderOptions {
   devicePixelRatio: number;
   /** Shapes the eraser has marked; drawn faded until the stroke commits. */
   pendingErasureIds?: ReadonlySet<string>;
-  /** Frames being renamed, whose painted label the input would show through. */
-  hiddenFrameLabelIds?: ReadonlySet<string>;
+  /** Frames whose name is open for editing: label suppressed, border highlighted. */
+  editingFrameIds?: ReadonlySet<string>;
   /** Decoded image bitmaps. */
   images?: ImageSource;
   /**
@@ -46,7 +46,7 @@ export function useStaticRender(
     camera,
     devicePixelRatio,
     pendingErasureIds,
-    hiddenFrameLabelIds,
+    editingFrameIds,
     images,
     imageRevision,
     darkMode,
@@ -64,7 +64,7 @@ export function useStaticRender(
       shapes,
       camera,
       pendingErasureIds,
-      hiddenFrameLabelIds,
+      editingFrameIds,
       images,
       darkMode,
     });
@@ -76,7 +76,7 @@ export function useStaticRender(
     camera,
     devicePixelRatio,
     pendingErasureIds,
-    hiddenFrameLabelIds,
+    editingFrameIds,
     images,
     imageRevision,
     darkMode,

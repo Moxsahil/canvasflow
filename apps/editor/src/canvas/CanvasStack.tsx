@@ -15,7 +15,7 @@ import { imageFilesFromDataTransfer } from '../images';
 interface CanvasStackProps {
   shapes: readonly Shape[];
   pendingErasureIds?: ReadonlySet<string>;
-  hiddenFrameLabelIds?: ReadonlySet<string>;
+  editingFrameIds?: ReadonlySet<string>;
   newElement: Shape | null;
   selectedIds: readonly string[];
   marquee: { x: number; y: number; width: number; height: number } | null;
@@ -48,7 +48,7 @@ interface CanvasStackProps {
 export function CanvasStack({
   shapes,
   pendingErasureIds,
-  hiddenFrameLabelIds,
+  editingFrameIds,
   newElement,
   selectedIds,
   marquee,
@@ -85,7 +85,7 @@ export function CanvasStack({
     camera,
     devicePixelRatio: dpr,
     pendingErasureIds,
-    hiddenFrameLabelIds,
+    editingFrameIds,
     images,
     imageRevision,
     darkMode,

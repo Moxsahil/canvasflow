@@ -10,6 +10,7 @@ import {
   type TextShape,
 } from '../shapes/shape.js';
 import { FRAME_LABEL_FONT_SIZE, FRAME_LABEL_GAP, frameLabel } from '../shapes/frame.js';
+import { FRAME_BORDER_WIDTH } from './draw-frame.js';
 import { FRAME_LABEL_FONT_FAMILY } from '../frames/frame-geometry.js';
 import {
   arrowheadMarks,
@@ -218,7 +219,10 @@ function frameToSvg(shape: FrameShape): string {
     `height="${num(shape.height)}" fill="${
       shape.fillColor ? escapeXml(shape.fillColor) : 'none'
     }" stroke="${escapeXml(shape.strokeColor)}" ` +
-    `stroke-width="${num(shape.strokeWidth)}"${dashAttr}/>`;
+    // The same weight the canvas gives it at 1:1, which is the only scale an
+    // export has — a frame's border is chrome and does not thicken with the
+    // shape's own stroke width.
+    `stroke-width="${num(FRAME_BORDER_WIDTH)}"${dashAttr}/>`;
 
   const label =
     `<text x="${num(shape.x)}" y="${num(shape.y - FRAME_LABEL_GAP)}" ` +

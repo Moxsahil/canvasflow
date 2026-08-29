@@ -11,12 +11,14 @@ export interface StaticSceneOptions extends SceneShapeContext {
   /** Shapes the eraser has marked but not yet deleted; drawn faded. */
   readonly pendingErasureIds?: ReadonlySet<string>;
   /**
-   * Frames whose name is being edited, so the painted label is left out.
+   * Frames whose name is open for editing.
    *
-   * The editor puts a real input over the label while it is being renamed;
-   * without this the drawn name shows through behind whatever is typed.
+   * Two things follow from it. The painted label is left out, because the
+   * editor puts a real input over it and the drawn name would otherwise show
+   * through whatever is typed. And the frame's border is drawn in the
+   * selection colour, so it is obvious which frame the open field belongs to.
    */
-  readonly hiddenFrameLabelIds?: ReadonlySet<string>;
+  readonly editingFrameIds?: ReadonlySet<string>;
   readonly camera?: {
     readonly x: number;
     readonly y: number;
@@ -48,7 +50,7 @@ export function renderStaticScene(
     shapes,
     camera,
     pendingErasureIds,
-    hiddenFrameLabelIds,
+    editingFrameIds,
     backgroundColor,
     images,
     darkMode,
@@ -71,6 +73,9 @@ export function renderStaticScene(
   }
 
   const rc = createRoughCanvas(canvas);
+  // A frame's border and label are sized in screen pixels, so both passes
+  // below need the scale they are being drawn at.
+  const zoom = camera?.zoom ?? 1;
 
   const frames = new Map<string, FrameShape>();
   for (const shape of shapes) {
@@ -91,6 +96,8 @@ export function renderStaticScene(
     drawSceneShape(ctx, rc, shape, pendingErasureIds?.has(shape.id) ?? false, {
       images,
       darkMode,
+      zoom,
+      editingFrameIds,
     });
 
     if (frame) ctx.restore();
@@ -99,9 +106,8 @@ export function renderStaticScene(
   // Labels last: they sit above their frame's top edge, in space that belongs
   // to the board, so anything drawn near the top of a frame would otherwise
   // paint over the name of the frame holding it.
-  const zoom = camera?.zoom ?? 1;
   for (const frame of frames.values()) {
-    if (hiddenFrameLabelIds?.has(frame.id)) continue;
+    if (editingFrameIds?.has(frame.id)) continue;
     drawFrameLabel(ctx, frame, zoom);
   }
 
