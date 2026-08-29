@@ -350,6 +350,10 @@ export class BoardDocument {
 
     if (originals.length === 0) return [];
 
+    // Old id to new id, so a reference between two shapes copied together
+    // points at the copy rather than back at the original.
+    const remapped = new Map(originals.map((o) => [o.yMap.get('id') as string, o.newId]));
+
     this.yDoc.transact(() => {
       let currentMax = this.getMaxZIndex();
       for (const { yMap, newId } of originals) {
@@ -361,6 +365,11 @@ export class BoardDocument {
             clone.set('x', (value as number) + offset.dx);
           } else if (key === 'y') {
             clone.set('y', (value as number) + offset.dy);
+          } else if (key === 'frameId') {
+            // A member copied alongside its frame joins the copy. One copied
+            // without its frame stays in the original — which is the frame it
+            // is still standing in, since the copy lands offset from it.
+            clone.set('frameId', remapped.get(value as string) ?? value);
           } else {
             clone.set(key, value);
           }

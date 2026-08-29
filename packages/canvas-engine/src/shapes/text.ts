@@ -1,5 +1,6 @@
 import type { TextShape } from './shape.js';
 import type { Rect } from '../math.js';
+import { measureTextWidth } from '../utils/text-measure.js';
 import { resolveBaseStyle, type BaseStyleInput } from './style.js';
 
 export const DEFAULT_FONT_FAMILY = '"Caveat", "Comic Sans MS", system-ui, sans-serif';
@@ -32,20 +33,6 @@ export function createText(
   };
 }
 
-let measureCtx: OffscreenCanvasRenderingContext2D | null = null;
-
-function getMeasureContext(): OffscreenCanvasRenderingContext2D {
-  if (!measureCtx) {
-    const canvas = new OffscreenCanvas(1, 1);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      throw new Error('Could not acquire a 2D context for text measurement');
-    }
-    measureCtx = ctx;
-  }
-  return measureCtx;
-}
-
 /**
  * Measures actual text bounds via ctx.measureText, using the same font
  * string and line-height formula as the renderer (utils/rough.ts drawText),
@@ -53,13 +40,12 @@ function getMeasureContext(): OffscreenCanvasRenderingContext2D {
  * a per-character guess.
  */
 export function textBoundsEstimate(s: TextShape): Rect {
-  const ctx = getMeasureContext();
-  ctx.font = `${s.fontSize}px ${s.fontFamily}`;
+  const font = `${s.fontSize}px ${s.fontFamily}`;
 
   const lines = s.text.split('\n');
   let width = 0;
   for (const line of lines) {
-    const lineWidth = ctx.measureText(line).width;
+    const lineWidth = measureTextWidth(line, font);
     if (lineWidth > width) width = lineWidth;
   }
   const height = lines.length * s.fontSize * 1.2;

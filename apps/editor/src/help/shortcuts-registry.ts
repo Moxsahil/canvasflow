@@ -26,6 +26,7 @@ export const SHORTCUTS: ShortcutCategory[] = [
       { keys: 'p', description: 'Freehand (pencil)' },
       { keys: 't', description: 'Text' },
       { keys: 'i', description: 'Image' },
+      { keys: 'f', description: 'Frame' },
       { keys: 'k', description: 'Laser pointer' },
       { keys: 'e', description: 'Eraser' },
     ],

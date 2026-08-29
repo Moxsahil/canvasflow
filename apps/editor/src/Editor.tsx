@@ -4,8 +4,16 @@ import {
   computeBoundingRect,
   createText,
   fitRectToViewport,
+  FRAME_LABEL_FONT_FAMILY,
+  FRAME_LABEL_FONT_SIZE,
+  frameForShape,
+  frameLabelAt,
+  frameLabelBounds,
+  framesIn,
   hitTest,
+  isFrame,
   isText,
+  type FrameShape,
   presenceColorFor,
   rectIntersectsViewport,
   shapesIntersectingSegment,
@@ -36,6 +44,14 @@ import { hitTestHandles } from './selection/handles';
 import { useBoardDocument, useYjsShapes } from './document/useYjsDocument';
 import { useBoardImages, pickImageFiles } from './images';
 import { LaserLayer, useLaserTrails } from './laser';
+import { FrameNameEditor } from './frames/FrameNameEditor';
+import {
+  assignmentsAfterMove,
+  duplicateOffsetFor,
+  membersHiddenByTheirFrame,
+  shapesCapturedBy,
+  withFrameMembers,
+} from './frames/frame-ops';
 import { useUndoState } from './document/useUndoState';
 import { useBoardSync } from './sync/useBoardSync';
 import { useAuthToken } from './auth/useAuthToken';
@@ -226,6 +242,8 @@ export function Editor({ boardId }: EditorProps) {
   // One channel per connection. A reconnect issues a fresh transport, so the
   // channel is rebuilt with it rather than being patched in place.
   const [channel, setChannel] = useState<PresenceChannel | null>(null);
+  /** The frame whose name is open for editing, if any. */
+  const [renamingFrameId, setRenamingFrameId] = useState<string | null>(null);
   useEffect(() => {
     if (!awareness) {
       setChannel(null);
@@ -406,6 +424,57 @@ export function Editor({ boardId }: EditorProps) {
         y: (textEditingAt.y - camera.y) * camera.zoom,
       }
     : null;
+
+  // --- frame rename --------------------------------------------------------
+  // Local state rather than a machine event: renaming edits one field of one
+  // shape and commits straight to the document, where text editing has to
+  // create, update or delete a shape depending on what was typed.
+  const renamingFrame = renamingFrameId
+    ? (shapes.find((s) => s.id === renamingFrameId && isFrame(s)) as FrameShape | undefined)
+    : undefined;
+
+  const frameNameEditor = renamingFrame
+    ? (() => {
+        const label = frameLabelBounds(renamingFrame, camera.zoom);
+        return {
+          frame: renamingFrame,
+          position: {
+            x: (label.x - camera.x) * camera.zoom,
+            y: (label.y - camera.y) * camera.zoom,
+          },
+          // The label is drawn in screen pixels, so its box in world units
+          // scales back to a constant height however far the board is zoomed.
+          height: label.height * camera.zoom,
+          fontSize: FRAME_LABEL_FONT_SIZE,
+        };
+      })()
+    : null;
+
+  // A frame deleted by a collaborator while its name was open for editing
+  // leaves the input floating over nothing.
+  useEffect(() => {
+    if (renamingFrameId && !renamingFrame) setRenamingFrameId(null);
+  }, [renamingFrameId, renamingFrame]);
+
+  const hiddenFrameLabelIds = useMemo(
+    () => (renamingFrameId ? new Set([renamingFrameId]) : undefined),
+    [renamingFrameId],
+  );
+
+  const handleCommitFrameName = useCallback(
+    (name: string) => {
+      if (renamingFrameId) {
+        // Stored trimmed, and a name emptied out goes back to the default
+        // label rather than leaving the frame with no handle at all.
+        doc.updateShape(renamingFrameId, { name: name.trim() });
+        doc.breakUndoGroup();
+      }
+      setRenamingFrameId(null);
+    },
+    [doc, renamingFrameId],
+  );
+
+  const handleCancelFrameName = useCallback(() => setRenamingFrameId(null), []);
   // Editing an existing shape shows that shape's type; new text previews the
   // style the panel is set to, so the overlay matches what gets committed.
   const editingText = editingTextShape && isText(editingTextShape) ? editingTextShape : null;
@@ -481,10 +550,31 @@ export function Editor({ boardId }: EditorProps) {
 
   useEffect(() => {
     const sub1 = actorRef.on('shape.committed', (emitted) => {
-      doc.addShape(emitted.shape);
+      const shape = emitted.shape;
+
+      if (isFrame(shape)) {
+        doc.addShape(shape);
+        // Drawing a frame around things is the plainest way to say what
+        // belongs in it, so it has to take them in.
+        for (const id of shapesCapturedBy(shape, doc.getShapes())) {
+          doc.updateShape(id, { frameId: shape.id });
+        }
+        for (const id of membersHiddenByTheirFrame(doc.getShapes())) {
+          doc.bringToFront(id);
+        }
+        return;
+      }
+
+      // Drawn inside a frame is drawn into it. Assigned before the shape
+      // lands so it never exists unowned, which would flash unclipped.
+      const frameId = frameForShape(shape, framesIn(doc.getShapes()));
+      doc.addShape(frameId ? ({ ...shape, frameId } as Shape) : shape);
     });
     const sub2 = actorRef.on('shapes.deleted', (emitted) => {
-      doc.deleteShapes(emitted.ids);
+      // A frame goes with what is standing in it. One undo brings the whole
+      // thing back, which is the only reading that matches deleting what
+      // looks on screen like a single object.
+      doc.deleteShapes(withFrameMembers(emitted.ids, doc.getShapes()));
     });
     return () => {
       sub1.unsubscribe();
@@ -580,17 +670,21 @@ export function Editor({ boardId }: EditorProps) {
           }
         }
         if (hitHandle === null) {
-          const hit = hitTest(shapes, spatialIndex, point.x, point.y);
+          const hit = hitTest(shapes, spatialIndex, point.x, point.y, camera.zoom);
           hitShapeId = hit?.id ?? null;
 
           if (hit) {
-            const idsToMove =
+            const picked =
               shiftKey || selectedIds.includes(hit.id)
                 ? [...new Set([...selectedIds, hit.id])]
                 : [hit.id];
+            // Dragging a frame drags what is standing in it. The members are
+            // moved by the same loop as everything else, so the whole of
+            // "a frame moves as one object" is this one expansion.
+            const idsToMove = new Set(withFrameMembers(picked, shapes));
             const origins: Record<string, Shape> = {};
             for (const s of shapes) {
-              if (idsToMove.includes(s.id)) origins[s.id] = s;
+              if (idsToMove.has(s.id)) origins[s.id] = s;
             }
             dragOriginsRef.current = origins;
           }
@@ -712,6 +806,23 @@ export function Editor({ boardId }: EditorProps) {
       const snap = actorRef.getSnapshot();
       const wasInteracting = snap.matches('draggingSelection') || snap.matches('resizingSelection');
 
+      // Membership settles on release, not during the drag: recomputing it
+      // every pointer move would write a change to the document each time a
+      // shape crossed an edge, and a shape dragged across a frame on its way
+      // somewhere else would join and leave it on the wire.
+      if (wasInteracting) {
+        const movedIds = Object.keys(dragOriginsRef.current);
+        if (movedIds.length > 0) {
+          const current = doc.getShapes();
+          for (const { id, frameId } of assignmentsAfterMove(movedIds, current)) {
+            doc.updateShape(id, { frameId });
+          }
+          for (const id of membersHiddenByTheirFrame(doc.getShapes())) {
+            doc.bringToFront(id);
+          }
+        }
+      }
+
       actorRef.send({ type: 'POINTER_UP', point });
       dragOriginsRef.current = {};
       resizeOriginRef.current = null;
@@ -729,7 +840,16 @@ export function Editor({ boardId }: EditorProps) {
   // Double-clicking a text shape (with any tool active) reopens it for editing.
   const handleDoubleClick = useCallback(
     (point: Point) => {
-      const hit = hitTest(shapes, spatialIndex, point.x, point.y);
+      // Frame labels first. They sit above the frame in space that otherwise
+      // belongs to the board, so nothing else is competing for the gesture —
+      // but a shape standing just above a frame would win a plain hit test.
+      const labelled = frameLabelAt(framesIn(shapes), point.x, point.y, camera.zoom);
+      if (labelled && !readOnly) {
+        setRenamingFrameId(labelled.id);
+        return;
+      }
+
+      const hit = hitTest(shapes, spatialIndex, point.x, point.y, camera.zoom);
       if (hit && isText(hit)) {
         actorRef.send({
           type: 'EDIT_TEXT_SHAPE',
@@ -739,7 +859,7 @@ export function Editor({ boardId }: EditorProps) {
         });
       }
     },
-    [actorRef, shapes, spatialIndex],
+    [actorRef, shapes, spatialIndex, camera.zoom, readOnly],
   );
 
   // Moving the view yourself ends a follow. You cannot be carried and steer at
@@ -825,9 +945,23 @@ export function Editor({ boardId }: EditorProps) {
   // Duplicate: clone selected shapes with 10px offset, auto-select the clones
   const handleDuplicate = useCallback(() => {
     if (selectedIds.length === 0) return;
-    const newIds = doc.duplicateShapes(selectedIds, { dx: 10, dy: 10 }, genId);
+    const current = doc.getShapes();
+
+    // A frame copies with its contents, and lands clear of the original
+    // rather than offset over it — so pressing duplicate repeatedly lays
+    // frames out in a row instead of stacking them where none can be seen.
+    const ids = withFrameMembers(selectedIds, current);
+    const newIds = doc.duplicateShapes(ids, duplicateOffsetFor(selectedIds, current), genId);
+
     if (newIds.length > 0) {
-      actorRef.send({ type: 'SELECT_ALL', shapeIds: newIds });
+      // Only the copied frames, not their contents: selecting everything
+      // would make the next duplicate measure the members too.
+      const copies = new Set(newIds);
+      const frames = doc
+        .getShapes()
+        .filter((shape) => copies.has(shape.id) && isFrame(shape))
+        .map((shape) => shape.id);
+      actorRef.send({ type: 'SELECT_ALL', shapeIds: frames.length > 0 ? frames : newIds });
     }
   }, [doc, selectedIds, actorRef]);
 
@@ -1164,6 +1298,7 @@ export function Editor({ boardId }: EditorProps) {
             <CanvasStack
               shapes={shapesForRender}
               pendingErasureIds={pendingErasureIds}
+              hiddenFrameLabelIds={hiddenFrameLabelIds}
               newElement={newElement}
               selectedIds={selectedIds}
               marquee={marquee}
@@ -1265,6 +1400,20 @@ export function Editor({ boardId }: EditorProps) {
                   onBringForward: handleBringForward,
                   onBringToFront: handleBringToFront,
                 }}
+              />
+            )}
+
+            {frameNameEditor && (
+              <FrameNameEditor
+                key={frameNameEditor.frame.id}
+                position={frameNameEditor.position}
+                height={frameNameEditor.height}
+                fontSize={frameNameEditor.fontSize}
+                fontFamily={FRAME_LABEL_FONT_FAMILY}
+                color={frameNameEditor.frame.strokeColor}
+                initialName={frameNameEditor.frame.name}
+                onCommit={handleCommitFrameName}
+                onCancel={handleCancelFrameName}
               />
             )}
 

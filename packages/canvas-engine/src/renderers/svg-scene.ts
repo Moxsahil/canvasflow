@@ -1,7 +1,16 @@
 import type { Drawable } from 'roughjs/bin/core';
 import type { RoughGenerator } from 'roughjs/bin/generator';
 import { computeBoundingRect } from '../document/camera.js';
-import { assertNever, type ImageShape, type Shape, type TextShape } from '../shapes/shape.js';
+import {
+  assertNever,
+  isFrame,
+  type FrameShape,
+  type ImageShape,
+  type Shape,
+  type TextShape,
+} from '../shapes/shape.js';
+import { FRAME_LABEL_FONT_SIZE, FRAME_LABEL_GAP, frameLabel } from '../shapes/frame.js';
+import { FRAME_LABEL_FONT_FAMILY } from '../frames/frame-geometry.js';
 import {
   arrowheadMarks,
   createRoughGenerator,
@@ -20,6 +29,17 @@ import {
   EmptySceneError,
   type ExportSceneOptions,
 } from '../export/export-scene.js';
+
+/**
+ * Element id for one frame's clip path.
+ *
+ * Prefixed because these ids share a namespace with the whole page once the
+ * SVG is inlined into a document, and a bare shape id is short enough to
+ * collide with something already there.
+ */
+function frameClipId(frameId: string): string {
+  return `cf-frame-clip-${frameId}`;
+}
 
 /** Prepended when writing a file, so older software parses the SVG. */
 export const SVG_DOCUMENT_PREAMBLE = '<?xml version="1.0" encoding="UTF-8"?>\n';
@@ -51,8 +71,29 @@ export function renderSceneToSvgString(
   const viewHeight = rect.height + padding * 2;
   const generator = createRoughGenerator();
 
+  const frames = new Map(shapes.filter(isFrame).map((frame) => [frame.id, frame]));
+
+  // One clip path per frame, referenced by each of its members. The canvas
+  // renderer crops members at the frame's edge, and an export that didn't
+  // would show content the board never did.
+  const defs =
+    frames.size === 0
+      ? ''
+      : `<defs>\n${[...frames.values()]
+          .map(
+            (frame) =>
+              `<clipPath id="${frameClipId(frame.id)}"><rect x="${num(frame.x)}" y="${num(
+                frame.y,
+              )}" width="${num(frame.width)}" height="${num(frame.height)}"/></clipPath>`,
+          )
+          .join('\n')}\n</defs>\n`;
+
   const body = shapes
-    .map((shape) => shapeToSvg(generator, shape, options.imageDataUrls))
+    .map((shape) => {
+      const svg = shapeToSvg(generator, shape, options.imageDataUrls);
+      const frame = shape.frameId ? frames.get(shape.frameId) : undefined;
+      return frame ? `<g clip-path="url(#${frameClipId(frame.id)})">${svg}</g>` : svg;
+    })
     .join('\n');
 
   const background = backgroundColor
@@ -66,6 +107,11 @@ export function renderSceneToSvgString(
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${num(viewWidth * scale)}" ` +
     `height="${num(viewHeight * scale)}" viewBox="0 0 ${num(viewWidth)} ${num(viewHeight)}">\n` +
+    // Outside the translate, and correct there: a clip path resolves in the
+    // user space of whatever references it, which is a group inside that
+    // translate, so its rect is read in the same world coordinates the shapes
+    // are written in.
+    defs +
     background +
     `<g transform="translate(${num(padding - rect.x)} ${num(padding - rect.y)})">\n` +
     body +
@@ -156,6 +202,33 @@ function imageToSvg(shape: ImageShape, dataUrl: string | undefined): string {
   return `<image ${box} preserveAspectRatio="none" href="${escapeXml(dataUrl)}"/>`;
 }
 
+/**
+ * A frame's border and name.
+ *
+ * The label is placed in world units at the size the canvas renderer gives it
+ * at 1:1, which is the only scale an export has — there is no camera here to
+ * hold it at a constant size against.
+ */
+function frameToSvg(shape: FrameShape): string {
+  const dash = strokeDashArray(shape.strokeStyle, shape.strokeWidth);
+  const dashAttr = dash ? ` stroke-dasharray="${dash.map(num).join(' ')}"` : '';
+
+  const body =
+    `<rect x="${num(shape.x)}" y="${num(shape.y)}" width="${num(shape.width)}" ` +
+    `height="${num(shape.height)}" fill="${
+      shape.fillColor ? escapeXml(shape.fillColor) : 'none'
+    }" stroke="${escapeXml(shape.strokeColor)}" ` +
+    `stroke-width="${num(shape.strokeWidth)}"${dashAttr}/>`;
+
+  const label =
+    `<text x="${num(shape.x)}" y="${num(shape.y - FRAME_LABEL_GAP)}" ` +
+    `font-family="${escapeXml(FRAME_LABEL_FONT_FAMILY)}" ` +
+    `font-size="${num(FRAME_LABEL_FONT_SIZE)}" fill="${escapeXml(shape.strokeColor)}">` +
+    `${escapeXml(frameLabel(shape))}</text>`;
+
+  return body + label;
+}
+
 function shapeToSvg(
   generator: RoughGenerator,
   shape: Shape,
@@ -223,6 +296,9 @@ function shapeToSvg(
       break;
     case 'image':
       content = imageToSvg(shape, imageDataUrls?.get(shape.fileId));
+      break;
+    case 'frame':
+      content = frameToSvg(shape);
       break;
     default:
       assertNever(shape);

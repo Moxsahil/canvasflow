@@ -86,6 +86,17 @@ export const ImageIcon = createIcon(
   </>,
 );
 
+// Two crossed pairs of rules with the enclosed square left open — the crop
+// marks a frame is, rather than the box a rectangle already owns.
+export const FrameIcon = createIcon(
+  <>
+    <path d="M8 3v18" />
+    <path d="M16 3v18" />
+    <path d="M3 8h18" />
+    <path d="M3 16h18" />
+  </>,
+);
+
 export const EraserIcon = createIcon(
   <>
     <path d="M18.5 12.5L11 20H6.5l-2.6-2.6a2 2 0 0 1 0-2.8l8.4-8.4a2 2 0 0 1 2.8 0l4.4 4.4a2 2 0 0 1 0 2.8z" />

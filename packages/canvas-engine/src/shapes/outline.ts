@@ -51,7 +51,8 @@ export function shapeOutlineSegments(shape: Shape): Segment[] {
   switch (shape.kind) {
     case 'rectangle':
     case 'text':
-    case 'image': {
+    case 'image':
+    case 'frame': {
       const b = shapeBounds(shape);
       return polylineSegments(rectCorners(b.x, b.y, b.width, b.height), true);
     }
@@ -100,6 +101,12 @@ export function shapeHasSolidInterior(shape: Shape): boolean {
       return true;
     case 'arrow':
       return false;
+    // Hollow however it is filled. Rubbing out the things inside a frame is
+    // the common intent by a wide margin, and treating the interior as solid
+    // would delete the container out from under them on the first stroke.
+    // Crossing the border still erases the frame itself.
+    case 'frame':
+      return false;
     case 'rectangle':
     case 'ellipse':
     case 'diamond':
@@ -112,7 +119,12 @@ export function shapeHasSolidInterior(shape: Shape): boolean {
 
 /** Whether (x, y) falls inside the shape's outline. */
 export function shapeContainsPoint(shape: Shape, x: number, y: number): boolean {
-  if (shape.kind === 'rectangle' || shape.kind === 'text' || shape.kind === 'image') {
+  if (
+    shape.kind === 'rectangle' ||
+    shape.kind === 'text' ||
+    shape.kind === 'image' ||
+    shape.kind === 'frame'
+  ) {
     const b = shapeBounds(shape);
     return x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height;
   }

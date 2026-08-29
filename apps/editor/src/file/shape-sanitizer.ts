@@ -2,10 +2,13 @@ import {
   createArrow,
   createDiamond,
   createEllipse,
+  createFrame,
   createFreehand,
   createLine,
   createRectangle,
   createText,
+  frameForShape,
+  framesIn,
   type Shape,
 } from '@canvasflow/canvas-engine';
 
@@ -181,6 +184,22 @@ export function sanitizeShape(candidate: unknown, genId: () => string): Shape | 
       });
     }
 
+    case 'frame': {
+      const width = finite(candidate.width);
+      const height = finite(candidate.height);
+      if (width === undefined || height === undefined) return null;
+      // `frameId` is not read from the file at all. Every shape is given a
+      // fresh id on the way in, so a stored one would point at nothing —
+      // and it does not need to, because membership is derived from where
+      // the shapes are. It is recomputed once the whole file has landed.
+      return createFrame({
+        ...common,
+        width,
+        height,
+        name: typeof candidate.name === 'string' ? candidate.name : '',
+      });
+    }
+
     case 'image':
       // Dropped deliberately, not overlooked. An image shape carries only the
       // id of bytes held on the board it came from, and a board file has no
@@ -215,5 +234,18 @@ export function sanitizeShapes(
       skipped += 1;
     }
   }
-  return { shapes, skipped };
+
+  // Membership, rebuilt from the geometry now that every shape has its new id.
+  // Nothing about who was in which frame has to survive the file for this to
+  // come out right — the shapes are where they were, so the answer is too.
+  const frames = framesIn(shapes);
+  const restored =
+    frames.length === 0
+      ? shapes
+      : shapes.map((shape) => {
+          const frameId = frameForShape(shape, frames);
+          return frameId ? { ...shape, frameId } : shape;
+        });
+
+  return { shapes: restored, skipped };
 }

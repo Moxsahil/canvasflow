@@ -10,6 +10,7 @@ import {
   FreehandIcon,
   TextIcon,
   ImageIcon,
+  FrameIcon,
   LaserIcon,
   EraserIcon,
 } from '../assets/icons';
@@ -26,6 +27,7 @@ export type Tool =
   | 'freehand'
   | 'text'
   | 'image'
+  | 'frame'
   | 'laser'
   | 'eraser';
 
@@ -39,6 +41,7 @@ export const TOOL_TO_SHAPE_KIND = {
   freehand: 'freehand',
   text: 'text',
   image: 'image',
+  frame: 'frame',
   // The laser is absent on purpose: it paints a trail that fades, not a shape,
   // so there is no kind for it to map to.
 } as const satisfies Record<Exclude<Tool, 'hand' | 'select' | 'eraser' | 'laser'>, string>;
@@ -69,6 +72,9 @@ export const TOOLS: readonly ToolMeta[] = [
   { id: 'freehand', label: 'Freehand', icon: FreehandIcon, shortcut: 'P', numericKey: '7' },
   { id: 'text', label: 'Text', icon: TextIcon, shortcut: 'T', numericKey: '8' },
   { id: 'image', label: 'Image', icon: ImageIcon, shortcut: 'I', numericKey: '9' },
+  // No digit: the row is full through 9, and a frame is scaffolding you reach
+  // for deliberately rather than something you flick between while drawing.
+  { id: 'frame', label: 'Frame', icon: FrameIcon, shortcut: 'F', numericKey: null },
   // No digit: the row is full through 9, and the laser is a presenting tool
   // reached deliberately rather than something you flick between mid-drawing.
   { id: 'laser', label: 'Laser pointer', icon: LaserIcon, shortcut: 'K', numericKey: null },

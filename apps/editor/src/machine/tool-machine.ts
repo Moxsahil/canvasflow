@@ -3,6 +3,7 @@ import {
   createArrow,
   createDiamond,
   createEllipse,
+  createFrame,
   createFreehand,
   createLine,
   createRectangle,
@@ -212,6 +213,13 @@ export const toolMachine = setup({
             ...style,
           });
           break;
+        // Deliberately not given the current item style. A frame is
+        // scaffolding for the work rather than part of it, so inheriting
+        // whatever colour and roughness the last shape was drawn with would
+        // produce containers that read as drawing.
+        case 'frame':
+          newElement = createFrame({ id: genId(), x: p.x, y: p.y, width: 1, height: 1 });
+          break;
         case 'line':
           newElement = createLine({
             id: genId(),
@@ -282,6 +290,7 @@ export const toolMachine = setup({
         case 'rectangle':
         case 'ellipse':
         case 'diamond':
+        case 'frame':
           return {
             newElement: {
               ...el,
@@ -299,8 +308,22 @@ export const toolMachine = setup({
               points: [[0, 0] as readonly [number, number], [dx, dy] as readonly [number, number]],
             },
           };
-        default:
+        // Not sized by dragging a box: freehand tracks the pointer itself,
+        // text is placed by a click and sized by what is typed into it, and an
+        // image arrives at its own size from the picker.
+        case 'freehand':
+        case 'text':
+        case 'image':
           return {};
+        default: {
+          // Every kind is listed above, so this is unreachable — and a new
+          // box-like kind added to the union now fails to compile here rather
+          // than silently refusing to grow while it is being drawn, which is
+          // exactly how the frame shipped one pixel wide.
+          const unhandled: never = el;
+          void unhandled;
+          return {};
+        }
       }
     }),
     updateFreehand: assign(({ context, event }) => {
@@ -408,7 +431,12 @@ export const toolMachine = setup({
     isShapeTool: ({ context }) => {
       const t = context.activeTool;
       return (
-        t === 'rectangle' || t === 'ellipse' || t === 'diamond' || t === 'line' || t === 'arrow'
+        t === 'rectangle' ||
+        t === 'ellipse' ||
+        t === 'diamond' ||
+        t === 'line' ||
+        t === 'arrow' ||
+        t === 'frame'
       );
     },
     isFreehandTool: ({ context }) => context.activeTool === 'freehand',
