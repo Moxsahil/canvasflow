@@ -3,6 +3,7 @@ import { useActorRef, useSelector } from '@xstate/react';
 import {
   computeBoundingRect,
   createText,
+  DEFAULT_FRAME_NAME,
   fitRectToViewport,
   FRAME_LABEL_FONT_FAMILY,
   FRAME_LABEL_FONT_SIZE,
@@ -456,7 +457,7 @@ export function Editor({ boardId }: EditorProps) {
     if (renamingFrameId && !renamingFrame) setRenamingFrameId(null);
   }, [renamingFrameId, renamingFrame]);
 
-  const hiddenFrameLabelIds = useMemo(
+  const editingFrameIds = useMemo(
     () => (renamingFrameId ? new Set([renamingFrameId]) : undefined),
     [renamingFrameId],
   );
@@ -845,6 +846,10 @@ export function Editor({ boardId }: EditorProps) {
       // but a shape standing just above a frame would win a plain hit test.
       const labelled = frameLabelAt(framesIn(shapes), point.x, point.y, camera.zoom);
       if (labelled && !readOnly) {
+        // Selected as well as opened, so the frame being renamed is outlined
+        // while its name is in the field. Editing a label with nothing marking
+        // out which frame it belongs to reads as a box floating on the board.
+        actorRef.send({ type: 'SELECT_ALL', shapeIds: [labelled.id] });
         setRenamingFrameId(labelled.id);
         return;
       }
@@ -1298,7 +1303,7 @@ export function Editor({ boardId }: EditorProps) {
             <CanvasStack
               shapes={shapesForRender}
               pendingErasureIds={pendingErasureIds}
-              hiddenFrameLabelIds={hiddenFrameLabelIds}
+              editingFrameIds={editingFrameIds}
               newElement={newElement}
               selectedIds={selectedIds}
               marquee={marquee}
@@ -1410,7 +1415,7 @@ export function Editor({ boardId }: EditorProps) {
                 height={frameNameEditor.height}
                 fontSize={frameNameEditor.fontSize}
                 fontFamily={FRAME_LABEL_FONT_FAMILY}
-                color={frameNameEditor.frame.strokeColor}
+                placeholder={DEFAULT_FRAME_NAME}
                 initialName={frameNameEditor.frame.name}
                 onCommit={handleCommitFrameName}
                 onCancel={handleCancelFrameName}

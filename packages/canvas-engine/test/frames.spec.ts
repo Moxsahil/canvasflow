@@ -318,7 +318,7 @@ describe('frame rendering', () => {
         width: 300,
         height: 200,
         shapes: [f],
-        hiddenFrameLabelIds: hidden,
+        editingFrameIds: hidden,
       });
       // The band above the frame's top edge, where only the label is drawn.
       const data = ctx.getImageData(40, f.y - 18, 100, 17).data;
@@ -331,6 +331,58 @@ describe('frame rendering', () => {
     // input the editor puts over it.
     expect(labelPixels()).toBeGreaterThan(0);
     expect(labelPixels(new Set(['f1']))).toBe(0);
+  });
+
+  it('holds the border to one weight on screen as the board zooms', () => {
+    const f = frame({ x: 20, y: 20, width: 100, height: 60 });
+
+    function borderThickness(zoom: number): number {
+      const canvas = new OffscreenCanvas(300, 200);
+      const ctx = canvas.getContext('2d') as OffscreenCanvasRenderingContext2D;
+      renderStaticScene(ctx, canvas, {
+        width: 300,
+        height: 200,
+        shapes: [f],
+        // Centred on the frame's left edge so it stays on canvas at any zoom.
+        camera: { x: 20 - 40 / zoom, y: 20 + 30 - 50 / zoom, zoom },
+      });
+      // The camera pins the frame's left edge to screen x=40 at every zoom, so
+      // scan only around it — at 3x the right edge is off canvas, and counting
+      // the whole row would measure how many borders are visible rather than
+      // how thick one is.
+      const data = ctx.getImageData(0, 0, 300, 200).data;
+      let thickness = 0;
+      for (let x = 30; x < 55; x++) {
+        if (data[(50 * 300 + x) * 4 + 3]! > 128) thickness++;
+      }
+      return thickness;
+    }
+
+    // The border was drawn in world units, so at 3x it painted a six-pixel
+    // slab and the container started competing with the work inside it.
+    expect(borderThickness(3)).toBe(borderThickness(1));
+  });
+
+  it('draws the border in the selection colour while the name is being edited', () => {
+    const f = frame({ x: 20, y: 20, width: 100, height: 60 });
+
+    function borderColour(editing?: ReadonlySet<string>): string {
+      const canvas = new OffscreenCanvas(300, 200);
+      const ctx = canvas.getContext('2d') as OffscreenCanvasRenderingContext2D;
+      renderStaticScene(ctx, canvas, {
+        width: 300,
+        height: 200,
+        shapes: [f],
+        editingFrameIds: editing,
+      });
+      // On the left border, halfway down.
+      const [r, g, b] = ctx.getImageData(20, 50, 1, 1).data;
+      return `${r},${g},${b}`;
+    }
+
+    // The selection outline is drawn padded away from the shape, so it reads
+    // as a box around the frame rather than as this frame being active.
+    expect(borderColour()).not.toBe(borderColour(new Set(['f1'])));
   });
 
   it('names the frame in an export', () => {
