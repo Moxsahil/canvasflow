@@ -14,6 +14,7 @@ import {
   hitTest,
   isFrame,
   isText,
+  membershipAfterResize,
   type FrameShape,
   presenceColorFor,
   rectIntersectsViewport,
@@ -807,17 +808,38 @@ export function Editor({ boardId }: EditorProps) {
       const snap = actorRef.getSnapshot();
       const wasInteracting = snap.matches('draggingSelection') || snap.matches('resizingSelection');
 
-      // Membership settles on release, not during the drag: recomputing it
+      // Membership settles on release, not during the gesture: recomputing it
       // every pointer move would write a change to the document each time a
       // shape crossed an edge, and a shape dragged across a frame on its way
       // somewhere else would join and leave it on the wire.
       if (wasInteracting) {
-        const movedIds = Object.keys(dragOriginsRef.current);
-        if (movedIds.length > 0) {
-          const current = doc.getShapes();
-          for (const { id, frameId } of assignmentsAfterMove(movedIds, current)) {
-            doc.updateShape(id, { frameId });
-          }
+        const current = doc.getShapes();
+        const resized = resizeOriginRef.current;
+        const resizedFrame =
+          resized && isFrame(resized)
+            ? current.find((s): s is FrameShape => s.id === resized.id && isFrame(s))
+            : undefined;
+
+        // Three gestures, and the frame resize is the odd one out. A drag and
+        // a shape resize both move a shape past frames that stayed still, so
+        // both ask the ordinary question of whatever changed. Resizing a
+        // frame is the reverse — the frame's own edges sweep across shapes
+        // that stayed still — so it asks about the frame's contents instead.
+        //
+        // A resize leaves `dragOriginsRef` empty, which is why the resized
+        // shape has to be named here: without it, resizing a shape out of a
+        // frame would leave it a member of a frame it is no longer in.
+        const changes = resizedFrame
+          ? membershipAfterResize(resizedFrame, current)
+          : assignmentsAfterMove(
+              resized ? [resized.id] : Object.keys(dragOriginsRef.current),
+              current,
+            );
+
+        for (const { id, frameId } of changes) {
+          doc.updateShape(id, { frameId });
+        }
+        if (changes.length > 0) {
           for (const id of membersHiddenByTheirFrame(doc.getShapes())) {
             doc.bringToFront(id);
           }
