@@ -55,6 +55,68 @@ export function frameForShape(shape: Shape, frames: readonly FrameShape[]): stri
   return null;
 }
 
+function frameSwallows(frame: FrameShape, shape: Shape): boolean {
+  const b = shapeBounds(shape);
+  return (
+    b.x >= frame.x &&
+    b.y >= frame.y &&
+    b.x + b.width <= frame.x + frame.width &&
+    b.y + b.height <= frame.y + frame.height
+  );
+}
+
+function frameTouches(frame: FrameShape, shape: Shape): boolean {
+  const b = shapeBounds(shape);
+  return (
+    b.x < frame.x + frame.width &&
+    b.x + b.width > frame.x &&
+    b.y < frame.y + frame.height &&
+    b.y + b.height > frame.y
+  );
+}
+
+/**
+ * Membership after a frame has been resized, limited to what changed.
+ *
+ * Dragging a frame does not change who is in it — the frame took its contents
+ * with it and nothing else moved. Resizing is the opposite: the frame's edges
+ * sweep across the board while everything stands still, so the answer to
+ * "what is in here" genuinely changes, and a frame pulled in past its own
+ * contents that kept them would go on cropping them to nothing while still
+ * moving and deleting them as its own.
+ *
+ * The two thresholds are deliberately different. A shape joins only once it is
+ * **wholly** inside, and is let go only once it has stopped touching at all;
+ * in between, whatever the frame already had it keeps. A single boundary would
+ * flip shapes in and out of the frame as the handle crossed their edge, which
+ * on a shared board is a write per flip. This gap is what makes the edge
+ * sticky instead.
+ */
+export function membershipAfterResize(
+  frame: FrameShape,
+  shapes: readonly Shape[],
+): MembershipChange[] {
+  const changes: MembershipChange[] = [];
+
+  for (const shape of shapes) {
+    // A frame is never a member of a frame, and a shape another frame already
+    // holds is not this one's to take — a resize is not a claim on someone
+    // else's contents.
+    if (isFrame(shape)) continue;
+
+    const owned = shape.frameId === frame.id;
+    if (!owned && shape.frameId != null) continue;
+
+    if (!owned && frameSwallows(frame, shape)) {
+      changes.push({ id: shape.id, frameId: frame.id });
+    } else if (owned && !frameTouches(frame, shape)) {
+      changes.push({ id: shape.id, frameId: null });
+    }
+  }
+
+  return changes;
+}
+
 /** The shapes standing in one frame, in the order they were given. */
 export function membersOf(frameId: string, shapes: readonly Shape[]): Shape[] {
   return shapes.filter((shape) => shape.frameId === frameId);

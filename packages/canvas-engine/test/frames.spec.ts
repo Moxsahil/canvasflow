@@ -1,7 +1,13 @@
 import * as Y from 'yjs';
 import { shapeToYMap, yMapToShape } from '../src/document/yjs-shape.js';
 import { frameHitAt, frameLabelAt, frameLabelBounds } from '../src/frames/frame-geometry.js';
-import { frameForShape, framesIn, membersOf, membershipChanges } from '../src/frames/membership.js';
+import {
+  frameForShape,
+  framesIn,
+  membersOf,
+  membershipAfterResize,
+  membershipChanges,
+} from '../src/frames/membership.js';
 import { hitTest } from '../src/hit-testing/hit-test.js';
 import { segmentErasesShape } from '../src/hit-testing/erase-test.js';
 import { renderStaticScene } from '../src/renderers/static.js';
@@ -100,6 +106,70 @@ describe('frame membership', () => {
 
     expect(framesIn(shapes)).toEqual([f]);
     expect(membersOf('f1', shapes).map((s) => s.id)).toEqual(['in']);
+  });
+});
+
+describe('membership after a frame is resized', () => {
+  it('takes in a shape the frame has been grown around', () => {
+    // Grown to swallow a rectangle sitting at 300,20 that was on open board.
+    const grown = frame({ width: 400 });
+    const bystander = rect('a', 300, 20);
+
+    expect(membershipAfterResize(grown, [grown, bystander])).toEqual([{ id: 'a', frameId: 'f1' }]);
+  });
+
+  it('lets go of a member the frame has been pulled in past', () => {
+    const shrunk = frame({ width: 50 });
+    const stranded = { ...rect('a', 150, 20), frameId: 'f1' };
+
+    // Left behind entirely. Keeping it would go on cropping it to nothing
+    // while still moving and deleting it as the frame's own.
+    expect(membershipAfterResize(shrunk, [shrunk, stranded])).toEqual([{ id: 'a', frameId: null }]);
+  });
+
+  it('keeps a member the edge has only cut across', () => {
+    const shrunk = frame({ width: 100 });
+    // Straddling the new right edge at x=100: from 90 to 110.
+    const straddling = { ...rect('a', 90, 20), frameId: 'f1' };
+
+    // The two thresholds are what make the edge sticky. One boundary would
+    // flip this shape in and out as the handle crossed it, and every flip is
+    // a write on a shared board.
+    expect(membershipAfterResize(shrunk, [shrunk, straddling])).toEqual([]);
+  });
+
+  it('does not take in a shape only partly swept over', () => {
+    const grown = frame({ width: 100 });
+    // Straddling the edge, but loose rather than already a member.
+    const straddling = rect('a', 90, 20);
+
+    // The other half of the sticky edge: half-in is not enough to join.
+    expect(membershipAfterResize(grown, [grown, straddling])).toEqual([]);
+  });
+
+  it('leaves another frame’s contents alone', () => {
+    const grown = frame({ id: 'grown', width: 400 });
+    const other = frame({ id: 'other', x: 300, y: 0, width: 80, height: 60 });
+    const spokenFor = { ...rect('a', 310, 20), frameId: 'other' };
+
+    // A resize is not a claim on somebody else's contents, however far the
+    // frame is dragged out over them.
+    expect(membershipAfterResize(grown, [grown, other, spokenFor])).toEqual([]);
+  });
+
+  it('never takes in another frame', () => {
+    const grown = frame({ id: 'grown', width: 400, height: 400 });
+    const inner = frame({ id: 'inner', x: 50, y: 50, width: 60, height: 60 });
+
+    expect(membershipAfterResize(grown, [grown, inner])).toEqual([]);
+  });
+
+  it('says nothing when the resize changed no answers', () => {
+    const f = frame();
+    const inside = { ...rect('in', 40, 40), frameId: 'f1' };
+    const outside = rect('out', 900, 900);
+
+    expect(membershipAfterResize(f, [f, inside, outside])).toEqual([]);
   });
 });
 
