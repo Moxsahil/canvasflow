@@ -11,6 +11,7 @@ import {
 } from '../shapes/shape.js';
 import { FRAME_LABEL_FONT_SIZE, FRAME_LABEL_GAP, frameLabel } from '../shapes/frame.js';
 import { FRAME_BORDER_WIDTH } from './draw-frame.js';
+import { frameChain } from '../frames/membership.js';
 import { FRAME_LABEL_FONT_FAMILY } from '../frames/frame-geometry.js';
 import {
   arrowheadMarks,
@@ -92,8 +93,18 @@ export function renderSceneToSvgString(
   const body = shapes
     .map((shape) => {
       const svg = shapeToSvg(generator, shape, options.imageDataUrls);
-      const frame = shape.frameId ? frames.get(shape.frameId) : undefined;
-      return frame ? `<g clip-path="url(#${frameClipId(frame.id)})">${svg}</g>` : svg;
+      if (!shape.frameId) return svg;
+
+      // One group per frame in the chain, nested. A clip path does not
+      // intersect with another the way successive canvas clips do, so the
+      // composition has to be expressed in the tree: outermost frame first,
+      // so the shape ends up inside all of them.
+      return frameChain(shape, frames)
+        .reverse()
+        .reduce(
+          (inner, frame) => `<g clip-path="url(#${frameClipId(frame.id)})">${inner}</g>`,
+          svg,
+        );
     })
     .join('\n');
 

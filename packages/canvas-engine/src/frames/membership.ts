@@ -33,24 +33,75 @@ function frameHolds(frame: FrameShape, x: number, y: number): boolean {
   return x >= frame.x && x <= frame.x + frame.width && y >= frame.y && y <= frame.y + frame.height;
 }
 
+/** Frames keyed by id, for walking the chain without a scan per step. */
+export function frameIndex(frames: readonly FrameShape[]): Map<string, FrameShape> {
+  return new Map(frames.map((frame) => [frame.id, frame]));
+}
+
+/**
+ * The frames a shape is standing in, innermost first.
+ *
+ * Walked with a visited set rather than trusted. Membership is written by
+ * whichever client last moved a shape, and a document that has been through a
+ * merge, an old client, or a hand edit can describe a loop — which the
+ * renderer would otherwise follow until the stack ran out, on every frame.
+ */
+export function frameChain(shape: Shape, byId: ReadonlyMap<string, FrameShape>): FrameShape[] {
+  const chain: FrameShape[] = [];
+  const seen = new Set<string>([shape.id]);
+
+  let parentId = shape.frameId;
+  while (parentId != null && !seen.has(parentId)) {
+    const parent = byId.get(parentId);
+    if (!parent) break;
+    chain.push(parent);
+    seen.add(parentId);
+    parentId = parent.frameId;
+  }
+
+  return chain;
+}
+
+/** Whether `candidate` is this frame, or sits somewhere inside it. */
+function wouldCloseALoop(
+  candidate: FrameShape,
+  frame: FrameShape,
+  byId: ReadonlyMap<string, FrameShape>,
+): boolean {
+  if (candidate.id === frame.id) return true;
+  return frameChain(candidate, byId).some((ancestor) => ancestor.id === frame.id);
+}
+
 /**
  * The frame a shape belongs in, or null for the open board.
  *
  * Topmost wins where frames overlap, matching what the eye reports: the frame
  * drawn last is the one that looks like it is holding the shape.
  *
- * A frame is never a member of another frame. Nesting is a real feature with
- * real questions attached — what a drag out of an inner frame means, how deep
- * clipping composes — and answering them by accident here would be worse than
- * leaving it out.
+ * A frame may belong to another frame, which is what makes nesting work — but
+ * never to itself or to anything already inside it. Geometry alone cannot rule
+ * that out: two frames on the same spot each hold the other's centre, and
+ * without this each would claim the other and every walk over the result would
+ * run forever.
  */
 export function frameForShape(shape: Shape, frames: readonly FrameShape[]): string | null {
-  if (isFrame(shape)) return null;
-
+  const nesting = isFrame(shape);
+  const byId = nesting ? frameIndex(frames) : null;
   const { x, y } = centerOf(shape);
+
   for (let i = frames.length - 1; i >= 0; i--) {
     const frame = frames[i]!;
-    if (frameHolds(frame, x, y)) return frame.id;
+    if (frame.id === shape.id) continue;
+
+    // A frame joins another only when it is **wholly** inside it, where an
+    // ordinary shape only has to have its centre in. The centre is the wrong
+    // question between two frames: a large frame's centre sits inside a small
+    // one drawn near the middle of it, which would make the container a member
+    // of the thing it contains. Nothing about that is visible until the outer
+    // frame is clipped to the inner one's bounds and its border disappears.
+    if (nesting ? !frameSwallows(frame, shape) : !frameHolds(frame, x, y)) continue;
+    if (byId && wouldCloseALoop(frame, shape as FrameShape, byId)) continue;
+    return frame.id;
   }
   return null;
 }
@@ -97,15 +148,15 @@ export function membershipAfterResize(
   shapes: readonly Shape[],
 ): MembershipChange[] {
   const changes: MembershipChange[] = [];
+  const byId = frameIndex(framesIn(shapes));
 
   for (const shape of shapes) {
-    // A frame is never a member of a frame, and a shape another frame already
-    // holds is not this one's to take — a resize is not a claim on someone
-    // else's contents.
-    if (isFrame(shape)) continue;
-
+    // A shape another frame already holds is not this one's to take — a resize
+    // is not a claim on somebody else's contents.
     const owned = shape.frameId === frame.id;
     if (!owned && shape.frameId != null) continue;
+    // A frame grown over its own contents must not become a member of them.
+    if (isFrame(shape) && wouldCloseALoop(frame, shape, byId)) continue;
 
     if (!owned && frameSwallows(frame, shape)) {
       changes.push({ id: shape.id, frameId: frame.id });
@@ -123,13 +174,41 @@ export function membersOf(frameId: string, shapes: readonly Shape[]): Shape[] {
 }
 
 /**
- * A frame and everything standing in it.
+ * Everything standing in a frame, however deep — the members of its members
+ * included.
+ *
+ * Breadth-first over ids rather than a walk up each shape's chain, so the cost
+ * is one pass over the board however deeply the frames are nested. The visited
+ * set is doing the same job as the one in `frameChain`: a document describing
+ * a loop must not turn an operation into an infinite one.
+ */
+export function descendantsOf(frameId: string, shapes: readonly Shape[]): Shape[] {
+  const found: Shape[] = [];
+  const open = [frameId];
+  const seen = new Set<string>([frameId]);
+
+  while (open.length > 0) {
+    const parentId = open.pop()!;
+    for (const shape of shapes) {
+      if (shape.frameId !== parentId || seen.has(shape.id)) continue;
+      seen.add(shape.id);
+      found.push(shape);
+      if (isFrame(shape)) open.push(shape.id);
+    }
+  }
+
+  return found;
+}
+
+/**
+ * A frame and everything standing in it, at any depth.
  *
  * What "the frame" means for every operation that treats it as one object —
- * moving it, deleting it, duplicating it.
+ * moving it, deleting it, duplicating it. An inner frame is part of the outer
+ * one for all three, so its own contents have to come along too.
  */
 export function frameWithMembers(frame: FrameShape, shapes: readonly Shape[]): Shape[] {
-  return [frame, ...membersOf(frame.id, shapes)];
+  return [frame, ...descendantsOf(frame.id, shapes)];
 }
 
 export interface MembershipChange {

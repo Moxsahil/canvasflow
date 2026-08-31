@@ -555,7 +555,11 @@ export function Editor({ boardId }: EditorProps) {
       const shape = emitted.shape;
 
       if (isFrame(shape)) {
-        doc.addShape(shape);
+        // A frame drawn inside another belongs to it, exactly as any other
+        // shape drawn there would. Without this the new frame lands loose on
+        // the board and only ever gains contents, never a home.
+        const parentId = frameForShape(shape, framesIn(doc.getShapes()));
+        doc.addShape(parentId ? ({ ...shape, frameId: parentId } as Shape) : shape);
         // Drawing a frame around things is the plainest way to say what
         // belongs in it, so it has to take them in.
         for (const id of shapesCapturedBy(shape, doc.getShapes())) {

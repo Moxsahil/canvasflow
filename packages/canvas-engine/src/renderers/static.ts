@@ -1,6 +1,7 @@
 import { isFrame, type FrameShape, type Shape } from '../shapes/shape.js';
 import { clearCanvas } from '../utils/canvas.js';
 import { createRoughCanvas } from '../utils/rough.js';
+import { frameChain } from '../frames/membership.js';
 import { clipToFrame, drawFrameLabel } from './draw-frame.js';
 import { drawSceneShape, type SceneShapeContext } from './draw-shape.js';
 
@@ -87,10 +88,15 @@ export function renderStaticScene(
     // frame rather than a drawn rectangle. Clipping per shape rather than
     // grouping members under one clip keeps the document's z-order the only
     // thing deciding what covers what.
-    const frame = shape.frameId ? frames.get(shape.frameId) : undefined;
-    if (frame) {
+    //
+    // The whole chain, not just the immediate frame: successive clips
+    // intersect, so a shape in a nested frame is cropped by that frame and
+    // again by everything holding it. Without this an inner frame hanging over
+    // the edge of its parent would show its contents outside the parent.
+    const chain = shape.frameId ? frameChain(shape, frames) : [];
+    if (chain.length > 0) {
       ctx.save();
-      clipToFrame(ctx, frame);
+      for (const frame of chain) clipToFrame(ctx, frame);
     }
 
     drawSceneShape(ctx, rc, shape, pendingErasureIds?.has(shape.id) ?? false, {
@@ -100,7 +106,7 @@ export function renderStaticScene(
       editingFrameIds,
     });
 
-    if (frame) ctx.restore();
+    if (chain.length > 0) ctx.restore();
   }
 
   // Labels last: they sit above their frame's top edge, in space that belongs

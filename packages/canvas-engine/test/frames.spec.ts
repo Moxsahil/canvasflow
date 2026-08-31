@@ -2,7 +2,11 @@ import * as Y from 'yjs';
 import { shapeToYMap, yMapToShape } from '../src/document/yjs-shape.js';
 import { frameHitAt, frameLabelAt, frameLabelBounds } from '../src/frames/frame-geometry.js';
 import {
+  descendantsOf,
+  frameChain,
   frameForShape,
+  frameIndex,
+  frameWithMembers,
   framesIn,
   membersOf,
   membershipAfterResize,
@@ -58,13 +62,39 @@ describe('frame membership', () => {
     expect(frameForShape(rect('a', 100, 40), [under, over])).toBe('over');
   });
 
-  it('never puts a frame inside a frame', () => {
+  it('puts a frame inside the frame it is standing in', () => {
     const outer = frame({ id: 'outer', x: 0, y: 0, width: 400, height: 400 });
     const inner = frame({ id: 'inner', x: 50, y: 50, width: 100, height: 100 });
 
-    // Nesting is a feature with its own questions attached; answering them by
-    // accident here would be worse than leaving it out.
-    expect(frameForShape(inner, [outer])).toBeNull();
+    expect(frameForShape(inner, [outer])).toBe('outer');
+  });
+
+  it('never makes a frame a member of a smaller one drawn inside it', () => {
+    const outer = frame({ id: 'outer', x: 0, y: 0, width: 400, height: 400 });
+    // Small, and over the outer frame's centre — which is where you would
+    // naturally draw one.
+    const inner = frame({ id: 'inner', x: 150, y: 150, width: 100, height: 100 });
+
+    // The centre rule would answer 'inner' here, because the outer frame's
+    // middle is inside it. The outer would then be clipped to the inner's
+    // bounds and its border would vanish, leaving a board of bare labels.
+    expect(frameForShape(outer, [inner])).toBeNull();
+    expect(frameForShape(inner, [outer])).toBe('outer');
+  });
+
+  it('refuses to put a frame inside its own contents', () => {
+    // Two frames on the same spot each hold the other's centre, so geometry
+    // alone would have them claim each other — and every walk over the result
+    // would then run until the stack gave out.
+    const outer = frame({ id: 'outer', x: 0, y: 0, width: 200, height: 200 });
+    const inner = {
+      ...frame({ id: 'inner', x: 0, y: 0, width: 200, height: 200 }),
+      frameId: 'outer',
+    };
+
+    expect(frameForShape(outer, [outer, inner])).toBeNull();
+    // And never inside itself, however the frames are ordered.
+    expect(frameForShape(outer, [outer])).toBeNull();
   });
 
   it('reports only the shapes whose frame actually changed', () => {
@@ -109,6 +139,64 @@ describe('frame membership', () => {
   });
 });
 
+describe('nesting', () => {
+  /** outer ⊃ inner ⊃ leaf, plus a shape directly in the outer. */
+  function nest() {
+    const outer = frame({ id: 'outer', x: 0, y: 0, width: 400, height: 400 });
+    const inner = {
+      ...frame({ id: 'inner', x: 20, y: 20, width: 200, height: 200 }),
+      frameId: 'outer',
+    };
+    const leaf = { ...rect('leaf', 40, 40), frameId: 'inner' };
+    const direct = { ...rect('direct', 300, 300), frameId: 'outer' };
+    return { outer, inner, leaf, direct, shapes: [outer, inner, leaf, direct] };
+  }
+
+  it('reaches all the way down for everything in a frame', () => {
+    const { outer, shapes } = nest();
+
+    // Moving or deleting the outer has to take the inner's own contents too,
+    // or they are left behind holding nothing.
+    expect(
+      descendantsOf('outer', shapes)
+        .map((s) => s.id)
+        .sort(),
+    ).toEqual(['direct', 'inner', 'leaf']);
+    expect(frameWithMembers(outer, shapes)).toHaveLength(4);
+  });
+
+  it('reports the chain a shape is standing in, innermost first', () => {
+    const { leaf, shapes } = nest();
+
+    expect(frameChain(leaf, frameIndex(framesIn(shapes))).map((f) => f.id)).toEqual([
+      'inner',
+      'outer',
+    ]);
+  });
+
+  it('does not hang on a document that describes a loop', () => {
+    // Not reachable through the editor, but a merge, an older client or a
+    // hand edit can write one, and the renderer walks this every frame.
+    const a = { ...frame({ id: 'a' }), frameId: 'b' };
+    const b = { ...frame({ id: 'b' }), frameId: 'a' };
+    const byId = frameIndex([a, b]);
+
+    expect(frameChain(a, byId).map((f) => f.id)).toEqual(['b']);
+    expect(descendantsOf('a', [a, b]).map((s) => s.id)).toEqual(['b']);
+  });
+
+  it('lets an inner frame leave without disturbing what it holds', () => {
+    const { inner, leaf, shapes } = nest();
+    // Dragged clean out of the outer frame.
+    const moved = { ...inner, x: 900, y: 900 };
+    const next = shapes.map((s) => (s.id === 'inner' ? moved : s));
+
+    expect(frameForShape(moved, framesIn(next))).toBeNull();
+    // The leaf came along and is still the inner frame's.
+    expect(membersOf('inner', next).map((s) => s.id)).toEqual([leaf.id]);
+  });
+});
+
 describe('membership after a frame is resized', () => {
   it('takes in a shape the frame has been grown around', () => {
     // Grown to swallow a rectangle sitting at 300,20 that was on open board.
@@ -147,21 +235,28 @@ describe('membership after a frame is resized', () => {
     expect(membershipAfterResize(grown, [grown, straddling])).toEqual([]);
   });
 
-  it('leaves another frame’s contents alone', () => {
+  it('takes in a whole frame it has been grown around, contents and all', () => {
     const grown = frame({ id: 'grown', width: 400 });
     const other = frame({ id: 'other', x: 300, y: 0, width: 80, height: 60 });
     const spokenFor = { ...rect('a', 310, 20), frameId: 'other' };
 
-    // A resize is not a claim on somebody else's contents, however far the
-    // frame is dragged out over them.
-    expect(membershipAfterResize(grown, [grown, other, spokenFor])).toEqual([]);
+    // The inner frame joins; what is standing in it stays with it rather than
+    // being claimed directly, so the nesting stays one level deep per step.
+    expect(membershipAfterResize(grown, [grown, other, spokenFor])).toEqual([
+      { id: 'other', frameId: 'grown' },
+    ]);
   });
 
-  it('never takes in another frame', () => {
-    const grown = frame({ id: 'grown', width: 400, height: 400 });
-    const inner = frame({ id: 'inner', x: 50, y: 50, width: 60, height: 60 });
+  it('refuses to become a member of its own contents', () => {
+    const outer = frame({ id: 'outer', x: 0, y: 0, width: 200, height: 200 });
+    const inner = {
+      ...frame({ id: 'inner', x: 0, y: 0, width: 200, height: 200 }),
+      frameId: 'outer',
+    };
 
-    expect(membershipAfterResize(grown, [grown, inner])).toEqual([]);
+    // `outer` grown to exactly cover `inner` would otherwise swallow the very
+    // frame that is standing in it.
+    expect(membershipAfterResize(outer, [outer, inner])).toEqual([]);
   });
 
   it('says nothing when the resize changed no answers', () => {
@@ -366,6 +461,37 @@ describe('frame rendering', () => {
     });
 
     expect(paintedAt(paint([f, loose]), 160, 60)).toBe(true);
+  });
+
+  it('crops a nested member against every frame holding it', () => {
+    // The inner frame hangs off the right of the outer: it runs to x=200,
+    // where the outer stops at 120.
+    const outer = frame({ id: 'outer', x: 20, y: 20, width: 100, height: 100 });
+    const inner = {
+      ...frame({ id: 'inner', x: 40, y: 40, width: 160, height: 60 }),
+      frameId: 'outer',
+    };
+    const leaf = {
+      ...createRectangle({
+        id: 'leaf',
+        x: 50,
+        y: 50,
+        width: 140,
+        height: 30,
+        fillColor: '#ff0000',
+        fillStyle: 'solid',
+        roughness: 0,
+      }),
+      frameId: 'inner',
+    };
+
+    const pixels = paint([outer, inner, leaf]);
+
+    expect(paintedAt(pixels, 100, 60)).toBe(true);
+    // Inside the inner frame but past the outer's right edge. Clipping only
+    // against the immediate frame would leave this painted outside the frame
+    // that is supposed to contain the whole arrangement.
+    expect(paintedAt(pixels, 150, 60)).toBe(false);
   });
 
   it('crops members in an export too', () => {

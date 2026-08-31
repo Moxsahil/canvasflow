@@ -39,6 +39,38 @@ describe('withFrameMembers', () => {
   });
 });
 
+describe('withFrameMembers, nested', () => {
+  /** outer ⊃ inner ⊃ leaf */
+  const outer = frame('outer', 0, 0, 400, 400);
+  const inner = { ...frame('inner', 20, 20, 200, 200), frameId: 'outer' };
+  const leaf = rect('leaf', 40, 40, 'inner');
+  const shapes = [outer, inner, leaf];
+
+  it('reaches the contents of an inner frame', () => {
+    // Taking only the outer's direct members would move the inner frame while
+    // leaving what it holds behind, sitting where the frame used to be.
+    expect(withFrameMembers(['outer'], shapes).sort()).toEqual(['inner', 'leaf', 'outer']);
+  });
+
+  it('takes only the subtree when the inner frame is the one selected', () => {
+    expect(withFrameMembers(['inner'], shapes).sort()).toEqual(['inner', 'leaf']);
+  });
+});
+
+describe('membersHiddenByTheirFrame, nested', () => {
+  it('raises a frame and then what it holds, in that order', () => {
+    // z-order is array order: the outer frame is painted last, so it covers
+    // the inner frame, which in turn would cover its own leaf once raised.
+    const inner = { ...frame('inner', 20, 20, 200, 200), frameId: 'outer' };
+    const leaf = rect('leaf', 40, 40, 'inner');
+    const outer = frame('outer', 0, 0, 400, 400);
+
+    // Deepest last: each id is brought to the front in turn, so the leaf has
+    // to be raised after the frame holding it or it lands underneath.
+    expect(membersHiddenByTheirFrame([inner, leaf, outer])).toEqual(['inner', 'leaf']);
+  });
+});
+
 describe('duplicateOffsetFor', () => {
   it('puts a frame copy beside the original, on one axis', () => {
     const shapes = [frame('f1', 0, 0, 200, 100)];
@@ -109,13 +141,23 @@ describe('shapesCapturedBy', () => {
     expect(shapesCapturedBy(f, shapes)).toEqual(['inside']);
   });
 
-  it('leaves another frame’s contents where they are', () => {
+  it('takes in a whole frame, without emptying it', () => {
     const existing = frame('existing', 0, 0);
     const drawn = frame('drawn', 0, 0, 400, 400);
     const shapes = [existing, rect('spoken-for', 50, 40, 'existing'), drawn];
 
-    // Drawing a box over an existing frame is not a request to empty it.
-    expect(shapesCapturedBy(drawn, shapes)).toEqual([]);
+    // Drawing a box around an existing frame is how you say it belongs in
+    // there. It nests whole: the shape standing in it stays its own, rather
+    // than being claimed a second time by the frame now holding both.
+    expect(shapesCapturedBy(drawn, shapes)).toEqual(['existing']);
+  });
+
+  it('never captures itself', () => {
+    const drawn = frame('drawn', 0, 0, 400, 400);
+
+    // The frame is inside its own bounds by definition, so nothing but the
+    // loop check keeps it off its own list.
+    expect(shapesCapturedBy(drawn, [drawn])).toEqual([]);
   });
 });
 
