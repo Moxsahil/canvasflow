@@ -12,7 +12,7 @@ import {
   frameForShape,
   framesIn,
   isFrame,
-  membersOf,
+  descendantsOf,
   shapeBounds,
   type FrameShape,
   type Shape,
@@ -31,14 +31,21 @@ export const FRAME_DUPLICATE_GAP = 20;
 /** The offset every other kind of shape is duplicated by. */
 export const DEFAULT_DUPLICATE_OFFSET = { dx: 10, dy: 10 };
 
-/** The given ids, plus everything standing in any frame among them. */
+/**
+ * The given ids, plus everything standing in any frame among them, at any
+ * depth.
+ *
+ * All the way down rather than one level: an inner frame is part of the outer
+ * one, so moving or deleting the outer has to take the inner's own contents
+ * with it too, or they are left behind holding nothing.
+ */
 export function withFrameMembers(ids: readonly string[], shapes: readonly Shape[]): string[] {
   const selected = new Set(ids);
   const frameIds = shapes.filter((s) => selected.has(s.id) && isFrame(s)).map((s) => s.id);
   if (frameIds.length === 0) return [...selected];
 
   for (const frameId of frameIds) {
-    for (const member of membersOf(frameId, shapes)) selected.add(member.id);
+    for (const member of descendantsOf(frameId, shapes)) selected.add(member.id);
   }
   return [...selected];
 }
@@ -96,8 +103,10 @@ export function assignmentsAfterMove(
 
   const assignments: FrameAssignment[] = [];
   for (const shape of shapes) {
-    if (!moved.has(shape.id) || isFrame(shape)) continue;
-    // Carried along inside a frame that was itself dragged.
+    if (!moved.has(shape.id)) continue;
+    // Carried along inside a frame that was itself dragged. Covers any depth,
+    // because the moved set now reaches all the way down: a shape two frames
+    // deep names an inner frame that is itself in the moved set.
     if (shape.frameId && movedFrames.has(shape.frameId)) continue;
 
     const frameId = frameForShape(shape, frames);
@@ -115,10 +124,15 @@ export function assignmentsAfterMove(
  * contents is not what anybody drawing a box means.
  */
 export function shapesCapturedBy(frame: FrameShape, shapes: readonly Shape[]): string[] {
-  return shapes
-    .filter((shape) => !isFrame(shape) && shape.frameId == null)
-    .filter((shape) => frameForShape(shape, [frame]) === frame.id)
-    .map((shape) => shape.id);
+  return (
+    shapes
+      .filter((shape) => shape.frameId == null)
+      // Frames included: drawing a big frame around two small ones is how you
+      // say those belong together. The frame cannot capture itself, which is
+      // the loop `frameForShape` refuses.
+      .filter((shape) => frameForShape(shape, [frame]) === frame.id)
+      .map((shape) => shape.id)
+  );
 }
 
 /**
@@ -132,11 +146,20 @@ export function shapesCapturedBy(frame: FrameShape, shapes: readonly Shape[]): s
 export function membersHiddenByTheirFrame(shapes: readonly Shape[]): string[] {
   const depth = new Map(shapes.map((shape, index) => [shape.id, index]));
 
-  return shapes
-    .filter((shape) => {
-      if (!shape.frameId) return false;
-      const frameDepth = depth.get(shape.frameId);
-      return frameDepth !== undefined && frameDepth > depth.get(shape.id)!;
-    })
-    .map((shape) => shape.id);
+  const raise: string[] = [];
+  for (const shape of shapes) {
+    if (!shape.frameId) continue;
+    const frameDepth = depth.get(shape.frameId);
+    if (frameDepth === undefined || frameDepth < depth.get(shape.id)!) continue;
+
+    raise.push(shape.id);
+    // Raising a frame does not carry its contents up with it, so anything
+    // standing in it would be left underneath and disappear behind it. The
+    // order matters: each id is brought to the front in turn, so the deepest
+    // has to be raised last to end up on top.
+    if (isFrame(shape)) {
+      for (const inner of descendantsOf(shape.id, shapes)) raise.push(inner.id);
+    }
+  }
+  return raise;
 }
