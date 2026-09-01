@@ -11,6 +11,7 @@ import {
   membersOf,
   membershipAfterResize,
   membershipChanges,
+  shapesForFrameExport,
 } from '../src/frames/membership.js';
 import { hitTest } from '../src/hit-testing/hit-test.js';
 import { segmentErasesShape } from '../src/hit-testing/erase-test.js';
@@ -265,6 +266,55 @@ describe('membership after a frame is resized', () => {
     const outside = rect('out', 900, 900);
 
     expect(membershipAfterResize(f, [f, inside, outside])).toEqual([]);
+  });
+});
+
+describe('shapes for a frame export', () => {
+  it('leaves the frame itself out, so its chrome is not in the image', () => {
+    const f = frame();
+    const inside = { ...rect('in', 90, 40), frameId: 'f1' };
+
+    // An export of a frame is the artwork inside it, not a picture of the
+    // container — no border, no label.
+    expect(shapesForFrameExport(f, [f, inside]).map((s) => s.id)).toEqual(['in']);
+  });
+
+  it('takes in a loose shape lying across the edge', () => {
+    const f = frame();
+    const straddling = rect('straddle', 190, 40);
+    const elsewhere = rect('elsewhere', 900, 900);
+
+    // Not clipped on the board, so an export without it would not be a
+    // picture of what is there. The region crops it to the frame.
+    expect(shapesForFrameExport(f, [f, straddling, elsewhere]).map((s) => s.id)).toEqual([
+      'straddle',
+    ]);
+  });
+
+  it('leaves out what belongs to some other frame', () => {
+    const f = frame();
+    const other = frame({ id: 'other', x: 150, y: 0 });
+    const theirs = { ...rect('theirs', 160, 40), frameId: 'other' };
+
+    // It overlaps this frame, but on the board it is drawn cropped to the
+    // other one, so it is not standing here in any sense that shows.
+    expect(shapesForFrameExport(f, [f, other, theirs]).map((s) => s.id)).toEqual(['other']);
+  });
+
+  it('reaches down through nesting, keeping inner frames as content', () => {
+    const outer = frame({ id: 'outer', x: 0, y: 0, width: 400, height: 400 });
+    const inner = {
+      ...frame({ id: 'inner', x: 20, y: 20, width: 200, height: 200 }),
+      frameId: 'outer',
+    };
+    const leaf = { ...rect('leaf', 40, 40), frameId: 'inner' };
+
+    // The inner frame is something you drew, so it keeps its own border and
+    // label; only the frame being exported loses its chrome.
+    expect(shapesForFrameExport(outer, [outer, inner, leaf]).map((s) => s.id)).toEqual([
+      'inner',
+      'leaf',
+    ]);
   });
 });
 

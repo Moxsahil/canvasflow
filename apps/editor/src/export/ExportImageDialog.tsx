@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
-import { measureExportSize, type ImageSource, type Shape } from '@canvasflow/canvas-engine';
+import {
+  frameBounds,
+  frameLabel,
+  isFrame,
+  measureExportSize,
+  shapesForFrameExport,
+  type ImageSource,
+  type Shape,
+} from '@canvasflow/canvas-engine';
 import { Copy, FileCode2, ImageDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { resolveCanvasBackground } from '../properties/palette';
@@ -76,16 +84,38 @@ export function ExportImageDialog({
   // changed since it was last used.
   useEffect(() => {
     if (!open) return;
-    setName(boardName);
+    // A frame's name is what the file should be called — naming frames is most
+    // of why you would name one at all.
+    const [only] = selectedShapes;
+    const named = selectedShapes.length === 1 && only && isFrame(only) ? frameLabel(only) : null;
+    setName(named ?? boardName);
     setSelectionOnly(selectedShapes.length > 0);
     setDark(darkTheme);
     setError(null);
-  }, [open, boardName, darkTheme, selectedShapes.length]);
+  }, [open, boardName, darkTheme, selectedShapes]);
 
-  const exported = useMemo(
-    () => (selectionOnly && hasSelection ? selectedShapes : shapes),
-    [selectionOnly, hasSelection, selectedShapes, shapes],
-  );
+  /**
+   * The one selected frame, when that is what "only selected" means.
+   *
+   * Selecting a frame and asking for the selection is already a request to
+   * export that frame, so it needs no control of its own — and a frame is the
+   * one shape whose own outline is scaffolding rather than artwork, which is
+   * why it alone changes what the export covers.
+   */
+  const exportFrame = useMemo(() => {
+    if (!selectionOnly || selectedShapes.length !== 1) return null;
+    const [only] = selectedShapes;
+    return only && isFrame(only) ? only : null;
+  }, [selectionOnly, selectedShapes]);
+
+  const exported = useMemo(() => {
+    if (exportFrame) return shapesForFrameExport(exportFrame, shapes);
+    return selectionOnly && hasSelection ? selectedShapes : shapes;
+  }, [exportFrame, selectionOnly, hasSelection, selectedShapes, shapes]);
+
+  // Cropped to the frame, so the file comes out the size the frame promised
+  // however far its contents overhang.
+  const region = useMemo(() => (exportFrame ? frameBounds(exportFrame) : undefined), [exportFrame]);
 
   const settings: ImageExportSettings = useMemo(
     () => ({
@@ -97,23 +127,27 @@ export function ExportImageDialog({
       // you can export a dark image from a light board, and the background
       // has to follow the checkbox rather than the screen.
       backgroundColor: resolveCanvasBackground(canvasBackground, dark ? 'dark' : 'light'),
+      region,
     }),
-    [scale, withBackground, dark, embedScene, canvasBackground],
+    [scale, withBackground, dark, embedScene, canvasBackground, region],
   );
 
   const dimensions = useMemo(() => {
-    if (exported.length === 0) return null;
+    // No length check: an export with a region has a size even when nothing is
+    // standing in it — an empty frame is a blank image of the frame's size, not
+    // nothing at all. Only a scene with neither shapes nor a region has no
+    // area, and that is what `measureExportSize` refuses.
     try {
-      return measureExportSize(exported, { scale });
+      return measureExportSize(exported, { scale, region });
     } catch {
       return null;
     }
-  }, [exported, scale]);
+  }, [exported, scale, region]);
 
   // The preview renders at 1×; only the reported dimensions follow the scale,
   // because a 3× preview would be three times the work for the same picture.
   useEffect(() => {
-    if (!open || exported.length === 0) {
+    if (!open) {
       setPreview(null);
       return;
     }
@@ -195,7 +229,8 @@ export function ExportImageDialog({
     [exported, settings, onClose, run, images],
   );
 
-  const empty = exported.length === 0;
+  // Nothing to export is nothing to measure — see `dimensions`.
+  const empty = dimensions === null;
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>

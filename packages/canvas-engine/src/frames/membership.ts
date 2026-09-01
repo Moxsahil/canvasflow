@@ -16,7 +16,7 @@
  * in.
  */
 
-import { shapeBounds } from '../shapes/bounds.js';
+import { rectsIntersect, shapeBounds } from '../shapes/bounds.js';
 import { isFrame, type FrameShape, type Shape } from '../shapes/shape.js';
 
 /** Every frame on the board, in z-order. */
@@ -209,6 +209,37 @@ export function descendantsOf(frameId: string, shapes: readonly Shape[]): Shape[
  */
 export function frameWithMembers(frame: FrameShape, shapes: readonly Shape[]): Shape[] {
   return [frame, ...descendantsOf(frame.id, shapes)];
+}
+
+/**
+ * The shapes to draw when exporting one frame on its own.
+ *
+ * The frame itself is left out, which is what keeps its border and label off
+ * the image: an export of a frame is the artwork inside it, not a picture of
+ * the container. Suppressing the chrome by omitting the shape rather than by a
+ * flag on the renderer means there is no export-only drawing mode to keep in
+ * step with the ordinary one.
+ *
+ * Everything overlapping the frame comes in, not only what belongs to it. A
+ * loose shape lying across the edge is not clipped on the board, so an export
+ * that dropped it would not be a picture of what is there — and the region
+ * crops it to the frame anyway. What is excluded is anything belonging to some
+ * *other* frame, which on the board is drawn cropped somewhere else entirely.
+ *
+ * Frames standing inside this one keep their own chrome. They are content: you
+ * drew them, and an export of the outer frame should show what you drew.
+ */
+export function shapesForFrameExport(frame: FrameShape, shapes: readonly Shape[]): Shape[] {
+  const byId = frameIndex(framesIn(shapes));
+  const bounds = { x: frame.x, y: frame.y, width: frame.width, height: frame.height };
+
+  return shapes.filter((shape) => {
+    if (shape.id === frame.id) return false;
+    if (shape.frameId != null && !frameChain(shape, byId).some((f) => f.id === frame.id)) {
+      return false;
+    }
+    return rectsIntersect(shapeBounds(shape), bounds);
+  });
 }
 
 export interface MembershipChange {
