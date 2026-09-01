@@ -33,7 +33,14 @@ jobs:
           cache: pnpm
 
       - name: Install canvas system dependencies
-        run: sudo apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
+        # The refresh is not optional. Runner images ship a pre-baked apt index,
+        # and once the archive supersedes a version the old file is deleted —
+        # the install then 404s on a package nobody asked for by version. It
+        # fails on whatever landed most recently, so it looks like a different
+        # break each time.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
