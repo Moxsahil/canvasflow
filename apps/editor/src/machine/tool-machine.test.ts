@@ -147,4 +147,22 @@ describe('toolMachine', () => {
     actor.send({ type: 'POINTER_MOVE', point: { x: 130, y: 130 }, screenDelta: { x: 0, y: 0 } });
     expect(actor.getSnapshot().context.freehandPoints.length).toBe(4);
   });
+
+  it('moves the camera on PAN_BY', () => {
+    // The wheel handler negates the raw deltas, so scrolling down arrives here
+    // as a negative dy and has to move the camera down the page.
+    const actor = createActor(toolMachine).start();
+    actor.send({ type: 'PAN_BY', dx: 0, dy: -100 });
+    expect(actor.getSnapshot().context.camera).toMatchObject({ x: 0, y: 100 });
+
+    actor.send({ type: 'PAN_BY', dx: -40, dy: 0 });
+    expect(actor.getSnapshot().context.camera).toMatchObject({ x: 40, y: 100 });
+  });
+
+  it('pans a smaller world distance the further you are zoomed in', () => {
+    const actor = createActor(toolMachine).start();
+    actor.send({ type: 'SET_CAMERA', camera: { x: 0, y: 0, zoom: 2 } });
+    actor.send({ type: 'PAN_BY', dx: 0, dy: -100 });
+    expect(actor.getSnapshot().context.camera).toMatchObject({ y: 50, zoom: 2 });
+  });
 });

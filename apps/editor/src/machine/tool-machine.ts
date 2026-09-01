@@ -364,6 +364,19 @@ export const toolMachine = setup({
     clearTextEditing: assign({ textEditingAt: null, editingTextShapeId: null }),
     trackSpaceDown: assign({ isSpacePressed: true }),
     trackSpaceUp: assign({ isSpacePressed: false }),
+    applyPan: assign(({ context, event }) => {
+      if (event.type !== 'PAN_BY') return {};
+      // Screen pixels, so the world distance covered shrinks as you zoom in.
+      // Same sign convention as drag-panning: the camera moves against the
+      // delta, so the content follows the gesture.
+      return {
+        camera: {
+          ...context.camera,
+          x: context.camera.x - event.dx / context.camera.zoom,
+          y: context.camera.y - event.dy / context.camera.zoom,
+        },
+      };
+    }),
     applyZoom: assign(({ context, event }) => {
       if (event.type !== 'ZOOM_BY') return {};
       const oldZoom = context.camera.zoom;
@@ -496,6 +509,7 @@ export const toolMachine = setup({
     EDIT_TEXT_SHAPE: { target: '.editingText', actions: 'startEditingExistingText' },
     SPACE_DOWN: { actions: 'trackSpaceDown' },
     SPACE_UP: { actions: 'trackSpaceUp' },
+    PAN_BY: { actions: 'applyPan' },
     ZOOM_BY: { actions: 'applyZoom' },
     SET_CAMERA: {
       actions: assign(({ event }) => {
