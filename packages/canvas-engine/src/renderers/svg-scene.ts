@@ -1,6 +1,5 @@
 import type { Drawable } from 'roughjs/bin/core';
 import type { RoughGenerator } from 'roughjs/bin/generator';
-import { computeBoundingRect } from '../document/camera.js';
 import {
   assertNever,
   isFrame,
@@ -26,11 +25,7 @@ import {
   generateRectangleDrawable,
   strokeDashArray,
 } from '../utils/rough.js';
-import {
-  DEFAULT_EXPORT_PADDING,
-  EmptySceneError,
-  type ExportSceneOptions,
-} from '../export/export-scene.js';
+import { exportRegion, type ExportSceneOptions } from '../export/export-scene.js';
 
 /**
  * Element id for one frame's clip path.
@@ -64,13 +59,11 @@ export function renderSceneToSvgString(
   shapes: readonly Shape[],
   options: ExportSceneOptions = {},
 ): string {
-  const { padding = DEFAULT_EXPORT_PADDING, scale = 1, backgroundColor } = options;
+  const { scale = 1, backgroundColor } = options;
 
-  const rect = computeBoundingRect(shapes);
-  if (!rect) throw new EmptySceneError();
-
-  const viewWidth = rect.width + padding * 2;
-  const viewHeight = rect.height + padding * 2;
+  const region = exportRegion(shapes, options);
+  const viewWidth = region.width;
+  const viewHeight = region.height;
   const generator = createRoughGenerator();
 
   const frames = new Map(shapes.filter(isFrame).map((frame) => [frame.id, frame]));
@@ -114,8 +107,8 @@ export function renderSceneToSvgString(
       )}"/>\n`
     : '';
 
-  // The translate places the padded top-left of the content at the origin —
-  // the same synthesised camera the canvas export uses.
+  // The translate places the region's top-left at the origin — the same
+  // synthesised camera the canvas export uses.
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${num(viewWidth * scale)}" ` +
     `height="${num(viewHeight * scale)}" viewBox="0 0 ${num(viewWidth)} ${num(viewHeight)}">\n` +
@@ -125,7 +118,7 @@ export function renderSceneToSvgString(
     // are written in.
     defs +
     background +
-    `<g transform="translate(${num(padding - rect.x)} ${num(padding - rect.y)})">\n` +
+    `<g transform="translate(${num(-region.x)} ${num(-region.y)})">\n` +
     body +
     `\n</g>\n</svg>`
   );

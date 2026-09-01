@@ -1,4 +1,7 @@
 import type { Shape } from '../shapes/shape.js';
+import { unionRect, type Rect } from '../math.js';
+import { framesIn } from '../frames/membership.js';
+import { frameLabelBounds } from '../frames/frame-geometry.js';
 import { computeBoundingRect } from '../document/camera.js';
 import { renderStaticScene } from '../renderers/static.js';
 import { DARK_EXPORT_FILTER } from '../theme-filter.js';
@@ -32,6 +35,15 @@ export interface ExportSceneOptions {
   readonly imageDataUrls?: ReadonlyMap<string, string>;
   /** Whether the export will have the dark-mode filter applied over it. */
   readonly darkMode?: boolean;
+  /**
+   * The world rectangle to cover, instead of the box the shapes happen to fill.
+   *
+   * What makes an export a crop rather than a photograph of whatever is there.
+   * Exporting a frame passes its own rectangle, so the file comes out the size
+   * the frame promised however far its contents overhang — a shape sticking
+   * out cannot silently change the dimensions of the image.
+   */
+  readonly region?: Rect;
 }
 
 export interface ExportSceneSize {
@@ -54,16 +66,49 @@ interface CanvasLike {
   getContext(contextId: '2d'): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
 }
 
+/**
+ * The world rectangle an export covers, padding included.
+ *
+ * The one place the area is decided, so the measured size, the canvas camera
+ * and the SVG viewBox cannot disagree about where the image starts.
+ */
+export function exportRegion(
+  shapes: readonly Shape[],
+  { region, padding = DEFAULT_EXPORT_PADDING, scale = 1 }: ExportSceneOptions = {},
+): Rect {
+  // A named region is the crop exactly. Padding is what turns a content
+  // bounding box into something with room to breathe around it; a caller that
+  // has already said where the edges go has decided that question.
+  if (region) return region;
+
+  let rect = computeBoundingRect(shapes);
+  if (!rect) throw new EmptySceneError();
+
+  // A frame draws its name above its own top edge, outside the bounds every
+  // other part of the system knows it by. Fitted to the shapes alone the box
+  // stops short and the labels come out sliced through the middle.
+  for (const frame of framesIn(shapes)) {
+    rect = unionRect(rect, frameLabelBounds(frame, scale));
+  }
+
+  return {
+    x: rect.x - padding,
+    y: rect.y - padding,
+    width: rect.width + padding * 2,
+    height: rect.height + padding * 2,
+  };
+}
+
 /** The area an export will cover, before any canvas exists. */
 export function measureExportSize(
   shapes: readonly Shape[],
-  { padding = DEFAULT_EXPORT_PADDING, scale = 1 }: ExportSceneOptions = {},
+  options: ExportSceneOptions = {},
 ): ExportSceneSize {
-  const rect = computeBoundingRect(shapes);
-  if (!rect) throw new EmptySceneError();
+  const { width, height } = exportRegion(shapes, options);
+  const scale = options.scale ?? 1;
   return {
-    width: Math.max(1, Math.ceil((rect.width + padding * 2) * scale)),
-    height: Math.max(1, Math.ceil((rect.height + padding * 2) * scale)),
+    width: Math.max(1, Math.ceil(width * scale)),
+    height: Math.max(1, Math.ceil(height * scale)),
   };
 }
 
@@ -72,18 +117,10 @@ export function renderSceneToCanvas(
   shapes: readonly Shape[],
   options: ExportSceneOptions = {},
 ): ExportSceneSize {
-  const {
-    padding = DEFAULT_EXPORT_PADDING,
-    scale = 1,
-    backgroundColor,
-    images,
-    darkMode,
-  } = options;
+  const { scale = 1, backgroundColor, images, darkMode } = options;
 
-  const rect = computeBoundingRect(shapes);
-  if (!rect) throw new EmptySceneError();
-
-  const size = measureExportSize(shapes, { padding, scale });
+  const region = exportRegion(shapes, options);
+  const size = measureExportSize(shapes, options);
   canvas.width = size.width;
   canvas.height = size.height;
 
@@ -99,8 +136,8 @@ export function renderSceneToCanvas(
     backgroundColor,
     images,
     darkMode,
-    // Placing the padded top-left of the content at the canvas origin.
-    camera: { x: rect.x - padding, y: rect.y - padding, zoom: scale },
+    // Placing the region's top-left at the canvas origin.
+    camera: { x: region.x, y: region.y, zoom: scale },
   });
 
   return size;

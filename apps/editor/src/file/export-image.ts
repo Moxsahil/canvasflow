@@ -6,6 +6,7 @@ import {
   renderSceneToSvgString,
   SVG_DOCUMENT_PREAMBLE,
   type ImageSource,
+  type Rect,
   type Shape,
 } from '@canvasflow/canvas-engine';
 
@@ -24,6 +25,11 @@ export interface ImageExportSettings {
   dark: boolean;
   /** The board's own background colour, used when `withBackground`. */
   backgroundColor: string;
+  /**
+   * The world rectangle to cover, when the export is a crop rather than
+   * everything the shapes fill. Set when exporting a single frame.
+   */
+  region?: Rect;
 }
 
 export class ExportTooLargeError extends Error {
@@ -57,7 +63,10 @@ export function renderExportCanvas(
   settings: ImageExportSettings,
   images?: ImageSource,
 ): RenderedExport {
-  const { width, height } = measureExportSize(shapes, { scale: settings.scale });
+  const { width, height } = measureExportSize(shapes, {
+    scale: settings.scale,
+    region: settings.region,
+  });
   if (width * height > MAX_EXPORT_PIXELS) throw new ExportTooLargeError();
 
   const background = backgroundFor(settings);
@@ -65,6 +74,7 @@ export function renderExportCanvas(
   const canvas = document.createElement('canvas');
   renderSceneToCanvas(canvas, shapes, {
     scale: settings.scale,
+    region: settings.region,
     // Held back in dark mode so the filter below lands on the drawing alone.
     backgroundColor: settings.dark ? null : background,
     images,
@@ -120,6 +130,7 @@ export function exportSvgString(
 ): string {
   const svg = renderSceneToSvgString(shapes, {
     scale: settings.scale,
+    region: settings.region,
     backgroundColor: backgroundFor(settings),
     imageDataUrls,
   });
