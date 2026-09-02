@@ -97,6 +97,17 @@ export const FrameIcon = createIcon(
   </>,
 );
 
+/** A loose stroke, with the corners it is about to be squared off into. */
+export const SketchIcon = createIcon(
+  <>
+    <path d="M4.5 8.5v-2a2 2 0 0 1 2-2h2" />
+    <path d="M15.5 4.5h2a2 2 0 0 1 2 2v2" />
+    <path d="M19.5 15.5v2a2 2 0 0 1-2 2h-2" />
+    <path d="M8.5 19.5h-2a2 2 0 0 1-2-2v-2" />
+    <path d="M8 14.5q2-4 4-2t4-3" />
+  </>,
+);
+
 export const EraserIcon = createIcon(
   <>
     <path d="M18.5 12.5L11 20H6.5l-2.6-2.6a2 2 0 0 1 0-2.8l8.4-8.4a2 2 0 0 1 2.8 0l4.4 4.4a2 2 0 0 1 0 2.8z" />
