@@ -10,6 +10,7 @@ export { setupCanvas, clearCanvas } from './utils/canvas.js';
 export * from './spatial/index.js';
 export { simplifyPoints, isPathALoop } from './utils/simplify.js';
 export * from './geometry/segment.js';
+export * from './sketch/index.js';
 export * from './hit-testing/index.js';
 export * from './document/index.js';
 export * from './export/index.js';

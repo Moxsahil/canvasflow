@@ -12,6 +12,7 @@ import {
   ImageIcon,
   FrameIcon,
   LaserIcon,
+  SketchIcon,
   EraserIcon,
 } from '../assets/icons';
 
@@ -25,6 +26,7 @@ export type Tool =
   | 'line'
   | 'arrow'
   | 'freehand'
+  | 'sketch'
   | 'text'
   | 'image'
   | 'frame'
@@ -39,6 +41,12 @@ export const TOOL_TO_SHAPE_KIND = {
   line: 'line',
   arrow: 'arrow',
   freehand: 'freehand',
+  // The sketch tool draws whichever of five kinds it reads, so no one kind is
+  // the truth here. It answers with the rectangle because this drives which
+  // style controls the properties panel offers, and a rectangle's are the
+  // union of what the other four accept bar arrowheads — stroke, fill and
+  // corners all carry over to whatever the stroke turns out to be.
+  sketch: 'rectangle',
   text: 'text',
   image: 'image',
   frame: 'frame',
@@ -82,10 +90,19 @@ export const TOOLS: readonly ToolMeta[] = [
   { id: 'freehand', label: 'Freehand', icon: FreehandIcon, shortcut: 'P', numericKey: '7' },
   { id: 'text', label: 'Text', icon: TextIcon, shortcut: 'T', numericKey: '8' },
   { id: 'image', label: 'Image', icon: ImageIcon, shortcut: 'I', numericKey: '9' },
-  // Both live in the overflow, and neither takes a digit: you lay out frames
-  // before the work and point with the laser while presenting it. Neither is
+  // These three live in the overflow, and none takes a digit: you lay out
+  // frames before the work, point with the laser while presenting it, and
+  // reach for the sketch tool for a run of shapes rather than for one. None is
   // something you flick to mid-drawing, which is what the row is for.
   { id: 'frame', label: 'Frame', icon: FrameIcon, shortcut: 'F', numericKey: null, overflow: true },
+  {
+    id: 'sketch',
+    label: 'Sketch to shape',
+    icon: SketchIcon,
+    shortcut: 'X',
+    numericKey: null,
+    overflow: true,
+  },
   {
     id: 'laser',
     label: 'Laser pointer',

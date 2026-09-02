@@ -7,9 +7,11 @@ import {
   createFreehand,
   createLine,
   createRectangle,
+  recogniseStroke,
   shapeBounds,
   type Shape,
 } from '@canvasflow/canvas-engine';
+import { sketchPreview, sketchShape, sketchStroke } from './sketch-shape';
 import {
   DEFAULT_ITEM_STYLE,
   IDENTITY_CAMERA,
@@ -168,6 +170,7 @@ export const toolMachine = setup({
         pointerDownAt: null,
         newElement: null,
         freehandPoints: [],
+        sketchPoints: [],
         textEditingAt: null,
         editingTextShapeId: null,
       };
@@ -261,6 +264,45 @@ export const toolMachine = setup({
           points: [[0, 0]],
           ...context.itemStyle,
         }),
+      };
+    }),
+    startSketch: assign(({ context, event }) => {
+      if (event.type !== 'POINTER_DOWN') return {};
+      const points = [[event.point.x, event.point.y] as readonly [number, number]];
+      return {
+        sketchPoints: points,
+        newElement: sketchPreview(points, null, genId(), context.itemStyle),
+      };
+    }),
+    updateSketch: assign(({ context, event }) => {
+      if (event.type !== 'POINTER_MOVE' || !context.newElement) return {};
+      const points = [
+        ...context.sketchPoints,
+        [event.point.x, event.point.y] as readonly [number, number],
+      ];
+      return {
+        sketchPoints: points,
+        newElement: sketchPreview(
+          points,
+          recogniseStroke(points, context.camera.zoom),
+          context.newElement.id,
+          context.itemStyle,
+        ),
+      };
+    }),
+    /**
+     * Settle the stroke into whatever is about to be committed: the shape it
+     * was read as, or the stroke itself when it was read as nothing. The tool
+     * never eats a gesture — a stroke it cannot make sense of is still ink.
+     */
+    resolveSketch: assign(({ context }) => {
+      const points = context.sketchPoints;
+      const id = genId();
+      const verdict = recogniseStroke(points, context.camera.zoom);
+      return {
+        newElement: verdict
+          ? sketchShape(verdict, id, context.itemStyle)
+          : sketchStroke(points, id, context.itemStyle),
       };
     }),
     markForErase: assign(({ context, event }) => {
@@ -360,6 +402,7 @@ export const toolMachine = setup({
       pointerDownAt: null,
       newElement: null,
       freehandPoints: [],
+      sketchPoints: [],
     }),
     clearTextEditing: assign({ textEditingAt: null, editingTextShapeId: null }),
     trackSpaceDown: assign({ isSpacePressed: true }),
@@ -453,6 +496,7 @@ export const toolMachine = setup({
       );
     },
     isFreehandTool: ({ context }) => context.activeTool === 'freehand',
+    isSketchTool: ({ context }) => context.activeTool === 'sketch',
     isTextTool: ({ context }) => context.activeTool === 'text',
     isEraserTool: ({ context }) => context.activeTool === 'eraser',
     isPanGesture: ({ context, event }) => {
@@ -481,6 +525,10 @@ export const toolMachine = setup({
       return Math.hypot(dx, dy) > 3;
     },
     freehandHasEnoughPoints: ({ context }) => context.freehandPoints.length > 3,
+    // Same bar as a freehand stroke, since it is the same gesture: fewer
+    // samples than this is a tap or a slip, and the tool has nothing to say
+    // about it either way.
+    sketchHasEnoughPoints: ({ context }) => context.sketchPoints.length > 3,
   },
 }).createMachine({
   id: 'tool',
@@ -490,6 +538,7 @@ export const toolMachine = setup({
     pointerDownAt: null,
     newElement: null,
     freehandPoints: [],
+    sketchPoints: [],
     textEditingAt: null,
     editingTextShapeId: null,
     camera: IDENTITY_CAMERA,
@@ -548,6 +597,11 @@ export const toolMachine = setup({
             guard: 'isFreehandTool',
             target: 'drawingFreehand',
             actions: ['recordPointerDown', 'startFreehand'],
+          },
+          {
+            guard: 'isSketchTool',
+            target: 'sketching',
+            actions: ['recordPointerDown', 'startSketch'],
           },
           {
             guard: 'isTextTool',
@@ -694,6 +748,26 @@ export const toolMachine = setup({
             guard: 'freehandHasEnoughPoints',
             target: 'idle',
             actions: ['emitCommittedShape', 'clearDraw'],
+          },
+          { target: 'idle', actions: 'clearDraw' },
+        ],
+      },
+    },
+    /**
+     * A rough stroke being traced for the shape it is meant to be.
+     *
+     * Unlike every other drawing state here, what is being made is not decided
+     * until the gesture ends: `newElement` carries whatever the stroke reads as
+     * so far, and is settled once on release.
+     */
+    sketching: {
+      on: {
+        POINTER_MOVE: { actions: 'updateSketch' },
+        POINTER_UP: [
+          {
+            guard: 'sketchHasEnoughPoints',
+            target: 'idle',
+            actions: ['resolveSketch', 'emitCommittedShape', 'clearDraw'],
           },
           { target: 'idle', actions: 'clearDraw' },
         ],

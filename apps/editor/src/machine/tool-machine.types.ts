@@ -89,6 +89,15 @@ export interface ToolMachineContext {
   newElement: Shape | null;
   /** Freehand accumulates points as the pointer moves. */
   freehandPoints: Array<readonly [number, number]>;
+  /**
+   * The stroke the sketch tool is tracing, in world coordinates.
+   *
+   * World rather than relative to where the gesture began, because these are
+   * read as a shape rather than drawn: the reading answers in the same space it
+   * was asked in, so the shape lands where the stroke was without a translation
+   * step in between.
+   */
+  sketchPoints: Array<readonly [number, number]>;
   /** Position where text tool was clicked (null when not editing text). */
   textEditingAt: Point | null;
   /** Id of the existing text shape being edited, or null when creating new text. */
