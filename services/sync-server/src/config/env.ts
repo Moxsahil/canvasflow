@@ -12,6 +12,16 @@ const EnvSchema = z.object({
   PORT_HTTP: z.coerce.number().int().positive().default(4001),
   AUTH_SECRET: z.string().min(32, 'AUTH_SECRET must be at least 32 characters'),
   DATABASE_URL: z.string().url(),
+  /**
+   * Optional on purpose. Without it this process is the only one that holds
+   * its rooms, which is correct for local development and for a single
+   * deployed instance. Set it the moment a second replica exists — see the
+   * fan-out extension in src/index.ts for what breaks otherwise.
+   *
+   * Accepts redis:// and rediss:// (TLS), which is the form managed
+   * providers hand out.
+   */
+  REDIS_URL: z.string().url().optional(),
   WEB_URL: z.string().url().optional(),
   EDITOR_URL: z.string().url().optional(),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),

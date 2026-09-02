@@ -17,6 +17,7 @@
   "dependencies": {
     "@canvasflow/db": "workspace:*",
     "@canvasflow/types": "workspace:*",
+    "@hocuspocus/extension-redis": "^2.15.3",
     "@hocuspocus/server": "^2.15.0",
     "drizzle-orm": "^0.36.4",
     "express": "^4.21.2",

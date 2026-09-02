@@ -14,6 +14,7 @@ import {
 } from './auth/reauthorize.js';
 import { getAllowedOrigins, isOriginAllowed } from './security/allowed-origins.js';
 import { INTERNAL_AUTH_HEADER, isInternalCaller } from './security/internal-auth.js';
+import { createFanOutExtensions } from './scaling/redis-fan-out.js';
 import * as Y from 'yjs';
 import {
   loadSnapshot,
@@ -22,6 +23,16 @@ import {
   UpdateTooLargeError,
 } from './persistence/board-updates-store.js';
 
+/**
+ * What this process last wrote for each room, so an unchanged document is not
+ * re-encoded and re-written on every debounce tick.
+ *
+ * Deliberately per-process. With several instances holding a room, whichever
+ * one wins the store lock may not be the one that wrote last, so its entry can
+ * be missing or stale and it writes anyway. That costs a redundant snapshot,
+ * never a wrong one — the alternative, tracking this in Redis, buys a small
+ * saving for a new piece of shared state that could itself go wrong.
+ */
 const lastPersistedVector = new Map<string, Uint8Array>();
 
 function vectorsEqual(a: Uint8Array | undefined, b: Uint8Array): boolean {
@@ -52,6 +63,17 @@ const hocuspocus = Server.configure({
 
   debounce: 10_000,
   maxDebounce: 30_000,
+
+  /**
+   * Empty unless REDIS_URL is set — see createFanOutExtensions.
+   *
+   * Worth knowing for the store path below: this extension declares a high
+   * priority so its own onStoreDocument runs first and takes a short-lived
+   * distributed lock. Instances that lose the race have their remaining
+   * onStoreDocument hooks skipped, which is what stops every replica holding
+   * a room from writing its own snapshot of it.
+   */
+  extensions: createFanOutExtensions(env.REDIS_URL),
 
   /**
    * Keep a room in memory after the last client leaves.
@@ -409,6 +431,10 @@ async function bootstrap(): Promise<void> {
   log.info('sync-server ready', {
     env: env.NODE_ENV,
     allowedOrigins,
+    // Single-instance is a valid way to run this, but running several
+    // replicas without fan-out is not — so make which one it is visible in
+    // the logs rather than something you infer from a config file.
+    fanOut: env.REDIS_URL ? 'redis' : 'none (single instance only)',
   });
 }
 
