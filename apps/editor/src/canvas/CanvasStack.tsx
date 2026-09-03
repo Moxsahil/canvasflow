@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import type { ImageSource, Rect, Shape } from '@canvasflow/canvas-engine';
+import type { ImageSource, Peer, Rect, Shape } from '@canvasflow/canvas-engine';
 import type { Camera, Point } from '../machine/tool-machine.types';
 import type { Tool } from '../tools/tool';
 import { useCanvasResize } from './hooks/useCanvasResize';
@@ -33,7 +33,14 @@ interface CanvasStackProps {
   darkMode?: boolean;
   /** Image files dropped onto the canvas, with the world point they landed on. */
   onDropFiles?: (files: File[], at: Point) => void;
-  /** Remote collaborators. Absent until a connection exists. */
+  /**
+   * Remote collaborators. Absent until a connection exists.
+   *
+   * A ref and a subscription rather than values, so a peer drawing does not
+   * re-render this tree on every frame of their gesture.
+   */
+  peersRef?: React.RefObject<readonly Peer[]>;
+  subscribePeers?: (listener: () => void) => () => void;
   /** Pointer position in world space, for publishing to collaborators. */
   onPointerHover?: (point: Point | null) => void;
   onPointerDown: (point: Point, screenPoint: Point, button: number, shiftKey: boolean) => void;
@@ -60,6 +67,8 @@ export function CanvasStack({
   images,
   imageRevision,
   darkMode,
+  peersRef,
+  subscribePeers,
   onDropFiles,
   onPointerHover,
   onPointerDown,
@@ -96,6 +105,8 @@ export function CanvasStack({
     newElement,
     camera,
     devicePixelRatio: dpr,
+    peersRef,
+    subscribePeers,
   });
   useInteractiveRender(interactiveCanvasRef, {
     width,

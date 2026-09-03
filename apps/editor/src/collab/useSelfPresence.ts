@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import type { PresenceActivity, PresenceCamera, PresenceScreen } from '@canvasflow/canvas-engine';
+import {
+  simplifyPoints,
+  type PresenceActivity,
+  type PresenceCamera,
+  type PresenceScreen,
+  type Shape,
+} from '@canvasflow/canvas-engine';
 import type { PresenceChannel } from './PresenceChannel';
 import type { EditorUser } from '../auth/token';
 
@@ -13,6 +19,33 @@ import type { EditorUser } from '../auth/token';
  * inside the stale window so a couple of dropped beats are survivable.
  */
 const HEARTBEAT_MS = 5_000;
+
+/**
+ * How hard to decimate an in-progress freehand stroke before publishing it.
+ *
+ * Awareness resends a client's whole record on every change, so a growing
+ * points array is resent in full on every frame of the stroke — the cost the
+ * laser pointer was designed to avoid by sending a flag instead of a trail.
+ * A draft cannot do that, because unlike the laser there is no cursor stream
+ * to rebuild the shape from.
+ *
+ * Coarser than the tolerance used for a committed stroke: this is a preview
+ * that lives for the length of one gesture and is replaced by the real thing
+ * the moment the pen lifts, so fidelity matters far less than staying small.
+ */
+const DRAFT_SIMPLIFY_TOLERANCE = 2;
+
+/**
+ * Trim a shape down to what is worth putting on the wire.
+ *
+ * Every other kind is a handful of numbers and already bounded; only freehand
+ * grows as it is drawn.
+ */
+function forBroadcast(shape: Shape | null): Shape | null {
+  if (!shape) return null;
+  if (shape.kind !== 'freehand') return shape;
+  return { ...shape, points: simplifyPoints(shape.points, DRAFT_SIMPLIFY_TOLERANCE) };
+}
 
 interface UseSelfPresenceOptions {
   channel: PresenceChannel | null;
@@ -37,6 +70,12 @@ export interface SelfPresence {
    * gesture, not one per point.
    */
   readonly setLasering: (active: boolean) => void;
+  /**
+   * The shape being drawn right now, or null once it is committed or abandoned.
+   *
+   * Safe to call on every pointer move; writes are coalesced to one per frame.
+   */
+  readonly setDraft: (shape: Shape | null) => void;
 }
 
 /**
@@ -61,6 +100,8 @@ export function useSelfPresence({
   const selectionRef = useRef<readonly string[]>([]);
   const laseringRef = useRef(false);
   const frameRef = useRef<number | null>(null);
+  const draftRef = useRef<Shape | null>(null);
+  const draftFrameRef = useRef<number | null>(null);
 
   const followedRef = useRef(false);
 
@@ -82,6 +123,7 @@ export function useSelfPresence({
       cursor: cursorRef.current,
       selection: selectionRef.current,
       lasering: false,
+      draft: null,
       camera: null,
       screen: null,
       following: null,
@@ -164,15 +206,47 @@ export function useSelfPresence({
     [channel],
   );
 
+  const flushDraft = useCallback(() => {
+    draftFrameRef.current = null;
+    channel?.patch({ draft: draftRef.current });
+  }, [channel]);
+
+  const setDraft = useCallback(
+    (shape: Shape | null) => {
+      // Clearing goes out immediately rather than waiting for a frame. The
+      // committed shape is already on its way through the document, and a
+      // draft that outlives it by even one frame draws the same thing twice.
+      if (shape === null) {
+        if (draftRef.current === null) return;
+        draftRef.current = null;
+        if (draftFrameRef.current !== null) {
+          cancelAnimationFrame(draftFrameRef.current);
+          draftFrameRef.current = null;
+        }
+        channel?.patch({ draft: null });
+        return;
+      }
+
+      // Same reasoning as the cursor: a pointer outruns the display, so send
+      // the newest state per frame and drop what it moved past.
+      draftRef.current = forBroadcast(shape);
+      if (draftFrameRef.current === null) {
+        draftFrameRef.current = requestAnimationFrame(flushDraft);
+      }
+    },
+    [channel, flushDraft],
+  );
+
   useEffect(
     () => () => {
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+      if (draftFrameRef.current !== null) cancelAnimationFrame(draftFrameRef.current);
     },
     [],
   );
 
   return useMemo(
-    () => ({ setCursor, setSelection, setLasering }),
-    [setCursor, setSelection, setLasering],
+    () => ({ setCursor, setSelection, setLasering, setDraft }),
+    [setCursor, setSelection, setLasering, setDraft],
   );
 }

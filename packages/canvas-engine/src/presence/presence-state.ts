@@ -1,3 +1,6 @@
+import { sanitizeShape } from '../sanitize/sanitize-shape.js';
+import type { Shape } from '../shapes/shape.js';
+
 /** Whether a peer is at the keyboard. */
 export type PresenceActivity = 'active' | 'idle' | 'away';
 
@@ -51,6 +54,21 @@ export interface PresenceState {
    * to join up.
    */
   readonly lasering: boolean;
+
+  /**
+   * The shape this peer is drawing right now, before they have finished it.
+   *
+   * A shape does not enter the document until it is committed, and for good
+   * reason: every intermediate drag frame would otherwise become a permanent
+   * Yjs operation, and undo would step back through all of them. But that also
+   * meant a collaborator saw nothing at all until the mouse came up, which
+   * makes drawing together feel like taking turns.
+   *
+   * So it travels here instead — visible while it happens, never persisted,
+   * and gone by itself if the author's tab closes mid-gesture. On commit this
+   * clears and the real shape arrives through the document.
+   */
+  readonly draft: Shape | null;
 
   readonly camera: PresenceCamera | null;
   /** Paired with `camera`: the follower needs both to reconstruct a viewport. */
@@ -110,6 +128,30 @@ function parseScreen(raw: unknown): PresenceScreen | null {
 }
 
 /**
+ * The id every parsed draft is given.
+ *
+ * A draft is never inserted anywhere, only drawn, so it needs an id purely to
+ * be a `Shape` at all. Deliberately constant rather than generated: parsing
+ * runs on every awareness frame, and a fresh id each time would defeat any
+ * caching downstream that keys on it. Drafts from different peers never meet —
+ * each is drawn from its own peer record.
+ */
+const DRAFT_ID = 'peer-draft';
+
+/**
+ * Validate a peer's in-progress shape.
+ *
+ * Routed through the same sanitizer a board file goes through, for the same
+ * reason: this is a plain object authored by another browser. A peer running
+ * modified code could otherwise put a NaN width or a string where a point list
+ * belongs straight into the renderer's geometry maths.
+ */
+function parseDraft(raw: unknown): Shape | null {
+  if (raw === null || raw === undefined) return null;
+  return sanitizeShape(raw, () => DRAFT_ID);
+}
+
+/**
  * Validate an incoming presence payload, or reject it.
  *
  * This is a trust boundary. Every field is authored by another browser, so a
@@ -142,6 +184,7 @@ export function parsePresenceState(raw: unknown): PresenceState | null {
     // Anything other than an explicit `true` means not lasering. A peer on an
     // older build simply omits it, and reading that as "no" is correct.
     lasering: candidate.lasering === true,
+    draft: parseDraft(candidate.draft),
     camera: parseCamera(candidate.camera),
     screen: parseScreen(candidate.screen),
     following: typeof candidate.following === 'string' ? candidate.following : null,

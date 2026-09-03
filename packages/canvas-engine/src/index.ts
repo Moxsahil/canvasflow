@@ -13,6 +13,7 @@ export * from './geometry/segment.js';
 export * from './sketch/index.js';
 export * from './hit-testing/index.js';
 export * from './document/index.js';
+export * from './sanitize/index.js';
 export * from './export/index.js';
 export * from './search/index.js';
 
