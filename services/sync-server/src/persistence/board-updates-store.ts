@@ -21,8 +21,21 @@ import * as Y from 'yjs';
  * - Periodic reauth (PR #29) closes the revocation window
  */
 
-/** Reject empty updates and grossly oversized ones — unchanged policy. */
-const MAX_UPDATE_BYTES = 1_000_000;
+/**
+ * The largest snapshot we will write.
+ *
+ * This is a guard against a runaway document, not a size the product should
+ * ever approach: a board's snapshot is dominated by how much has been *edited*,
+ * not by what is currently drawn on it, because a Yjs document keeps the
+ * structure of everything ever deleted. One board here reached 771 KB to
+ * describe seventeen shapes — 98.8% of it the record of erased work.
+ *
+ * Raised from 1 MB, which that board was within a few sessions of crossing.
+ * Hitting this ceiling does not fail loudly to the person drawing: their board
+ * keeps working from memory and quietly stops being saved. So the number needs
+ * enough headroom that compaction, not the cap, is what keeps documents small.
+ */
+const MAX_UPDATE_BYTES = 5_000_000;
 
 /**
  * How many recent snapshots to keep per board.

@@ -334,10 +334,23 @@ const hocuspocus = Server.configure({
         return;
       }
       if (err instanceof UpdateTooLargeError) {
-        log.warn('rejected oversized update', {
+        /**
+         * Deliberately an error, not a warning.
+         *
+         * Nothing about this reaches the people on the board: their document
+         * is fine in memory, every edit still syncs, and the session behaves
+         * normally right up until the last person leaves — at which point
+         * everything since the last successful save is gone. A board in this
+         * state is losing work silently, and the only signal it ever gives is
+         * this line.
+         *
+         * The fix is to compact the document, not to raise the ceiling again.
+         */
+        log.error('DATA LOSS: document exceeds the size cap and is no longer being saved', {
           requestId: ctx.requestId,
           boardId: ctx.boardId,
           bytes: update.length,
+          remedy: 'run compact:documents for this board',
         });
         return;
       }

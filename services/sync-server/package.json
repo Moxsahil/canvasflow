@@ -11,10 +11,12 @@
     "start": "node --env-file-if-exists=.env dist/index.js",
     "typecheck": "tsc --noEmit",
     "compact:updates": "tsx --env-file=.env scripts/compact-board-updates.ts",
+    "compact:documents": "tsx --env-file=.env scripts/compact-documents.ts",
     "clean": "rm -rf dist .turbo *.tsbuildinfo",
     "lint": "eslint src --max-warnings=0"
   },
   "dependencies": {
+    "@canvasflow/canvas-engine": "workspace:*",
     "@canvasflow/db": "workspace:*",
     "@canvasflow/types": "workspace:*",
     "@hocuspocus/extension-redis": "^2.15.3",
