@@ -21,10 +21,21 @@ const bytea = customType<{ data: Uint8Array; default: false }>({
 });
 
 /**
- * Append-only log of Yjs updates for each board.
- * On board load: fetch all updates, apply in order to reconstruct doc.
- * On any change: append a new update.
- * Compaction (future): periodically fold N updates into one snapshot.
+ * The persisted state of each board, as a short window of whole snapshots.
+ *
+ * The name is a leftover. This began as an append-only log of incremental Yjs
+ * updates replayed in order, and no longer is: every row written today is a
+ * COMPLETE document produced by `Y.encodeStateAsUpdate`, so any one of them
+ * reconstructs the board on its own and every older row is redundant the
+ * moment a newer one lands.
+ *
+ * A handful of rows are kept per board rather than one — see
+ * sync-server's board-updates-store for why, and for the pruning that stops
+ * this table growing without bound.
+ *
+ * Nothing may append a partial update here. The read path merges only the
+ * newest few rows, so a delta written outside that window is a delta that
+ * silently disappears.
  */
 export const boardUpdates = pgTable(
   'board_updates',
