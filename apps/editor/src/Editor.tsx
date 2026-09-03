@@ -276,6 +276,10 @@ export function Editor({ boardId }: EditorProps) {
   // the previous instance — commit/re-entry into editingText happens within
   // one batched update, so textEditingAt never passes through null in between.
   const textEditingKeyRef = useRef(0);
+  // What is in the overlay right now, mirrored out of it so collaborators can
+  // be shown it. The overlay stays the owner of the value; this is a copy that
+  // exists only to be published.
+  const [liveText, setLiveText] = useState('');
   const prevTextEditingAtRef = useRef(textEditingAt);
   if (textEditingAt !== prevTextEditingAtRef.current) {
     if (textEditingAt) textEditingKeyRef.current += 1;
@@ -304,7 +308,7 @@ export function Editor({ boardId }: EditorProps) {
     setCamera: (next) => actorRef.send({ type: 'SET_CAMERA', camera: next }),
   });
 
-  const { setCursor, setSelection, setLasering } = useSelfPresence({
+  const { setCursor, setSelection, setLasering, setDraft } = useSelfPresence({
     channel,
     user,
     activity,
@@ -549,6 +553,49 @@ export function Editor({ boardId }: EditorProps) {
   useEffect(() => {
     setSelection(selectedIds);
   }, [selectedIds, setSelection]);
+
+  /**
+   * What collaborators see us drawing right now.
+   *
+   * Both sources resolve here rather than each publishing for itself, because
+   * only one draft can be on the wire at a time and two writers would take
+   * turns clearing each other.
+   *
+   * Text is deliberately limited to a new box. Editing an existing one leaves
+   * the original in the document, where it is still being drawn on everyone
+   * else's static layer — a draft on top of it would read as the text doubled
+   * rather than as it being changed.
+   */
+  // A new session starts empty. Cheaper than threading a reset through the
+  // overlay's remount, and correct for the end of a session too, where there
+  // is no overlay left to tell us anything.
+  useEffect(() => {
+    setLiveText('');
+  }, [textEditingAt]);
+
+  const draft = useMemo<Shape | null>(() => {
+    if (newElement) return newElement;
+    if (!textEditingAt || editingText || !liveText.trim()) return null;
+    return createText({
+      id: 'draft-text',
+      x: textEditingAt.x,
+      y: textEditingAt.y,
+      text: liveText,
+      strokeColor: itemStyle.strokeColor,
+      opacity: itemStyle.opacity,
+      fontFamily: itemStyle.fontFamily,
+      fontSize: itemStyle.fontSize,
+      textAlign: itemStyle.textAlign,
+    });
+  }, [newElement, textEditingAt, editingText, liveText, itemStyle]);
+
+  // Published from the machine's own preview rather than the pointer handlers,
+  // so every tool that draws something gets this for free — and so the draft
+  // clears on whatever ends the gesture, commit or escape alike, without each
+  // of those paths having to remember to say so.
+  useEffect(() => {
+    setDraft(draft);
+  }, [draft, setDraft]);
 
   useEffect(() => {
     const sub1 = actorRef.on('shape.committed', (emitted) => {
@@ -1349,6 +1396,8 @@ export function Editor({ boardId }: EditorProps) {
               isPanning={isPanning}
               backgroundColor={resolveCanvasBackground(canvasBackground, presenceTheme)}
               searchHighlights={search.highlights}
+              peersRef={peersRef}
+              subscribePeers={subscribe}
               onPointerHover={setCursor}
             />
 
@@ -1459,6 +1508,7 @@ export function Editor({ boardId }: EditorProps) {
                 initialText={editingTextInitialValue}
                 onCommit={handleCommitText}
                 onCancel={handleCancelText}
+                onChange={setLiveText}
               />
             )}
 

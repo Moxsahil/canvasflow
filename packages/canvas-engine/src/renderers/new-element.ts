@@ -7,6 +7,15 @@ export interface NewElementSceneOptions extends SceneShapeContext {
   readonly width: number;
   readonly height: number;
   readonly newElement: Shape | null;
+  /**
+   * Shapes collaborators are drawing right now.
+   *
+   * They share this layer with our own preview because they have the same
+   * lifetime: both are transient, both are replaced by the document's copy the
+   * instant they are committed, and neither should ever reach the static layer
+   * that gets cached.
+   */
+  readonly peerDrafts?: readonly Shape[];
   readonly camera?: {
     readonly x: number;
     readonly y: number;
@@ -19,11 +28,12 @@ export function renderNewElementScene(
   canvas: HTMLCanvasElement | OffscreenCanvas,
   opts: NewElementSceneOptions,
 ): void {
-  const { width, height, newElement, camera, images, darkMode } = opts;
+  const { width, height, newElement, peerDrafts, camera, images, darkMode } = opts;
 
   clearCanvas(ctx, width, height);
 
-  if (!newElement) return;
+  const drafts = peerDrafts ?? [];
+  if (!newElement && drafts.length === 0) return;
 
   ctx.save();
 
@@ -32,7 +42,20 @@ export function renderNewElementScene(
     ctx.scale(camera.zoom, camera.zoom);
   }
 
-  drawSceneShape(ctx, createRoughCanvas(canvas), newElement, false, { images, darkMode });
+  const rough = createRoughCanvas(canvas);
+
+  // Drawn exactly as our own preview is, with no ghosting or tint to mark them
+  // as someone else's. The moment one commits it arrives through the document
+  // and is drawn by the static layer instead — anything distinguishing the two
+  // would show up as a flicker at that handover, on every shape.
+  for (const draft of drafts) {
+    drawSceneShape(ctx, rough, draft, false, { images, darkMode });
+  }
+
+  // Ours last, so it stays on top of a collaborator's while both are in flight.
+  if (newElement) {
+    drawSceneShape(ctx, rough, newElement, false, { images, darkMode });
+  }
 
   ctx.restore();
 }

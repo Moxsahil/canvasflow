@@ -10,6 +10,13 @@ interface TextEditorProps {
   initialText?: string;
   onCommit: (text: string) => void;
   onCancel: () => void;
+  /**
+   * Every keystroke, for publishing to collaborators.
+   *
+   * Separate from `onCommit` because it fires constantly and means something
+   * different: this is what is being typed, not what has been decided.
+   */
+  onChange?: (text: string) => void;
 }
 
 export function TextEditor({
@@ -20,6 +27,7 @@ export function TextEditor({
   initialText,
   onCommit,
   onCancel,
+  onChange,
 }: TextEditorProps) {
   const [value, setValue] = useState(initialText ?? '');
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -73,7 +81,10 @@ export function TextEditor({
       <textarea
         ref={ref}
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => {
+          setValue(e.target.value);
+          onChange?.(e.target.value);
+        }}
         onBlur={commit}
         onKeyDown={(e) => {
           e.stopPropagation();

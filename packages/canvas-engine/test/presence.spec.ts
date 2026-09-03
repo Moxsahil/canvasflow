@@ -20,6 +20,7 @@ describe('parsePresenceState', () => {
     cursor: { x: 10, y: 20 },
     selection: ['s1'],
     lasering: true,
+    draft: null,
     camera: { x: 5, y: 6, zoom: 2 },
     screen: { width: 800, height: 600 },
     following: 'u2',
@@ -37,6 +38,31 @@ describe('parsePresenceState', () => {
       expect(parsePresenceState(raw)).toBeNull();
     },
   );
+
+  it('accepts a well-formed draft', () => {
+    const draft = { kind: 'rectangle', x: 1, y: 2, width: 30, height: 40 };
+    const parsed = parsePresenceState({ ...valid, draft });
+    expect(parsed?.draft).toMatchObject({ kind: 'rectangle', x: 1, y: 2, width: 30, height: 40 });
+  });
+
+  it('drops a draft that is not a usable shape', () => {
+    // Authored by another browser, so it can be anything at all. A NaN width
+    // would reach the renderer's geometry rather than being rejected here.
+    for (const draft of [7, 'rect', {}, { kind: 'rectangle' }, { kind: 'nope', x: 0, y: 0 }]) {
+      expect(parsePresenceState({ ...valid, draft })?.draft).toBeNull();
+    }
+  });
+
+  it('keeps a draft seed, so a peer’s shape does not reroll every frame', () => {
+    // Rough.js derives its hand-drawn geometry from the seed. Regenerating it
+    // on each parse would make an in-progress shape jitter, because a draft is
+    // re-parsed on every awareness update while it is being drawn.
+    const draft = { kind: 'ellipse', x: 0, y: 0, width: 10, height: 10, seed: 4242 };
+    const first = parsePresenceState({ ...valid, draft })?.draft;
+    const second = parsePresenceState({ ...valid, draft })?.draft;
+    expect(first?.seed).toBe(4242);
+    expect(second?.seed).toBe(4242);
+  });
 
   it('drops a cursor with non-finite coordinates', () => {
     // A NaN would flow into transform maths and silently blank the layer.
@@ -67,6 +93,7 @@ describe('parsePresenceState', () => {
       cursor: null,
       selection: [],
       lasering: false,
+      draft: null,
       camera: null,
       screen: null,
       following: null,
