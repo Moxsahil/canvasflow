@@ -42,3 +42,11 @@ temp/
 
 # Local-only reference media (videos/images), not for git
 apps/editor/src/error/
+
+# Playwright
+# .auth holds a real signed-in session — live cookies for whatever account
+# the suite logs in as. Committing it hands that session to anyone with the
+# repo, and it would go stale within the day regardless.
+apps/e2e/playwright/.auth/
+apps/e2e/playwright-report/
+apps/e2e/test-results/

@@ -1,0 +1,16 @@
+{
+  "extends": "@canvasflow/config/typescript/base",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "skipLibCheck": true,
+    // Tests run under Node (process.env, Buffer) but drive a browser, so both
+    // sets of globals are in play. Playwright compiles these files itself —
+    // this config exists so the editor and `pnpm typecheck` agree with it.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["tests/**/*", "playwright.config.ts"],
+  "exclude": ["node_modules", "playwright-report", "test-results"]
+}
