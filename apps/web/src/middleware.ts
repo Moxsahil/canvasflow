@@ -5,7 +5,11 @@ import { safeRedirect } from '@/lib/safe-redirect';
 
 const { auth } = NextAuth(authConfig);
 
-const PUBLIC_PATHS = ['/', '/login', '/signup', '/verify'];
+// `/logout` is public because ending a session must not require one: the
+// middleware answers an unauthenticated request with a redirect to /login,
+// and a 307 on a POST re-posts into a page that only serves GET. The route
+// destroys session state and grants nothing, so there is nothing to guard.
+const PUBLIC_PATHS = ['/', '/login', '/logout', '/signup', '/verify'];
 
 /**
  * Routes the editor calls cross-origin, which must answer for themselves.

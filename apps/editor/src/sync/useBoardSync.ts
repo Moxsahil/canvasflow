@@ -30,11 +30,13 @@ interface UseBoardSyncResult {
    */
   awareness: SyncAwareness | null;
   /**
-   * Discard this board's local cache. Exposed for the one caller that has to:
-   * a session that has lost access, where the cached copy would otherwise
-   * outlive the access that justified holding it.
+   * Discard this board's local cache. Exposed for the callers that have to: a
+   * session that has lost access, and one being signed out — in both the
+   * cached copy would otherwise outlive the access that justified holding it.
+   *
+   * Resolves once the store is gone; see useOfflineCache.
    */
-  purgeCache: () => void;
+  purgeCache: () => Promise<void>;
 }
 
 /**
