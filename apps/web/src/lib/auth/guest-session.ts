@@ -49,6 +49,20 @@ export async function setGuestSession(guestId: string): Promise<void> {
   });
 }
 
+/**
+ * Drop the cookie. Signing out has to end a guest session as surely as it ends
+ * an account one — a guest who leaves the machine and is still recognised as
+ * that guest has not signed out of anything.
+ *
+ * Nothing here is revoked server-side: the cookie asserts an identity rather
+ * than a grant, so removing it is the whole of it. The guest user row and its
+ * board membership stay, which is why their drawings survive them.
+ */
+export async function clearGuestSession(): Promise<void> {
+  const store = await cookies();
+  store.delete(COOKIE_NAME);
+}
+
 /** The guest this browser is, if any. Returns null for anything unverifiable. */
 export async function readGuestSession(): Promise<string | null> {
   const store = await cookies();

@@ -11,11 +11,17 @@ export interface OfflineCache {
   /**
    * Throw the cached copy away.
    *
-   * For the one case where the board stops being this person's to hold: a
-   * revoked collaborator whose cache would otherwise repaint the whole board
-   * on their next visit to the URL, with no server left to correct it.
+   * For the cases where the board stops being this person's to hold: a revoked
+   * collaborator whose cache would otherwise repaint the whole board on their
+   * next visit to the URL with no server left to correct it, and a sign-out,
+   * which must not leave one account's board on the machine for whoever signs
+   * in next.
+   *
+   * Resolves when the store is actually gone, because the sign-out path
+   * navigates away immediately afterwards — a deletion still in flight when
+   * the page goes is a deletion that may not have happened.
    */
-  readonly purge: () => void;
+  readonly purge: () => Promise<void>;
 }
 
 /**
@@ -101,12 +107,12 @@ export function useOfflineCache(
     };
   }, [doc, key]);
 
-  const purge = useCallback(() => {
+  const purge = useCallback(async () => {
     const provider = providerRef.current;
     providerRef.current = null;
     // clearData() destroys the provider as well as the store, so the deletion
     // isn't left waiting on our own open connection to it.
-    if (provider) void provider.clearData();
+    if (provider) await provider.clearData();
   }, []);
 
   // No user: nothing to wait for, so never block on a cache we won't build.

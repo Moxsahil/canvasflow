@@ -57,6 +57,8 @@ import {
 import { useUndoState } from './document/useUndoState';
 import { useBoardSync } from './sync/useBoardSync';
 import { useAuthToken } from './auth/useAuthToken';
+import { SignOutDialog } from './auth/SignOutDialog';
+import { signOutTo } from './auth/sign-out';
 import { env } from './lib/env';
 import { PropertiesPanel, itemStyleFromShape } from './properties';
 import { TOOL_TO_SHAPE_KIND, isPickerTool, type Tool } from './tools/tool';
@@ -233,8 +235,39 @@ export function Editor({ boardId }: EditorProps) {
   useEffect(() => {
     if (!accessRevoked || cachePurgedRef.current) return;
     cachePurgedRef.current = true;
-    purgeCache();
+    void purgeCache();
   }, [accessRevoked, purgeCache]);
+
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const showSignOut = useCallback(() => setSignOutOpen(true), []);
+
+  /**
+   * End the session: let go of the board held on this device, then leave for
+   * the web app, which is the only origin that can drop the cookie behind it.
+   *
+   * The cached copy goes only when the board is with the server. `connected`
+   * is the strongest claim available here — the socket is up and the document
+   * has had somewhere to go — and it is a claim about the connection, not an
+   * acknowledgement from the server. Anything weaker than that and the cache
+   * is the only copy of the last few minutes' work, so it stays: the store is
+   * namespaced per user, so signing back in picks it up and sends it, while
+   * deleting it here would be the one part of signing out that cannot be
+   * undone by signing in again. The dialog says which of the two is happening.
+   */
+  const handleSignOut = useCallback(async () => {
+    setSigningOut(true);
+    if (syncStatus === 'connected') {
+      try {
+        await purgeCache();
+      } catch (err) {
+        // Never at the cost of the sign-out itself: a cache that refused to be
+        // deleted is a worse outcome than a session that stayed open.
+        console.error('Failed to discard the cached board on sign out:', err);
+      }
+    }
+    signOutTo(env.VITE_WEB_URL);
+  }, [syncStatus, purgeCache]);
 
   // Suspended while disconnected: a frozen cursor from a socket that has gone
   // away is worse than no cursor.
@@ -1365,6 +1398,7 @@ export function Editor({ boardId }: EditorProps) {
             copyLink: handleCopyBoardLink,
             findOnCanvas: search.openSearch,
             help: handleShowHelp,
+            signOut: showSignOut,
           }}
         />
 
@@ -1567,6 +1601,25 @@ export function Editor({ boardId }: EditorProps) {
             <Dialog open={notice !== null} title={notice?.title ?? ''} onClose={dismissNotice}>
               {notice?.body}
             </Dialog>
+
+            <SignOutDialog
+              open={signOutOpen}
+              /* Held open while the navigation is in flight: Escape would
+                 otherwise put the board back on screen for the moment before
+                 the page goes, which reads as a sign-out that didn't take. */
+              onOpenChange={(open) => {
+                if (!signingOut) setSignOutOpen(open);
+              }}
+              name={user?.name ?? 'Account'}
+              email={user?.email ?? null}
+              isGuest={user?.isGuest ?? false}
+              synced={syncStatus === 'connected'}
+              busy={signingOut}
+              onConfirm={() => {
+                void handleSignOut();
+              }}
+              container={editorRoot}
+            />
 
             {/* Last, so it paints over every other dialog. Losing the board
                 outranks whatever was being confirmed when it happened. */}

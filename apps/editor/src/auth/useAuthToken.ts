@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { env } from '@/lib/env';
 import {
+  authTokenStorageKey as storageKeyFor,
   clearAuthTokenFromHash,
   decodeJwtBoardId,
   decodeJwtExpiry,
@@ -8,8 +9,6 @@ import {
   refreshAuthToken,
   TokenRefreshError,
 } from './token';
-
-const STORAGE_KEY_PREFIX = 'editor:authToken:';
 
 // Refresh a little before actual expiry so in-flight sync calls don't
 // race the token going stale.
@@ -23,15 +22,6 @@ const MIN_REFRESH_INTERVAL_MS = 5_000;
 interface AuthTokenState {
   token: string | null;
   expiresAt: number | null;
-}
-
-/**
- * Per-board storage key. Board-scoped tokens must never bleed across
- * boards — a token scoped to board A must not be reused on board B
- * even if both live in the same browser tab.
- */
-function storageKeyFor(boardId: string): string {
-  return `${STORAGE_KEY_PREFIX}${boardId}`;
 }
 
 /**

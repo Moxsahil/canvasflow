@@ -1,3 +1,37 @@
+/**
+ * Where a board's token is stashed so it survives a page refresh, one key per
+ * board — a token scoped to board A must never be reused on board B. Lives
+ * here rather than in useAuthToken because signing out has to forget every one
+ * of them, and that runs outside the hook.
+ */
+const STORAGE_KEY_PREFIX = 'editor:authToken:';
+
+export function authTokenStorageKey(boardId: string): string {
+  return `${STORAGE_KEY_PREFIX}${boardId}`;
+}
+
+/**
+ * Forget every board token this tab is holding.
+ *
+ * Signing out ends the web session these are minted from, but the tokens
+ * already handed out stay valid for their remaining few minutes — so leaving
+ * them in sessionStorage would let the next person on the machine open the
+ * same board URL and pick up an editing session that isn't theirs, until it
+ * lapsed. Not just this board's: a tab that has been through several holds a
+ * key for each.
+ */
+export function clearStoredAuthTokens(): void {
+  const store = window.sessionStorage;
+  const doomed: string[] = [];
+  // Collected first, removed after: removing during the walk reindexes the
+  // store underneath it and skips keys.
+  for (let i = 0; i < store.length; i += 1) {
+    const key = store.key(i);
+    if (key?.startsWith(STORAGE_KEY_PREFIX)) doomed.push(key);
+  }
+  for (const key of doomed) store.removeItem(key);
+}
+
 export function getAuthTokenFromHash(): string | null {
   if (typeof window === 'undefined') return null;
   const hash = window.location.hash;
