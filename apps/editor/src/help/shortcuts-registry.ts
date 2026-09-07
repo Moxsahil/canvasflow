@@ -68,6 +68,7 @@ export const SHORTCUTS: ShortcutCategory[] = [
   {
     title: 'Search',
     entries: [
+      { keys: 'mod+/', altKeys: 'mod+shift+p', description: 'Open the command palette' },
       { keys: 'mod+f', description: 'Find on canvas' },
       { keys: 'enter', altKeys: 'shift+enter', description: 'Next / previous match' },
     ],

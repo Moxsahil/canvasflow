@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { KEY_TO_TOOL, shouldIgnoreShortcut } from './shortcuts';
+import { KEY_TO_TOOL, isCommandPaletteShortcut, shouldIgnoreShortcut } from './shortcuts';
 import type { Tool } from './tool';
 
 interface UseKeyboardShortcutsOptions {
@@ -32,6 +32,7 @@ interface UseKeyboardShortcutsOptions {
   onSaveFile: () => void;
   onExportImage: () => void;
   onFind: () => void;
+  onCommandPalette: () => void;
   disabled?: boolean;
 }
 
@@ -66,6 +67,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onSaveFile,
     onExportImage,
     onFind,
+    onCommandPalette,
     disabled,
   } = opts;
 
@@ -149,6 +151,12 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
       if (!mod && event.altKey && event.shiftKey && event.code === 'KeyD') {
         event.preventDefault();
         onToggleTheme();
+        return;
+      }
+
+      if (isCommandPaletteShortcut(event)) {
+        event.preventDefault();
+        onCommandPalette();
         return;
       }
 
@@ -319,6 +327,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onSaveFile,
     onExportImage,
     onFind,
+    onCommandPalette,
     disabled,
   ]);
 }

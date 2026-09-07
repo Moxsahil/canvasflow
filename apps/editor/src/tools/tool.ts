@@ -122,3 +122,14 @@ export const TOOLS: readonly ToolMeta[] = [
 export function isPickerTool(tool: Tool): boolean {
   return tool === 'image';
 }
+
+/**
+ * The tools a viewer still gets. Selecting and panning read the board without
+ * touching it, so withholding them would only make a read-only board harder to
+ * look at.
+ *
+ * The laser qualifies for exactly the same reason — its trail is presence, not
+ * document — and it is the one tool a viewer most needs during a live review,
+ * where the whole point is asking about a part of the board out loud.
+ */
+export const VIEW_ONLY_TOOLS: ReadonlySet<Tool> = new Set<Tool>(['select', 'hand', 'laser']);
