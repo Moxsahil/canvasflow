@@ -96,14 +96,17 @@
 /* ---------- peer list (top-right island) ---------- */
 
 /* Its own surface, sized so it lines up with the search dock beside it: the
-   26px avatars plus this padding come to the same 40px. */
+   26px avatars plus this padding come to the same 40px.
+
+   No drop shadow, here or on the two below: everything in this dock sits on
+   the board rather than over it, and the island shadow reads as a halo around
+   each piece on a dark canvas. The surface colour is the separation. */
 .cf-peer-stack {
   display: inline-flex;
   align-items: center;
   padding: 7px;
   background: var(--island-bg-color);
   border-radius: var(--border-radius-lg);
-  box-shadow: var(--shadow-island);
 }
 
 .cf-peer-list__badge {
@@ -113,7 +116,6 @@
   padding: 0 10px;
   background: var(--island-bg-color);
   border-radius: var(--border-radius-lg);
-  box-shadow: var(--shadow-island);
   color: var(--keybinding-color);
   font-family: var(--font-sans);
   font-size: 11px;

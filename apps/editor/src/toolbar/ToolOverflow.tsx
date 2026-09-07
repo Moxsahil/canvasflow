@@ -63,7 +63,13 @@ export function ToolOverflow({
         // single-class selectors, so a plain rule of equal specificity would
         // win or lose on stylesheet order. Passed this way tailwind-merge
         // drops the defaults outright.
-        className="flex w-auto min-w-52 flex-col gap-0.5 rounded-2xl border-(--dock-border-color) bg-(--dock-bg-color) p-1 text-(--text-primary-color) shadow-(--dock-shadow) backdrop-blur-xl backdrop-saturate-150"
+        // `shadow-none` rather than no shadow class at all: PopoverContent
+        // ships a shadow-lg, and dropping the one that used to override it
+        // would leave that showing through. No drop shadow at all here matches
+        // the dock this opens from (see GlassDock) — same surface, and the
+        // shadow reads as a halo around it on a dark canvas. The border and
+        // the blurred surface are what set it apart from the board.
+        className="flex w-auto min-w-52 flex-col gap-0.5 rounded-2xl border-(--dock-border-color) bg-(--dock-bg-color) p-1 text-(--text-primary-color) shadow-none backdrop-blur-xl backdrop-saturate-150"
         // Focus stays on the board. Moving it into the list would mean the
         // next keystroke went to a menu item rather than to the canvas, and
         // these rows exist to be clicked, not tabbed through.

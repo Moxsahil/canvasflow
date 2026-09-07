@@ -1549,14 +1549,14 @@ export function Editor({ boardId }: EditorProps) {
             <ZoomPanel
               zoom={camera.zoom}
               syncStatus={syncStatus}
-              theme={resolvedTheme}
-              onThemeChange={setTheme}
               canZoomToFit={shapes.length > 0}
+              canvasWidth={width}
               onZoomIn={handleZoomIn}
               onZoomOut={handleZoomOut}
               onResetZoom={handleZoomTo100}
               onZoomToFit={handleZoomToFit}
             />
+
             <ShortcutsModal
               open={helpOpen}
               onClose={handleCloseHelp}
