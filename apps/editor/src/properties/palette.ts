@@ -14,40 +14,23 @@ export const BACKGROUND_SWATCHES = [
   { value: '#ffec99', label: 'Yellow' },
 ] as const;
 
-/**
- * Board-level canvas backgrounds offered by the main menu. Unlike the swatches
- * above, these tint the whole canvas rather than a shape.
- *
- * Each preset states both themes. The dark value is no longer derived by
- * inverting the light one — the board is the one surface where that inversion
- * produced a colour nobody picked. Edit either column freely; neither
- * constrains the other.
- */
-export const CANVAS_BACKGROUNDS = [
-  { light: '#fafaf9', dark: '#181818', label: 'Default' },
-  { light: '#ffffff', dark: '#0d0d0d', label: 'White' },
-  { light: '#f5faff', dark: '#101822', label: 'Blue' },
-  { light: '#fffce8', dark: '#1c1a10', label: 'Yellow' },
-  { light: '#fdf8f6', dark: '#1e1917', label: 'Warm' },
-] as const;
-
 export type CanvasTheme = 'light' | 'dark';
 
 /**
- * The stored identity of a background. The light hex doubles as the key, so
- * boards and files saved before the dark column existed still resolve.
- */
-export const DEFAULT_CANVAS_BACKGROUND = CANVAS_BACKGROUNDS[0].light;
-
-/**
- * The colour to actually paint for a stored background.
+ * The ground the whole canvas is painted on, one colour per theme. Unlike the
+ * swatches above, this tints the board rather than a shape — and it isn't a
+ * choice: the board follows the app theme, so there is nothing to store and
+ * nothing to reconcile between the people sharing a board.
  *
- * An unrecognised value is used as-is in both themes: a board file carries a
- * raw hex, so an imported board can name a colour that is not a preset at all.
+ * The dark value isn't the light one inverted. The board is the one surface
+ * where that inversion produced a colour nobody would pick, so the two are
+ * stated independently and neither constrains the other.
  */
-export function resolveCanvasBackground(stored: string, theme: CanvasTheme): string {
-  const preset = CANVAS_BACKGROUNDS.find((entry) => entry.light === stored);
-  return preset ? preset[theme] : stored;
+export const CANVAS_BACKGROUND = { light: '#fafaf9', dark: '#181818' } as const;
+
+/** The colour to actually paint, for the theme on screen. */
+export function canvasBackgroundFor(theme: CanvasTheme): string {
+  return CANVAS_BACKGROUND[theme];
 }
 
 export const STROKE_WIDTHS = [

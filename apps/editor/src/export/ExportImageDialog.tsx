@@ -10,7 +10,7 @@ import {
 } from '@canvasflow/canvas-engine';
 import { Copy, FileCode2, ImageDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { resolveCanvasBackground } from '../properties/palette';
+import { canvasBackgroundFor } from '../properties/palette';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,7 +45,6 @@ interface ExportImageDialogProps {
   /** The current selection, offered as "only selected". */
   selectedShapes: readonly Shape[];
   boardName: string;
-  canvasBackground: string;
   /** Seeds the dark toggle from the theme the editor is already showing. */
   darkTheme: boolean;
   portalContainer: HTMLElement | null;
@@ -61,7 +60,6 @@ export function ExportImageDialog({
   shapes,
   selectedShapes,
   boardName,
-  canvasBackground,
   darkTheme,
   portalContainer,
   images,
@@ -126,10 +124,10 @@ export function ExportImageDialog({
       // Resolved against this dialog's own toggle, not the editor's theme:
       // you can export a dark image from a light board, and the background
       // has to follow the checkbox rather than the screen.
-      backgroundColor: resolveCanvasBackground(canvasBackground, dark ? 'dark' : 'light'),
+      backgroundColor: canvasBackgroundFor(dark ? 'dark' : 'light'),
       region,
     }),
-    [scale, withBackground, dark, embedScene, canvasBackground, region],
+    [scale, withBackground, dark, embedScene, region],
   );
 
   const dimensions = useMemo(() => {
@@ -187,7 +185,7 @@ export function ExportImageDialog({
         // Only the exported shapes go in, so opening the image gives back what
         // the image shows rather than a board that disagrees with it.
         const blob = settings.embedScene
-          ? await embedSceneInPng(png, serializeBoardFile(exported, canvasBackground))
+          ? await embedSceneInPng(png, serializeBoardFile(exported))
           : png;
         const result = await saveFile({
           boardName: settings.embedScene ? `${name}.canvasflow` : name,
@@ -196,7 +194,7 @@ export function ExportImageDialog({
         });
         if (result.status === 'saved') onClose();
       }),
-    [exported, settings, name, canvasBackground, onClose, run, images],
+    [exported, settings, name, onClose, run, images],
   );
 
   const exportSvg = useCallback(
@@ -207,7 +205,7 @@ export function ExportImageDialog({
         const dataUrls = await resolveImageDataUrls?.(exported);
         const rendered = exportSvgString(exported, settings, dataUrls);
         const svg = settings.embedScene
-          ? embedSceneInSvg(rendered, serializeBoardFile(exported, canvasBackground))
+          ? embedSceneInSvg(rendered, serializeBoardFile(exported))
           : rendered;
         const result = await saveFile({
           boardName: settings.embedScene ? `${name}.canvasflow` : name,
@@ -216,7 +214,7 @@ export function ExportImageDialog({
         });
         if (result.status === 'saved') onClose();
       }),
-    [exported, settings, name, canvasBackground, onClose, run, resolveImageDataUrls],
+    [exported, settings, name, onClose, run, resolveImageDataUrls],
   );
 
   const copyPng = useCallback(

@@ -22,7 +22,7 @@ interface CanvasStackProps {
   activeTool: Tool;
   camera: Camera;
   isSpacePressed: boolean;
-  /** Painted behind the (transparent) canvases — see useCanvasBackground. */
+  /** Painted behind the (transparent) canvases — see canvasBackgroundFor. */
   backgroundColor: string;
   /** Find-on-canvas highlights, in world space. */
   searchHighlights?: { rects: readonly Rect[]; focusedRects: readonly Rect[] };

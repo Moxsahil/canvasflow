@@ -22,8 +22,7 @@ import {
   type BoardSwitcherState,
 } from '../workspace';
 import type { ThemePreference } from '../theme';
-import type { CanvasTheme } from '../properties/palette';
-import { BackgroundSection, ThemeSection } from './AppearanceSections';
+import { ThemeToggle } from './ThemeToggle';
 import { MenuSection } from './MenuSection';
 import { NavUser, type SidebarUser } from './NavUser';
 import {
@@ -39,14 +38,6 @@ interface AppSidebarProps {
   boardSwitcher: BoardSwitcherState;
   /** Signed-in user, for the account row at the foot. */
   user: SidebarUser | null;
-  canvasBackground: string;
-  onCanvasBackgroundChange: (color: string) => void;
-  /**
-   * The theme actually on screen. Distinct from `theme` below, which is the
-   * preference and may be `system` — the background swatches have to preview a
-   * real column, so they need the resolved one.
-   */
-  canvasTheme: CanvasTheme;
   /** Theme preference, including `system` — see theme/useAppTheme. */
   theme: ThemePreference;
   onThemeChange: (theme: ThemePreference) => void;
@@ -72,9 +63,6 @@ interface AppSidebarProps {
 export function AppSidebar({
   boardSwitcher,
   user,
-  canvasBackground,
-  onCanvasBackgroundChange,
-  canvasTheme,
   theme,
   onThemeChange,
   actions,
@@ -117,12 +105,7 @@ export function AppSidebar({
           <SidebarGroupLabel>Appearance</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <ThemeSection value={theme} onChange={onThemeChange} />
-              <BackgroundSection
-                value={canvasBackground}
-                onChange={onCanvasBackgroundChange}
-                theme={canvasTheme}
-              />
+              <ThemeToggle value={theme} onChange={onThemeChange} />
               <MenuRow id="preferences" onSelect={actions?.preferences} />
             </SidebarMenu>
           </SidebarGroupContent>
