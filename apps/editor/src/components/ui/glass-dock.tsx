@@ -103,9 +103,13 @@ export function GlassDock({ children, 'aria-label': ariaLabel, className }: Glas
         onBlur={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) clear();
         }}
+        // No drop shadow, on this or on anything else the dock puts on the
+        // board — the tooltip below, the overflow list: a 32px black spread
+        // reads as a halo around each of them on a dark canvas. Borders,
+        // blurred surfaces and the tooltip's own contrast do the separating.
         className={cn(
           'relative flex items-center gap-1 rounded-2xl px-2 py-1.5',
-          'border border-(--dock-border-color) bg-(--dock-bg-color) shadow-(--dock-shadow)',
+          'border border-(--dock-border-color) bg-(--dock-bg-color)',
           'backdrop-blur-xl backdrop-saturate-150',
           className,
         )}
@@ -122,7 +126,7 @@ export function GlassDock({ children, 'aria-label': ariaLabel, className }: Glas
               {/* Nested so the half-width centring shift and framer-motion's
                   `x` don't both try to own this element's transform. */}
               <div className="-translate-x-1/2">
-                <div className="flex min-w-20 items-center justify-center rounded-(--border-radius-lg) bg-(--dock-tooltip-bg) px-4 py-1.5 text-(--dock-tooltip-fg) shadow-(--dock-shadow)">
+                <div className="flex min-w-20 items-center justify-center rounded-(--border-radius-lg) bg-(--dock-tooltip-bg) px-4 py-1.5 text-(--dock-tooltip-fg)">
                   <div className="relative flex h-4 w-full items-center justify-center overflow-hidden">
                     <AnimatePresence mode="popLayout" custom={direction}>
                       <motion.span

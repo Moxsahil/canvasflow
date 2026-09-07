@@ -148,7 +148,8 @@ button.cf-swatch:hover {
 /* ---------- colour picker ---------- */
 
 /* Sits beside the panel, not inside it: the Island scrolls and would clip it.
-   Opens inward (leftward), since the panel is against the right edge. */
+   Opens inward (leftward), since the panel is against the right edge. No drop
+   shadow, matching the panel it opens from. */
 .cf-color-popover {
   position: absolute;
   right: calc(100% + 0.5rem);
@@ -159,7 +160,6 @@ button.cf-swatch:hover {
   padding: 0.75rem;
   background-color: var(--island-bg-color);
   border-radius: var(--border-radius-lg);
-  box-shadow: var(--shadow-island);
   z-index: var(--zIndex-popup);
 }
 
