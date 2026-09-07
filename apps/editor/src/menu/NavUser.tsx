@@ -65,7 +65,7 @@ export function NavUser({ user, actions, portalContainer }: NavUserProps) {
             </span>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {(['profile', 'signOut'] as const).map((id) => {
+          {(['settings', 'signOut'] as const).map((id) => {
             const { label, icon: Icon } = MENU_ITEMS[id];
             const action = actions?.[id];
             return (
