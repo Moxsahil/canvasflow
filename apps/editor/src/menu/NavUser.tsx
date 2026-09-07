@@ -10,7 +10,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SidebarMenuItem } from '@/components/ui/sidebar';
@@ -50,21 +49,29 @@ export function NavUser({ user, actions, portalContainer }: NavUserProps) {
           <ChevronsUpDown className={cn('ml-auto size-4 shrink-0', identityDetailClasses)} />
         </DropdownMenuTrigger>
 
+        {/* Opens straight up the sidebar rather than out over the canvas: the
+            account row is the last thing in the rail, so there is room above it
+            and none below, and a menu that leaves the sidebar reads as
+            belonging to the board instead of to the account.
+
+            It takes the trigger's width so the two line up as one column, with
+            a floor for the collapsed rail, where the trigger is icon-sized. */}
         <DropdownMenuContent
-          side="right"
-          align="end"
+          side="top"
+          align="start"
           sideOffset={4}
           container={portalContainer}
-          className="min-w-56 rounded-lg"
+          className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
         >
-          {/* The same block the trigger shows: an open menu should never make
-              you wonder which account it belongs to. */}
-          <DropdownMenuLabel className="p-0 font-normal">
-            <span className="flex items-center gap-2 px-1 py-1.5 text-sm">
-              <Identity name={name} email={email} />
-            </span>
+          {/* The address alone, and no rule under it. The trigger directly
+              below already shows the avatar and the name, so repeating them
+              here says nothing — the address is the one part of the identity
+              the rail does not have room for. It reads as a caption over the
+              items rather than as a row of its own, which is why it is quiet
+              and unseparated. */}
+          <DropdownMenuLabel className="truncate px-2 py-1.5 text-xs font-normal opacity-60">
+            {email ?? name}
           </DropdownMenuLabel>
-          <DropdownMenuSeparator />
           {(['settings', 'signOut'] as const).map((id) => {
             const { label, icon: Icon } = MENU_ITEMS[id];
             const action = actions?.[id];
