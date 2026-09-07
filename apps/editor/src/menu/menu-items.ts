@@ -1,6 +1,5 @@
 import {
   CircleQuestionMark,
-  CircleUser,
   Command,
   Files,
   FolderOpen,
@@ -11,6 +10,7 @@ import {
   Pencil,
   Save,
   Search,
+  Settings,
   Settings2,
   Share2,
   Trash2,
@@ -30,7 +30,7 @@ export type MenuItemId =
   | 'findOnCanvas'
   | 'help'
   | 'preferences'
-  | 'profile'
+  | 'settings'
   | 'signOut';
 
 export interface MenuItemMeta {
@@ -79,7 +79,7 @@ export const MENU_ITEMS: Readonly<Record<MenuItemId, MenuItemMeta>> = {
   // handler accepts Shift+/ as well as a bare '?' from layouts that have one.
   help: { id: 'help', label: 'Help', icon: CircleQuestionMark, shortcut: 'shift+?' },
   preferences: { id: 'preferences', label: 'Preferences', icon: Settings2 },
-  profile: { id: 'profile', label: 'Profile', icon: CircleUser },
+  settings: { id: 'settings', label: 'Settings', icon: Settings },
   signOut: { id: 'signOut', label: 'Sign out', icon: LogOut },
 };
 
@@ -121,7 +121,7 @@ export const SIDEBAR_SECTIONS: readonly MenuSection[] = [
 export const SIDEBAR_ITEMS: readonly MenuItemId[] = ['help'];
 
 /** Account actions, behind the avatar at the bottom of the sidebar. */
-export const ACCOUNT_MENU_GROUPS: readonly (readonly MenuItemId[])[] = [['profile'], ['signOut']];
+export const ACCOUNT_MENU_GROUPS: readonly (readonly MenuItemId[])[] = [['settings'], ['signOut']];
 
 /**
  * Handlers for menu items. An item with no entry here renders disabled — so

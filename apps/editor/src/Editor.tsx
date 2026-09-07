@@ -80,6 +80,7 @@ import { useOpenBoardFile, useSaveBoardFile } from './file';
 import { ExportImageDialog } from './export';
 import { FindBar, useCanvasSearch } from './search';
 import { AccessRevokedDialog, ShareDialog } from './share';
+import { SettingsDialog } from './settings';
 import { Dialog } from './ui';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -116,6 +117,7 @@ export function Editor({ boardId }: EditorProps) {
   const [helpOpen, setHelpOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   /**
    * This session has lost the board.
    *
@@ -130,6 +132,8 @@ export function Editor({ boardId }: EditorProps) {
   const hideExport = useCallback(() => setExportOpen(false), []);
   const showShare = useCallback(() => setShareOpen(true), []);
   const hideShare = useCallback(() => setShareOpen(false), []);
+  const showSettings = useCallback(() => setSettingsOpen(true), []);
+  const hideSettings = useCallback(() => setSettingsOpen(false), []);
   /** Shared by the open and save flows — whichever has something to report. */
   // Carries its own heading: the open, save and copy-link flows all report
   // through here, and a shared dialog titled for only one of them mislabels
@@ -1314,6 +1318,7 @@ export function Editor({ boardId }: EditorProps) {
       helpOpen ||
       exportOpen ||
       shareOpen ||
+      settingsOpen ||
       pendingReplace !== null ||
       notice !== null ||
       accessRevoked,
@@ -1391,6 +1396,7 @@ export function Editor({ boardId }: EditorProps) {
             copyLink: handleCopyBoardLink,
             findOnCanvas: search.openSearch,
             help: handleShowHelp,
+            settings: showSettings,
             signOut: showSignOut,
           }}
         />
@@ -1612,6 +1618,16 @@ export function Editor({ boardId }: EditorProps) {
               }}
               container={editorRoot}
             />
+
+            {/* Mounted only while open: the fields inside hold unsaved edits,
+                and closing the dialog is what discards them. */}
+            {settingsOpen && (
+              <SettingsDialog
+                user={user && { name: user.name, email: user.email }}
+                theme={presenceTheme}
+                onClose={hideSettings}
+              />
+            )}
 
             {/* Last, so it paints over every other dialog. Losing the board
                 outranks whatever was being confirmed when it happened. */}

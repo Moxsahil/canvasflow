@@ -1,0 +1,228 @@
+import { Children, Fragment, type ReactNode } from 'react';
+
+/**
+ * The pieces every pane is built from.
+ *
+ * The six panes are one design: a header, a body of labelled cards, and the
+ * same footer. Only the rows differ, so the chrome lives here once and a pane
+ * is little more than its content.
+ */
+
+interface SettingsPaneProps {
+  title: string;
+  subtitle: string;
+  onClose: () => void;
+  children: ReactNode;
+}
+
+/** Header, scrolling body, footer — the frame all six panes share. */
+export function SettingsPane({ title, subtitle, onClose, children }: SettingsPaneProps) {
+  return (
+    <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+      <header className="flex w-full shrink-0 items-center gap-[12px] pb-[8px] pl-[30px] pr-[22px] pt-[26px]">
+        <div className="flex min-w-0 flex-1 flex-col gap-[6px]">
+          <h2 className="text-[19px] font-semibold text-[var(--settings-fg)]">{title}</h2>
+          <p className="text-[12px] text-[var(--settings-fg-muted)]">{subtitle}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close settings"
+          className="flex size-[28px] shrink-0 items-center justify-center rounded-[8px] text-[18px] leading-none text-[var(--settings-fg-faint)] transition-colors hover:bg-[var(--settings-nav-active)] hover:text-[var(--settings-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--settings-accent)]"
+        >
+          ×
+        </button>
+      </header>
+
+      <div className="flex w-full min-h-0 flex-1 flex-col gap-[12px] overflow-y-auto px-[30px] pb-[24px] pt-[20px]">
+        {children}
+      </div>
+
+      {/* The same line under every pane, including the ones that save nothing
+          to the account yet. */}
+      <footer className="flex w-full shrink-0 items-center gap-[10px] pb-[18px] pl-[30px] pr-[22px] pt-[16px]">
+        <p className="min-w-0 flex-1 text-[11px] text-[var(--settings-fg-faint)]">
+          Changes save to your account, not this board.
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex shrink-0 items-center rounded-[7px] px-[14px] py-[8px] text-[12px] font-medium text-[var(--settings-fg-faint)] transition-colors hover:text-[var(--settings-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--settings-accent)]"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex shrink-0 items-center rounded-[7px] bg-[var(--settings-accent)] px-[14px] py-[8px] text-[12px] font-medium text-[var(--settings-on-accent)] transition-colors hover:bg-[var(--settings-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--settings-fg)]"
+        >
+          Save changes
+        </button>
+      </footer>
+    </div>
+  );
+}
+
+/** The heading above a card — the design's only grouping device in a pane. */
+export function GroupLabel({ children }: { children: ReactNode }) {
+  return (
+    <p className="w-full text-[12px] font-medium text-[var(--settings-fg-muted)]">{children}</p>
+  );
+}
+
+/**
+ * A card of rows.
+ *
+ * Every card in the design puts a hairline between neighbouring rows and none
+ * at its edges, so the separators are drawn here rather than typed out fifteen
+ * times — one fewer thing to get wrong when a row is added or moved.
+ */
+export function Card({ children }: { children: ReactNode }) {
+  const rows = Children.toArray(children);
+  return (
+    <div className="flex w-full shrink-0 flex-col overflow-hidden rounded-[12px] border border-[var(--settings-border)] bg-[var(--settings-card)]">
+      {rows.map((row, index) => (
+        // The rows of a card are written out literally and never reorder, so
+        // their position is a stable identity.
+        <Fragment key={index}>
+          {index > 0 && <div className="h-px w-full shrink-0 bg-[var(--settings-border)]" />}
+          {row}
+        </Fragment>
+      ))}
+    </div>
+  );
+}
+
+/** A 62px row: something named on the left, something to do about it on the right. */
+export function Row({ children }: { children: ReactNode }) {
+  return <div className="flex w-full items-center gap-[16px] px-[18px] py-[15px]">{children}</div>;
+}
+
+export function RowText({ title, hint }: { title: string; hint: string }) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-[4px]">
+      <p className="text-[12.5px] font-medium text-[var(--settings-fg)]">{title}</p>
+      <p className="text-[11px] text-[var(--settings-fg-faint)]">{hint}</p>
+    </div>
+  );
+}
+
+export function TextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <input
+      type="text"
+      value={value}
+      aria-label={label}
+      placeholder={placeholder}
+      onChange={(event) => onChange(event.target.value)}
+      className="w-[240px] shrink-0 rounded-[7px] border border-[var(--settings-border)] bg-[var(--settings-input)] px-[10px] py-[8px] text-[12.5px] text-[var(--settings-fg)] placeholder:text-[var(--settings-fg-faint)] focus:border-[var(--settings-accent)] focus:outline-none"
+    />
+  );
+}
+
+export function SecondaryButton({ children }: { children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      className="flex shrink-0 items-center rounded-[7px] border border-[var(--settings-border)] bg-[var(--settings-raised)] px-[12px] py-[7px] text-[12px] font-medium text-[var(--settings-fg)] transition-colors hover:bg-[var(--settings-raised-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--settings-accent)]"
+    >
+      {children}
+    </button>
+  );
+}
+
+export function GhostButton({ children }: { children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      className="flex shrink-0 items-center rounded-[7px] px-[12px] py-[7px] text-[12px] font-medium text-[var(--settings-fg-faint)] transition-colors hover:text-[var(--settings-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--settings-accent)]"
+    >
+      {children}
+    </button>
+  );
+}
+
+/** The one button in the design that sits under a heading reading "Danger zone". */
+export function DangerButton({ children }: { children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      className="flex shrink-0 items-center rounded-[7px] border border-[var(--settings-danger-border)] px-[12px] py-[7px] text-[12px] font-medium text-[var(--settings-danger)] transition-colors hover:bg-[var(--settings-danger-wash)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--settings-danger)]"
+    >
+      {children}
+    </button>
+  );
+}
+
+/** A row whose right-hand side states a fact rather than offering a control. */
+export function ValueText({ children }: { children: ReactNode }) {
+  return <span className="shrink-0 text-[12.5px] text-[var(--settings-fg)]">{children}</span>;
+}
+
+/**
+ * The 34×20 switch, with its 16px knob 2px inside either end.
+ *
+ * Nothing behind it persists yet, so it holds its own state and says what it is
+ * for — the pane it lives on decides what it starts as.
+ */
+export function Toggle({
+  label,
+  on,
+  onChange,
+}: {
+  label: string;
+  on: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      onClick={() => onChange(!on)}
+      className={`relative h-[20px] w-[34px] shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--settings-accent)] ${
+        on ? 'bg-[var(--settings-accent)]' : 'bg-[var(--settings-toggle-off)]'
+      }`}
+    >
+      <span
+        className={`absolute top-[2px] size-[16px] rounded-full bg-[var(--settings-on-accent)] transition-[left] ${
+          on ? 'left-[16px]' : 'left-[2px]'
+        }`}
+      />
+    </button>
+  );
+}
+
+/** A 120px track with its reading beside it, as the storage row has it. */
+export function Meter({ used, total, label }: { used: number; total: number; label: string }) {
+  const ratio = total > 0 ? Math.min(Math.max(used / total, 0), 1) : 0;
+  return (
+    <div className="flex shrink-0 items-center gap-[12px]">
+      <div
+        role="progressbar"
+        aria-valuenow={used}
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-label={label}
+        className="h-[5px] w-[120px] overflow-hidden rounded-full bg-[var(--settings-toggle-off)]"
+      >
+        <div
+          style={{ width: `${ratio * 100}%` }}
+          className="h-full rounded-full bg-[var(--settings-accent)]"
+        />
+      </div>
+      <span className="text-[12.5px] text-[var(--settings-fg)]">{label}</span>
+    </div>
+  );
+}
