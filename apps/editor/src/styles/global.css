@@ -28,6 +28,25 @@
   }
 }
 
+/* The theme change is wiped across the window by theme/theme-transition.ts,
+   which clips the incoming snapshot open over the outgoing one. Both default
+   animations are dropped: a cross-fade underneath the wipe would grey the
+   window through the middle of it, and the old view has to hold still rather
+   than fade for there to be anything to wipe over. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 0;
+}
+
+::view-transition-new(root) {
+  z-index: 1;
+}
+
 html,
 body,
 #root {

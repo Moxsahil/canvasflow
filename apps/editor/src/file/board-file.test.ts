@@ -37,12 +37,14 @@ describe('parseBoardFile — our own format', () => {
     expect(shapes[0]?.id).not.toBe(shapes[1]?.id);
   });
 
-  it('carries the canvas background when the file has one', () => {
-    const { canvasBackground } = parseBoardFile(
+  it('opens a file that still carries a canvas background, ignoring it', () => {
+    // Files written before the canvas followed the app theme name a colour
+    // that nothing sets any more. That is a field to skip, not a bad file.
+    const { shapes } = parseBoardFile(
       boardFile([rectangle], { canvasBackground: '#fffce8' }),
       genId,
     );
-    expect(canvasBackground).toBe('#fffce8');
+    expect(shapes).toHaveLength(1);
   });
 
   it('refuses a file from a newer version rather than guessing', () => {
@@ -61,9 +63,8 @@ describe('parseBoardFile — our own format', () => {
 
   it('round-trips what serializeBoardFile writes', () => {
     const { shapes } = parseBoardFile(boardFile([rectangle]), genId);
-    const reparsed = parseBoardFile(serializeBoardFile(shapes, '#ffffff'), genId);
+    const reparsed = parseBoardFile(serializeBoardFile(shapes), genId);
     expect(reparsed.shapes[0]).toMatchObject({ kind: 'rectangle', x: 10, y: 20 });
-    expect(reparsed.canvasBackground).toBe('#ffffff');
   });
 });
 
@@ -150,12 +151,14 @@ describe('parseBoardFile — Excalidraw files', () => {
     expect(skipped).toBe(2);
   });
 
-  it('picks up the view background colour', () => {
-    const { canvasBackground } = parseBoardFile(
-      excalidrawFile([], { viewBackgroundColor: '#f5faff' }),
+  it('opens a file whose appState names a view background, ignoring it', () => {
+    const { shapes } = parseBoardFile(
+      excalidrawFile([{ id: 'a', type: 'rectangle', x: 0, y: 0, width: 10, height: 10 }], {
+        viewBackgroundColor: '#f5faff',
+      }),
       genId,
     );
-    expect(canvasBackground).toBe('#f5faff');
+    expect(shapes).toHaveLength(1);
   });
 
   it('substitutes a default arrow when an element has too few points', () => {

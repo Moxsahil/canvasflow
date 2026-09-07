@@ -5,7 +5,6 @@ import { saveBoardFile } from './save-file';
 
 interface UseSaveBoardFileOptions {
   shapes: readonly Shape[];
-  canvasBackground: string;
   boardName: string;
   /**
    * The file this board is currently associated with, shared with the open
@@ -18,7 +17,6 @@ interface UseSaveBoardFileOptions {
 
 export function useSaveBoardFile({
   shapes,
-  canvasBackground,
   boardName,
   fileHandleRef,
   onNotice,
@@ -28,7 +26,7 @@ export function useSaveBoardFile({
       try {
         const result = await saveBoardFile({
           boardName,
-          text: serializeBoardFile(shapes, canvasBackground),
+          text: serializeBoardFile(shapes),
           handle: fileHandleRef.current,
         });
         if (result.status === 'saved') {
@@ -42,7 +40,7 @@ export function useSaveBoardFile({
         );
       }
     })();
-  }, [boardName, canvasBackground, fileHandleRef, onNotice, shapes]);
+  }, [boardName, fileHandleRef, onNotice, shapes]);
 
   return { saveBoardFileToDisk };
 }

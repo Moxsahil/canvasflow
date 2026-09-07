@@ -15,8 +15,8 @@ interface UseOpenBoardFileOptions {
   /** How many shapes the board holds now — an empty board skips the confirm. */
   shapeCount: number;
   genId: () => string;
-  /** Called once the board has been replaced, for camera and background. */
-  onLoaded: (shapes: readonly Shape[], canvasBackground?: string) => void;
+  /** Called once the board has been replaced, to fit the camera to it. */
+  onLoaded: (shapes: readonly Shape[]) => void;
   /**
    * The file this board is associated with, shared with the save flow so a
    * board opened from disk saves straight back to the same file.
@@ -69,7 +69,7 @@ export function useOpenBoardFile({
       doc.breakUndoGroup();
 
       fileHandleRef.current = handle;
-      onLoaded(parsed.shapes, parsed.canvasBackground);
+      onLoaded(parsed.shapes);
       if (parsed.skipped > 0) {
         onNotice(describeLoad(parsed, fileName));
       }

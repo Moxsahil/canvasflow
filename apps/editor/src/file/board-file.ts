@@ -9,22 +9,19 @@ export const BOARD_FILE_EXTENSION = '.canvasflow';
 
 /**
  * The on-disk board format. Deliberately separate from the clipboard payload
- * in src/clipboard/schema.ts — a file is a whole board (background included)
- * where the clipboard is a fragment, and the two will version independently.
- * "Save to…" writes this.
+ * in src/clipboard/schema.ts — a file is a whole board where the clipboard is a
+ * fragment, and the two will version independently. "Save to…" writes this.
  */
 export interface BoardFile {
   type: typeof BOARD_FILE_TYPE;
   version: number;
   source?: string;
   shapes: unknown[];
-  canvasBackground?: string;
 }
 
 export interface ParsedBoardFile {
   shapes: Shape[];
   skipped: number;
-  canvasBackground?: string;
   format: 'canvasflow' | 'excalidraw';
 }
 
@@ -73,13 +70,10 @@ export function parseBoardFile(text: string, genId: () => string): ParsedBoardFi
         throw new BoardFileError('That board file has no shapes in it.');
       }
       const { shapes, skipped } = sanitizeShapes(data.shapes, genId);
-      const background = data.canvasBackground;
-      return {
-        shapes,
-        skipped,
-        canvasBackground: typeof background === 'string' ? background : undefined,
-        format: 'canvasflow',
-      };
+      // A `canvasBackground` written by an older build is ignored rather than
+      // rejected: the canvas ground follows the app theme now, so the field
+      // has nothing left to set.
+      return { shapes, skipped, format: 'canvasflow' };
     }
 
     case 'excalidraw':
@@ -89,12 +83,9 @@ export function parseBoardFile(text: string, genId: () => string): ParsedBoardFi
       }
       const converted = fromExcalidrawElements(data.elements, genId);
       const { shapes } = sanitizeShapes(converted, genId);
-      const appState = isRecord(data.appState) ? data.appState : undefined;
-      const background = appState?.viewBackgroundColor;
       return {
         shapes,
         skipped: data.elements.length - shapes.length,
-        canvasBackground: typeof background === 'string' ? background : undefined,
         format: 'excalidraw',
       };
     }
@@ -118,13 +109,12 @@ export function parseImageFile(
   return parseBoardFile(embedded, genId);
 }
 
-export function serializeBoardFile(shapes: readonly Shape[], canvasBackground?: string): string {
+export function serializeBoardFile(shapes: readonly Shape[]): string {
   const file: BoardFile = {
     type: BOARD_FILE_TYPE,
     version: BOARD_FILE_VERSION,
     source: 'canvasflow',
     shapes: shapes as unknown[],
-    ...(canvasBackground ? { canvasBackground } : {}),
   };
   return JSON.stringify(file);
 }

@@ -30,9 +30,8 @@ import {
 } from './clipboard';
 import { CanvasStack } from './canvas/CanvasStack';
 import { pointerCursorValue } from './canvas/pointer-cursor';
-import { resolveCanvasBackground } from './properties/palette';
+import { canvasBackgroundFor } from './properties/palette';
 import { useCanvasResize } from './canvas/hooks/useCanvasResize';
-import { useCanvasBackground } from './canvas/useCanvasBackground';
 import { AppSidebar, readSidebarState } from './menu';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Toolbar } from './toolbar/Toolbar';
@@ -146,7 +145,6 @@ export function Editor({ boardId }: EditorProps) {
     [],
   );
 
-  const { canvasBackground, setCanvasBackground } = useCanvasBackground(boardId);
   const { theme, resolvedTheme, setTheme, toggleTheme } = useAppTheme();
 
   const handleShowHelp = useCallback(() => setHelpOpen(true), []);
@@ -1128,8 +1126,7 @@ export function Editor({ boardId }: EditorProps) {
   // Fit the camera to what was just loaded and drop the old selection, which
   // points at shapes the replace has already removed.
   const handleBoardFileLoaded = useCallback(
-    (loaded: readonly Shape[], background?: string) => {
-      if (background) setCanvasBackground(background);
+    (loaded: readonly Shape[]) => {
       actorRef.send({ type: 'SELECT_ALL', shapeIds: [] });
 
       // Read through the actor rather than the render-time value, so this is
@@ -1147,7 +1144,7 @@ export function Editor({ boardId }: EditorProps) {
         after,
       };
     },
-    [actorRef, doc, setCanvasBackground, width, height],
+    [actorRef, doc, width, height],
   );
 
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
@@ -1163,7 +1160,6 @@ export function Editor({ boardId }: EditorProps) {
 
   const { saveBoardFileToDisk } = useSaveBoardFile({
     shapes,
-    canvasBackground,
     boardName: boardTitle,
     fileHandleRef,
     onNotice: showSaveNotice,
@@ -1380,9 +1376,6 @@ export function Editor({ boardId }: EditorProps) {
         <AppSidebar
           boardSwitcher={boardSwitcher}
           user={user && { name: user.name, email: user.email }}
-          canvasBackground={canvasBackground}
-          onCanvasBackgroundChange={setCanvasBackground}
-          canvasTheme={presenceTheme}
           theme={theme}
           onThemeChange={setTheme}
           portalContainer={editorRoot}
@@ -1428,7 +1421,7 @@ export function Editor({ boardId }: EditorProps) {
               onWheelZoom={handleWheelZoom}
               onWheelPan={handleWheelPan}
               isPanning={isPanning}
-              backgroundColor={resolveCanvasBackground(canvasBackground, presenceTheme)}
+              backgroundColor={canvasBackgroundFor(presenceTheme)}
               searchHighlights={search.highlights}
               peersRef={peersRef}
               subscribePeers={subscribe}
@@ -1591,7 +1584,6 @@ export function Editor({ boardId }: EditorProps) {
               shapes={shapes}
               selectedShapes={selectedShapes}
               boardName={boardTitle}
-              canvasBackground={canvasBackground}
               darkTheme={resolvedTheme === 'dark'}
               portalContainer={editorRoot}
               images={images.cache}
