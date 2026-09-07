@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { GlassDockGroup, GlassDockItem } from '@/components/ui/glass-dock';
-import { TOOLS, type Tool } from '../tools/tool';
+import { TOOLS, VIEW_ONLY_TOOLS, type Tool } from '../tools/tool';
 import { ToolButton } from './ToolButton';
 import { ToolOverflow } from './ToolOverflow';
 
@@ -14,16 +14,6 @@ interface ToolbarProps {
   /** Where the overflow list portals. Outside `.cf-editor` its tokens are empty. */
   portalContainer?: HTMLElement | null;
 }
-
-/**
- * Tools that change nothing about the document, and so remain available to a
- * viewer: they still need to select things to read them, and to pan around.
- *
- * The laser qualifies for exactly the same reason — its trail is presence, not
- * document — and it is the one tool a viewer most needs during a live review,
- * where the whole point is asking about a part of the board out loud.
- */
-const VIEW_ONLY_TOOLS = new Set<Tool>(['select', 'hand', 'laser']);
 
 export function Toolbar({
   activeTool,

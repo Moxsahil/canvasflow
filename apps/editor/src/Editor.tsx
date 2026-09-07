@@ -41,6 +41,7 @@ import { TextEditor } from './text-editor/TextEditor';
 import { ZoomPanel } from './zoom-panel/ZoomPanel';
 import { toolMachine, resizeShape } from './machine/tool-machine';
 import { useKeyboardShortcuts } from './tools/useKeyboardShortcuts';
+import { CommandPalette, useEditorCommands } from './commands';
 import { hitTestHandles } from './selection/handles';
 import { useBoardDocument, useYjsShapes } from './document/useYjsDocument';
 import { useBoardImages, pickImageFiles } from './images';
@@ -118,6 +119,7 @@ export function Editor({ boardId }: EditorProps) {
   const [exportOpen, setExportOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   /**
    * This session has lost the board.
    *
@@ -134,6 +136,9 @@ export function Editor({ boardId }: EditorProps) {
   const hideShare = useCallback(() => setShareOpen(false), []);
   const showSettings = useCallback(() => setSettingsOpen(true), []);
   const hideSettings = useCallback(() => setSettingsOpen(false), []);
+  // Toggled rather than opened: the combo that summons it is the natural way
+  // to dismiss it again, and pressing it twice should leave the board alone.
+  const togglePalette = useCallback(() => setPaletteOpen((open) => !open), []);
   /** Shared by the open and save flows — whichever has something to report. */
   // Carries its own heading: the open, save and copy-link flows all report
   // through here, and a shared dialog titled for only one of them mislabels
@@ -1312,17 +1317,71 @@ export function Editor({ boardId }: EditorProps) {
     onSaveFile: saveBoardFileToDisk,
     onExportImage: showExport,
     onFind: search.openSearch,
+    onCommandPalette: togglePalette,
     // The dialogs own the keyboard while they're up, so ⌘O can't stack a
     // second picker on top of an unanswered replace confirmation.
+    //
+    // The palette is in this list for a sharper reason than the rest: the
+    // modifier combos below are matched before the typing check that would
+    // otherwise spare them, so without it a ⌘S typed into the search field
+    // would save the board instead of reaching the field.
     disabled:
       helpOpen ||
       exportOpen ||
       shareOpen ||
       settingsOpen ||
+      paletteOpen ||
       pendingReplace !== null ||
       notice !== null ||
       accessRevoked,
   });
+
+  /**
+   * Everything the palette can run. The handlers are the same ones the
+   * keyboard already dispatches to, so a command cannot drift from the
+   * shortcut that does the same thing.
+   */
+  const commands = useEditorCommands(
+    {
+      selectTool: handleToolChange,
+      zoomIn: handleZoomIn,
+      zoomOut: handleZoomOut,
+      zoomTo100: handleZoomTo100,
+      zoomToFit: handleZoomToFit,
+      zoomToSelection: handleZoomToSelection,
+      toggleTheme,
+      undo: handleUndo,
+      redo: handleRedo,
+      cut: handleCut,
+      copy: handleCopy,
+      paste: handlePaste,
+      duplicate: handleDuplicate,
+      deleteSelection: handleDelete,
+      selectAll: handleSelectAll,
+      bringForward: handleBringForward,
+      sendBackward: handleSendBackward,
+      bringToFront: handleBringToFront,
+      sendToBack: handleSendToBack,
+      open: openBoardFile,
+      saveTo: saveBoardFileToDisk,
+      exportImage: showExport,
+      renameBoard: handleRenameBoard,
+      liveCollaboration: showShare,
+      copyLink: handleCopyBoardLink,
+      findOnCanvas: search.openSearch,
+      help: handleShowHelp,
+      settings: showSettings,
+      signOut: showSignOut,
+    },
+    {
+      readOnly,
+      selectionCount: selectedIds.length,
+      shapeCount: shapes.length,
+      canUndo,
+      canRedo,
+      canRename,
+    },
+  );
 
   const handleCommitText = useCallback(
     (text: string) => {
@@ -1394,6 +1453,7 @@ export function Editor({ boardId }: EditorProps) {
             exportImage: showExport,
             liveCollaboration: showShare,
             copyLink: handleCopyBoardLink,
+            commandPalette: togglePalette,
             findOnCanvas: search.openSearch,
             help: handleShowHelp,
             settings: showSettings,
@@ -1628,6 +1688,13 @@ export function Editor({ boardId }: EditorProps) {
                 onClose={hideSettings}
               />
             )}
+
+            <CommandPalette
+              commands={commands}
+              open={paletteOpen}
+              onOpenChange={setPaletteOpen}
+              portalContainer={editorRoot}
+            />
 
             {/* Last, so it paints over every other dialog. Losing the board
                 outranks whatever was being confirmed when it happened. */}
