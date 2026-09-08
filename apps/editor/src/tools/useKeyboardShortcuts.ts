@@ -29,6 +29,7 @@ interface UseKeyboardShortcutsOptions {
   onShowHelp: () => void;
   onToggleTheme: () => void;
   onToggleGrid: () => void;
+  onToggleToolLock: () => void;
   onOpenFile: () => void;
   onSaveFile: () => void;
   onExportImage: () => void;
@@ -65,6 +66,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onShowHelp,
     onToggleTheme,
     onToggleGrid,
+    onToggleToolLock,
     onOpenFile,
     onSaveFile,
     onExportImage,
@@ -289,6 +291,14 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
 
       if (shouldIgnoreShortcut(event)) return;
 
+      // Tool lock: Q, the letter both the preferences menu and the shortcuts
+      // dialog already print for it. Bare only — Cmd+Q is the platform's.
+      if (!mod && !event.altKey && event.key.toLowerCase() === 'q') {
+        event.preventDefault();
+        onToggleToolLock();
+        return;
+      }
+
       const tool = KEY_TO_TOOL[event.key.toLowerCase()];
       if (tool) {
         event.preventDefault();
@@ -335,6 +345,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onShowHelp,
     onToggleTheme,
     onToggleGrid,
+    onToggleToolLock,
     onOpenFile,
     onSaveFile,
     onExportImage,

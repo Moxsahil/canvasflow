@@ -1,4 +1,5 @@
-import { assign, emit, setup } from 'xstate';
+import { and, assign, emit, setup } from 'xstate';
+import { isLockableTool } from '@/tools/tool';
 import {
   createArrow,
   createDiamond,
@@ -405,6 +406,25 @@ export const toolMachine = setup({
       sketchPoints: [],
     }),
     clearTextEditing: assign({ textEditingAt: null, editingTextShapeId: null }),
+    setToolLock: assign(({ event }) => {
+      if (event.type !== 'SET_TOOL_LOCK') return {};
+      return { toolLocked: event.locked };
+    }),
+    /**
+     * Hold the shape that was just drawn.
+     *
+     * Sequenced before `clearDraw`, which is what empties `newElement` — swap
+     * the two and the selection comes back empty.
+     */
+    selectCommittedShape: assign(({ context }) => {
+      if (!context.newElement) return {};
+      return { selectedIds: [context.newElement.id] };
+    }),
+    selectCommittedText: assign(({ event }) => {
+      if (event.type !== 'COMMIT_TEXT' || !event.shapeId) return {};
+      return { selectedIds: [event.shapeId] };
+    }),
+    returnToSelect: assign({ activeTool: 'select' as const }),
     trackSpaceDown: assign({ isSpacePressed: true }),
     trackSpaceUp: assign({ isSpacePressed: false }),
     applyPan: assign(({ context, event }) => {
@@ -483,6 +503,13 @@ export const toolMachine = setup({
     clearResize: assign({ resizeHandle: null, resizeOriginShape: null }),
   },
   guards: {
+    /**
+     * Whether finishing a shape hands the board back to the select tool.
+     *
+     * False under the lock, which is the whole point of it, and false for the
+     * tools the lock does not govern — see `isLockableTool`.
+     */
+    returnsToSelect: ({ context }) => !context.toolLocked && isLockableTool(context.activeTool),
     isSelectTool: ({ context }) => context.activeTool === 'select',
     isShapeTool: ({ context }) => {
       const t = context.activeTool;
@@ -543,6 +570,7 @@ export const toolMachine = setup({
     editingTextShapeId: null,
     camera: IDENTITY_CAMERA,
     isSpacePressed: false,
+    toolLocked: false,
     selectedIds: [],
     marquee: null,
     dragOriginShapes: {},
@@ -554,6 +582,7 @@ export const toolMachine = setup({
   on: {
     SELECT_TOOL: { target: '.idle', actions: 'selectTool' },
     SET_ITEM_STYLE: { actions: 'setItemStyle' },
+    SET_TOOL_LOCK: { actions: 'setToolLock' },
     ESCAPE: { target: '.idle', actions: ['clearDraw', 'clearTextEditing', 'deselectAll'] },
     EDIT_TEXT_SHAPE: { target: '.editingText', actions: 'startEditingExistingText' },
     SPACE_DOWN: { actions: 'trackSpaceDown' },
@@ -732,6 +761,11 @@ export const toolMachine = setup({
         POINTER_MOVE: { actions: 'updateShapeDraw' },
         POINTER_UP: [
           {
+            guard: and(['hasMovedEnough', 'returnsToSelect']),
+            target: 'idle',
+            actions: ['emitCommittedShape', 'selectCommittedShape', 'returnToSelect', 'clearDraw'],
+          },
+          {
             guard: 'hasMovedEnough',
             target: 'idle',
             actions: ['emitCommittedShape', 'clearDraw'],
@@ -740,6 +774,11 @@ export const toolMachine = setup({
         ],
       },
     },
+    /**
+     * The pencil keeps itself, lock or no lock, and leaves nothing selected —
+     * see `isLockableTool`. So this state has no second branch: a stroke ends
+     * the way it always has.
+     */
     drawingFreehand: {
       on: {
         POINTER_MOVE: { actions: 'updateFreehand' },
@@ -763,6 +802,8 @@ export const toolMachine = setup({
     sketching: {
       on: {
         POINTER_MOVE: { actions: 'updateSketch' },
+        // Like the pencil, this tool keeps itself and selects nothing whatever
+        // the lock says — see `isLockableTool`.
         POINTER_UP: [
           {
             guard: 'sketchHasEnoughPoints',
@@ -775,7 +816,16 @@ export const toolMachine = setup({
     },
     editingText: {
       on: {
-        COMMIT_TEXT: { target: 'idle', actions: 'clearTextEditing' },
+        COMMIT_TEXT: [
+          {
+            guard: 'returnsToSelect',
+            target: 'idle',
+            actions: ['selectCommittedText', 'returnToSelect', 'clearTextEditing'],
+          },
+          { target: 'idle', actions: 'clearTextEditing' },
+        ],
+        // Nothing was made, so there is nothing to hand back — an abandoned
+        // text box leaves the tool where it was even with the lock off.
         CANCEL_TEXT: { target: 'idle', actions: 'clearTextEditing' },
       },
     },

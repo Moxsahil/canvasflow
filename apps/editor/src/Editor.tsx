@@ -36,6 +36,7 @@ import { AppSidebar, readSidebarState } from './menu';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Toolbar } from './toolbar/Toolbar';
 import { HistoryPanel } from './toolbar/HistoryPanel';
+import { ToolLockButton } from './toolbar/ToolLockButton';
 import { GlassDock, GlassDockSeparator } from '@/components/ui/glass-dock';
 import { TextEditor } from './text-editor/TextEditor';
 import { ZoomPanel } from './zoom-panel/ZoomPanel';
@@ -1356,6 +1357,17 @@ export function Editor({ boardId }: EditorProps) {
     preferences.set('showGrid', !preferences.values.showGrid);
   }, [preferences]);
 
+  const toggleToolLock = useCallback(() => {
+    preferences.set('toolLock', !preferences.values.toolLock);
+  }, [preferences]);
+
+  // The machine decides what happens when a tool finishes, so it has to hold
+  // the preference rather than reach for it — same channel the item style
+  // travels on.
+  useEffect(() => {
+    actorRef.send({ type: 'SET_TOOL_LOCK', locked: preferences.values.toolLock });
+  }, [actorRef, preferences.values.toolLock]);
+
   useKeyboardShortcuts({
     onSelectTool: handleToolChange,
     onEscape: handleEscape,
@@ -1383,6 +1395,7 @@ export function Editor({ boardId }: EditorProps) {
     onShowHelp: handleShowHelp,
     onToggleTheme: toggleTheme,
     onToggleGrid: toggleGrid,
+    onToggleToolLock: toggleToolLock,
     onOpenFile: openBoardFile,
     onSaveFile: saveBoardFileToDisk,
     onExportImage: showExport,
@@ -1484,6 +1497,11 @@ export function Editor({ boardId }: EditorProps) {
           textAlign,
         });
         doc.addShape(textShape);
+        // The id travels with the commit so the machine can hold the new text
+        // selected on its way back to select. Only for text that was just
+        // made: editing an existing shape is not a tool finishing its work.
+        actorRef.send({ type: 'COMMIT_TEXT', text, shapeId: textShape.id });
+        return;
       }
 
       actorRef.send({ type: 'COMMIT_TEXT', text });
@@ -1620,6 +1638,15 @@ export function Editor({ boardId }: EditorProps) {
             <SidebarTrigger className="absolute top-4 left-4 z-(--zIndex-layerUI)" />
 
             <div className="cf-bottom-dock">
+              {/* Above the bar, and not for viewers: it governs what happens
+                  after a tool draws, and a viewer's tools never do. */}
+              {!readOnly && (
+                <ToolLockButton
+                  activeTool={activeTool}
+                  locked={preferences.values.toolLock}
+                  onToggle={toggleToolLock}
+                />
+              )}
               <GlassDock aria-label="Editing tools">
                 {!readOnly && (
                   <>

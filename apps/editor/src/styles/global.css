@@ -95,7 +95,17 @@ html[data-theme='dark'] #root {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  /* A column so the tool lock can sit above the bar rather than inside it.
+     Centring keeps the toolbar itself where it has always been, and the lock
+     island above takes `self-end` to line up with the bar's right edge — the
+     narrow thing tucks against the wide one instead of floating over its
+     middle, where it would read as part of the row. */
+  flex-direction: column;
   align-items: center;
+  /* Tight, because the lock island carries no surface of its own: the space
+     is all that ties it to the bar, and any more of it reads as a button
+     floating loose over the canvas. */
+  gap: 0.25rem;
   z-index: var(--zIndex-layerUI);
 }
 

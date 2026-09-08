@@ -47,7 +47,7 @@ describe('toolMachine', () => {
     expect(actor.getSnapshot().context.newElement).toBeNull();
   });
 
-  it('keeps the active tool after committing a shape', () => {
+  it('hands the board back to select after committing a shape', () => {
     const actor = createActor(toolMachine).start();
     actor.send({ type: 'SELECT_TOOL', tool: 'rectangle' });
     actor.send({
@@ -60,10 +60,10 @@ describe('toolMachine', () => {
     });
     actor.send({ type: 'POINTER_MOVE', point: { x: 200, y: 200 }, screenDelta: { x: 0, y: 0 } });
     actor.send({ type: 'POINTER_UP', point: { x: 200, y: 200 } });
-    // The tool is sticky: drawing several shapes in a row shouldn't mean
-    // re-picking the tool between each one. Committing returns the machine
-    // to idle but deliberately leaves activeTool alone.
-    expect(actor.getSnapshot().context.activeTool).toBe('rectangle');
+    // One shape per trip to the toolbar, and the shape you just made is what
+    // you get back — the tool that stays put is the tool lock, which
+    // tool-lock.test.ts covers on both settings.
+    expect(actor.getSnapshot().context.activeTool).toBe('select');
     expect(actor.getSnapshot().value).toBe('idle');
   });
 

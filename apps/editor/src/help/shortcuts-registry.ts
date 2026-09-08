@@ -28,6 +28,7 @@ export const SHORTCUTS: ShortcutCategory[] = [
       { keys: 'i', description: 'Image' },
       { keys: 'f', description: 'Frame' },
       { keys: 'x', description: 'Sketch to shape' },
+      { keys: 'q', description: 'Tool lock (keep the tool after a shape)' },
       { keys: 'k', description: 'Laser pointer' },
       { keys: 'e', description: 'Eraser' },
     ],
