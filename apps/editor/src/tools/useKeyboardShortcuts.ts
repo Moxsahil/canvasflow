@@ -28,6 +28,7 @@ interface UseKeyboardShortcutsOptions {
   onPaste: () => void;
   onShowHelp: () => void;
   onToggleTheme: () => void;
+  onToggleGrid: () => void;
   onOpenFile: () => void;
   onSaveFile: () => void;
   onExportImage: () => void;
@@ -63,6 +64,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onPaste,
     onShowHelp,
     onToggleTheme,
+    onToggleGrid,
     onOpenFile,
     onSaveFile,
     onExportImage,
@@ -151,6 +153,15 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
       if (!mod && event.altKey && event.shiftKey && event.code === 'KeyD') {
         event.preventDefault();
         onToggleTheme();
+        return;
+      }
+
+      // Show or hide the grid: Cmd/Ctrl+'. Read from event.key rather than a
+      // code, so a layout that puts the apostrophe elsewhere still matches the
+      // character the preferences menu prints.
+      if (mod && event.key === "'") {
+        event.preventDefault();
+        onToggleGrid();
         return;
       }
 
@@ -323,6 +334,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onPaste,
     onShowHelp,
     onToggleTheme,
+    onToggleGrid,
     onOpenFile,
     onSaveFile,
     onExportImage,

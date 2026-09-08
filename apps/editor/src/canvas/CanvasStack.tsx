@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react';
 import type { ImageSource, Peer, Rect, Shape } from '@canvasflow/canvas-engine';
 import type { Camera, Point } from '../machine/tool-machine.types';
 import type { Tool } from '../tools/tool';
+import { Grid } from './Grid';
 import { useCanvasResize } from './hooks/useCanvasResize';
 import { useDevicePixelRatio } from './hooks/useDevicePixelRatio';
 import { useStaticRender } from './hooks/useStaticRender';
@@ -24,6 +25,8 @@ interface CanvasStackProps {
   isSpacePressed: boolean;
   /** Painted behind the (transparent) canvases — see canvasBackgroundFor. */
   backgroundColor: string;
+  /** Whether the dotted grid is drawn between the background and the shapes. */
+  showGrid?: boolean;
   /** Find-on-canvas highlights, in world space. */
   searchHighlights?: { rects: readonly Rect[]; focusedRects: readonly Rect[] };
   /** Decoded image bitmaps, and a counter that changes when one lands. */
@@ -63,6 +66,7 @@ export function CanvasStack({
   camera,
   isSpacePressed,
   backgroundColor,
+  showGrid,
   searchHighlights,
   images,
   imageRevision,
@@ -221,6 +225,8 @@ export function CanvasStack({
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      {showGrid && <Grid camera={camera} />}
+
       <div
         className="canvas-stack"
         data-tool={cursorClass}

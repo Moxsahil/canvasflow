@@ -48,6 +48,44 @@ export const DEFAULT_PREFERENCES: EditorPreferences = {
   debugMode: false,
 };
 
+export const PREFERENCES_STORAGE_KEY = 'cf:preferences';
+
+/**
+ * The stored preferences, laid over the defaults.
+ *
+ * Anything unrecognised is dropped rather than kept: a preference removed in a
+ * later version would otherwise sit in storage forever, and one whose value
+ * has been hand-edited to something that isn't a boolean would flow straight
+ * into a checkbox as an uncontrolled value.
+ */
+export function readPreferences(): EditorPreferences {
+  try {
+    const stored = localStorage.getItem(PREFERENCES_STORAGE_KEY);
+    if (!stored) return DEFAULT_PREFERENCES;
+
+    const parsed: unknown = JSON.parse(stored);
+    if (typeof parsed !== 'object' || parsed === null) return DEFAULT_PREFERENCES;
+
+    const values = { ...DEFAULT_PREFERENCES };
+    for (const key of Object.keys(DEFAULT_PREFERENCES) as PreferenceId[]) {
+      const value = (parsed as Record<string, unknown>)[key];
+      if (typeof value === 'boolean') values[key] = value;
+    }
+    return values;
+  } catch {
+    // Unreadable storage just means this session starts from the defaults.
+    return DEFAULT_PREFERENCES;
+  }
+}
+
+export function storePreferences(values: EditorPreferences): void {
+  try {
+    localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(values));
+  } catch {
+    // The choices just won't survive a reload.
+  }
+}
+
 export interface PreferenceItemMeta {
   readonly id: PreferenceId;
   readonly label: string;
@@ -79,7 +117,7 @@ export const PREFERENCE_GROUPS: readonly PreferenceGroupMeta[] = [
         id: 'showGrid',
         label: 'Show grid',
         shortcut: "mod+'",
-        hint: 'A ruled grid behind the board',
+        hint: 'A grid of dots behind the board',
       },
       {
         id: 'snapToObjects',
