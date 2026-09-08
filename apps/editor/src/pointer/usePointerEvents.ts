@@ -1,9 +1,31 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import type { Point } from '../machine/tool-machine.types';
 
+/**
+ * Ctrl, or Cmd on a Mac — the key that reverses whatever the snapping
+ * preference says for the length of one gesture.
+ *
+ * Reported on both press and move because either can be the moment it matters:
+ * the key decides where a shape starts as well as where it lands, and it can be
+ * taken up or let go halfway through a drag.
+ */
+const snapOverrideHeld = (event: PointerEvent) => event.ctrlKey || event.metaKey;
+
 interface UsePointerEventsOptions {
-  onPointerDown: (point: Point, screenPoint: Point, button: number, shiftKey: boolean) => void;
-  onPointerMove: (point: Point, screenPoint: Point, screenDelta: Point, altKey: boolean) => void;
+  onPointerDown: (
+    point: Point,
+    screenPoint: Point,
+    button: number,
+    shiftKey: boolean,
+    snapOverride: boolean,
+  ) => void;
+  onPointerMove: (
+    point: Point,
+    screenPoint: Point,
+    screenDelta: Point,
+    altKey: boolean,
+    snapOverride: boolean,
+  ) => void;
   onPointerUp: (point: Point, screenPoint: Point) => void;
   onDoubleClick: (point: Point, screenPoint: Point) => void;
   /**
@@ -48,7 +70,7 @@ export function usePointerEvents(
       const screen = eventToCanvasScreen(e);
       const world = screenToWorld(e.clientX, e.clientY);
       lastScreenRef.current = screen;
-      onPointerDown(world, screen, e.button, e.shiftKey);
+      onPointerDown(world, screen, e.button, e.shiftKey, snapOverrideHeld(e));
     };
 
     const handlePointerMove = (e: PointerEvent) => {
@@ -62,7 +84,7 @@ export function usePointerEvents(
       const last = lastScreenRef.current ?? screen;
       const delta = { x: screen.x - last.x, y: screen.y - last.y };
       lastScreenRef.current = screen;
-      onPointerMove(world, screen, delta, e.altKey);
+      onPointerMove(world, screen, delta, e.altKey, snapOverrideHeld(e));
     };
 
     const handlePointerLeave = () => onPointerHover?.(null);

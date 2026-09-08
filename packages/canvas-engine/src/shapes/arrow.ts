@@ -1,4 +1,4 @@
-import type { ArrowShape } from './shape.js';
+import type { ArrowBinding, ArrowShape } from './shape.js';
 import type { Rect } from '../math.js';
 import { resolveBaseStyle, type Arrowhead, type ArrowType, type BaseStyleInput } from './style.js';
 
@@ -15,6 +15,8 @@ export function createArrow(
     startArrowhead?: Arrowhead;
     endArrowhead?: Arrowhead;
     arrowType?: ArrowType;
+    startBinding?: ArrowBinding | null;
+    endBinding?: ArrowBinding | null;
   },
 ): ArrowShape {
   if (input.points.length < 2) {
@@ -29,6 +31,8 @@ export function createArrow(
     startArrowhead: input.startArrowhead ?? 'none',
     endArrowhead: input.endArrowhead ?? 'arrow',
     arrowType: input.arrowType ?? 'straight',
+    startBinding: input.startBinding ?? null,
+    endBinding: input.endBinding ?? null,
     ...resolveBaseStyle(input),
     // Arrows enclose no area.
     fillColor: null,

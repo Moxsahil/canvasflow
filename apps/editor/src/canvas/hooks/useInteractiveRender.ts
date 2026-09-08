@@ -4,6 +4,7 @@ import {
   setupCanvas,
   type Rect,
   type Shape,
+  type SnapGuide,
 } from '@canvasflow/canvas-engine';
 import type { Camera } from '../../machine/tool-machine.types';
 
@@ -17,13 +18,25 @@ interface UseInteractiveRenderOptions {
   devicePixelRatio: number;
   /** Find-on-canvas highlights, drawn beneath the selection UI. */
   search?: { rects: readonly Rect[]; focusedRects: readonly Rect[] };
+  /** Alignment evidence for the gesture in progress, drawn over it. */
+  snapGuides?: readonly SnapGuide[];
 }
 
 export function useInteractiveRender(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   options: UseInteractiveRenderOptions,
 ): void {
-  const { width, height, shapes, selectedIds, marquee, camera, devicePixelRatio, search } = options;
+  const {
+    width,
+    height,
+    shapes,
+    selectedIds,
+    marquee,
+    camera,
+    devicePixelRatio,
+    search,
+    snapGuides,
+  } = options;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -38,6 +51,18 @@ export function useInteractiveRender(
       marquee,
       camera,
       search,
+      snapGuides,
     });
-  }, [canvasRef, width, height, shapes, selectedIds, marquee, camera, devicePixelRatio, search]);
+  }, [
+    canvasRef,
+    width,
+    height,
+    shapes,
+    selectedIds,
+    marquee,
+    camera,
+    devicePixelRatio,
+    search,
+    snapGuides,
+  ]);
 }

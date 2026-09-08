@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import type { ImageSource, Peer, Rect, Shape } from '@canvasflow/canvas-engine';
+import type { ImageSource, Peer, Rect, Shape, SnapGuide } from '@canvasflow/canvas-engine';
 import type { Camera, Point } from '../machine/tool-machine.types';
 import type { Tool } from '../tools/tool';
 import { Grid } from './Grid';
@@ -29,6 +29,8 @@ interface CanvasStackProps {
   showGrid?: boolean;
   /** Find-on-canvas highlights, in world space. */
   searchHighlights?: { rects: readonly Rect[]; focusedRects: readonly Rect[] };
+  /** Alignment evidence for the gesture in progress. */
+  snapGuides?: readonly SnapGuide[];
   /** Decoded image bitmaps, and a counter that changes when one lands. */
   images?: ImageSource;
   imageRevision?: number;
@@ -46,8 +48,20 @@ interface CanvasStackProps {
   subscribePeers?: (listener: () => void) => () => void;
   /** Pointer position in world space, for publishing to collaborators. */
   onPointerHover?: (point: Point | null) => void;
-  onPointerDown: (point: Point, screenPoint: Point, button: number, shiftKey: boolean) => void;
-  onPointerMove: (point: Point, screenPoint: Point, screenDelta: Point, altKey: boolean) => void;
+  onPointerDown: (
+    point: Point,
+    screenPoint: Point,
+    button: number,
+    shiftKey: boolean,
+    snapOverride: boolean,
+  ) => void;
+  onPointerMove: (
+    point: Point,
+    screenPoint: Point,
+    screenDelta: Point,
+    altKey: boolean,
+    snapOverride: boolean,
+  ) => void;
   onPointerUp: (point: Point, screenPoint: Point) => void;
   onDoubleClick: (point: Point, screenPoint: Point) => void;
   onWheelZoom: (delta: number, anchor: Point) => void;
@@ -68,6 +82,7 @@ export function CanvasStack({
   backgroundColor,
   showGrid,
   searchHighlights,
+  snapGuides,
   images,
   imageRevision,
   darkMode,
@@ -121,6 +136,7 @@ export function CanvasStack({
     camera,
     devicePixelRatio: dpr,
     search: searchHighlights,
+    snapGuides,
   });
 
   const screenToWorldFn = useCallback(
@@ -138,15 +154,8 @@ export function CanvasStack({
     return eventToCanvasScreen(event as PointerEvent, canvas);
   }, []);
 
-  const handlePointerDown = useCallback(
-    (point: Point, screenPoint: Point, button: number, shiftKey: boolean) => {
-      onPointerDown(point, screenPoint, button, shiftKey);
-    },
-    [onPointerDown],
-  );
-
   usePointerEvents(interactiveCanvasRef, {
-    onPointerDown: handlePointerDown,
+    onPointerDown,
     onPointerMove,
     onPointerUp,
     onDoubleClick,

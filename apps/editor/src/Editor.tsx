@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useActorRef, useSelector } from '@xstate/react';
 import {
+  arrowsAffectedBy,
+  bindingFor,
+  bindingTargetAt,
+  boundArrowPatches,
   computeBoundingRect,
   createText,
+  isArrow,
+  withBindingsCleared,
+  type ArrowShape,
+  type BoardDocument,
   DEFAULT_FRAME_NAME,
   fitRectToViewport,
   FRAME_LABEL_FONT_FAMILY,
@@ -18,11 +26,30 @@ import {
   type FrameShape,
   presenceColorFor,
   rectIntersectsViewport,
+  shapeBounds,
   shapesIntersectingSegment,
   SpatialIndex,
+  unionRect,
   type Camera,
+  type Rect,
   type Shape,
+  type SnapGuide,
 } from '@canvasflow/canvas-engine';
+import {
+  buildSnapTargets,
+  dragSnapPoints,
+  guidesEqual,
+  nearestTargetPoint,
+  resizeSnapPoints,
+  resolveSnap,
+  snappingActive,
+  snapThreshold,
+  worldViewport,
+  NO_SNAP,
+  NO_SNAP_TARGETS,
+  SNAP_THRESHOLD_PX,
+  type SnapTargets,
+} from './snapping';
 import {
   readImagesFromClipboard,
   readShapesFromClipboard,
@@ -63,7 +90,12 @@ import { signOutTo } from './auth/sign-out';
 import { env } from './lib/env';
 import { PropertiesPanel, itemStyleFromShape } from './properties';
 import { TOOL_TO_SHAPE_KIND, isPickerTool, type Tool } from './tools/tool';
-import { IDENTITY_CAMERA, type ItemStyle, type Point } from './machine/tool-machine.types';
+import {
+  IDENTITY_CAMERA,
+  type HandleIndex,
+  type ItemStyle,
+  type Point,
+} from './machine/tool-machine.types';
 import { ShortcutsModal } from './help';
 import { decodeJwtUser, decodeJwtWorkspaceId } from './auth/token';
 import { useBoardSwitcher } from './workspace';
@@ -87,6 +119,181 @@ import { usePreferences } from './preferences';
 import { ConfirmDialog } from './ui';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+/** One array, so "nothing is snapping" is the same value every time it is set. */
+const EMPTY_GUIDES: readonly SnapGuide[] = [];
+
+/** Likewise for "this gesture moves no bound arrows". */
+const EMPTY_IDS: ReadonlySet<string> = new Set();
+
+/**
+ * The tools whose gesture is a shape being pulled out of a starting point.
+ *
+ * These are the ones where the pointer itself is worth snapping: the corner or
+ * the endpoint the gesture is dragging is where the shape is going, so putting
+ * it on a neighbour's edge puts the shape there too.
+ */
+const DRAWS_FROM_POINTER = new Set<Tool>([
+  'rectangle',
+  'ellipse',
+  'diamond',
+  'frame',
+  'line',
+  'arrow',
+]);
+
+/**
+ * The two whose gesture ends at a single position rather than sweeping a box.
+ *
+ * The end of a line is going somewhere in particular, so it takes the nearest
+ * point outright instead of lining up on each axis separately.
+ */
+const DRAWS_AN_ENDPOINT = new Set<Tool>(['line', 'arrow']);
+
+/**
+ * How far past a shape's edge an arrow end still counts as landing on it.
+ *
+ * People aim an arrow at a shape, not at its outline, and an end released a
+ * few pixels short reads as attached to anyone watching. Matched to the snap
+ * threshold so the distance that pulls an end into line is the same distance
+ * that attaches it.
+ */
+const ARROW_BIND_MARGIN = SNAP_THRESHOLD_PX;
+
+/**
+ * An arrow with each end attached to whatever it was released on.
+ *
+ * Both ends on one shape is left unattached: there is no line between a shape
+ * and itself to stop at either end of, and the arrow is better left exactly
+ * where it was drawn.
+ */
+function attachArrowEnds(arrow: ArrowShape, shapes: readonly Shape[]): ArrowShape {
+  if (arrow.points.length !== 2) return arrow;
+
+  const [first, last] = [arrow.points[0]!, arrow.points[1]!];
+  const start = { x: arrow.x + first[0], y: arrow.y + first[1] };
+  const end = { x: arrow.x + last[0], y: arrow.y + last[1] };
+
+  const startTarget = bindingTargetAt(shapes, start, ARROW_BIND_MARGIN, arrow.id);
+  const endTarget = bindingTargetAt(shapes, end, ARROW_BIND_MARGIN, arrow.id);
+
+  if (!startTarget && !endTarget) return arrow;
+  if (startTarget && endTarget && startTarget.id === endTarget.id) return arrow;
+
+  return {
+    ...arrow,
+    startBinding: startTarget ? bindingFor(startTarget, start) : null,
+    endBinding: endTarget ? bindingFor(endTarget, end) : null,
+  };
+}
+
+/**
+ * The arrows a gesture over these shapes will have to redraw.
+ *
+ * Worked out once when the gesture begins so that the common case — a board
+ * with no attached arrows on it — costs one pass and then nothing per frame.
+ */
+function affectedArrowIds(
+  shapes: readonly Shape[],
+  changedIds: ReadonlySet<string>,
+): ReadonlySet<string> {
+  const affected = arrowsAffectedBy(shapes, changedIds);
+  return affected.length === 0 ? EMPTY_IDS : new Set(affected.map((arrow) => arrow.id));
+}
+
+/** The board keyed by id, for a gesture that is going to be redrawing arrows. */
+function shapeMapFor(shapes: readonly Shape[], arrowIds: ReadonlySet<string>): Map<string, Shape> {
+  if (arrowIds.size === 0) return new Map();
+  return new Map(shapes.map((shape) => [shape.id, shape]));
+}
+
+/**
+ * Put the named arrows back on the shapes they are attached to.
+ *
+ * Takes the board as a map rather than reading it from the document, because
+ * this runs on every frame of a drag and reading the document means
+ * deserializing and sorting every shape on it. The map is written back to as it
+ * goes, so the next frame resolves against where things actually are.
+ */
+function settleBoundArrows(
+  doc: BoardDocument,
+  shapesById: Map<string, Shape>,
+  arrowIds: ReadonlySet<string>,
+): void {
+  const arrows: ArrowShape[] = [];
+  for (const id of arrowIds) {
+    const shape = shapesById.get(id);
+    if (shape && isArrow(shape)) arrows.push(shape);
+  }
+  if (arrows.length === 0) return;
+
+  for (const patch of boundArrowPatches(arrows, shapesById)) {
+    const geometry = { x: patch.x, y: patch.y, points: patch.points };
+    doc.updateShape(patch.id, geometry as Partial<Shape>);
+    shapesById.set(patch.id, { ...shapesById.get(patch.id)!, ...geometry } as Shape);
+  }
+}
+
+/**
+ * The same, for the one-off paths — a shape committed, a nudge — where reading
+ * the document once is the simplest way to be sure of what is on it.
+ */
+function settleBoundArrowsInDocument(doc: BoardDocument, changedIds: ReadonlySet<string>): void {
+  const shapes = doc.getShapes();
+  const affected = arrowsAffectedBy(shapes, changedIds);
+  if (affected.length === 0) return;
+
+  settleBoundArrows(
+    doc,
+    new Map(shapes.map((shape) => [shape.id, shape])),
+    new Set(affected.map((arrow) => arrow.id)),
+  );
+}
+
+/**
+ * Let go of any arrow attached to shapes about to be deleted.
+ *
+ * Called before the delete rather than after, so the arrows are still looking
+ * at a board where those shapes exist. Their points need no fixing — they were
+ * kept true all along, so an arrow whose shape disappears simply stays where it
+ * last was instead of springing back to wherever it was first drawn.
+ */
+function releaseArrowsFrom(doc: BoardDocument, deletedIds: readonly string[]): void {
+  const going = new Set(deletedIds);
+  for (const shape of doc.getShapes()) {
+    if (!isArrow(shape)) continue;
+    const released = withBindingsCleared(shape, going);
+    if (!released) continue;
+    doc.updateShape(shape.id, {
+      startBinding: released.startBinding,
+      endBinding: released.endBinding,
+    } as Partial<Shape>);
+  }
+}
+
+/**
+ * Whether a resize lands where a guide would say it does.
+ *
+ * Snapping measures the box one drag produces, then redoes the drag with a
+ * correction folded in — which only arrives where it was aimed if the box
+ * tracks the drag one for one. Text is sized by a font size and the corner of
+ * an image keeps its proportions, so both would land near the guide rather than
+ * on it, and a guide a shape misses is worse than no guide at all. The linear
+ * kinds have no handle resize to snap in the first place.
+ */
+function resizeCanSnap(shape: Shape, handle: HandleIndex): boolean {
+  switch (shape.kind) {
+    case 'text':
+    case 'line':
+    case 'arrow':
+    case 'freehand':
+      return false;
+    case 'image':
+      return handle === 1 || handle === 3 || handle === 5 || handle === 7;
+    default:
+      return true;
+  }
+}
 
 interface EditorProps {
   boardId: string;
@@ -596,6 +803,67 @@ export function Editor({ boardId }: EditorProps) {
   /** Previous point of the eraser stroke, so each move sweeps a segment. */
   const lastErasePointRef = useRef<Point | null>(null);
 
+  /**
+   * What the gesture in progress can line up with, measured once when it began.
+   *
+   * A ref and not state: it is read inside pointer handlers and never rendered,
+   * and re-measuring the board on every pointer move would make the cost of a
+   * drag depend on how much is on the board rather than on how far it moved.
+   *
+   * Measured whatever the snapping preference says, because the override key
+   * can be taken up in the middle of a drag and there is no second chance to
+   * look at where everything was when it started.
+   */
+  /**
+   * Whether the override key was down the last time the pointer reported in.
+   *
+   * Pointer up carries no modifiers, and the decision about what an arrow
+   * attaches to is made once it is released — so the key state has to have been
+   * kept from the last move that did report it.
+   */
+  const snapOverrideRef = useRef(false);
+
+  /**
+   * Whether an arrow released now takes hold of what it landed on.
+   *
+   * A ref because the answer is wanted where a shape is committed, which is a
+   * subscription rather than a render: reading the preference there directly
+   * would tear that subscription down and rebuild it every time anything else
+   * on the preferences menu was ticked. The override key is the one that
+   * governs snapping — told not to line an arrow up with a shape, the editor
+   * does not attach it to that shape either.
+   */
+  const bindArrowsRef = useRef(false);
+  bindArrowsRef.current = preferences.values.arrowBinding && !snapOverrideRef.current;
+
+  /** Arrows this gesture has to redraw, decided once when it began. */
+  const boundArrowsRef = useRef<ReadonlySet<string>>(EMPTY_IDS);
+  /**
+   * The board as this gesture last left it.
+   *
+   * Only built when there is an attached arrow to redraw, and then kept current
+   * by hand as shapes move, so a drag costs one pass at the start rather than a
+   * full read of the document on every frame.
+   */
+  const gestureShapesRef = useRef<Map<string, Shape>>(new Map());
+
+  const snapTargetsRef = useRef<SnapTargets>(NO_SNAP_TARGETS);
+  const [snapGuides, setSnapGuides] = useState<readonly SnapGuide[]>(EMPTY_GUIDES);
+  const snapGuidesRef = useRef<readonly SnapGuide[]>(EMPTY_GUIDES);
+
+  /**
+   * Show a set of guides, if they are not the ones already up.
+   *
+   * Holding a shape against an edge produces the identical answer every frame,
+   * and re-rendering the canvas each time for a picture that has not changed is
+   * the difference between a smooth drag and a stuttering one.
+   */
+  const showSnapGuides = useCallback((next: readonly SnapGuide[]) => {
+    if (guidesEqual(snapGuidesRef.current, next)) return;
+    snapGuidesRef.current = next;
+    setSnapGuides(next);
+  }, []);
+
   // Selection is a transition, not a stream — publishing it from an effect
   // rather than the pointer handlers means marquee, click, shortcut and undo
   // all reach collaborators through the same path.
@@ -670,13 +938,28 @@ export function Editor({ boardId }: EditorProps) {
       // Drawn inside a frame is drawn into it. Assigned before the shape
       // lands so it never exists unowned, which would flash unclipped.
       const frameId = frameForShape(shape, framesIn(doc.getShapes()));
-      doc.addShape(frameId ? ({ ...shape, frameId } as Shape) : shape);
+      const placed = frameId ? ({ ...shape, frameId } as Shape) : shape;
+
+      // An arrow drawn onto a shape keeps hold of it. Decided here rather than
+      // during the gesture because it is the released ends that matter, and
+      // they are not settled until the arrow is.
+      const bindable = isArrow(placed) && bindArrowsRef.current;
+      const bound = bindable ? attachArrowEnds(placed as ArrowShape, doc.getShapes()) : placed;
+      doc.addShape(bound);
+
+      // Settled straight away, so an arrow drawn across a shape stops at its
+      // edge from the moment it is released rather than on the first drag.
+      if (isArrow(bound) && (bound.startBinding || bound.endBinding)) {
+        settleBoundArrowsInDocument(doc, new Set([bound.id]));
+      }
     });
     const sub2 = actorRef.on('shapes.deleted', (emitted) => {
       // A frame goes with what is standing in it. One undo brings the whole
       // thing back, which is the only reading that matches deleting what
       // looks on screen like a single object.
-      doc.deleteShapes(withFrameMembers(emitted.ids, doc.getShapes()));
+      const going = withFrameMembers(emitted.ids, doc.getShapes());
+      releaseArrowsFrom(doc, going);
+      doc.deleteShapes(going);
     });
     return () => {
       sub1.unsubscribe();
@@ -733,8 +1016,60 @@ export function Editor({ boardId }: EditorProps) {
     marqueeRef.current = marquee;
   }, [marquee, spatialIndex, actorRef]);
 
+  /**
+   * Measure what this gesture can line up with, leaving out what it is moving.
+   *
+   * Only what is on screen is measured, so a guide is never drawn to a shape
+   * nobody can see and the cost of starting a drag follows the viewport rather
+   * than the size of the board.
+   */
+  const measureSnapTargets = useCallback(
+    (excluded: ReadonlySet<string>) => {
+      snapTargetsRef.current = buildSnapTargets(
+        shapes,
+        excluded,
+        worldViewport(camera, width, height),
+        { midpoints: preferences.values.snapToMidpoints },
+      );
+    },
+    [shapes, camera, width, height, preferences.values.snapToMidpoints],
+  );
+
+  /**
+   * Snap a bare pointer position against whatever this gesture is drawing.
+   *
+   * The end of a line takes the nearest point outright, since it is aiming at
+   * somewhere rather than lining up with something. A box corner is the other
+   * case: each axis answers on its own, so a corner can take its x from one
+   * neighbour and its y from another. Even spacing is not offered to either —
+   * the shape is pinned at the corner the gesture started from and cannot
+   * accept an offer to move bodily.
+   */
+  const snapForPointer = useCallback(
+    (point: Point, tool: Tool) => {
+      const threshold = snapThreshold(camera.zoom);
+      if (DRAWS_AN_ENDPOINT.has(tool)) {
+        return nearestTargetPoint(point, snapTargetsRef.current, threshold);
+      }
+      return resolveSnap({
+        bounds: { x: point.x, y: point.y, width: 0, height: 0 },
+        points: [point],
+        targets: snapTargetsRef.current,
+        threshold,
+        gaps: false,
+      });
+    },
+    [camera.zoom],
+  );
+
   const handlePointerDown = useCallback(
-    (point: Point, _screenPoint: Point, button: number, shiftKey: boolean) => {
+    (
+      point: Point,
+      _screenPoint: Point,
+      button: number,
+      shiftKey: boolean,
+      snapOverride = false,
+    ) => {
       notifyActivity();
 
       // The laser never reaches the machine. It selects nothing, draws nothing,
@@ -755,8 +1090,6 @@ export function Editor({ boardId }: EditorProps) {
           active.blur();
         }
       }
-
-      pointerDownWorldRef.current = point;
 
       let hitShapeId: string | null = null;
       let hitHandle: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | null = null;
@@ -793,9 +1126,42 @@ export function Editor({ boardId }: EditorProps) {
         }
       }
 
+      // Measured before the gesture moves anywhere, and always — the override
+      // key can be pressed after a drag is under way, and by then the board has
+      // already started moving underneath it.
+      snapOverrideRef.current = snapOverride;
+
+      let downPoint = point;
+      if (activeTool === 'select' && hitHandle !== null && resizeOriginRef.current) {
+        const moving = new Set([resizeOriginRef.current.id]);
+        measureSnapTargets(moving);
+        boundArrowsRef.current = affectedArrowIds(shapes, moving);
+        gestureShapesRef.current = shapeMapFor(shapes, boundArrowsRef.current);
+      } else if (activeTool === 'select' && hitShapeId) {
+        const moving = new Set(Object.keys(dragOriginsRef.current));
+        measureSnapTargets(moving);
+        boundArrowsRef.current = affectedArrowIds(shapes, moving);
+        gestureShapesRef.current = shapeMapFor(shapes, boundArrowsRef.current);
+      } else if (DRAWS_FROM_POINTER.has(activeTool)) {
+        measureSnapTargets(new Set<string>());
+        boundArrowsRef.current = EMPTY_IDS;
+
+        // The corner a shape is drawn out from is worth snapping too: a box
+        // that starts flush with its neighbour needs no nudging afterwards.
+        if (snappingActive(preferences.values.snapToObjects, snapOverride)) {
+          const result = snapForPointer(point, activeTool);
+          downPoint = { x: point.x + result.dx, y: point.y + result.dy };
+        }
+      } else {
+        snapTargetsRef.current = NO_SNAP_TARGETS;
+        boundArrowsRef.current = EMPTY_IDS;
+      }
+      showSnapGuides(EMPTY_GUIDES);
+      pointerDownWorldRef.current = downPoint;
+
       actorRef.send({
         type: 'POINTER_DOWN',
-        point,
+        point: downPoint,
         button,
         shiftKey,
         hitShapeId,
@@ -833,11 +1199,21 @@ export function Editor({ boardId }: EditorProps) {
       spatialIndex,
       camera.zoom,
       notifyActivity,
+      measureSnapTargets,
+      snapForPointer,
+      showSnapGuides,
+      preferences.values.snapToObjects,
     ],
   );
 
   const handlePointerMove = useCallback(
-    (point: Point, _screenPoint: Point, screenDelta: Point, altKey = false) => {
+    (
+      point: Point,
+      _screenPoint: Point,
+      screenDelta: Point,
+      altKey = false,
+      snapOverride = false,
+    ) => {
       if (activeTool === 'laser') {
         // Only while the button is down. A laser tracks the cursor the way a
         // real one does — it is off until you press it.
@@ -845,7 +1221,24 @@ export function Editor({ boardId }: EditorProps) {
         return;
       }
 
-      actorRef.send({ type: 'POINTER_MOVE', point, screenDelta });
+      snapOverrideRef.current = snapOverride;
+      const snapping = snappingActive(preferences.values.snapToObjects, snapOverride);
+      const threshold = snapThreshold(camera.zoom);
+
+      // Read before the move is sent, because what the machine is doing decides
+      // whether the point it is sent should have been moved first. A shape
+      // being drawn is sized from the pointer, so the only place to snap it is
+      // on the way in.
+      let movePoint = point;
+      if (actorRef.getSnapshot().matches('drawingShape')) {
+        // Cleared as well as set, so letting the override key go mid-gesture
+        // takes the guides down with it rather than leaving the last ones up.
+        const result = snapping ? snapForPointer(point, activeTool) : NO_SNAP;
+        movePoint = { x: point.x + result.dx, y: point.y + result.dy };
+        showSnapGuides(result.guides);
+      }
+
+      actorRef.send({ type: 'POINTER_MOVE', point: movePoint, screenDelta });
 
       const snap = actorRef.getSnapshot();
 
@@ -869,11 +1262,47 @@ export function Editor({ boardId }: EditorProps) {
       }
 
       if (snap.matches('draggingSelection') && pointerDownWorldRef.current) {
-        const dx = point.x - pointerDownWorldRef.current.x;
-        const dy = point.y - pointerDownWorldRef.current.y;
-        const origins = dragOriginsRef.current;
-        for (const [id, origin] of Object.entries(origins)) {
-          doc.updateShape(id, { x: origin.x + dx, y: origin.y + dy });
+        let dx = point.x - pointerDownWorldRef.current.x;
+        let dy = point.y - pointerDownWorldRef.current.y;
+        const origins = Object.values(dragOriginsRef.current);
+
+        if (snapping && origins.length > 0) {
+          // Everything is measured where the selection would land unsnapped:
+          // the shapes have not moved yet, so their own geometry is a drag
+          // behind and has to be carried forward by the same offset.
+          const start = origins
+            .map((origin) => shapeBounds(origin))
+            .reduce((all, one) => unionRect(all, one));
+          const bounds: Rect = { ...start, x: start.x + dx, y: start.y + dy };
+          const points = dragSnapPoints(origins, start, preferences.values.snapToMidpoints).map(
+            (snapPoint) => ({ x: snapPoint.x + dx, y: snapPoint.y + dy }),
+          );
+
+          const result = resolveSnap({
+            bounds,
+            points,
+            targets: snapTargetsRef.current,
+            threshold,
+          });
+          dx += result.dx;
+          dy += result.dy;
+          showSnapGuides(result.guides);
+        } else {
+          showSnapGuides(EMPTY_GUIDES);
+        }
+
+        const redrawingArrows = boundArrowsRef.current.size > 0;
+        for (const [id, origin] of Object.entries(dragOriginsRef.current)) {
+          const moved = { x: origin.x + dx, y: origin.y + dy };
+          doc.updateShape(id, moved);
+          if (redrawingArrows) {
+            gestureShapesRef.current.set(id, { ...origin, ...moved });
+          }
+        }
+        // After the shapes have moved, not before: an arrow works out where to
+        // stop from where the shapes it is attached to are now.
+        if (redrawingArrows) {
+          settleBoundArrows(doc, gestureShapesRef.current, boundArrowsRef.current);
         }
       }
 
@@ -882,19 +1311,59 @@ export function Editor({ boardId }: EditorProps) {
         pointerDownWorldRef.current &&
         resizeOriginRef.current
       ) {
-        const dx = point.x - pointerDownWorldRef.current.x;
-        const dy = point.y - pointerDownWorldRef.current.y;
+        let dx = point.x - pointerDownWorldRef.current.x;
+        let dy = point.y - pointerDownWorldRef.current.y;
         const originalShape = resizeOriginRef.current;
         const handle = snap.context.resizeHandle;
         if (handle !== null) {
+          if (snapping && resizeCanSnap(originalShape, handle)) {
+            // Measured on the box the unsnapped drag produces, then the whole
+            // resize is redone with the correction folded into the drag. Going
+            // through the same function twice rather than adjusting the result
+            // keeps every rule it enforces — the minimum size, the anchored
+            // opposite corner — applying to what actually lands.
+            const dragged = shapeBounds(resizeShape(originalShape, handle, dx, dy));
+            const { points, axes } = resizeSnapPoints(dragged, handle);
+            const result = resolveSnap({
+              bounds: dragged,
+              points,
+              targets: snapTargetsRef.current,
+              threshold,
+              axes,
+              // A resize moves one edge, not the shape, so an offer to shift the
+              // whole of it into a gap is not one this gesture can take.
+              gaps: false,
+            });
+            dx += result.dx;
+            dy += result.dy;
+            showSnapGuides(result.guides);
+          } else {
+            showSnapGuides(EMPTY_GUIDES);
+          }
           const resized = resizeShape(originalShape, handle, dx, dy);
           doc.updateShape(originalShape.id, resized);
+          if (boundArrowsRef.current.size > 0) {
+            gestureShapesRef.current.set(resized.id, resized);
+            settleBoundArrows(doc, gestureShapesRef.current, boundArrowsRef.current);
+          }
         }
       }
     },
     // shapes/spatialIndex/zoom feed the eraser hit-test; omitting them freezes
     // this callback on the first render's empty document.
-    [actorRef, activeTool, laser, doc, shapes, spatialIndex, camera.zoom],
+    [
+      actorRef,
+      activeTool,
+      laser,
+      doc,
+      shapes,
+      spatialIndex,
+      camera.zoom,
+      preferences.values.snapToObjects,
+      preferences.values.snapToMidpoints,
+      snapForPointer,
+      showSnapGuides,
+    ],
   );
 
   const handlePointerUp = useCallback(
@@ -951,13 +1420,16 @@ export function Editor({ boardId }: EditorProps) {
       resizeOriginRef.current = null;
       pointerDownWorldRef.current = null;
       lastErasePointRef.current = null;
+      snapTargetsRef.current = NO_SNAP_TARGETS;
+      boundArrowsRef.current = EMPTY_IDS;
+      showSnapGuides(EMPTY_GUIDES);
 
       // Break the undo group so the next drag/resize is a separate undo step
       if (wasInteracting) {
         doc.breakUndoGroup();
       }
     },
-    [actorRef, activeTool, laser, setLasering, doc],
+    [actorRef, activeTool, laser, setLasering, doc, showSnapGuides],
   );
 
   // Double-clicking a text shape (with any tool active) reopens it for editing.
@@ -1045,6 +1517,10 @@ export function Editor({ boardId }: EditorProps) {
     (dx: number, dy: number) => {
       if (selectedIds.length === 0) return;
       doc.nudgeShapes(selectedIds, dx, dy);
+      // Nudging is a move like any other, so the arrows attached to what moved
+      // have to come along — a shape walked across the board by the arrow keys
+      // would otherwise leave them behind.
+      settleBoundArrowsInDocument(doc, new Set(selectedIds));
     },
     [doc, selectedIds],
   );
@@ -1361,6 +1837,10 @@ export function Editor({ boardId }: EditorProps) {
     preferences.set('toolLock', !preferences.values.toolLock);
   }, [preferences]);
 
+  const toggleSnapping = useCallback(() => {
+    preferences.set('snapToObjects', !preferences.values.snapToObjects);
+  }, [preferences]);
+
   // The machine decides what happens when a tool finishes, so it has to hold
   // the preference rather than reach for it — same channel the item style
   // travels on.
@@ -1395,6 +1875,7 @@ export function Editor({ boardId }: EditorProps) {
     onShowHelp: handleShowHelp,
     onToggleTheme: toggleTheme,
     onToggleGrid: toggleGrid,
+    onToggleSnapping: toggleSnapping,
     onToggleToolLock: toggleToolLock,
     onOpenFile: openBoardFile,
     onSaveFile: saveBoardFileToDisk,
@@ -1586,6 +2067,7 @@ export function Editor({ boardId }: EditorProps) {
               backgroundColor={canvasBackgroundFor(presenceTheme)}
               showGrid={preferences.values.showGrid}
               searchHighlights={search.highlights}
+              snapGuides={snapGuides}
               peersRef={peersRef}
               subscribePeers={subscribe}
               onPointerHover={setCursor}

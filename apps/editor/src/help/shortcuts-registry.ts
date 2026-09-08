@@ -87,6 +87,8 @@ export const SHORTCUTS: ShortcutCategory[] = [
       { keys: 'mod+2', description: 'Zoom to fit all' },
       { keys: 'mod+3', description: 'Zoom to selection' },
       { keys: "mod+'", description: 'Show or hide the grid' },
+      { keys: 'alt+s', description: 'Snap to nearby shapes' },
+      { keys: 'mod+drag', description: 'Snap for one gesture (or stop snapping)' },
       { keys: 'alt+shift+d', description: 'Toggle light / dark theme' },
       { keys: 'shift+?', description: 'Show this dialog' },
     ],

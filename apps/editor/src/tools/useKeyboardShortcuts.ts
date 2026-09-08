@@ -29,6 +29,7 @@ interface UseKeyboardShortcutsOptions {
   onShowHelp: () => void;
   onToggleTheme: () => void;
   onToggleGrid: () => void;
+  onToggleSnapping: () => void;
   onToggleToolLock: () => void;
   onOpenFile: () => void;
   onSaveFile: () => void;
@@ -66,6 +67,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onShowHelp,
     onToggleTheme,
     onToggleGrid,
+    onToggleSnapping,
     onToggleToolLock,
     onOpenFile,
     onSaveFile,
@@ -164,6 +166,15 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
       if (mod && event.key === "'") {
         event.preventDefault();
         onToggleGrid();
+        return;
+      }
+
+      // Snap to objects: Alt+S. Read from the code rather than the key, since
+      // Alt is a compose key on several layouts and pressing it with S there
+      // produces something other than an "s".
+      if (!mod && event.altKey && !event.shiftKey && event.code === 'KeyS') {
+        event.preventDefault();
+        onToggleSnapping();
         return;
       }
 
@@ -345,6 +356,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onShowHelp,
     onToggleTheme,
     onToggleGrid,
+    onToggleSnapping,
     onToggleToolLock,
     onOpenFile,
     onSaveFile,

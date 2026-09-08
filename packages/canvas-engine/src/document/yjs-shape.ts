@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import type { Shape } from '../shapes/shape.js';
+import type { ArrowBinding, Shape } from '../shapes/shape.js';
 import { DEFAULT_STROKE_COLOR } from '../shapes/style.js';
 import type {
   Arrowhead,
@@ -77,6 +77,14 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
       map.set('startArrowhead', shape.startArrowhead);
       map.set('endArrowhead', shape.endArrowhead);
       map.set('arrowType', shape.arrowType);
+      // Written only when there is one, so an unattached arrow carries no key
+      // for it and a board made before arrows could attach is untouched.
+      if (shape.startBinding) {
+        map.set('startBinding', shape.startBinding);
+      }
+      if (shape.endBinding) {
+        map.set('endBinding', shape.endBinding);
+      }
       break;
     case 'text':
       map.set('text', shape.text);
@@ -131,6 +139,30 @@ function readTextValue(value: unknown): string {
  */
 function readImageStatus(value: unknown): 'pending' | 'saved' | 'error' {
   return value === 'saved' || value === 'error' || value === 'pending' ? value : 'pending';
+}
+
+/**
+ * Coerce a stored arrow binding to one the renderer can use, or to nothing.
+ *
+ * Every field is checked rather than trusted. A binding arrives from whatever
+ * wrote it — another client, an older version, a file someone edited — and one
+ * with a missing anchor would put an arrow at NaN, which spreads through the
+ * bounds to the spatial index and takes out far more than the arrow. An
+ * attachment this client cannot read is dropped, leaving an ordinary arrow
+ * drawn where its points say, which is always a safe reading.
+ */
+function readArrowBinding(value: unknown): ArrowBinding | null {
+  if (typeof value !== 'object' || value === null) return null;
+
+  const { shapeId, anchor, precise } = value as Record<string, unknown>;
+  if (typeof shapeId !== 'string' || shapeId === '') return null;
+  if (typeof anchor !== 'object' || anchor === null) return null;
+
+  const { x, y } = anchor as Record<string, unknown>;
+  if (typeof x !== 'number' || !Number.isFinite(x)) return null;
+  if (typeof y !== 'number' || !Number.isFinite(y)) return null;
+
+  return { shapeId, anchor: { x, y }, precise: precise === true };
 }
 
 /**
@@ -213,6 +245,8 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
         startArrowhead: (map.get('startArrowhead') as Arrowhead) ?? 'none',
         endArrowhead: (map.get('endArrowhead') as Arrowhead) ?? 'arrow',
         arrowType: (map.get('arrowType') as ArrowType) ?? 'straight',
+        startBinding: readArrowBinding(map.get('startBinding')),
+        endBinding: readArrowBinding(map.get('endBinding')),
       } as Shape);
     case 'freehand':
       return withZ({
