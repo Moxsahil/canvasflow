@@ -151,3 +151,22 @@ export const ZoomOutIcon = createIcon(
 );
 
 export const CloseIcon = createIcon(<path d="M6 6l12 12M18 6L6 18" />);
+
+/**
+ * The two states of the tool lock. One body, and a shackle that either sits
+ * closed on it or stands open off its right shoulder — so the pair reads as one
+ * object in two positions rather than as two different icons.
+ */
+export const LockIcon = createIcon(
+  <>
+    <rect x="4.5" y="10.5" width="15" height="10" rx="2" />
+    <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+  </>,
+);
+
+export const UnlockIcon = createIcon(
+  <>
+    <rect x="4.5" y="10.5" width="15" height="10" rx="2" />
+    <path d="M8 10.5V7a4 4 0 0 1 7.9-.8" />
+  </>,
+);

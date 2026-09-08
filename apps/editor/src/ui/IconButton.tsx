@@ -8,6 +8,12 @@ interface IconButtonProps {
   title?: string;
   'aria-label': string;
   disabled?: boolean;
+  /**
+   * Makes this a toggle rather than an action: it gains `aria-pressed`, and
+   * the on state is painted like a chosen tool. Leave unset for buttons that
+   * simply do a thing.
+   */
+  pressed?: boolean;
 }
 
 /**
@@ -21,6 +27,7 @@ export function IconButton({
   title,
   'aria-label': ariaLabel,
   disabled = false,
+  pressed,
 }: IconButtonProps) {
   return (
     <button
@@ -30,6 +37,8 @@ export function IconButton({
       disabled={disabled}
       title={title}
       aria-label={ariaLabel}
+      aria-pressed={pressed}
+      data-pressed={pressed ? '' : undefined}
     >
       <Icon width={16} height={16} />
     </button>

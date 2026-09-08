@@ -124,6 +124,36 @@ export function isPickerTool(tool: Tool): boolean {
 }
 
 /**
+ * Tools the lock has nothing to say about, and which therefore never hand you
+ * back to select.
+ *
+ * Three kinds of exemption. Select and hand make no shape at all. The eraser
+ * and the laser are already modes — they run until you leave them, so there is
+ * nothing for a lock to hold. The image tool opens a picker rather than
+ * drawing, and never becomes the active tool at all.
+ *
+ * Freehand and sketch are the interesting ones: both make a shape like any
+ * other tool, but both are reached for to draw a run rather than one thing. A
+ * pencil that dropped you into select after every stroke would be unusable,
+ * and sketching shapes one after another is the whole point of that tool. So
+ * the two stay put whether the lock is on or off.
+ */
+const NON_LOCKABLE_TOOLS: ReadonlySet<Tool> = new Set<Tool>([
+  'select',
+  'hand',
+  'eraser',
+  'laser',
+  'image',
+  'freehand',
+  'sketch',
+]);
+
+/** Whether the tool lock decides what happens after this tool makes a shape. */
+export function isLockableTool(tool: Tool): boolean {
+  return !NON_LOCKABLE_TOOLS.has(tool);
+}
+
+/**
  * The tools a viewer still gets. Selecting and panning read the board without
  * touching it, so withholding them would only make a read-only board harder to
  * look at.

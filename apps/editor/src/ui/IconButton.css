@@ -18,6 +18,29 @@
   background-color: var(--button-hover-bg);
 }
 
+/* The same fill a chosen tool takes, so "this is on" reads the same way
+   wherever it appears in the dock.
+
+   `:not(:disabled)` is carried here to match the hover rule above rather than
+   to exclude anything: without it this loses on specificity, and the pointer
+   arriving would wash the on state back to plain grey. */
+.cf-icon-button[data-pressed]:not(:disabled) {
+  background-color: var(--color-surface-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+/* Hovering an on button still has to do something, and the answer cannot be
+   the grey above — that reads as switching off. Mixed towards its own
+   foreground instead, which deepens it in the light theme and lifts it in the
+   dark one without either needing to name a second colour. */
+.cf-icon-button[data-pressed]:hover:not(:disabled) {
+  background-color: color-mix(
+    in srgb,
+    var(--color-surface-primary-container) 85%,
+    var(--color-on-primary-container)
+  );
+}
+
 .cf-icon-button:focus-visible {
   outline: 2px solid var(--focus-highlight-color);
   outline-offset: 1px;

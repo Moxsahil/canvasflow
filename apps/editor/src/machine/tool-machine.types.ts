@@ -107,6 +107,15 @@ export interface ToolMachineContext {
   /** True while user is holding Space to pan. */
   isSpacePressed: boolean;
 
+  /**
+   * Whether a tool stays active after it makes a shape.
+   *
+   * Mirrored from the `toolLock` preference rather than read from it, so the
+   * transition that acts on it stays a pure function of the machine's own
+   * context — the same reason `itemStyle` lives here.
+   */
+  toolLocked: boolean;
+
   selectedIds: string[];
 
   marquee: { x: number; y: number; width: number; height: number } | null;
@@ -139,7 +148,12 @@ export type ToolMachineEvent =
   | { type: 'POINTER_MOVE'; point: Point; screenDelta: Point }
   | { type: 'POINTER_UP'; point: Point }
   | { type: 'ESCAPE' }
-  | { type: 'COMMIT_TEXT'; text: string }
+  /**
+   * `shapeId` is the text shape the Editor just created, so the machine can
+   * hold it selected on the way back to select. Absent when the commit edited
+   * an existing shape, or emptied one out of existence.
+   */
+  | { type: 'COMMIT_TEXT'; text: string; shapeId?: string }
   | { type: 'CANCEL_TEXT' }
   | { type: 'EDIT_TEXT_SHAPE'; shapeId: string; position: Point; existingText: string }
   | { type: 'SPACE_DOWN' }
@@ -151,6 +165,7 @@ export type ToolMachineEvent =
   | { type: 'SELECT_ALL'; shapeIds: string[] }
   | { type: 'DESELECT' }
   | { type: 'SET_ITEM_STYLE'; style: Partial<ItemStyle> }
+  | { type: 'SET_TOOL_LOCK'; locked: boolean }
   | { type: 'ERASE_MARK'; ids: readonly string[]; restore: boolean }
   | { type: 'INTERNAL_UPDATE_SHAPES'; shapes: Shape[] };
 
