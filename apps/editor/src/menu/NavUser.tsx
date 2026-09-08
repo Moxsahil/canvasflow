@@ -79,12 +79,13 @@ export function NavUser({ user, actions, portalContainer }: NavUserProps) {
               <DropdownMenuItem
                 key={id}
                 disabled={!action}
-                onSelect={action}
+                onSelect={action ?? undefined}
                 data-testid={`menu-item-${id}`}
               >
                 <Icon className="size-4 shrink-0" aria-hidden="true" />
                 <span>{label}</span>
-                {!action && <span className="ml-auto text-xs opacity-60">Soon</span>}
+                {/* Only an unbuilt feature is "Soon" — see MenuActions. */}
+                {action === undefined && <span className="ml-auto text-xs opacity-60">Soon</span>}
               </DropdownMenuItem>
             );
           })}

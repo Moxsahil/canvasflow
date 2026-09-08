@@ -23,8 +23,8 @@ export function BillingPane({ onClose }: { onClose: () => void }) {
       <Card>
         <div className="flex w-full items-center gap-[16px] px-[18px] py-[18px]">
           <div className="flex min-w-0 flex-1 flex-col gap-[5px]">
-            <p className="text-[15px] font-semibold text-[var(--settings-fg)]">Free plan</p>
-            <p className="text-[11px] text-[var(--settings-fg-faint)]">
+            <p className="text-[15px] font-semibold text-[var(--surface-fg)]">Free plan</p>
+            <p className="text-[11px] text-[var(--surface-fg-faint)]">
               3 of 3 boards used, 1 collaborator per board
             </p>
           </div>

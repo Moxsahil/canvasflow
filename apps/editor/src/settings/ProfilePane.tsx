@@ -43,7 +43,7 @@ export function ProfilePane({ user, onClose }: ProfilePaneProps) {
         {/* The avatar row is taller than the rest — 16px of padding against
             their 15px — because the 52px circle sets the height. */}
         <div className="flex w-full items-center gap-[16px] px-[18px] py-[16px]">
-          <div className="flex size-[52px] shrink-0 items-center justify-center rounded-full bg-[var(--settings-accent)] text-[20px] font-semibold text-[var(--settings-on-accent)]">
+          <div className="flex size-[52px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-accent)] text-[20px] font-semibold text-[var(--surface-on-accent)]">
             {name.charAt(0).toUpperCase()}
           </div>
           <RowText title="Profile photo" hint="JPG, PNG or GIF. 2 MB max." />
@@ -107,8 +107,8 @@ export function ProfilePane({ user, onClose }: ProfilePaneProps) {
                   // takes the foreground colour so it reads against the card
                   // in either theme — near-white on dark, near-black on light.
                   className={`size-[22px] rounded-full focus-visible:outline-none ${
-                    selected ? 'ring-2 ring-[var(--settings-fg)]' : ''
-                  } focus-visible:ring-2 focus-visible:ring-[var(--settings-fg)]`}
+                    selected ? 'ring-2 ring-[var(--surface-fg)]' : ''
+                  } focus-visible:ring-2 focus-visible:ring-[var(--surface-fg)]`}
                 />
               );
             })}

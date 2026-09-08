@@ -153,8 +153,12 @@ export function OmniCommandPalette({
             ref={listRef}
             role="listbox"
             aria-label="Commands"
+            // No scrollbar: the list is driven by the arrow keys as much as by
+            // the wheel, and a grey stripe down a list you are typing to filter
+            // is furniture rather than information. The row left half-visible
+            // at the cut is what says there is more — see `no-scrollbar`.
             className={cn(
-              'max-h-[min(24rem,50vh)] overflow-y-auto overscroll-contain p-1.5',
+              'no-scrollbar max-h-[min(24rem,50vh)] overflow-y-auto overscroll-contain p-1.5',
               className,
             )}
           >

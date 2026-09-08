@@ -22,6 +22,7 @@ import {
   type BoardSwitcherState,
 } from '../workspace';
 import type { ThemePreference } from '../theme';
+import type { SurfaceTheme } from '../ui/surface-palette';
 import { ThemeToggle } from './ThemeToggle';
 import { MenuSection } from './MenuSection';
 import { NavUser, type SidebarUser } from './NavUser';
@@ -41,6 +42,12 @@ interface AppSidebarProps {
   /** Theme preference, including `system` — see theme/useAppTheme. */
   theme: ThemePreference;
   onThemeChange: (theme: ThemePreference) => void;
+  /**
+   * That preference resolved to what is actually on screen. The dialogs opened
+   * from here paint their own surface, which has a light and a dark form and no
+   * notion of following the system.
+   */
+  surfaceTheme: SurfaceTheme;
   /** Only the items with a handler here are usable; the rest read as "Soon". */
   actions?: MenuActions;
   /**
@@ -65,6 +72,7 @@ export function AppSidebar({
   user,
   theme,
   onThemeChange,
+  surfaceTheme,
   actions,
   portalContainer,
 }: AppSidebarProps) {
@@ -131,40 +139,50 @@ export function AppSidebar({
         }}
         onSubmit={boardSwitcher.renameBoard}
         busy={boardSwitcher.busy}
-        portalContainer={portalContainer}
+        theme={surfaceTheme}
       />
 
       {/* Same reasoning: the switcher's menu closes as this opens, and the
           board rows inside it hand off to the rename dialog above. */}
-      <ManageDialog state={boardSwitcher} portalContainer={portalContainer} />
+      <ManageDialog state={boardSwitcher} theme={surfaceTheme} />
     </Sidebar>
   );
 }
 
 interface RowProps {
   id: MenuItemId;
-  /** Absent means the feature isn't built yet: the row disables itself. */
-  onSelect?: () => void;
+  /**
+   * A function makes the row live. `null` means the feature exists but does
+   * not apply right now, and absent means it isn't built — see `MenuActions`.
+   * Both disable the row; only the last one says "Soon".
+   */
+  onSelect?: (() => void) | null;
+}
+
+/** What the right-hand column of a row shows: its shortcut, or why it can't be used. */
+function rowHint(onSelect: RowProps['onSelect'], shortcut?: string) {
+  const hint = shortcut ? formatShortcut(shortcut) : null;
+  return { hint, badge: onSelect === undefined ? 'Soon' : hint };
 }
 
 /** A row inside an expanded section. No icon column — the indent carries it. */
 function MenuSubRow({ id, onSelect }: RowProps) {
   const { label, shortcut, destructive } = MENU_ITEMS[id];
-  const hint = shortcut ? formatShortcut(shortcut) : null;
+  const { hint, badge } = rowHint(onSelect, shortcut);
 
   return (
     <SidebarMenuSubItem>
       <SidebarMenuSubButton asChild>
         <button
           type="button"
-          onClick={onSelect}
+          onClick={onSelect ?? undefined}
           disabled={!onSelect}
           aria-keyshortcuts={hint ?? undefined}
           data-testid={`menu-${id}`}
           className={cn(destructive && 'text-destructive hover:text-destructive')}
         >
           <span>{label}</span>
-          <span className="ml-auto shrink-0 text-xs opacity-50">{onSelect ? hint : 'Soon'}</span>
+          <span className="ml-auto shrink-0 text-xs opacity-50">{badge}</span>
         </button>
       </SidebarMenuSubButton>
     </SidebarMenuSubItem>
@@ -174,21 +192,21 @@ function MenuSubRow({ id, onSelect }: RowProps) {
 /** A row that stands on its own, with its icon in the collapsed column. */
 function MenuRow({ id, onSelect }: RowProps) {
   const { label, icon: Icon, shortcut, destructive } = MENU_ITEMS[id];
-  const hint = shortcut ? formatShortcut(shortcut) : null;
+  const { hint, badge } = rowHint(onSelect, shortcut);
 
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
-        onClick={onSelect}
+        onClick={onSelect ?? undefined}
         disabled={!onSelect}
-        tooltip={onSelect ? label : `${label} — coming soon`}
+        tooltip={onSelect === undefined ? `${label} — coming soon` : label}
         aria-keyshortcuts={hint ?? undefined}
         data-testid={`menu-${id}`}
         className={cn(destructive && 'text-destructive')}
       >
         <Icon aria-hidden="true" />
         <span>{label}</span>
-        <span className="ml-auto shrink-0 text-xs opacity-50">{onSelect ? hint : 'Soon'}</span>
+        <span className="ml-auto shrink-0 text-xs opacity-50">{badge}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
