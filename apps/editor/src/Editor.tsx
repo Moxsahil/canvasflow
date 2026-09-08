@@ -82,6 +82,7 @@ import { ExportImageDialog } from './export';
 import { FindBar, useCanvasSearch } from './search';
 import { AccessRevokedDialog, ShareDialog } from './share';
 import { SettingsDialog } from './settings';
+import { usePreferences } from './preferences';
 import { ConfirmDialog } from './ui';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -158,6 +159,10 @@ export function Editor({ boardId }: EditorProps) {
   );
 
   const { theme, resolvedTheme, setTheme, toggleTheme } = useAppTheme();
+
+  // Held here rather than in the sidebar, because this is where the canvas is:
+  // each switch is read from here as the behaviour behind it is built.
+  const preferences = usePreferences();
 
   const handleShowHelp = useCallback(() => setHelpOpen(true), []);
   const handleCloseHelp = useCallback(() => setHelpOpen(false), []);
@@ -1505,6 +1510,7 @@ export function Editor({ boardId }: EditorProps) {
           theme={theme}
           onThemeChange={setTheme}
           surfaceTheme={presenceTheme}
+          preferences={preferences}
           portalContainer={editorRoot}
           /* A menu item goes live by being given a handler here; anything
              without one renders disabled with a "Soon" badge, so the menu stays

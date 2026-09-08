@@ -35,8 +35,10 @@ export type CommandIcon = ComponentType<SVGProps<SVGSVGElement>>;
  * renames it in the palette too.
  *
  * Absent on purpose: `commandPalette` itself, which would only ever reopen
- * what you already have open, and `preferences`, which has no handler behind
- * it yet.
+ * what you already have open, and `preferences`, which is a panel anchored to
+ * its row in the rail rather than an action — there is nothing for a command
+ * to run, and a palette entry that only pointed at the sidebar would be a
+ * worse way of getting there than the sidebar.
  */
 type MenuBackedCommandId = Extract<
   MenuItemId,
