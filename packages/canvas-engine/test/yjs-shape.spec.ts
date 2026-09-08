@@ -1,8 +1,8 @@
 import * as Y from 'yjs';
 import { shapeToYMap, yMapToShape } from '../src/document/yjs-shape.js';
 import { shapeBounds } from '../src/shapes/bounds.js';
-import { createText, createRectangle } from '../src/shapes/index.js';
-import type { TextShape } from '../src/shapes/shape.js';
+import { createArrow, createText, createRectangle } from '../src/shapes/index.js';
+import type { ArrowShape, TextShape } from '../src/shapes/shape.js';
 
 /** Put a Y.Map into a doc, as it would be when read back off the wire. */
 function integrate(map: Y.Map<unknown>): Y.Map<unknown> {
@@ -97,5 +97,80 @@ describe('yMapToShape', () => {
 
     expect(shape.text).toBe('');
     expect(() => shapeBounds(shape)).not.toThrow();
+  });
+});
+
+describe('arrow bindings through the document', () => {
+  const bound = (startBinding: ArrowShape['startBinding']) =>
+    createArrow({
+      id: 'a',
+      x: 0,
+      y: 0,
+      points: [
+        [0, 0],
+        [10, 10],
+      ],
+      startBinding,
+    });
+
+  it('carries an attachment there and back', () => {
+    const shape = bound({ shapeId: 'target', anchor: { x: 0.25, y: 0.75 }, precise: true });
+    const read = yMapToShape(integrate(shapeToYMap(shape))) as ArrowShape;
+
+    expect(read.startBinding).toEqual({
+      shapeId: 'target',
+      anchor: { x: 0.25, y: 0.75 },
+      precise: true,
+    });
+    expect(read.endBinding).toBeNull();
+  });
+
+  it('writes no key for an arrow attached to nothing', () => {
+    const map = integrate(shapeToYMap(bound(null)));
+    expect(map.get('startBinding')).toBeUndefined();
+    expect((yMapToShape(map) as ArrowShape).startBinding).toBeNull();
+  });
+
+  it('reads an arrow saved before arrows could attach', () => {
+    const map = new Y.Map<unknown>();
+    map.set('id', 'old');
+    map.set('kind', 'arrow');
+    map.set('x', 0);
+    map.set('y', 0);
+    map.set('points', [
+      [0, 0],
+      [10, 10],
+    ]);
+
+    expect((yMapToShape(integrate(map)) as ArrowShape).startBinding).toBeNull();
+  });
+
+  it('drops an attachment it cannot make sense of', () => {
+    // A binding with a missing anchor would put the arrow at NaN, and that
+    // spreads from its bounds into the spatial index — so it is refused here
+    // and the arrow is drawn where its own points say instead.
+    for (const junk of [
+      { shapeId: 'target' },
+      { shapeId: 'target', anchor: { x: 'left', y: 0 } },
+      { shapeId: '', anchor: { x: 0, y: 0 } },
+      { anchor: { x: 0, y: 0 } },
+      'target',
+      null,
+    ]) {
+      const map = new Y.Map<unknown>();
+      map.set('id', 'junk');
+      map.set('kind', 'arrow');
+      map.set('x', 0);
+      map.set('y', 0);
+      map.set('points', [
+        [0, 0],
+        [10, 10],
+      ]);
+      map.set('startBinding', junk);
+
+      const read = yMapToShape(integrate(map)) as ArrowShape;
+      expect(read.startBinding).toBeNull();
+      expect(() => shapeBounds(read)).not.toThrow();
+    }
   });
 });

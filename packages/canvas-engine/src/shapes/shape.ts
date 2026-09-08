@@ -62,12 +62,44 @@ export interface LineShape extends BaseShape {
   readonly edges: Edges;
 }
 
+/**
+ * One end of an arrow, attached to a shape rather than to a position.
+ *
+ * The anchor is stored as a fraction of the bound shape's box rather than as a
+ * point, which is what lets the attachment survive that shape being resized as
+ * well as moved: half way down the left edge stays half way down the left edge.
+ */
+export interface ArrowBinding {
+  readonly shapeId: string;
+  /** 0–1 within the bound shape's bounds; (0.5, 0.5) is its centre. */
+  readonly anchor: { readonly x: number; readonly y: number };
+  /**
+   * Whether the anchor is where the arrow aims.
+   *
+   * False — the usual case — means the arrow aims at the middle of the shape
+   * and stops at whichever edge it meets on the way in, so it re-aims itself as
+   * the shape moves around it. True pins it to the anchor, for an arrow
+   * deliberately placed at one spot.
+   */
+  readonly precise: boolean;
+}
+
 export interface ArrowShape extends BaseShape {
   readonly kind: 'arrow';
+  /**
+   * Where the arrow is, relative to its own origin.
+   *
+   * Kept true even for a bound end: the ends are recomputed and written back
+   * whenever a shape one is attached to moves, so everything that reads an
+   * arrow's geometry — its bounds, hit testing, export — keeps working from the
+   * points alone and needs to know nothing about bindings.
+   */
   readonly points: ReadonlyArray<readonly [number, number]>;
   readonly startArrowhead: Arrowhead;
   readonly endArrowhead: Arrowhead;
   readonly arrowType: ArrowType;
+  readonly startBinding: ArrowBinding | null;
+  readonly endBinding: ArrowBinding | null;
 }
 
 export interface FreehandShape extends BaseShape {

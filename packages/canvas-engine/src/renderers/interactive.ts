@@ -1,7 +1,25 @@
 import type { Shape } from '../shapes/shape.js';
 import { clearCanvas } from '../utils/canvas.js';
 import { shapeBounds } from '../shapes/bounds.js';
-import type { Rect } from '../math.js';
+import type { Point, Rect } from '../math.js';
+
+/**
+ * One line of evidence for a snap that is currently holding.
+ *
+ * `points` is a run of points that ended up sharing a coordinate: a line is
+ * drawn through them with a cross on each, so it is visible both which edge
+ * lined up and what it lined up with. `gap` is one measured span between two
+ * shapes, drawn as a bar with end caps — even spacing is shown by drawing
+ * every span that came out equal.
+ */
+export type SnapGuide =
+  | { readonly kind: 'points'; readonly points: readonly Point[] }
+  | {
+      readonly kind: 'gap';
+      readonly direction: 'horizontal' | 'vertical';
+      readonly from: Point;
+      readonly to: Point;
+    };
 
 export interface InteractiveSceneOptions {
   readonly width: number;
@@ -21,6 +39,9 @@ export interface InteractiveSceneOptions {
     /** The match being navigated to; may be several rects if it wraps a line. */
     readonly focusedRects: readonly Rect[];
   };
+
+  /** Alignment evidence for the gesture in progress; empty when nothing snaps. */
+  readonly snapGuides?: readonly SnapGuide[];
 }
 
 const HANDLE_SIZE = 8; // screen pixels
@@ -35,12 +56,23 @@ const HANDLE_FILL = '#ffffff';
 const SEARCH_MATCH_FILL = 'rgba(255, 226, 0, 0.4)';
 const SEARCH_FOCUS_FILL = 'rgba(255, 124, 0, 0.45)';
 
+/**
+ * Deliberately not the selection colour: a guide says something different from
+ * an outline — it is transient, it belongs to the gesture rather than to any
+ * shape, and it has to be told apart from the selection it is drawn across.
+ */
+const SNAP_COLOR = '#f03e3e';
+/** Arms of the cross marking each aligned point, in screen pixels. */
+const SNAP_CROSS_SIZE = 3;
+/** Half-length of the bars capping a measured gap, in screen pixels. */
+const SNAP_CAP_SIZE = 4;
+
 export function renderInteractiveScene(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   _canvas: HTMLCanvasElement | OffscreenCanvas,
   opts: InteractiveSceneOptions,
 ): void {
-  const { width, height, shapes, selectedIds, marquee, camera, search } = opts;
+  const { width, height, shapes, selectedIds, marquee, camera, search, snapGuides } = opts;
 
   clearCanvas(ctx, width, height);
 
@@ -94,6 +126,21 @@ export function renderInteractiveScene(
     }
   }
 
+  // --- Snap guides — over the selection, since they explain where it is about
+  // to land and a guide hidden under an outline explains nothing ---
+  if (snapGuides && snapGuides.length > 0) {
+    ctx.strokeStyle = SNAP_COLOR;
+    ctx.lineWidth = 1 / zoom;
+    ctx.setLineDash([]);
+    for (const guide of snapGuides) {
+      if (guide.kind === 'points') {
+        drawPointsGuide(ctx, guide.points, zoom);
+      } else {
+        drawGapGuide(ctx, guide.from, guide.to, guide.direction, zoom);
+      }
+    }
+  }
+
   ctx.restore();
 
   // --- Marquee — drawn in screen space, no camera transform ---
@@ -115,6 +162,65 @@ export function renderInteractiveScene(
     ctx.setLineDash([]);
     ctx.restore();
   }
+}
+
+/**
+ * A run of points that share a coordinate: one line spanning the outermost two,
+ * and a cross on each so a point that happens to fall mid-line still shows.
+ */
+function drawPointsGuide(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  points: readonly Point[],
+  zoom: number,
+): void {
+  if (points.length === 0) return;
+
+  const first = points[0]!;
+  const last = points[points.length - 1]!;
+  ctx.beginPath();
+  ctx.moveTo(first.x, first.y);
+  ctx.lineTo(last.x, last.y);
+  ctx.stroke();
+
+  const arm = SNAP_CROSS_SIZE / zoom;
+  ctx.beginPath();
+  for (const point of points) {
+    ctx.moveTo(point.x - arm, point.y - arm);
+    ctx.lineTo(point.x + arm, point.y + arm);
+    ctx.moveTo(point.x + arm, point.y - arm);
+    ctx.lineTo(point.x - arm, point.y + arm);
+  }
+  ctx.stroke();
+}
+
+/** One measured span, capped at both ends so its extent is unambiguous. */
+function drawGapGuide(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  from: Point,
+  to: Point,
+  direction: 'horizontal' | 'vertical',
+  zoom: number,
+): void {
+  const cap = SNAP_CAP_SIZE / zoom;
+
+  ctx.beginPath();
+  ctx.moveTo(from.x, from.y);
+  ctx.lineTo(to.x, to.y);
+
+  // The caps run across the span, so a horizontal gap is capped by vertical
+  // strokes and the other way round.
+  if (direction === 'horizontal') {
+    ctx.moveTo(from.x, from.y - cap);
+    ctx.lineTo(from.x, from.y + cap);
+    ctx.moveTo(to.x, to.y - cap);
+    ctx.lineTo(to.x, to.y + cap);
+  } else {
+    ctx.moveTo(from.x - cap, from.y);
+    ctx.lineTo(from.x + cap, from.y);
+    ctx.moveTo(to.x - cap, to.y);
+    ctx.lineTo(to.x + cap, to.y);
+  }
+  ctx.stroke();
 }
 
 function drawHandles(

@@ -14,7 +14,7 @@ export interface PreferencesState {
 /**
  * Holds what the preferences menu is showing.
  *
- * Only `showGrid` reaches the canvas so far — the rest are wired up as the
+ * Only some of these reach the canvas so far — the rest are wired up as the
  * behaviour behind each one lands. It lives here rather than inside the menu
  * because the menu is a popup: state owned by it would reset every time it
  * closed, and boxes that forget whether they were ticked read as broken rather
