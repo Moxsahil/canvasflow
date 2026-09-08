@@ -21,6 +21,7 @@ import {
   RenameBoardDialog,
   type BoardSwitcherState,
 } from '../workspace';
+import { PreferencesMenu, type PreferencesState } from '../preferences';
 import type { ThemePreference } from '../theme';
 import type { SurfaceTheme } from '../ui/surface-palette';
 import { ThemeToggle } from './ThemeToggle';
@@ -48,6 +49,8 @@ interface AppSidebarProps {
    * notion of following the system.
    */
   surfaceTheme: SurfaceTheme;
+  /** What the preferences menu is showing, and how to change it. */
+  preferences: PreferencesState;
   /** Only the items with a handler here are usable; the rest read as "Soon". */
   actions?: MenuActions;
   /**
@@ -73,6 +76,7 @@ export function AppSidebar({
   theme,
   onThemeChange,
   surfaceTheme,
+  preferences,
   actions,
   portalContainer,
 }: AppSidebarProps) {
@@ -114,7 +118,7 @@ export function AppSidebar({
           <SidebarGroupContent>
             <SidebarMenu>
               <ThemeToggle value={theme} onChange={onThemeChange} />
-              <MenuRow id="preferences" onSelect={actions?.preferences} />
+              <PreferencesMenu preferences={preferences} portalContainer={portalContainer} />
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
