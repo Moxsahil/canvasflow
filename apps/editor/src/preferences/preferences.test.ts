@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { formatShortcut } from '../help/platform';
-import { DEFAULT_PREFERENCES, PREFERENCE_GROUPS, type PreferenceId } from './preferences';
+import {
+  DEFAULT_PREFERENCES,
+  PREFERENCES_STORAGE_KEY,
+  PREFERENCE_GROUPS,
+  readPreferences,
+  storePreferences,
+  type PreferenceId,
+} from './preferences';
 
 const items = PREFERENCE_GROUPS.flatMap((group) => group.items);
 
@@ -40,5 +47,54 @@ describe('preference groups', () => {
       (key) => DEFAULT_PREFERENCES[key],
     );
     expect(on.sort()).toEqual(['arrowBinding', 'edgeScrolling', 'selectOnWrap', 'snapToMidpoints']);
+  });
+});
+
+describe('stored preferences', () => {
+  let store: Record<string, string>;
+
+  beforeEach(() => {
+    store = {};
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => store[key] ?? null,
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+    });
+  });
+
+  it('reads back what it wrote', () => {
+    const values = { ...DEFAULT_PREFERENCES, showGrid: true, toolLock: true };
+    storePreferences(values);
+    expect(readPreferences()).toEqual(values);
+  });
+
+  it('starts from the defaults when nothing has been stored', () => {
+    expect(readPreferences()).toEqual(DEFAULT_PREFERENCES);
+  });
+
+  it('fills in a preference that was added after the values were stored', () => {
+    store[PREFERENCES_STORAGE_KEY] = JSON.stringify({ showGrid: true });
+
+    expect(readPreferences()).toEqual({ ...DEFAULT_PREFERENCES, showGrid: true });
+  });
+
+  it('drops keys and values it does not recognise', () => {
+    // A checkbox handed a non-boolean goes uncontrolled, and a preference
+    // removed in a later version would sit in storage forever.
+    store[PREFERENCES_STORAGE_KEY] = JSON.stringify({
+      showGrid: 'yes',
+      wasRemovedInVersion2: true,
+    });
+
+    expect(readPreferences()).toEqual(DEFAULT_PREFERENCES);
+  });
+
+  it('falls back to the defaults rather than throwing on unreadable storage', () => {
+    store[PREFERENCES_STORAGE_KEY] = 'not json';
+    expect(readPreferences()).toEqual(DEFAULT_PREFERENCES);
+
+    store[PREFERENCES_STORAGE_KEY] = 'null';
+    expect(readPreferences()).toEqual(DEFAULT_PREFERENCES);
   });
 });

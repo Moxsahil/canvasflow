@@ -41,6 +41,11 @@
   --dock-tooltip-bg: #1b1b1f;
   --dock-tooltip-fg: #ffffff;
 
+  /* The grid sits outside the inverted stack, so — like the board colour it is
+     painted on — each theme states the value it wants rather than inheriting
+     the other one flipped. */
+  --grid-dot-color: hsl(0, 0%, 43%);
+
   --theme-filter: none;
 
   /* ---------- metrics ---------- */
@@ -73,6 +78,8 @@
   --color-brand-active: #d0ccff;
   --color-chrome-muted: #7a7a7a;
   --color-danger: #ff8383;
+
+  --grid-dot-color: hsl(0, 0%, 40%);
 
   --theme-filter: invert(93%) hue-rotate(180deg);
 

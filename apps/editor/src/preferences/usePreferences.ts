@@ -1,5 +1,10 @@
-import { useCallback, useState } from 'react';
-import { DEFAULT_PREFERENCES, type EditorPreferences, type PreferenceId } from './preferences';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  readPreferences,
+  storePreferences,
+  type EditorPreferences,
+  type PreferenceId,
+} from './preferences';
 
 export interface PreferencesState {
   values: EditorPreferences;
@@ -9,22 +14,29 @@ export interface PreferencesState {
 /**
  * Holds what the preferences menu is showing.
  *
- * Nothing reads these yet — the menu is the whole feature for now, and each
- * preference is wired to the canvas as the behaviour behind it lands. It lives
- * here rather than inside the menu because the menu is a popup: state owned by
- * it would reset every time it closed, and boxes that forget whether they were
- * ticked read as broken rather than as unfinished.
+ * Only `showGrid` reaches the canvas so far — the rest are wired up as the
+ * behaviour behind each one lands. It lives here rather than inside the menu
+ * because the menu is a popup: state owned by it would reset every time it
+ * closed, and boxes that forget whether they were ticked read as broken rather
+ * than as unfinished.
  *
- * Nor does it persist. A preference that survives a reload but still changes
- * nothing is a promise the editor cannot keep; storage arrives with the first
- * switch that does something.
+ * The whole set is stored, not just the one that does something, so a
+ * preference gaining its behaviour later needs no migration of what people
+ * have already ticked.
  */
 export function usePreferences(): PreferencesState {
-  const [values, setValues] = useState<EditorPreferences>(DEFAULT_PREFERENCES);
+  const [values, setValues] = useState<EditorPreferences>(readPreferences);
 
   const set = useCallback((key: PreferenceId, value: boolean) => {
     setValues((current) => ({ ...current, [key]: value }));
   }, []);
+
+  // Written from an effect rather than from `set`, so the updater stays free of
+  // side effects — React runs it twice in development, and once more on every
+  // retry it makes.
+  useEffect(() => {
+    storePreferences(values);
+  }, [values]);
 
   return { values, set };
 }

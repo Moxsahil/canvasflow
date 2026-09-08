@@ -1352,6 +1352,10 @@ export function Editor({ boardId }: EditorProps) {
     });
   }, [doc, actorRef, readOnly, handleInsertImages]);
 
+  const toggleGrid = useCallback(() => {
+    preferences.set('showGrid', !preferences.values.showGrid);
+  }, [preferences]);
+
   useKeyboardShortcuts({
     onSelectTool: handleToolChange,
     onEscape: handleEscape,
@@ -1378,6 +1382,7 @@ export function Editor({ boardId }: EditorProps) {
     onPaste: handlePaste,
     onShowHelp: handleShowHelp,
     onToggleTheme: toggleTheme,
+    onToggleGrid: toggleGrid,
     onOpenFile: openBoardFile,
     onSaveFile: saveBoardFileToDisk,
     onExportImage: showExport,
@@ -1561,6 +1566,7 @@ export function Editor({ boardId }: EditorProps) {
               onWheelPan={handleWheelPan}
               isPanning={isPanning}
               backgroundColor={canvasBackgroundFor(presenceTheme)}
+              showGrid={preferences.values.showGrid}
               searchHighlights={search.highlights}
               peersRef={peersRef}
               subscribePeers={subscribe}
