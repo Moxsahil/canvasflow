@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ChevronLeft, ChevronRight, Pencil, Settings2, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { InitialBadge } from '@/components/ui/initial-badge';
 import { Input } from '@/components/ui/input';
 import { ColorDot, formatUpdatedAt } from './board-presentation';
+import { SurfaceDialog } from '../ui/SurfaceDialog';
+import { SURFACE_INPUT_CLASS, SurfaceButton, SurfaceCard, SurfaceHint } from '../ui/surface-ui';
+import type { SurfaceTheme } from '../ui/surface-palette';
 import { DeleteWarningDialog } from './DeleteWarningDialog';
 import type { BoardSwitcherState } from './useBoardSwitcher';
 import type { BoardSummary, WorkspaceSummary } from './workspace-api';
@@ -23,8 +23,8 @@ type PendingDelete =
 
 interface ManageDialogProps {
   state: BoardSwitcherState;
-  /** Radix portals out of the tree; the theme tokens live on `.cf-editor`. */
-  portalContainer: HTMLElement | null;
+  /** The theme on screen — the dialog surface carries its own palette for each. */
+  theme: SurfaceTheme;
 }
 
 /**
@@ -38,13 +38,12 @@ interface ManageDialogProps {
  * be careful around. So it lives here, one dialog reached from either panel,
  * showing whichever list you asked for.
  *
- * Built as the rename and share dialogs are — a Card carried by a Dialog
- * stripped to nothing — so the three read as one application.
+ * On the app's dialog surface, like every other window that stops the board.
  *
  * Nothing here decides what a person may do; it only declines to offer what
  * the server would refuse. The rules themselves live in the routes.
  */
-export function ManageDialog({ state, portalContainer }: ManageDialogProps) {
+export function ManageDialog({ state, theme }: ManageDialogProps) {
   const target = state.manageTarget;
   const { expandWorkspace, endManage, beginManage } = state;
 
@@ -128,108 +127,82 @@ export function ManageDialog({ state, portalContainer }: ManageDialogProps) {
 
   return (
     <>
-      <Dialog
+      <SurfaceDialog
         open={target !== null}
-        onOpenChange={(open) => {
-          if (!open) endManage();
-        }}
+        theme={theme}
+        title={target?.kind === 'boards' ? (openWorkspace?.name ?? 'Boards') : 'Workspaces'}
+        subtitle={
+          target?.kind === 'boards'
+            ? 'Rename or delete the boards in this workspace'
+            : 'Rename or delete the workspaces you belong to'
+        }
+        leading={
+          target?.kind === 'boards' && openWorkspace ? (
+            <InitialBadge
+              label={openWorkspace.name}
+              src={openWorkspace.logoUrl}
+              className="size-[42px] rounded-full bg-[var(--surface-accent)] text-[13px] text-[var(--surface-on-accent)]"
+            />
+          ) : (
+            <span className="flex size-[42px] items-center justify-center rounded-full bg-[var(--surface-accent)] text-[var(--surface-on-accent)]">
+              <Settings2 className="size-[18px]" aria-hidden="true" />
+            </span>
+          )
+        }
+        width={560}
+        onClose={endManage}
+        footer={
+          <>
+            <div className="flex-1" />
+            <SurfaceButton variant="primary" onClick={endManage}>
+              Done
+            </SurfaceButton>
+          </>
+        }
       >
-        <DialogContent
-          container={portalContainer}
-          showClose={false}
-          aria-describedby={undefined}
-          className="w-[min(100%-2rem,34rem)] border-0 bg-transparent p-0 shadow-none"
-        >
-          <DialogTitle className="sr-only">
-            {target?.kind === 'boards' ? 'Manage boards' : 'Manage workspaces'}
-          </DialogTitle>
+        {target?.kind === 'boards' && (
+          <button
+            type="button"
+            className="flex w-fit items-center gap-[4px] rounded-[6px] text-[12px] text-[var(--surface-fg-muted)] transition-colors outline-hidden hover:text-[var(--surface-fg)] focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]"
+            onClick={() => beginManage({ kind: 'workspaces' })}
+          >
+            <ChevronLeft className="size-[14px]" aria-hidden="true" />
+            All workspaces
+          </button>
+        )}
 
-          <Card className="w-full">
-            <CardHeader className="pb-4">
-              <div className="flex items-center gap-3">
-                <div className="shrink-0">
-                  {target?.kind === 'boards' && openWorkspace ? (
-                    <InitialBadge
-                      label={openWorkspace.name}
-                      src={openWorkspace.logoUrl}
-                      className="size-12 rounded-full bg-primary text-sm text-primary-foreground"
-                    />
-                  ) : (
-                    <span className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                      <Settings2 className="size-5" aria-hidden="true" />
-                    </span>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <CardTitle className="truncate text-lg font-semibold">
-                    {target?.kind === 'boards' ? (openWorkspace?.name ?? 'Boards') : 'Workspaces'}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    {target?.kind === 'boards'
-                      ? 'Rename or delete the boards in this workspace'
-                      : 'Rename or delete the workspaces you belong to'}
-                  </p>
-                </div>
-              </div>
-            </CardHeader>
+        <SurfaceCard className="no-scrollbar max-h-[316px] overflow-y-auto">
+          {target?.kind === 'boards' ? (
+            <BoardList
+              state={state}
+              workspaceId={target.workspaceId}
+              onDelete={(board) => askToDelete({ kind: 'board', board })}
+            />
+          ) : (
+            <WorkspaceList
+              workspaces={workspaces}
+              busy={state.busy}
+              editingId={editingId}
+              draft={draft}
+              onDraftChange={setDraft}
+              onStartEditing={startEditing}
+              onCancelEditing={() => setEditingId(null)}
+              onSubmit={submitRename}
+              onOpenBoards={(workspaceId) => beginManage({ kind: 'boards', workspaceId })}
+              onDelete={(workspace) => askToDelete({ kind: 'workspace', workspace })}
+            />
+          )}
+        </SurfaceCard>
 
-            <CardContent className="flex flex-col gap-4">
-              {target?.kind === 'boards' && (
-                <button
-                  type="button"
-                  className="flex w-fit items-center gap-1 rounded-md text-sm text-muted-foreground outline-hidden transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                  onClick={() => beginManage({ kind: 'workspaces' })}
-                >
-                  <ChevronLeft className="size-4" aria-hidden="true" />
-                  All workspaces
-                </button>
-              )}
-
-              <div className="-mx-1 flex max-h-80 flex-col gap-1 overflow-y-auto px-1">
-                {target?.kind === 'boards' ? (
-                  <BoardList
-                    state={state}
-                    workspaceId={target.workspaceId}
-                    onDelete={(board) => askToDelete({ kind: 'board', board })}
-                  />
-                ) : (
-                  <WorkspaceList
-                    workspaces={workspaces}
-                    busy={state.busy}
-                    editingId={editingId}
-                    draft={draft}
-                    onDraftChange={setDraft}
-                    onStartEditing={startEditing}
-                    onCancelEditing={() => setEditingId(null)}
-                    onSubmit={submitRename}
-                    onOpenBoards={(workspaceId) => beginManage({ kind: 'boards', workspaceId })}
-                    onDelete={(workspace) => askToDelete({ kind: 'workspace', workspace })}
-                  />
-                )}
-              </div>
-
-              {listError && (
-                <p role="alert" className="text-sm text-destructive">
-                  {listError}
-                </p>
-              )}
-
-              <div className="flex justify-end">
-                <Button type="button" variant="ghost" onClick={endManage}>
-                  Done
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </DialogContent>
-      </Dialog>
+        {listError && <SurfaceHint tone="danger">{listError}</SurfaceHint>}
+      </SurfaceDialog>
 
       <DeleteWarningDialog
         open={pending !== null}
         onOpenChange={(open) => {
           if (!open) setPending(null);
         }}
-        container={portalContainer}
+        theme={theme}
         busy={state.busy}
         error={deleteError}
         onConfirm={confirmDelete}
@@ -288,7 +261,11 @@ function WorkspaceList({
   onDelete,
 }: WorkspaceListProps) {
   if (workspaces.length === 0) {
-    return <p className="py-2 text-sm text-muted-foreground">No workspaces yet.</p>;
+    return (
+      <p className="px-[18px] py-[14px] text-[12px] text-[var(--surface-fg-muted)]">
+        No workspaces yet.
+      </p>
+    );
   }
 
   return (
@@ -305,7 +282,7 @@ function WorkspaceList({
               <InitialBadge
                 label={workspace.name}
                 src={workspace.logoUrl}
-                className="size-8 rounded-md bg-primary text-[0.625rem] text-primary-foreground"
+                className="size-[30px] shrink-0 rounded-[7px] bg-[var(--surface-accent)] text-[10px] text-[var(--surface-on-accent)]"
               />
               <Input
                 value={draft}
@@ -323,51 +300,58 @@ function WorkspaceList({
                     onCancelEditing();
                   }
                 }}
-                className="h-8 min-w-0 flex-1"
+                className={cn(SURFACE_INPUT_CLASS, 'h-[32px] min-w-0 flex-1')}
               />
-              <Button type="submit" size="sm" disabled={busy || !draft.trim()}>
+              <SurfaceButton variant="primary" type="submit" disabled={busy || !draft.trim()}>
                 Save
-              </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={onCancelEditing}>
+              </SurfaceButton>
+              <SurfaceButton variant="ghost" onClick={onCancelEditing}>
                 Cancel
-              </Button>
+              </SurfaceButton>
             </form>
           );
         }
 
         return (
-          <div key={workspace.id} className={cn(rowClasses, 'group/row')}>
+          <div key={workspace.id} className={rowClasses}>
             <InitialBadge
               label={workspace.name}
               src={workspace.logoUrl}
-              className="size-8 rounded-md bg-primary text-[0.625rem] text-primary-foreground"
+              className="size-[30px] shrink-0 rounded-[7px] bg-[var(--surface-accent)] text-[10px] text-[var(--surface-on-accent)]"
             />
             {/* The name is the way into this workspace's boards, so the row
                 stays one target rather than growing a third small button. */}
             <button
               type="button"
-              className="flex min-w-0 flex-1 flex-col items-start rounded-sm text-left outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex min-w-0 flex-1 flex-col items-start rounded-[4px] text-left outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]"
               onClick={() => onOpenBoards(workspace.id)}
             >
-              <span className="w-full truncate text-sm font-medium">{workspace.name}</span>
-              <span className="text-xs text-muted-foreground">
+              <span className="w-full truncate text-[12.5px] font-medium text-[var(--surface-fg)]">
+                {workspace.name}
+              </span>
+              <span className="text-[11px] text-[var(--surface-fg-faint)]">
                 {boardCountPhrase(workspace.boardCount)} · {workspace.role}
               </span>
             </button>
-            <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <RowAction
-              icon={<Pencil className="size-3.5" aria-hidden="true" />}
-              label={`Rename ${workspace.name}`}
-              hidden={!canRename}
-              onClick={() => onStartEditing(workspace.id, workspace.name)}
+            <ChevronRight
+              className="size-[14px] shrink-0 text-[var(--surface-fg-faint)]"
+              aria-hidden="true"
             />
-            <RowAction
-              destructive
-              icon={<Trash2 className="size-3.5" aria-hidden="true" />}
-              label={`Delete ${workspace.name}`}
-              hidden={!canDelete}
-              onClick={() => onDelete(workspace)}
-            />
+            <RowActions>
+              <RowAction
+                icon={<Pencil className="size-3.5" aria-hidden="true" />}
+                label={`Rename ${workspace.name}`}
+                hidden={!canRename}
+                onClick={() => onStartEditing(workspace.id, workspace.name)}
+              />
+              <RowAction
+                destructive
+                icon={<Trash2 className="size-3.5" aria-hidden="true" />}
+                label={`Delete ${workspace.name}`}
+                hidden={!canDelete}
+                onClick={() => onDelete(workspace)}
+              />
+            </RowActions>
           </div>
         );
       })}
@@ -385,60 +369,71 @@ function BoardList({ state, workspaceId, onDelete }: BoardListProps) {
   const entry = state.boardsFor(workspaceId);
 
   if (entry === undefined || entry.status === 'loading') {
-    return <p className="py-2 text-sm text-muted-foreground">Loading boards…</p>;
+    return (
+      <p className="px-[18px] py-[14px] text-[12px] text-[var(--surface-fg-muted)]">
+        Loading boards…
+      </p>
+    );
   }
 
   if (entry.status === 'error') {
     return (
-      <p role="alert" className="py-2 text-sm text-destructive">
+      <p role="alert" className="px-[18px] py-[14px] text-[12px] text-[var(--surface-danger)]">
         {entry.error}
       </p>
     );
   }
 
   if (entry.boards.length === 0) {
-    return <p className="py-2 text-sm text-muted-foreground">No boards yet.</p>;
+    return (
+      <p className="px-[18px] py-[14px] text-[12px] text-[var(--surface-fg-muted)]">
+        No boards yet.
+      </p>
+    );
   }
 
   return (
     <>
       {entry.boards.map((board) => (
-        <div key={board.id} className={cn(rowClasses, 'group/row')}>
+        <div key={board.id} className={rowClasses}>
           <ColorDot color={board.color} />
-          <span className="min-w-0 flex-1 truncate text-sm">
+          <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--surface-fg)]">
             {board.title}
             {board.id === state.boardId && (
-              <span className="ml-2 text-xs text-muted-foreground">Open</span>
+              <span className="ml-2 text-[11px] text-[var(--surface-fg-faint)]">Open</span>
             )}
           </span>
-          <span className="shrink-0 text-xs text-muted-foreground">
+          <span className="shrink-0 text-[11px] text-[var(--surface-fg-faint)]">
             {formatUpdatedAt(board.updatedAt)}
           </span>
           {/* Renaming a board also tags it with a colour, which needs more room
               than a row can give — so it hands off to the dialog built for it,
               and this one closes rather than stacking behind it. */}
-          <RowAction
-            icon={<Pencil className="size-3.5" aria-hidden="true" />}
-            label={`Rename ${board.title}`}
-            onClick={() => {
-              state.endManage();
-              state.beginRename(board.id);
-            }}
-          />
-          <RowAction
-            destructive
-            icon={<Trash2 className="size-3.5" aria-hidden="true" />}
-            label={`Delete ${board.title}`}
-            onClick={() => onDelete(board)}
-          />
+          <RowActions>
+            <RowAction
+              icon={<Pencil className="size-3.5" aria-hidden="true" />}
+              label={`Rename ${board.title}`}
+              onClick={() => {
+                state.endManage();
+                state.beginRename(board.id);
+              }}
+            />
+            <RowAction
+              destructive
+              icon={<Trash2 className="size-3.5" aria-hidden="true" />}
+              label={`Delete ${board.title}`}
+              onClick={() => onDelete(board)}
+            />
+          </RowActions>
         </div>
       ))}
     </>
   );
 }
 
+/** A row inside the list card — the settings pane's spacing, not the menu's. */
 const rowClasses =
-  'flex items-center gap-2 rounded-md border border-transparent px-2 py-2 transition-colors hover:border-border hover:bg-accent/50';
+  'flex w-full items-center gap-[12px] px-[18px] py-[12px] transition-colors hover:bg-[var(--surface-nav-hover)]';
 
 interface RowActionProps {
   icon: React.ReactNode;
@@ -453,13 +448,16 @@ interface RowActionProps {
 /**
  * One of the small controls at the end of a row.
  *
- * Revealed by hovering the row, and by focus for a keyboard, so a list of
- * things to read doesn't present as a list of things to press. A person who
- * may not use one gets an empty space of the same size rather than a disabled
- * button — there is nothing here for them to enable.
+ * Always on screen rather than revealed by hovering the row. A control you
+ * cannot see is one you have to go looking for, and on a touch screen there is
+ * no hover to find it with at all — so these stay quiet in the faint colour and
+ * come forward on hover instead of appearing from nothing.
+ *
+ * A person who may not use one gets an empty space of the same size rather
+ * than a disabled button: there is nothing here for them to enable.
  */
 function RowAction({ icon, label, destructive = false, hidden = false, onClick }: RowActionProps) {
-  if (hidden) return <span className="size-7 shrink-0" aria-hidden="true" />;
+  if (hidden) return <span className="size-[26px] shrink-0" aria-hidden="true" />;
 
   return (
     <button
@@ -468,14 +466,27 @@ function RowAction({ icon, label, destructive = false, hidden = false, onClick }
       title={label}
       onClick={onClick}
       className={cn(
-        'flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 outline-hidden transition-opacity',
-        'focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/row:opacity-100',
-        destructive ? 'hover:text-destructive' : 'hover:text-foreground',
+        'flex size-[26px] shrink-0 items-center justify-center rounded-[6px] text-[var(--surface-fg-faint)] outline-hidden transition-colors',
+        'focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]',
+        destructive
+          ? 'hover:bg-[var(--surface-danger-wash)] hover:text-[var(--surface-danger)]'
+          : 'hover:bg-[var(--surface-nav-active)] hover:text-[var(--surface-fg)]',
       )}
     >
       {icon}
     </button>
   );
+}
+
+/**
+ * The controls at the end of a row, as one group.
+ *
+ * Their own gap, not the row's: the row spaces unrelated things generously,
+ * and two icons that do related things to the same row should read as a pair
+ * rather than as two separate destinations.
+ */
+function RowActions({ children }: { children: React.ReactNode }) {
+  return <div className="flex shrink-0 items-center gap-[2px]">{children}</div>;
 }
 
 /** "1 board" / "4 boards", so the count reads as a phrase wherever it lands. */

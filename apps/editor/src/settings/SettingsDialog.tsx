@@ -6,7 +6,7 @@ import { PrivacyPane } from './PrivacyPane';
 import { ProfilePane } from './ProfilePane';
 import { WorkspacePane } from './WorkspacePane';
 import { SearchIcon } from './settings-icons';
-import { settingsThemeVars, type SettingsTheme } from './settings-palette';
+import { surfaceThemeVars, type SurfaceTheme } from '../ui/surface-palette';
 import { SETTINGS_SECTIONS, type SettingsSectionId } from './settings-sections';
 
 /**
@@ -20,7 +20,7 @@ interface SettingsDialogProps {
   /** Seeds the profile fields. Null until the token decodes. */
   user: { name: string; email: string | null } | null;
   /** The theme on screen — the dialog carries its own palette for each. */
-  theme: SettingsTheme;
+  theme: SurfaceTheme;
   onClose: () => void;
 }
 
@@ -67,8 +67,8 @@ export function SettingsDialog({ user, theme, onClose }: SettingsDialogProps) {
     // The palette is declared here rather than on the panel, so the backdrop is
     // painted from the same table as everything it sits behind.
     <div
-      style={{ ...settingsThemeVars(theme), fontFamily: FONT_STACK }}
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-[var(--settings-backdrop)] p-6"
+      style={{ ...surfaceThemeVars(theme), fontFamily: FONT_STACK }}
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-[var(--surface-backdrop)] p-6"
       // Closing on the backdrop is bound to mousedown rather than click, so a
       // drag that starts inside a field and ends outside it does not count.
       onMouseDown={(event) => {
@@ -83,14 +83,14 @@ export function SettingsDialog({ user, theme, onClose }: SettingsDialogProps) {
         tabIndex={-1}
         data-testid="settings-dialog"
         data-theme-variant={theme}
-        className="flex h-[660px] max-h-full w-[920px] max-w-full items-start overflow-hidden rounded-[16px] border border-[var(--settings-border)] bg-[var(--settings-surface)] shadow-[var(--settings-shadow)] outline-none"
+        className="flex h-[660px] max-h-full w-[920px] max-w-full items-start overflow-hidden rounded-[16px] border border-[var(--surface-border)] bg-[var(--surface-panel)] shadow-[var(--surface-shadow)] outline-none"
       >
         <nav
           aria-label="Settings sections"
-          className="flex h-full w-[232px] shrink-0 flex-col gap-[3px] overflow-hidden border-r border-[var(--settings-border)] bg-[var(--settings-rail)] px-[10px] pb-[12px] pt-[14px]"
+          className="flex h-full w-[232px] shrink-0 flex-col gap-[3px] overflow-hidden border-r border-[var(--surface-border)] bg-[var(--surface-rail)] px-[10px] pb-[12px] pt-[14px]"
         >
-          <div className="flex w-full shrink-0 items-center gap-[8px] rounded-[8px] border border-[var(--settings-border)] bg-[var(--settings-card)] px-[10px] py-[8px] focus-within:border-[var(--settings-accent)]">
-            <span className="shrink-0 text-[var(--settings-fg-faint)]">
+          <div className="flex w-full shrink-0 items-center gap-[8px] rounded-[8px] border border-[var(--surface-border)] bg-[var(--surface-card)] px-[10px] py-[8px] focus-within:border-[var(--surface-accent)]">
+            <span className="shrink-0 text-[var(--surface-fg-faint)]">
               <SearchIcon />
             </span>
             <input
@@ -99,7 +99,7 @@ export function SettingsDialog({ user, theme, onClose }: SettingsDialogProps) {
               aria-label="Search settings"
               placeholder="Search settings"
               onChange={(event) => setQuery(event.target.value)}
-              className="min-w-0 flex-1 bg-transparent text-[12px] text-[var(--settings-fg)] placeholder:text-[var(--settings-fg-faint)] focus:outline-none"
+              className="min-w-0 flex-1 bg-transparent text-[12px] text-[var(--surface-fg)] placeholder:text-[var(--surface-fg-faint)] focus:outline-none"
             />
           </div>
 
@@ -114,15 +114,13 @@ export function SettingsDialog({ user, theme, onClose }: SettingsDialogProps) {
                 aria-current={active ? 'page' : undefined}
                 onClick={() => setSection(id)}
                 data-testid={`settings-nav-${id}`}
-                className={`flex w-full shrink-0 items-center gap-[10px] rounded-[8px] px-[10px] py-[8px] text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--settings-accent)] ${
-                  active
-                    ? 'bg-[var(--settings-nav-active)]'
-                    : 'hover:bg-[var(--settings-nav-hover)]'
+                className={`flex w-full shrink-0 items-center gap-[10px] rounded-[8px] px-[10px] py-[8px] text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] ${
+                  active ? 'bg-[var(--surface-nav-active)]' : 'hover:bg-[var(--surface-nav-hover)]'
                 }`}
               >
                 <span
                   className={`shrink-0 ${
-                    active ? 'text-[var(--settings-accent)]' : 'text-[var(--settings-fg-faint)]'
+                    active ? 'text-[var(--surface-accent)]' : 'text-[var(--surface-fg-faint)]'
                   }`}
                 >
                   <Icon />
@@ -130,8 +128,8 @@ export function SettingsDialog({ user, theme, onClose }: SettingsDialogProps) {
                 <span
                   className={`text-[12.5px] whitespace-nowrap ${
                     active
-                      ? 'font-medium text-[var(--settings-fg)]'
-                      : 'text-[var(--settings-fg-muted)]'
+                      ? 'font-medium text-[var(--surface-fg)]'
+                      : 'text-[var(--surface-fg-muted)]'
                   }`}
                 >
                   {label}

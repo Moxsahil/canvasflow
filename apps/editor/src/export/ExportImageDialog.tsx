@@ -11,12 +11,6 @@ import {
 import { Copy, FileCode2, ImageDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { canvasBackgroundFor } from '../properties/palette';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -25,6 +19,18 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { initialsOf } from '@/lib/initials';
+import { SurfaceDialog, useSurfacePortal } from '../ui/SurfaceDialog';
+import {
+  SURFACE_INPUT_CLASS,
+  SurfaceButton,
+  SurfaceCard,
+  SurfaceGroupLabel,
+  SurfaceHint,
+  SurfaceRow,
+  SurfaceRowText,
+  SurfaceToggle,
+} from '../ui/surface-ui';
+import type { SurfaceTheme } from '../ui/surface-palette';
 import {
   canvasToPngBlob,
   copyPngToClipboard,
@@ -47,6 +53,9 @@ interface ExportImageDialogProps {
   boardName: string;
   /** Seeds the dark toggle from the theme the editor is already showing. */
   darkTheme: boolean;
+  /** The theme on screen — the dialog surface carries its own palette for each. */
+  theme: SurfaceTheme;
+  /** The scale menu still portals; its colours come from `.cf-editor`. */
   portalContainer: HTMLElement | null;
   /** Decoded bitmaps for the canvas paths. */
   images?: ImageSource;
@@ -61,6 +70,7 @@ export function ExportImageDialog({
   selectedShapes,
   boardName,
   darkTheme,
+  theme,
   portalContainer,
   images,
   resolveImageDataUrls,
@@ -231,178 +241,158 @@ export function ExportImageDialog({
   const empty = dimensions === null;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent
-        container={portalContainer}
-        showClose={false}
-        aria-describedby={undefined}
-        className="w-[min(100%-2rem,32rem)] border-0 bg-transparent p-0 shadow-none"
-      >
-        <DialogTitle className="sr-only">Export image</DialogTitle>
+    <SurfaceDialog
+      open={open}
+      theme={theme}
+      title={boardName}
+      subtitle={
+        <span className="flex items-center gap-[5px]">
+          <ImageDown size={12} aria-hidden="true" />
+          {empty
+            ? 'Nothing on the canvas to export'
+            : dimensions
+              ? `${dimensions.width} × ${dimensions.height} px`
+              : 'Export as an image'}
+        </span>
+      }
+      leading={
+        <span className="flex size-[42px] items-center justify-center rounded-full bg-[var(--surface-accent)] text-[13px] font-medium text-[var(--surface-on-accent)]">
+          {initialsOf(boardName)}
+        </span>
+      }
+      width={820}
+      onClose={onClose}
+      footer={
+        <>
+          <div className="flex-1" />
+          <SurfaceButton variant="ghost" onClick={onClose}>
+            Cancel
+          </SurfaceButton>
+          <SurfaceButton onClick={copyPng} disabled={empty || busy}>
+            <Copy size={13} />
+            Copy
+          </SurfaceButton>
+          <SurfaceButton onClick={exportSvg} disabled={empty || busy}>
+            <FileCode2 size={13} />
+            SVG
+          </SurfaceButton>
+          <SurfaceButton variant="primary" onClick={exportPng} disabled={empty || busy}>
+            <ImageDown size={13} />
+            PNG
+          </SurfaceButton>
+        </>
+      }
+    >
+      {/* Two columns rather than one long scroll: the preview wants height and
+          the settings want width, and stacking them made a dialog you had to
+          scroll to find the export buttons in. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_360px] gap-[18px]">
+        <div className="flex min-w-0 flex-col gap-[8px]">
+          <SurfaceGroupLabel>Preview</SurfaceGroupLabel>
+          <div
+            className="flex min-h-[300px] flex-1 items-center justify-center rounded-[12px] border border-[var(--surface-border)] bg-[repeating-conic-gradient(var(--surface-raised)_0%_25%,transparent_0%_50%)] bg-size-[14px_14px] p-[10px]"
+            aria-live="polite"
+          >
+            {preview ? (
+              <img
+                src={preview}
+                alt="Export preview"
+                className="max-h-full max-w-full object-contain"
+              />
+            ) : (
+              <span className="text-[11.5px] text-[var(--surface-fg-muted)]">
+                {empty ? 'Nothing to preview' : 'Preparing preview…'}
+              </span>
+            )}
+          </div>
+        </div>
 
-        <Card className="w-full max-w-lg">
-          <CardHeader className="pb-4">
-            <div className="flex items-center gap-3">
-              <div className="shrink-0">
-                <Avatar className="h-12 w-12">
-                  <AvatarFallback className="bg-primary text-sm font-medium text-primary-foreground">
-                    {initialsOf(boardName)}
-                  </AvatarFallback>
-                </Avatar>
-              </div>
-              <div className="min-w-0 flex-1">
-                <CardTitle className="truncate text-lg font-semibold">{boardName}</CardTitle>
-                <p className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <ImageDown size={14} />
-                  {empty
-                    ? 'Nothing on the canvas to export'
-                    : dimensions
-                      ? `${dimensions.width} × ${dimensions.height} px`
-                      : 'Export as an image'}
-                </p>
-              </div>
-            </div>
-          </CardHeader>
+        <div className="flex min-w-0 flex-col gap-[8px]">
+          <SurfaceGroupLabel>File</SurfaceGroupLabel>
+          <SurfaceCard>
+            <SurfaceRow>
+              <SurfaceRowText title="Name" />
+              <input
+                id={`${fieldId}-name`}
+                type="text"
+                value={name}
+                aria-label="File name"
+                onChange={(event) => setName(event.target.value)}
+                className={cn(SURFACE_INPUT_CLASS, 'w-[184px] shrink-0')}
+              />
+            </SurfaceRow>
+            <SurfaceRow>
+              <SurfaceRowText title="Scale" hint="Multiplies the exported size" />
+              <ScaleField value={scale} onChange={setScale} fallbackContainer={portalContainer} />
+            </SurfaceRow>
+          </SurfaceCard>
 
-          <CardContent className="flex flex-col gap-6">
-            <div className="flex flex-col gap-4">
-              <Label className="font-medium">Preview</Label>
-              <div
-                className="flex min-h-36 items-center justify-center rounded-ele border border-border bg-[repeating-conic-gradient(var(--color-muted)_0%_25%,transparent_0%_50%)] bg-size-[16px_16px] p-3"
-                aria-live="polite"
-              >
-                {preview ? (
-                  <img
-                    src={preview}
-                    alt="Export preview"
-                    className="max-h-64 max-w-full object-contain"
-                  />
-                ) : (
-                  <span className="text-xs text-muted-foreground">
-                    {empty ? 'Nothing to preview' : 'Preparing preview…'}
-                  </span>
-                )}
-              </div>
-            </div>
+          <SurfaceGroupLabel>What to include</SurfaceGroupLabel>
+          <SurfaceCard>
+            <SurfaceRow>
+              <SurfaceRowText
+                title="Only the selection"
+                hint={hasSelection ? 'Just the selected shapes' : 'Nothing is selected'}
+              />
+              <SurfaceToggle
+                label="Only the selection"
+                on={selectionOnly && hasSelection}
+                onChange={(next) => hasSelection && setSelectionOnly(next)}
+              />
+            </SurfaceRow>
+            <SurfaceRow>
+              <SurfaceRowText title="With background" hint="The board colour behind the shapes" />
+              <SurfaceToggle
+                label="With background"
+                on={withBackground}
+                onChange={setWithBackground}
+              />
+            </SurfaceRow>
+            <SurfaceRow>
+              <SurfaceRowText title="Dark mode" hint="Export using the dark palette" />
+              <SurfaceToggle label="Dark mode" on={dark} onChange={setDark} />
+            </SurfaceRow>
+            <SurfaceRow>
+              <SurfaceRowText title="Embed the scene" hint="The image opens again as a board" />
+              <SurfaceToggle label="Embed the scene" on={embedScene} onChange={setEmbedScene} />
+            </SurfaceRow>
+          </SurfaceCard>
 
-            <div className="flex flex-col gap-4">
-              <Label htmlFor={`${fieldId}-name`} className="font-medium">
-                File
-              </Label>
-              {/* Name and scale on one row, as the share card pairs the link
-                  with what the people joining by it may do. */}
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Input
-                    id={`${fieldId}-name`}
-                    value={name}
-                    aria-label="File name"
-                    className="h-9"
-                    onChange={(event) => setName(event.target.value)}
-                  />
-                </div>
-                <div>
-                  <Select value={String(scale)} onValueChange={(value) => setScale(Number(value))}>
-                    <SelectTrigger className="h-9 text-xs" aria-label="Export scale">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent container={portalContainer}>
-                      {EXPORT_SCALES.map((choice) => (
-                        <SelectItem key={choice} value={String(choice)}>
-                          {choice}×
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <ExportOption
-                  label="Only the selection"
-                  checked={selectionOnly && hasSelection}
-                  disabled={!hasSelection}
-                  onChange={setSelectionOnly}
-                />
-                <ExportOption
-                  label="With background"
-                  checked={withBackground}
-                  onChange={setWithBackground}
-                />
-                <ExportOption label="Dark mode" checked={dark} onChange={setDark} />
-                <ExportOption
-                  label="Embed the scene, so the image opens as a board"
-                  checked={embedScene}
-                  onChange={setEmbedScene}
-                />
-              </div>
-            </div>
-
-            {error && <p className="text-xs text-destructive">{error}</p>}
-
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button variant="ghost" size="sm" className="h-9" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9"
-                onClick={copyPng}
-                disabled={empty || busy}
-              >
-                <Copy size={14} />
-                Copy to clipboard
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9"
-                onClick={exportSvg}
-                disabled={empty || busy}
-              >
-                <FileCode2 size={14} />
-                SVG
-              </Button>
-              <Button size="sm" className="h-9" onClick={exportPng} disabled={empty || busy}>
-                <ImageDown size={14} />
-                PNG
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </DialogContent>
-    </Dialog>
+          {error && <SurfaceHint tone="danger">{error}</SurfaceHint>}
+        </div>
+      </div>
+    </SurfaceDialog>
   );
 }
 
-/** One of the export's booleans, in the share card's checkbox idiom. */
-function ExportOption({
-  label,
-  checked,
-  disabled = false,
+/**
+ * The scale menu, as its own component so `useSurfacePortal` runs *inside* the
+ * dialog. Read from the dialog's own level it would answer null, and the menu
+ * would open on <body> beneath the overlay — visible to the DOM, invisible to
+ * whoever clicked it.
+ */
+function ScaleField({
+  value,
   onChange,
+  fallbackContainer,
 }: {
-  label: string;
-  checked: boolean;
-  disabled?: boolean;
-  onChange: (next: boolean) => void;
+  value: number;
+  onChange: (next: number) => void;
+  fallbackContainer: HTMLElement | null;
 }) {
+  const surfacePortal = useSurfacePortal();
   return (
-    <label
-      className={cn(
-        'flex items-center gap-2 text-xs text-muted-foreground',
-        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
-      )}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
-        className="h-3.5 w-3.5 accent-primary"
-      />
-      {label}
-    </label>
+    <Select value={String(value)} onValueChange={(next) => onChange(Number(next))}>
+      <SelectTrigger className="h-[34px] w-[92px] text-xs" aria-label="Export scale">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent container={surfacePortal ?? fallbackContainer}>
+        {EXPORT_SCALES.map((choice) => (
+          <SelectItem key={choice} value={String(choice)}>
+            {choice}×
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

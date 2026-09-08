@@ -62,7 +62,7 @@ import { signOutTo } from './auth/sign-out';
 import { env } from './lib/env';
 import { PropertiesPanel, itemStyleFromShape } from './properties';
 import { TOOL_TO_SHAPE_KIND, isPickerTool, type Tool } from './tools/tool';
-import type { ItemStyle, Point } from './machine/tool-machine.types';
+import { IDENTITY_CAMERA, type ItemStyle, type Point } from './machine/tool-machine.types';
 import { ShortcutsModal } from './help';
 import { decodeJwtUser, decodeJwtWorkspaceId } from './auth/token';
 import { useBoardSwitcher } from './workspace';
@@ -82,7 +82,7 @@ import { ExportImageDialog } from './export';
 import { FindBar, useCanvasSearch } from './search';
 import { AccessRevokedDialog, ShareDialog } from './share';
 import { SettingsDialog } from './settings';
-import { Dialog } from './ui';
+import { ConfirmDialog } from './ui';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -120,6 +120,7 @@ export function Editor({ boardId }: EditorProps) {
   const [shareOpen, setShareOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   /**
    * This session has lost the board.
    *
@@ -139,6 +140,8 @@ export function Editor({ boardId }: EditorProps) {
   // Toggled rather than opened: the combo that summons it is the natural way
   // to dismiss it again, and pressing it twice should leave the board alone.
   const togglePalette = useCallback(() => setPaletteOpen((open) => !open), []);
+  const showReset = useCallback(() => setResetOpen(true), []);
+  const hideReset = useCallback(() => setResetOpen(false), []);
   /** Shared by the open and save flows — whichever has something to report. */
   // Carries its own heading: the open, save and copy-link flows all report
   // through here, and a shared dialog titled for only one of them mislabels
@@ -1113,19 +1116,23 @@ export function Editor({ boardId }: EditorProps) {
     actorRef.send({ type: 'SET_CAMERA', camera: newCamera });
   }, [actorRef, shapes, selectedIds, width, height]);
 
-  // --- opening a board file -----------------------------------------------
+  // --- edits that also move the viewport ------------------------------------
   /**
-   * Opening a file moves the viewport as well as the document, so undoing it
-   * has to move the viewport back. Without this the board is restored where it
-   * always was while the camera stays parked over the opened file's
-   * coordinates — which look like an empty canvas, since a file's contents are
-   * rarely anywhere near the board's.
+   * Opening a file and resetting the canvas both move the viewport as well as
+   * the document, so undoing either has to move the viewport back. Without
+   * this the board is restored where it always was while the camera stays
+   * parked somewhere else — which looks like an empty canvas, and reads as an
+   * undo that didn't work.
    *
    * The edits are held by identity rather than by position in the undo stack:
    * a handle only matches the edit it came from, so later edits (which discard
-   * the redo stack anyway) can never be mistaken for the open.
+   * the redo stack anyway) can never be mistaken for it.
+   *
+   * One slot, holding the most recent such edit. Undoing back past it loses
+   * the pairing and leaves the camera alone, which is the honest outcome —
+   * there is no second camera to put back that this ref still knows about.
    */
-  const openViewRef = useRef<{
+  const viewEditRef = useRef<{
     undoItem: object | null;
     redoItem: object | null;
     before: Camera;
@@ -1146,7 +1153,7 @@ export function Editor({ boardId }: EditorProps) {
       if (rect) {
         actorRef.send({ type: 'SET_CAMERA', camera: after });
       }
-      openViewRef.current = {
+      viewEditRef.current = {
         undoItem: doc.peekUndoItem(),
         redoItem: null,
         before,
@@ -1189,26 +1196,79 @@ export function Editor({ boardId }: EditorProps) {
   const handleUndo = useCallback(() => {
     const undoing = doc.peekUndoItem();
     doc.undo();
-    const opened = openViewRef.current;
-    if (opened && undoing && undoing === opened.undoItem) {
-      actorRef.send({ type: 'SET_CAMERA', camera: opened.before });
+    const moved = viewEditRef.current;
+    if (moved && undoing && undoing === moved.undoItem) {
+      actorRef.send({ type: 'SET_CAMERA', camera: moved.before });
       // The redo of this undo is a fresh stack item; remember it so redoing
-      // the open takes the viewport forward again.
-      opened.undoItem = null;
-      opened.redoItem = doc.peekRedoItem();
+      // the edit takes the viewport forward again.
+      moved.undoItem = null;
+      moved.redoItem = doc.peekRedoItem();
     }
   }, [actorRef, doc]);
 
   const handleRedo = useCallback(() => {
     const redoing = doc.peekRedoItem();
     doc.redo();
-    const opened = openViewRef.current;
-    if (opened && redoing && redoing === opened.redoItem) {
-      actorRef.send({ type: 'SET_CAMERA', camera: opened.after });
-      opened.redoItem = null;
-      opened.undoItem = doc.peekUndoItem();
+    const moved = viewEditRef.current;
+    if (moved && redoing && redoing === moved.redoItem) {
+      actorRef.send({ type: 'SET_CAMERA', camera: moved.after });
+      moved.redoItem = null;
+      moved.undoItem = doc.peekUndoItem();
     }
   }, [actorRef, doc]);
+
+  /**
+   * Empty the board and put the view back where a new one starts.
+   *
+   * One `replaceShapes` transaction, so it lands as a single undo step that
+   * also replicates: everyone in the room sees the board clear at once, and
+   * whoever did it is one ⌘Z from putting it back. The undo group is broken on
+   * both sides so the reset is its own step — the undo manager coalesces edits
+   * within a second of each other, which is easily fast enough to swallow a
+   * stroke drawn just before the reset, or one drawn just after it.
+   *
+   * The image cache is deliberately left alone. Board images are held by the
+   * server and addressed by content, so dropping the decoded bitmaps would
+   * only force a refetch of the very images an undo is about to ask for again.
+   */
+  const handleResetCanvas = useCallback(() => {
+    // Read through the actor rather than the render-time value, so this is the
+    // camera as it stands at the moment of the reset.
+    const before = actorRef.getSnapshot().context.camera;
+
+    const topBefore = doc.peekUndoItem();
+    doc.breakUndoGroup();
+    doc.replaceShapes([]);
+    doc.breakUndoGroup();
+    const topAfter = doc.peekUndoItem();
+
+    // Escape rather than merely deselecting: it also abandons a half-drawn
+    // shape and closes the text editor, either of which would otherwise be
+    // left pointing at a shape the reset has just removed.
+    actorRef.send({ type: 'ESCAPE' });
+    setRenamingFrameId(null);
+    actorRef.send({ type: 'SET_CAMERA', camera: IDENTITY_CAMERA });
+
+    // An empty board has nothing to clear, so the transaction is empty and no
+    // undo step is created — `peekUndoItem` would hand back whatever edit was
+    // already on top. Pairing the camera with that one would drag the viewport
+    // back here the next time an unrelated edit was undone, so the pairing is
+    // only recorded when this reset genuinely made a step of its own. The
+    // recentre is then simply not undoable, which is honest: nothing was lost.
+    if (topAfter !== topBefore) {
+      viewEditRef.current = {
+        undoItem: topAfter,
+        redoItem: null,
+        before,
+        after: IDENTITY_CAMERA,
+      };
+    }
+  }, [actorRef, doc]);
+
+  const confirmReset = useCallback(() => {
+    setResetOpen(false);
+    handleResetCanvas();
+  }, [handleResetCanvas]);
 
   /**
    * Copy this board's own URL.
@@ -1331,6 +1391,7 @@ export function Editor({ boardId }: EditorProps) {
       shareOpen ||
       settingsOpen ||
       paletteOpen ||
+      resetOpen ||
       pendingReplace !== null ||
       notice !== null ||
       accessRevoked,
@@ -1368,6 +1429,7 @@ export function Editor({ boardId }: EditorProps) {
       renameBoard: handleRenameBoard,
       liveCollaboration: showShare,
       copyLink: handleCopyBoardLink,
+      resetCanvas: showReset,
       findOnCanvas: search.openSearch,
       help: handleShowHelp,
       settings: showSettings,
@@ -1442,17 +1504,22 @@ export function Editor({ boardId }: EditorProps) {
           user={user && { name: user.name, email: user.email }}
           theme={theme}
           onThemeChange={setTheme}
+          surfaceTheme={presenceTheme}
           portalContainer={editorRoot}
           /* A menu item goes live by being given a handler here; anything
              without one renders disabled with a "Soon" badge, so the menu stays
              complete while the features behind it land. */
           actions={{
-            renameBoard: canRename ? handleRenameBoard : undefined,
+            renameBoard: canRename ? handleRenameBoard : null,
             open: openBoardFile,
             saveTo: saveBoardFileToDisk,
             exportImage: showExport,
             liveCollaboration: showShare,
             copyLink: handleCopyBoardLink,
+            /* Live on an empty board too — it recentres the view as well as
+               clearing, so it always does something. Null for a viewer, whose
+               edits the document refuses anyway. */
+            resetCanvas: readOnly ? null : showReset,
             commandPalette: togglePalette,
             findOnCanvas: search.openSearch,
             help: handleShowHelp,
@@ -1616,11 +1683,7 @@ export function Editor({ boardId }: EditorProps) {
               onZoomToFit={handleZoomToFit}
             />
 
-            <ShortcutsModal
-              open={helpOpen}
-              onClose={handleCloseHelp}
-              portalContainer={editorRoot}
-            />
+            <ShortcutsModal open={helpOpen} onClose={handleCloseHelp} theme={presenceTheme} />
 
             <ShareDialog
               open={shareOpen}
@@ -1628,21 +1691,23 @@ export function Editor({ boardId }: EditorProps) {
               boardId={boardId}
               boardName={boardTitle}
               presenceKey={presenceKey}
+              theme={presenceTheme}
               portalContainer={editorRoot}
             />
 
-            <Dialog
+            <ConfirmDialog
               open={pendingReplace !== null}
               title="Replace board contents?"
               confirmLabel="Replace"
               destructive
+              theme={presenceTheme}
               onConfirm={confirmReplace}
               onClose={cancelReplace}
             >
               Opening <strong>{pendingReplace?.fileName}</strong> replaces the {shapes.length} shape
               {shapes.length === 1 ? '' : 's'} on this board for everyone in it. You can undo this
               with ⌘Z.
-            </Dialog>
+            </ConfirmDialog>
 
             <ExportImageDialog
               open={exportOpen}
@@ -1651,14 +1716,48 @@ export function Editor({ boardId }: EditorProps) {
               selectedShapes={selectedShapes}
               boardName={boardTitle}
               darkTheme={resolvedTheme === 'dark'}
+              theme={presenceTheme}
               portalContainer={editorRoot}
               images={images.cache}
               resolveImageDataUrls={images.resolveDataUrls}
             />
 
-            <Dialog open={notice !== null} title={notice?.title ?? ''} onClose={dismissNotice}>
+            {/* On the settings dialog's surface rather than the editor's
+                chrome: it stops the board to ask a question, which is the one
+                other thing in the app that is not framing the canvas. */}
+            <ConfirmDialog
+              open={resetOpen}
+              title="Reset the canvas?"
+              confirmLabel="Reset"
+              destructive
+              theme={presenceTheme}
+              onConfirm={confirmReset}
+              onClose={hideReset}
+            >
+              {shapes.length > 0 ? (
+                <>
+                  This clears all {shapes.length} shape{shapes.length === 1 ? '' : 's'} from this
+                  board for everyone in it, and returns the view to where a new board starts. You
+                  can undo it with ⌘Z.
+                </>
+              ) : (
+                // Nothing to discard, so nothing to warn about — but the row is
+                // still live, and it still recentres the view.
+                <>
+                  This board is already empty, so this only returns the view to where a new board
+                  starts.
+                </>
+              )}
+            </ConfirmDialog>
+
+            <ConfirmDialog
+              open={notice !== null}
+              title={notice?.title ?? ''}
+              theme={presenceTheme}
+              onClose={dismissNotice}
+            >
               {notice?.body}
-            </Dialog>
+            </ConfirmDialog>
 
             <SignOutDialog
               open={signOutOpen}
@@ -1676,7 +1775,7 @@ export function Editor({ boardId }: EditorProps) {
               onConfirm={() => {
                 void handleSignOut();
               }}
-              container={editorRoot}
+              theme={presenceTheme}
             />
 
             {/* Mounted only while open: the fields inside hold unsaved edits,
@@ -1702,7 +1801,7 @@ export function Editor({ boardId }: EditorProps) {
               open={accessRevoked}
               boardName={boardTitle}
               isGuest={user?.isGuest ?? false}
-              container={editorRoot}
+              theme={presenceTheme}
             />
           </div>
         </SidebarInset>

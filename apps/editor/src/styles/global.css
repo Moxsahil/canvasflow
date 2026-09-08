@@ -17,6 +17,19 @@
   --animate-popup-in: cf-popup-in 120ms ease-out;
 }
 
+/* Scrolls, but draws no bar. For the short lists inside dialogs, where a
+   platform scrollbar is a heavy grey stripe down a 380px card. What signals
+   there is more to see is the row left half-visible at the cut, so a list
+   using this must never end flush with a row boundary. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @keyframes cf-popup-in {
   from {
     opacity: 0;

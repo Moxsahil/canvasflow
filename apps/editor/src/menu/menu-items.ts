@@ -124,8 +124,18 @@ export const SIDEBAR_ITEMS: readonly MenuItemId[] = ['help'];
 export const ACCOUNT_MENU_GROUPS: readonly (readonly MenuItemId[])[] = [['settings'], ['signOut']];
 
 /**
- * Handlers for menu items. An item with no entry here renders disabled — so
- * wiring a feature up later is a one-line change at the call site, with no
- * edit to the menu itself.
+ * Handlers for menu items, in three states:
+ *
+ * - a function — the item is live.
+ * - `null` — the feature exists, but does not apply right now: nothing to
+ *   reset on an empty board, nothing to rename without the rights. The row
+ *   disables itself and keeps its shortcut hint.
+ * - absent — the feature isn't built. The row disables itself and reads
+ *   "Soon".
+ *
+ * The distinction matters because those last two look identical to the caller
+ * and must not look identical to the reader: telling someone a shipped
+ * feature is "coming soon" because their board happens to be empty is worse
+ * than saying nothing at all.
  */
-export type MenuActions = Partial<Record<MenuItemId, () => void>>;
+export type MenuActions = Partial<Record<MenuItemId, (() => void) | null>>;

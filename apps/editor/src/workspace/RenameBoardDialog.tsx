@@ -1,13 +1,18 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Check, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { initialsOf } from '@/lib/initials';
+import { SurfaceDialog } from '../ui/SurfaceDialog';
+import {
+  SURFACE_INPUT_CLASS,
+  SurfaceButton,
+  SurfaceCard,
+  SurfaceGroupLabel,
+  SurfaceHint,
+  SurfaceRow,
+  SurfaceRowText,
+} from '../ui/surface-ui';
+import type { SurfaceTheme } from '../ui/surface-palette';
 import { BOARD_COLORS } from './board-colors';
 import type { RenameBoardTarget } from './useBoardSwitcher';
 import type { BoardColor, BoardDetailsPatch } from './workspace-api';
@@ -21,8 +26,8 @@ interface RenameBoardDialogProps {
   /** Rejects when the server refuses; the dialog then stays open. */
   onSubmit: (boardId: string, patch: BoardDetailsPatch) => Promise<void>;
   busy: boolean;
-  /** Radix portals out of the tree; the theme tokens live on `.cf-editor`. */
-  portalContainer: HTMLElement | null;
+  /** The theme on screen — the dialog surface carries its own palette for each. */
+  theme: SurfaceTheme;
 }
 
 /**
@@ -32,18 +37,17 @@ interface RenameBoardDialogProps {
  * there are two things to set here, and the colour needs room for seven
  * swatches that a menu row cannot give it.
  *
- * Built as the share dialog is — a Card carried by a dialog stripped to
- * nothing, so the card itself is the surface — because those two are the only
- * dialogs the sidebar opens and they have to read as one application. That is
- * also why the header repeats the board's identity the way the share card
- * repeats the team's: same badge, same title, same second line.
+ * On the app's dialog surface, like every other window that stops the board to
+ * ask something. The header repeats the board's identity — badge, title, and a
+ * second line saying what this window is for — which is the shape every one of
+ * them takes.
  */
 export function RenameBoardDialog({
   target,
   onOpenChange,
   onSubmit,
   busy,
-  portalContainer,
+  theme,
 }: RenameBoardDialogProps) {
   const fieldId = useId();
   const [name, setName] = useState('');
@@ -84,8 +88,7 @@ export function RenameBoardDialog({
   // a heading that changes under the field editing it is unsettling.
   const heading = target?.title ?? 'Board';
 
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
+  const submit = () => {
     if (!target || !canSave || busy) return;
 
     const patch: BoardDetailsPatch = {};
@@ -101,132 +104,124 @@ export function RenameBoardDialog({
   };
 
   return (
-    <Dialog open={target !== null} onOpenChange={onOpenChange}>
-      <DialogContent
-        container={portalContainer}
-        showClose={false}
-        aria-describedby={undefined}
-        className="w-[min(100%-2rem,32rem)] border-0 bg-transparent p-0 shadow-none"
-      >
-        <DialogTitle className="sr-only">Rename board</DialogTitle>
+    <SurfaceDialog
+      open={target !== null}
+      theme={theme}
+      title={heading}
+      subtitle={
+        <span className="flex items-center gap-[5px]">
+          <Pencil size={12} aria-hidden="true" />
+          Rename and tag this board
+        </span>
+      }
+      leading={<InitialsBadge label={heading} />}
+      width={520}
+      onClose={() => onOpenChange(false)}
+      onSubmit={submit}
+      footer={
+        <>
+          <div className="flex-1" />
+          <SurfaceButton variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancel
+          </SurfaceButton>
+          <SurfaceButton variant="primary" type="submit" disabled={!canSave} loading={busy}>
+            Save
+          </SurfaceButton>
+        </>
+      }
+    >
+      <SurfaceGroupLabel>Board</SurfaceGroupLabel>
+      <SurfaceCard>
+        <SurfaceRow>
+          <SurfaceRowText title="Name" hint="Shown in the sidebar" />
+          <input
+            id={`${fieldId}-name`}
+            type="text"
+            value={name}
+            maxLength={MAX_BOARD_TITLE}
+            // Held shut for the moment before the board's row lands, rather
+            // than inviting a name that would be typed over the instant it
+            // does. Ordinarily the list is already there.
+            disabled={!loaded}
+            placeholder={loaded ? 'Untitled board' : 'Loading…'}
+            // The dialog exists to edit this field, and it is the first
+            // tabbable thing inside, so nothing else claims the focus.
+            autoFocus
+            onChange={(event) => setName(event.target.value)}
+            onFocus={(event) => event.currentTarget.select()}
+            className={cn(SURFACE_INPUT_CLASS, 'w-[220px] shrink-0')}
+          />
+        </SurfaceRow>
 
-        <Card className="w-full max-w-lg">
-          <form onSubmit={handleSubmit}>
-            <CardHeader className="pb-4">
-              <div className="flex items-center gap-3">
-                <div className="shrink-0">
-                  <Avatar className="h-12 w-12">
-                    <AvatarFallback className="bg-primary text-sm font-medium text-primary-foreground">
-                      {initialsOf(heading)}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <CardTitle className="truncate text-lg font-semibold">{heading}</CardTitle>
-                  <p className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Pencil size={14} />
-                    Rename and tag this board
-                  </p>
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="flex flex-col gap-6">
-              <div className="flex flex-col gap-4">
-                <Label htmlFor={`${fieldId}-name`} className="font-medium">
-                  Board name
-                </Label>
-                <Input
-                  id={`${fieldId}-name`}
-                  value={name}
-                  maxLength={MAX_BOARD_TITLE}
-                  // Held shut for the moment before the board's row lands,
-                  // rather than inviting a name that would be typed over the
-                  // instant it does. Ordinarily the list is already there.
-                  disabled={!loaded}
-                  placeholder={loaded ? 'Untitled board' : 'Loading…'}
-                  // The dialog exists to edit this field, and it is the first
-                  // tabbable thing inside, so nothing else claims the focus.
-                  autoFocus
-                  onChange={(event) => setName(event.target.value)}
-                  onFocus={(event) => event.currentTarget.select()}
-                />
-              </div>
-
-              <div className="flex flex-col gap-4">
-                <Label id={`${fieldId}-color`} className="font-medium">
-                  Colour tag
-                </Label>
-                {/* Real radio inputs behind the swatches, so the arrow keys
-                    move between colours as in any other radio group. */}
-                <div
-                  role="radiogroup"
-                  aria-labelledby={`${fieldId}-color`}
-                  className="flex flex-wrap items-center gap-3"
+        <SurfaceRow>
+          <SurfaceRowText title="Colour tag" hint="Marks the board at a glance" />
+          {/* Real radio inputs behind the swatches, so the arrow keys move
+              between colours as in any other radio group. */}
+          <div
+            role="radiogroup"
+            aria-label="Colour tag"
+            className="flex shrink-0 items-center gap-[6px]"
+          >
+            {BOARD_COLORS.map((option) => {
+              const selected = option.value === color;
+              return (
+                <label
+                  key={option.value}
+                  title={option.label}
+                  className={cn(
+                    'flex size-[24px] items-center justify-center rounded-full',
+                    loaded ? 'cursor-pointer' : 'cursor-not-allowed opacity-50',
+                  )}
                 >
-                  {BOARD_COLORS.map((option) => {
-                    const selected = option.value === color;
-                    return (
-                      <label
-                        key={option.value}
-                        title={option.label}
-                        className={cn(
-                          'flex size-8 items-center justify-center rounded-full',
-                          loaded ? 'cursor-pointer' : 'cursor-not-allowed opacity-50',
-                        )}
-                      >
-                        <input
-                          type="radio"
-                          name={`${fieldId}-color-input`}
-                          value={option.value}
-                          checked={selected}
-                          disabled={!loaded}
-                          onChange={() => setColor(option.value)}
-                          className="peer sr-only"
-                        />
-                        <span
-                          // A ring rather than a border, so picking a colour
-                          // doesn't change the size of the dot it lands on.
-                          className={cn(
-                            'flex size-6 items-center justify-center rounded-full ring-offset-2 ring-offset-card transition-shadow',
-                            'peer-focus-visible:ring-2 peer-focus-visible:ring-ring',
-                            selected && 'ring-2 ring-foreground',
-                          )}
-                          style={{ backgroundColor: option.swatch }}
-                        >
-                          {selected && (
-                            <Check
-                              className="size-3.5 text-white"
-                              strokeWidth={3}
-                              aria-hidden="true"
-                            />
-                          )}
-                        </span>
-                        <span className="sr-only">{option.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
+                  <input
+                    type="radio"
+                    name={`${fieldId}-color-input`}
+                    value={option.value}
+                    checked={selected}
+                    disabled={!loaded}
+                    onChange={() => setColor(option.value)}
+                    className="peer sr-only"
+                  />
+                  <span
+                    // A ring rather than a border, so picking a colour doesn't
+                    // change the size of the dot it lands on. Offset against
+                    // the card, which is what sits behind a row.
+                    className={cn(
+                      'flex size-[18px] items-center justify-center rounded-full ring-offset-2 ring-offset-[var(--surface-card)] transition-shadow',
+                      'peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--surface-accent)]',
+                      selected && 'ring-2 ring-[var(--surface-fg)]',
+                    )}
+                    style={{ backgroundColor: option.swatch }}
+                  >
+                    {selected && (
+                      <Check
+                        className="size-[10px] text-white"
+                        strokeWidth={3}
+                        aria-hidden="true"
+                      />
+                    )}
+                  </span>
+                  <span className="sr-only">{option.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </SurfaceRow>
+      </SurfaceCard>
 
-              {error && (
-                <p role="alert" className="text-sm text-destructive">
-                  {error}
-                </p>
-              )}
+      {error && <SurfaceHint tone="danger">{error}</SurfaceHint>}
+    </SurfaceDialog>
+  );
+}
 
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={!canSave || busy} loading={busy}>
-                  Save
-                </Button>
-              </div>
-            </CardContent>
-          </form>
-        </Card>
-      </DialogContent>
-    </Dialog>
+/**
+ * The board's initials in an accent disc — the same identity mark the sidebar's
+ * board rows use, so the dialog opens on something you recognise.
+ */
+function InitialsBadge({ label }: { label: string }) {
+  return (
+    <span className="flex size-[42px] items-center justify-center rounded-full bg-[var(--surface-accent)] text-[13px] font-medium text-[var(--surface-on-accent)]">
+      {initialsOf(label)}
+    </span>
   );
 }

@@ -105,18 +105,18 @@ describe('SettingsDialog', () => {
     // The design is stated in dark; light mirrors it by role. Both are declared
     // on the root, so nothing inside needs to know which theme it is painting.
     const dark = render(undefined, 'dark');
-    expect(dark).toContain('--settings-surface:#1a1a19');
-    expect(dark).toContain('--settings-card:#131313');
-    expect(dark).toContain('--settings-fg:#f2f2f2');
+    expect(dark).toContain('--surface-panel:#1a1a19');
+    expect(dark).toContain('--surface-card:#131313');
+    expect(dark).toContain('--surface-fg:#f2f2f2');
 
     const light = render(undefined, 'light');
-    expect(light).toContain('--settings-surface:#ffffff');
-    expect(light).toContain('--settings-card:#fafaf9');
-    expect(light).toContain('--settings-fg:#1a1a19');
+    expect(light).toContain('--surface-panel:#ffffff');
+    expect(light).toContain('--surface-card:#fafaf9');
+    expect(light).toContain('--surface-fg:#1a1a19');
 
     // The accent means "selected/primary/you" in both, so it does not move.
-    expect(dark).toContain('--settings-accent:#3b82f6');
-    expect(light).toContain('--settings-accent:#3b82f6');
+    expect(dark).toContain('--surface-accent:#3b82f6');
+    expect(light).toContain('--surface-accent:#3b82f6');
   });
 
   it('offers the design’s eight cursor colours, the first one checked', () => {

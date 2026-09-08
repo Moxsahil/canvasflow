@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Play, Square, Users } from 'lucide-react';
+import { SurfaceButton } from '../ui/surface-ui';
+import { initialsOf } from '@/lib/initials';
+import { SurfaceDialog } from '../ui/SurfaceDialog';
+import type { SurfaceTheme } from '../ui/surface-palette';
 import { TeamInvite, type PermissionLevel, type TeamMember } from '@/components/ui/team-invite';
 import {
   createShareLink,
@@ -31,6 +35,8 @@ interface ShareDialogProps {
    * up the list this refetches is guaranteed to include them.
    */
   presenceKey: string;
+  /** The theme on screen — the dialog surface carries its own palette for each. */
+  theme: SurfaceTheme;
   /** Radix portals out of the tree; the theme tokens live on `.cf-editor`. */
   portalContainer: HTMLElement | null;
 }
@@ -57,6 +63,7 @@ export function ShareDialog({
   boardId,
   boardName,
   presenceKey,
+  theme,
   portalContainer,
 }: ShareDialogProps) {
   const [links, setLinks] = useState<ShareLinkSummary[]>([]);
@@ -226,38 +233,62 @@ export function ShareDialog({
   const permission = session ? toPermission(session.role) : toPermission(role);
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent
-        container={portalContainer}
-        showClose={false}
-        aria-describedby={undefined}
-        className="w-[min(100%-2rem,32rem)] border-0 bg-transparent p-0 shadow-none"
-      >
-        <DialogTitle className="sr-only">Share this board</DialogTitle>
-        <TeamInvite
-          teamName={boardName ?? boardId}
-          totalMembers={people.length}
-          members={people}
-          link={url}
-          live={session !== null}
-          busy={busy}
-          copied={copied}
-          error={error}
-          permission={permission}
-          onPermissionChange={(next) => setRole(next === 'can-view' ? 'viewer' : 'editor')}
-          allowGuests={session ? session.allowGuests : allowGuests}
-          onAllowGuestsChange={setAllowGuests}
-          onStart={handleStart}
-          onStop={handleStop}
-          onCopy={handleCopy}
-          qr={url ? <QRCode value={url} size={128} /> : undefined}
-          onUpdateMemberPermission={handleRoleChange}
-          onRemoveMember={handleRemove}
-          onCancel={onClose}
-          portalContainer={portalContainer}
-        />
-      </DialogContent>
-    </Dialog>
+    <SurfaceDialog
+      open={open}
+      theme={theme}
+      title={boardName ?? boardId}
+      subtitle={
+        <span className="flex items-center gap-[5px]">
+          <Users size={12} aria-hidden="true" />
+          {people.length} {people.length === 1 ? 'member' : 'members'}
+          {session ? ' · sharing is live' : ''}
+        </span>
+      }
+      leading={
+        <span className="flex size-[42px] items-center justify-center rounded-full bg-[var(--surface-accent)] text-[13px] font-medium text-[var(--surface-on-accent)]">
+          {initialsOf(boardName ?? boardId)}
+        </span>
+      }
+      width={820}
+      onClose={onClose}
+      footer={
+        <>
+          <p className="min-w-0 flex-1 text-[11px] text-[var(--surface-fg-faint)]">
+            {session
+              ? 'Anyone with the link can join while the session is live.'
+              : 'Starting a session mints a link people can join by.'}
+          </p>
+          <SurfaceButton variant="ghost" onClick={onClose}>
+            Done
+          </SurfaceButton>
+          <SurfaceButton
+            variant={session ? 'danger' : 'primary'}
+            loading={busy}
+            onClick={session ? handleStop : handleStart}
+          >
+            {!busy && (session ? <Square size={13} /> : <Play size={13} />)}
+            {session ? 'Stop session' : 'Start session'}
+          </SurfaceButton>
+        </>
+      }
+    >
+      <TeamInvite
+        members={people}
+        link={url}
+        live={session !== null}
+        copied={copied}
+        error={error}
+        permission={permission}
+        onPermissionChange={(next) => setRole(next === 'can-view' ? 'viewer' : 'editor')}
+        allowGuests={session ? session.allowGuests : allowGuests}
+        onAllowGuestsChange={setAllowGuests}
+        onCopy={handleCopy}
+        qr={url ? <QRCode value={url} size={128} /> : undefined}
+        onUpdateMemberPermission={handleRoleChange}
+        onRemoveMember={handleRemove}
+        portalContainer={portalContainer}
+      />
+    </SurfaceDialog>
   );
 }
 

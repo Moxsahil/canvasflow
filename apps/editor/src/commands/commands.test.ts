@@ -71,6 +71,7 @@ describe('availability', () => {
       'duplicate',
       'deleteSelection',
       'selectAll',
+      'resetCanvas',
     ]) {
       expect(ids, id).not.toContain(id);
     }
@@ -105,10 +106,18 @@ describe('availability', () => {
     expect(ids).not.toContain('redo');
   });
 
-  it('withholds zoom-to-fit and select-all on an empty board', () => {
+  it('withholds the commands that need shapes on an empty board', () => {
     const ids = available({ ...editing, shapeCount: 0, selectionCount: 0 });
     expect(ids).not.toContain('zoomToFit');
     expect(ids).not.toContain('selectAll');
+  });
+
+  it('offers to reset the canvas whether or not there is anything on it', () => {
+    // Reset recentres the view as well as clearing, so it still does something
+    // on an empty board — and a row that comes and goes with the shape count
+    // is a row you cannot learn the place of.
+    expect(available({ ...editing, selectionCount: 0 })).toContain('resetCanvas');
+    expect(available({ ...editing, shapeCount: 0, selectionCount: 0 })).toContain('resetCanvas');
   });
 
   it('withholds renaming a board this account may not retitle', () => {

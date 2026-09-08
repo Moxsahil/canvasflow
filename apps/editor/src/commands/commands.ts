@@ -35,8 +35,8 @@ export type CommandIcon = ComponentType<SVGProps<SVGSVGElement>>;
  * renames it in the palette too.
  *
  * Absent on purpose: `commandPalette` itself, which would only ever reopen
- * what you already have open, and `preferences` and `resetCanvas`, which have
- * no handler behind them yet.
+ * what you already have open, and `preferences`, which has no handler behind
+ * it yet.
  */
 type MenuBackedCommandId = Extract<
   MenuItemId,
@@ -46,6 +46,7 @@ type MenuBackedCommandId = Extract<
   | 'renameBoard'
   | 'liveCollaboration'
   | 'copyLink'
+  | 'resetCanvas'
   | 'findOnCanvas'
   | 'help'
   | 'settings'
@@ -342,6 +343,19 @@ export const COMMANDS: readonly CommandMeta[] = [
   ),
   fromMenu('liveCollaboration', 'Board', ['share', 'invite', 'multiplayer', 'collaborate']),
   fromMenu('copyLink', 'Board', ['url', 'share', 'clipboard']),
+  // Last in its category, as it is in the sidebar: it is the one entry here
+  // that discards work.
+  //
+  // Offered on an empty board as well as a full one. It returns the view to
+  // where a new board starts as well as clearing it, so it still does
+  // something with nothing on the canvas — and a row that comes and goes with
+  // the shape count is a row you cannot learn the place of.
+  fromMenu(
+    'resetCanvas',
+    'Board',
+    ['clear', 'empty', 'wipe', 'delete all', 'start over', 'blank'],
+    canEdit,
+  ),
 
   fromMenu('findOnCanvas', 'App', ['search', 'text', 'locate']),
   fromMenu('help', 'App', ['shortcuts', 'keyboard', 'keys', 'support']),
