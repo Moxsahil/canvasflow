@@ -65,6 +65,7 @@ import { CanvasStack } from './canvas/CanvasStack';
 import { pointerCursorValue } from './canvas/pointer-cursor';
 import { canvasBackgroundFor } from './properties/palette';
 import { useCanvasResize } from './canvas/hooks/useCanvasResize';
+import { useEdgeScroll } from './canvas/hooks/useEdgeScroll';
 import { AppSidebar, readSidebarState } from './menu';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Toolbar } from './toolbar/Toolbar';
@@ -132,6 +133,12 @@ const EMPTY_GUIDES: readonly SnapGuide[] = [];
 
 /** Likewise for "this gesture moves no bound arrows". */
 const EMPTY_IDS: ReadonlySet<string> = new Set();
+
+/**
+ * The screen delta of a move the pointer did not make — what an edge scroll
+ * reports, having moved the board rather than the hand.
+ */
+const NO_SCREEN_DELTA: Point = { x: 0, y: 0 };
 
 /**
  * The tools whose gesture is a shape being pulled out of a starting point.
@@ -593,6 +600,22 @@ export function Editor({ boardId }: EditorProps) {
   const marquee = useSelector(actorRef, (s) => s.context.marquee);
   const itemStyle = useSelector(actorRef, (s) => s.context.itemStyle);
   const erasePending = useSelector(actorRef, (s) => s.context.erasePending);
+  /**
+   * The gestures that can carry the board along with them: the four that reach
+   * for somewhere, rather than the ones that put something down where you are.
+   *
+   * Drawing is left out on purpose. A shape being sized from the pointer would
+   * grow for as long as the board scrolled, and a freehand stroke would keep
+   * laying down points in a line you were not drawing.
+   */
+  const isReachingGesture = useSelector(
+    actorRef,
+    (s) =>
+      s.matches('draggingSelection') ||
+      s.matches('resizingSelection') ||
+      s.matches('draggingVertex') ||
+      s.matches('marqueeSelecting'),
+  );
 
   // --- presence -----------------------------------------------------------
   // Placed after the camera exists: following needs to read and write it, and
@@ -855,6 +878,14 @@ export function Editor({ boardId }: EditorProps) {
   const pointerDownWorldRef = useRef<Point | null>(null);
   /** Previous point of the eraser stroke, so each move sweeps a segment. */
   const lastErasePointRef = useRef<Point | null>(null);
+  /**
+   * Where the pointer last was on the canvas itself, in screen pixels.
+   *
+   * Screen and not world, because edge scrolling asks how close the pointer is
+   * to the edge of the viewport — a question about the window, which a world
+   * point stops being able to answer the moment the camera moves.
+   */
+  const lastCanvasPointRef = useRef<Point | null>(null);
 
   /**
    * What the gesture in progress can line up with, measured once when it began.
@@ -1121,14 +1152,9 @@ export function Editor({ boardId }: EditorProps) {
   );
 
   const handlePointerDown = useCallback(
-    (
-      point: Point,
-      _screenPoint: Point,
-      button: number,
-      shiftKey: boolean,
-      snapOverride = false,
-    ) => {
+    (point: Point, screenPoint: Point, button: number, shiftKey: boolean, snapOverride = false) => {
       notifyActivity();
+      lastCanvasPointRef.current = screenPoint;
 
       // The laser never reaches the machine. It selects nothing, draws nothing,
       // and marks nothing for erasure — letting POINTER_DOWN through would only
@@ -1294,11 +1320,13 @@ export function Editor({ boardId }: EditorProps) {
   const handlePointerMove = useCallback(
     (
       point: Point,
-      _screenPoint: Point,
+      screenPoint: Point,
       screenDelta: Point,
       altKey = false,
       snapOverride = false,
     ) => {
+      lastCanvasPointRef.current = screenPoint;
+
       if (activeTool === 'laser') {
         // Only while the button is down. A laser tracks the cursor the way a
         // real one does — it is off until you press it.
@@ -1512,6 +1540,55 @@ export function Editor({ boardId }: EditorProps) {
   );
 
   /**
+   * One frame of a drag held against the edge of the canvas.
+   *
+   * Two things have to happen and the order matters. The camera moves first;
+   * then the gesture is re-run against where the pointer now is in the world.
+   * Every drag here measures itself from the world point under the pointer, and
+   * moving the board moves that point even though the pointer itself has not
+   * stirred — so without the second half the view would scroll away and leave
+   * the shape behind.
+   */
+  const handleEdgeScroll = useCallback(
+    (dx: number, dy: number) => {
+      follow.notifyUserCameraInput();
+      // PAN_BY carries the screen delta of a gesture and moves the camera
+      // against it, so that the board follows your hand. This is the camera's
+      // own movement rather than a hand to follow, and so goes in negated.
+      actorRef.send({ type: 'PAN_BY', dx: -dx, dy: -dy });
+
+      const screenPoint = lastCanvasPointRef.current;
+      if (!screenPoint) return;
+      // Read back out of the machine rather than from the rendered `camera`,
+      // which is a React state update behind the pan just sent.
+      const { camera: moved } = actorRef.getSnapshot().context;
+      // The modifiers come from the last real pointer event rather than from
+      // the defaults: no event is arriving to report them, and letting them
+      // fall back to "not held" would take the snap override off — and arrow
+      // binding back on — under a key the user is still holding down.
+      handlePointerMove(
+        { x: screenPoint.x / moved.zoom + moved.x, y: screenPoint.y / moved.zoom + moved.y },
+        screenPoint,
+        NO_SCREEN_DELTA,
+        false,
+        snapOverrideRef.current,
+      );
+    },
+    [actorRef, follow, handlePointerMove],
+  );
+
+  // Not gated on `readOnly`. Read-only is enforced on the document, not on the
+  // gesture, so a viewer can still pull a marquee — and this only moves a
+  // camera they are already free to move.
+  useEdgeScroll({
+    active: isReachingGesture && preferences.values.edgeScrolling,
+    width,
+    height,
+    pointRef: lastCanvasPointRef,
+    onScroll: handleEdgeScroll,
+  });
+
+  /**
    * Every pointer position over the board, pressed or not.
    *
    * Two things want it: collaborators, who are shown where your pointer is,
@@ -1538,6 +1615,11 @@ export function Editor({ boardId }: EditorProps) {
 
   const handlePointerUp = useCallback(
     (point: Point) => {
+      // Before anything that can return early. A frame of edge scrolling can
+      // still be queued behind this, and letting it read where the pointer was
+      // would carry the board on after the gesture that asked for it ended.
+      lastCanvasPointRef.current = null;
+
       if (activeTool === 'laser') {
         laser.end();
         setLasering(false);
