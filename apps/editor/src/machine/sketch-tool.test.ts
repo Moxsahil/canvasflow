@@ -70,6 +70,7 @@ function trace(
     shiftKey: false,
     hitShapeId: null,
     hitHandle: null,
+    hitVertex: null,
   });
   for (const [x, y] of points.slice(1)) {
     actor.send({ type: 'POINTER_MOVE', point: { x, y }, screenDelta: { x: 0, y: 0 } });

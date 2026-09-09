@@ -32,6 +32,23 @@ export const MAX_ZOOM = 5;
 export type HandleIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 /**
+ * A point of a line or arrow that a gesture has hold of.
+ *
+ * The shape it came from is not carried here: the Editor holds the shape as it
+ * was when the drag began, so that every frame is computed from one fixed
+ * starting point rather than from the shape it wrote on the frame before.
+ */
+export interface VertexGrab {
+  /** Which stored point moves. */
+  readonly index: number;
+  /**
+   * True when the drag began on a handle between two points, and so has to add
+   * the point at `index` before it can move it.
+   */
+  readonly inserts: boolean;
+}
+
+/**
  * Style applied to the next shape drawn. The properties panel edits this when
  * nothing is selected, so a tool "remembers" the look you last chose.
  *
@@ -125,6 +142,9 @@ export interface ToolMachineContext {
   resizeHandle: HandleIndex | null;
   resizeOriginShape: Shape | null;
 
+  /** The point of a line or arrow being dragged, or null. */
+  vertexGrab: VertexGrab | null;
+
   /** Style used for shapes drawn from here on. */
   itemStyle: ItemStyle;
 
@@ -144,6 +164,8 @@ export type ToolMachineEvent =
       shiftKey: boolean;
       hitShapeId: string | null;
       hitHandle: HandleIndex | null;
+      /** Set instead of `hitHandle` when the press landed on a point handle. */
+      hitVertex: VertexGrab | null;
     }
   | { type: 'POINTER_MOVE'; point: Point; screenDelta: Point }
   | { type: 'POINTER_UP'; point: Point }

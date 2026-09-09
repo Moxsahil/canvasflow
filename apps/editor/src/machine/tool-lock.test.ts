@@ -19,6 +19,7 @@ function drag(actor: Actor<typeof toolMachine>) {
     shiftKey: false,
     hitShapeId: null,
     hitHandle: null,
+    hitVertex: null,
   });
   actor.send({ type: 'POINTER_MOVE', point: { x: 90, y: 70 }, screenDelta: { x: 0, y: 0 } });
   actor.send({ type: 'POINTER_UP', point: { x: 90, y: 70 } });
@@ -67,6 +68,7 @@ describe('tool lock, off', () => {
       shiftKey: false,
       hitShapeId: null,
       hitHandle: null,
+      hitVertex: null,
     });
     actor.send({ type: 'POINTER_UP', point: { x: 10, y: 10 } });
 
@@ -83,6 +85,7 @@ describe('tool lock, off', () => {
       shiftKey: false,
       hitShapeId: null,
       hitHandle: null,
+      hitVertex: null,
     });
     actor.send({ type: 'COMMIT_TEXT', text: 'hello', shapeId: 'text-1' });
 
@@ -99,6 +102,7 @@ describe('tool lock, off', () => {
       shiftKey: false,
       hitShapeId: null,
       hitHandle: null,
+      hitVertex: null,
     });
     actor.send({ type: 'CANCEL_TEXT' });
 
@@ -155,6 +159,7 @@ describe('tool lock, on', () => {
       shiftKey: false,
       hitShapeId: null,
       hitHandle: null,
+      hitVertex: null,
     });
     actor.send({ type: 'COMMIT_TEXT', text: 'hello', shapeId: 'text-1' });
 
@@ -177,6 +182,7 @@ describe('tools the lock does not govern', () => {
         shiftKey: false,
         hitShapeId: null,
         hitHandle: null,
+        hitVertex: null,
       });
       for (let i = 1; i <= 6; i++) {
         actor.send({

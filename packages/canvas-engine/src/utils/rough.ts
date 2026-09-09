@@ -258,6 +258,87 @@ export function generateFreehandDrawable(rc: RoughDrawableSource, shape: Freehan
     : rc.generator.linearPath(absPoints, options);
 }
 
+/**
+ * The path a linear shape is drawn along, as a single clean pass.
+ *
+ * Same points, same seed and same roughness as the shape itself, so the line
+ * traced here wanders exactly where the drawn one does instead of cutting
+ * across its wobble. `disableMultiStroke` takes only the first of the two
+ * passes that make a stroke look hand-drawn — the second would read as a
+ * doubled outline rather than an outline.
+ *
+ * The dash pattern is deliberately left off: this is chrome, and a dashed
+ * shape whose outline is dashed too is harder to see than the shape was.
+ */
+export function generateIndicatorDrawable(
+  rc: RoughDrawableSource,
+  shape: LineShape | ArrowShape,
+): Drawable {
+  const options: Options = {
+    seed: shape.seed,
+    roughness: shape.roughness,
+    strokeWidth: 1,
+    disableMultiStroke: true,
+  };
+
+  if (shape.kind === 'arrow') {
+    const points = arrowRenderPoints(shape);
+    return shape.arrowType === 'curved'
+      ? rc.generator.curve(points, options)
+      : rc.generator.linearPath(points, options);
+  }
+
+  const points = absolutePoints(shape);
+  if (shape.edges === 'round') return rc.generator.curve(points, options);
+  return shape.fillColor
+    ? rc.generator.polygon(points, options)
+    : rc.generator.linearPath(points, options);
+}
+
+/**
+ * Add a drawable's stroke to the current path. Fill sets are skipped — the
+ * callers want the line, not the hatching behind it — and the path is left
+ * open so a caller can trace several drawables into one stroke.
+ */
+export function traceDrawable(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  drawable: Drawable,
+): void {
+  for (const set of drawable.sets) {
+    if (set.type !== 'path') continue;
+    for (const { op, data } of set.ops) {
+      switch (op) {
+        case 'move':
+          ctx.moveTo(data[0]!, data[1]!);
+          break;
+        case 'lineTo':
+          ctx.lineTo(data[0]!, data[1]!);
+          break;
+        case 'bcurveTo':
+          ctx.bezierCurveTo(data[0]!, data[1]!, data[2]!, data[3]!, data[4]!, data[5]!);
+          break;
+      }
+    }
+  }
+}
+
+/** Add an arrowhead's geometry to the current path, as an outline. */
+export function traceArrowheadMark(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  mark: ArrowheadMark,
+): void {
+  if (mark.kind === 'circle') {
+    ctx.moveTo(mark.cx + mark.radius, mark.cy);
+    ctx.arc(mark.cx, mark.cy, mark.radius, 0, Math.PI * 2);
+    return;
+  }
+
+  const [first, ...rest] = mark.points;
+  ctx.moveTo(first![0], first![1]);
+  for (const [px, py] of rest) ctx.lineTo(px, py);
+  if (mark.kind === 'closed') ctx.closePath();
+}
+
 // --- The draw call ---
 
 export function drawShape(rc: RoughCanvas, drawable: Drawable): void {

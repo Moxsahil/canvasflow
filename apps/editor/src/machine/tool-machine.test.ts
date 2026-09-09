@@ -25,6 +25,7 @@ describe('toolMachine', () => {
       shiftKey: false,
       hitShapeId: null,
       hitHandle: null,
+      hitVertex: null,
     });
     expect(actor.getSnapshot().value).toBe('drawingShape');
     expect(actor.getSnapshot().context.newElement).not.toBeNull();
@@ -40,6 +41,7 @@ describe('toolMachine', () => {
       shiftKey: false,
       hitShapeId: null,
       hitHandle: null,
+      hitVertex: null,
     });
     actor.send({ type: 'POINTER_UP', point: { x: 100, y: 100 } });
     // Should have returned to idle and cleared newElement
@@ -57,6 +59,7 @@ describe('toolMachine', () => {
       shiftKey: false,
       hitShapeId: null,
       hitHandle: null,
+      hitVertex: null,
     });
     actor.send({ type: 'POINTER_MOVE', point: { x: 200, y: 200 }, screenDelta: { x: 0, y: 0 } });
     actor.send({ type: 'POINTER_UP', point: { x: 200, y: 200 } });
@@ -77,6 +80,7 @@ describe('toolMachine', () => {
       shiftKey: false,
       hitShapeId: null,
       hitHandle: null,
+      hitVertex: null,
     });
     actor.send({ type: 'POINTER_MOVE', point: { x: 150, y: 150 }, screenDelta: { x: 0, y: 0 } });
     actor.send({ type: 'ESCAPE' });
@@ -94,6 +98,7 @@ describe('toolMachine', () => {
       shiftKey: false,
       hitShapeId: null,
       hitHandle: null,
+      hitVertex: null,
     });
     actor.send({ type: 'POINTER_MOVE', point: { x: 210, y: 110 }, screenDelta: { x: 0, y: 0 } });
 
@@ -119,6 +124,7 @@ describe('toolMachine', () => {
       shiftKey: false,
       hitShapeId: null,
       hitHandle: null,
+      hitVertex: null,
     });
     actor.send({ type: 'POINTER_MOVE', point: { x: 100, y: 200 }, screenDelta: { x: 0, y: 0 } });
 
@@ -141,6 +147,7 @@ describe('toolMachine', () => {
       shiftKey: false,
       hitShapeId: null,
       hitHandle: null,
+      hitVertex: null,
     });
     actor.send({ type: 'POINTER_MOVE', point: { x: 110, y: 110 }, screenDelta: { x: 0, y: 0 } });
     actor.send({ type: 'POINTER_MOVE', point: { x: 120, y: 120 }, screenDelta: { x: 0, y: 0 } });

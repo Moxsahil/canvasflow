@@ -1,6 +1,20 @@
-import type { Shape } from '../shapes/shape.js';
+import type { ArrowShape, LineShape, Shape } from '../shapes/shape.js';
 import { clearCanvas } from '../utils/canvas.js';
 import { shapeBounds } from '../shapes/bounds.js';
+import {
+  handleRadiusAt,
+  hasPointHandles,
+  visibleShapeHandles,
+  HANDLE_HIT_RADIUS,
+  type ShapeHandle,
+} from '../shapes/handles.js';
+import {
+  arrowheadMarks,
+  createRoughGenerator,
+  generateIndicatorDrawable,
+  traceArrowheadMark,
+  traceDrawable,
+} from '../utils/rough.js';
 import type { Point, Rect } from '../math.js';
 
 /**
@@ -42,6 +56,13 @@ export interface InteractiveSceneOptions {
 
   /** Alignment evidence for the gesture in progress; empty when nothing snaps. */
   readonly snapGuides?: readonly SnapGuide[];
+
+  /**
+   * The handle under the pointer, by id. Only the handles that make a new
+   * point care: they stay hidden until they are found, so this is what reveals
+   * one.
+   */
+  readonly hoveredHandleId?: string | null;
 }
 
 const HANDLE_SIZE = 8; // screen pixels
@@ -67,12 +88,23 @@ const SNAP_CROSS_SIZE = 3;
 /** Half-length of the bars capping a measured gap, in screen pixels. */
 const SNAP_CAP_SIZE = 4;
 
+/** Tint filling the disc under a handle the pointer has found. */
+const HANDLE_HOVER_FILL = 'rgba(99, 102, 241, 0.16)';
+
+/**
+ * Geometry only, so no canvas is behind it. Kept for the life of the module
+ * because a generator carries the cache that makes redrawing the same outline
+ * on every frame of a drag cheap.
+ */
+const indicatorSource = { generator: createRoughGenerator() };
+
 export function renderInteractiveScene(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   _canvas: HTMLCanvasElement | OffscreenCanvas,
   opts: InteractiveSceneOptions,
 ): void {
   const { width, height, shapes, selectedIds, marquee, camera, search, snapGuides } = opts;
+  const hoveredHandleId = opts.hoveredHandleId ?? null;
 
   clearCanvas(ctx, width, height);
 
@@ -106,23 +138,38 @@ export function renderInteractiveScene(
 
     const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
 
+    // A box is the right outline for a shape that fills one. A line or an
+    // arrow does not: most of the box it spans is empty, so a box around it
+    // marks out mostly board, hides which of two crossing lines is selected,
+    // and offers to resize something that is edited end by end instead. Those
+    // are outlined along themselves.
     for (const shape of selectedShapes) {
-      const b = shapeBounds(shape);
-      const pad = 4 / zoom;
-      ctx.strokeRect(b.x - pad, b.y - pad, b.width + pad * 2, b.height + pad * 2);
+      if (hasPointHandles(shape)) {
+        strokeShapeIndicator(ctx, shape);
+      } else {
+        const b = shapeBounds(shape);
+        const pad = 4 / zoom;
+        ctx.strokeRect(b.x - pad, b.y - pad, b.width + pad * 2, b.height + pad * 2);
+      }
     }
 
     // --- Handles — only when exactly one shape is selected ---
     if (selectedShapes.length === 1) {
-      const b = shapeBounds(selectedShapes[0]!);
-      const pad = 4 / zoom;
-      const outerBounds: Rect = {
-        x: b.x - pad,
-        y: b.y - pad,
-        width: b.width + pad * 2,
-        height: b.height + pad * 2,
-      };
-      drawHandles(ctx, outerBounds, zoom);
+      const only = selectedShapes[0]!;
+      const pointHandles = visibleShapeHandles(only, zoom);
+      if (pointHandles) {
+        drawPointHandles(ctx, pointHandles, zoom, hoveredHandleId);
+      } else {
+        const b = shapeBounds(only);
+        const pad = 4 / zoom;
+        const outerBounds: Rect = {
+          x: b.x - pad,
+          y: b.y - pad,
+          width: b.width + pad * 2,
+          height: b.height + pad * 2,
+        };
+        drawHandles(ctx, outerBounds, zoom);
+      }
     }
   }
 
@@ -221,6 +268,60 @@ function drawGapGuide(
     ctx.lineTo(to.x + cap, to.y);
   }
   ctx.stroke();
+}
+
+/**
+ * A line or arrow outlined along itself, arrowheads included.
+ *
+ * Leaves the stroke settings the caller set in place, so the outline is the
+ * same weight and colour as the boxes drawn around everything else.
+ */
+function strokeShapeIndicator(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  shape: LineShape | ArrowShape,
+): void {
+  ctx.beginPath();
+  traceDrawable(ctx, generateIndicatorDrawable(indicatorSource, shape));
+  if (shape.kind === 'arrow') {
+    for (const mark of arrowheadMarks(shape)) traceArrowheadMark(ctx, mark);
+  }
+  ctx.stroke();
+}
+
+/**
+ * The points of a line or arrow, as discs to drag.
+ *
+ * Round rather than square, and the difference carries meaning: a square
+ * handle resizes the box a shape sits in, a round one moves a single point of
+ * it. The ones that would make a new point stay hidden until the pointer finds
+ * them, so a two-point arrow reads as two ends rather than three.
+ */
+function drawPointHandles(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  handles: readonly ShapeHandle[],
+  zoom: number,
+  hoveredHandleId: string | null,
+): void {
+  const radius = handleRadiusAt(zoom);
+  const hoverRadius = HANDLE_HIT_RADIUS / zoom;
+
+  for (const handle of handles) {
+    const hovered = handle.id === hoveredHandleId;
+    if (handle.type === 'create' && !hovered) continue;
+
+    if (hovered) {
+      ctx.fillStyle = HANDLE_HOVER_FILL;
+      ctx.beginPath();
+      ctx.arc(handle.x, handle.y, hoverRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = HANDLE_FILL;
+    ctx.beginPath();
+    ctx.arc(handle.x, handle.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
 }
 
 function drawHandles(

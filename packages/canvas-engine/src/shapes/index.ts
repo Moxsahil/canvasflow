@@ -12,3 +12,4 @@ export * from './image.js';
 export * from './frame.js';
 export * from './bounds.js';
 export * from './outline.js';
+export * from './handles.js';
