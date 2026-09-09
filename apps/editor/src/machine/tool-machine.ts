@@ -92,67 +92,158 @@ function resizeShape(original: Shape, handle: HandleIndex, dx: number, dy: numbe
 
   // For rect/ellipse/diamond/image
   const shape = original as typeof original & { width: number; height: number };
-  let x = shape.x;
-  let y = shape.y;
-  let width = shape.width;
-  let height = shape.height;
 
   // Corners on an image keep its proportions. Dragging a corner reads as
   // "make this bigger", not "distort this", and a stretched photograph is
   // almost never what was meant. The edge handles stay free, so deliberately
   // squashing one is still one drag away.
-  const lockAspect =
-    original.kind === 'image' && (handle === 0 || handle === 2 || handle === 4 || handle === 6);
+  //
+  // Driven by the source dimensions rather than the current box, so repeated
+  // corner drags converge on the true ratio instead of compounding whatever
+  // distortion an earlier edge drag left behind.
+  const aspectRatio =
+    original.kind === 'image' && (handle === 0 || handle === 2 || handle === 4 || handle === 6)
+      ? original.naturalHeight / original.naturalWidth || 1
+      : null;
 
-  // Horizontal axis
-  if (handle === 0 || handle === 6 || handle === 7) {
-    // left side handles
-    x = shape.x + dx;
-    width = shape.width - dx;
-  } else if (handle === 2 || handle === 3 || handle === 4) {
-    // right side handles
-    width = shape.width + dx;
-  }
+  const { x, y, width, height } = resizeBox(shape, handle, dx, dy, aspectRatio);
+  return { ...shape, x, y, width, height } as Shape;
+}
 
-  // Vertical axis
-  if (handle === 0 || handle === 1 || handle === 2) {
-    // top side handles
-    y = shape.y + dy;
-    height = shape.height - dy;
-  } else if (handle === 4 || handle === 5 || handle === 6) {
-    // bottom side handles
-    height = shape.height + dy;
-  }
+/** The smallest a box can be dragged to, in world units. */
+const MIN_BOX_SIZE = 1;
 
-  if (lockAspect && original.kind === 'image') {
-    // Driven by the source dimensions rather than the current box, so repeated
-    // corner drags converge on the true ratio instead of compounding whatever
-    // distortion an earlier edge drag left behind.
-    const ratio = original.naturalHeight / original.naturalWidth || 1;
+/** +1 for zero, so a box collapsed to nothing reopens the way it was drawn. */
+const signOf = (value: number) => (value < 0 ? -1 : 1);
+
+interface ResizedBox {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  /** Whether the dragged edge has crossed its anchor, mirroring the box. */
+  readonly flippedX: boolean;
+  readonly flippedY: boolean;
+}
+
+/**
+ * A box resized by dragging one of its handles.
+ *
+ * The edge opposite the handle is the anchor, and it does not move for the
+ * whole gesture. That is the whole of it: a drag that carries the near edge
+ * past the far one turns the box inside out, and it is mirrored across the
+ * anchor rather than shunting the anchor along ahead of it — which is what a
+ * clamp does, and what makes a shape crawl off to the left forever.
+ */
+function resizeBox(
+  shape: { x: number; y: number; width: number; height: number },
+  handle: HandleIndex,
+  dx: number,
+  dy: number,
+  aspectRatio: number | null,
+): ResizedBox {
+  const pullsLeft = handle === 0 || handle === 6 || handle === 7;
+  const pullsRight = handle === 2 || handle === 3 || handle === 4;
+  const pullsTop = handle === 0 || handle === 1 || handle === 2;
+  const pullsBottom = handle === 4 || handle === 5 || handle === 6;
+
+  const anchorX = pullsLeft ? shape.x + shape.width : shape.x;
+  const anchorY = pullsTop ? shape.y + shape.height : shape.y;
+  // Which way the box runs from its anchor. An axis with no handle on it keeps
+  // the shape's own extent, so the two middle handles move one edge only.
+  const dirX = pullsLeft ? -1 : 1;
+  const dirY = pullsTop ? -1 : 1;
+
+  // Signed distance from anchor to dragged edge, measured along that
+  // direction. Negative is the flipped case, and carrying the sign through
+  // the aspect ratio and the minimum is what keeps the flip stable.
+  let w = pullsLeft || pullsRight ? shape.width + dirX * dx : shape.width;
+  let h = pullsTop || pullsBottom ? shape.height + dirY * dy : shape.height;
+
+  if (aspectRatio !== null) {
     // The larger of the two changes wins, so the image tracks the pointer on
     // whichever axis the user is actually pulling.
-    if (Math.abs(width - shape.width) >= Math.abs(height - shape.height)) {
-      const next = width * ratio;
-      if (handle === 0 || handle === 2) y += height - next;
-      height = next;
+    if (Math.abs(Math.abs(w) - shape.width) >= Math.abs(Math.abs(h) - shape.height)) {
+      h = signOf(h) * Math.abs(w) * aspectRatio;
     } else {
-      const next = height / ratio;
-      if (handle === 0 || handle === 6) x += width - next;
-      width = next;
+      w = (signOf(w) * Math.abs(h)) / aspectRatio;
     }
   }
 
-  // Prevent inversion
-  if (width < 1) {
-    x = x + width - 1;
-    width = 1;
-  }
-  if (height < 1) {
-    y = y + height - 1;
-    height = 1;
+  if (Math.abs(w) < MIN_BOX_SIZE) w = signOf(w) * MIN_BOX_SIZE;
+  if (Math.abs(h) < MIN_BOX_SIZE) h = signOf(h) * MIN_BOX_SIZE;
+
+  const edgeX = anchorX + dirX * w;
+  const edgeY = anchorY + dirY * h;
+
+  return {
+    x: Math.min(anchorX, edgeX),
+    y: Math.min(anchorY, edgeY),
+    width: Math.abs(w),
+    height: Math.abs(h),
+    flippedX: w < 0,
+    flippedY: h < 0,
+  };
+}
+
+/** Handle indices reflected left-to-right, and top-to-bottom. */
+const MIRRORED_X: Record<HandleIndex, HandleIndex> = {
+  0: 2,
+  1: 1,
+  2: 0,
+  3: 7,
+  4: 6,
+  5: 5,
+  6: 4,
+  7: 3,
+};
+const MIRRORED_Y: Record<HandleIndex, HandleIndex> = {
+  0: 6,
+  1: 5,
+  2: 4,
+  3: 3,
+  4: 2,
+  5: 1,
+  6: 0,
+  7: 7,
+};
+
+/**
+ * The handle a resize is effectively holding, once the box has flipped under
+ * it.
+ *
+ * Snapping asks which edges are moving, and after a flip they are the mirrored
+ * ones: the right-hand handle of a box dragged out through its own left side
+ * is now holding the box's left edge. Asked about the wrong edge, snapping
+ * would offer to line up the anchor — the one edge the gesture is not allowed
+ * to move — and the shape would jump.
+ *
+ * The aspect ratio is left out because it cannot change the answer: it scales
+ * a dimension without touching its sign, and only the signs are read here.
+ */
+function resizeSnapHandle(
+  original: Shape,
+  handle: HandleIndex,
+  dx: number,
+  dy: number,
+): HandleIndex {
+  // The kinds that never reach the box branch of `resizeShape` — a font size
+  // and a set of points have no edges to mirror.
+  switch (original.kind) {
+    case 'text':
+    case 'line':
+    case 'arrow':
+    case 'freehand':
+      return handle;
+    default:
+      break;
   }
 
-  return { ...shape, x, y, width, height } as Shape;
+  const { flippedX, flippedY } = resizeBox(original, handle, dx, dy, null);
+  let mirrored = handle;
+  if (flippedX) mirrored = MIRRORED_X[mirrored];
+  if (flippedY) mirrored = MIRRORED_Y[mirrored];
+  return mirrored;
 }
 
 export const toolMachine = setup({
@@ -860,4 +951,4 @@ export const toolMachine = setup({
 });
 
 // Re-export helpers used by the Editor
-export { resizeShape };
+export { resizeShape, resizeSnapHandle };
