@@ -49,3 +49,19 @@ export function rectsIntersect(a: Rect, b: Rect): boolean {
     b.y + b.height < a.y
   );
 }
+
+/**
+ * Whether `outer` encloses the whole of `inner`.
+ *
+ * Inclusive at the edges: a shape dragged a box around flush to its bounds
+ * reads to the person drawing it as enclosed, and a rule that made them miss
+ * by a sub-pixel would only ever feel broken.
+ */
+export function rectContainsRect(outer: Rect, inner: Rect): boolean {
+  return (
+    inner.x >= outer.x &&
+    inner.y >= outer.y &&
+    inner.x + inner.width <= outer.x + outer.width &&
+    inner.y + inner.height <= outer.y + outer.height
+  );
+}
