@@ -31,6 +31,8 @@ interface CanvasStackProps {
   searchHighlights?: { rects: readonly Rect[]; focusedRects: readonly Rect[] };
   /** Alignment evidence for the gesture in progress. */
   snapGuides?: readonly SnapGuide[];
+  /** The point handle under the pointer, which reveals the hidden ones. */
+  hoveredHandleId?: string | null;
   /** Decoded image bitmaps, and a counter that changes when one lands. */
   images?: ImageSource;
   imageRevision?: number;
@@ -83,6 +85,7 @@ export function CanvasStack({
   showGrid,
   searchHighlights,
   snapGuides,
+  hoveredHandleId,
   images,
   imageRevision,
   darkMode,
@@ -137,6 +140,7 @@ export function CanvasStack({
     devicePixelRatio: dpr,
     search: searchHighlights,
     snapGuides,
+    hoveredHandleId,
   });
 
   const screenToWorldFn = useCallback(

@@ -53,7 +53,8 @@ const TEXT_HANDLE_FRACTIONS: Record<HandleIndex, readonly [number, number]> = {
  */
 function resizeShape(original: Shape, handle: HandleIndex, dx: number, dy: number): Shape {
   if (original.kind === 'line' || original.kind === 'arrow' || original.kind === 'freehand') {
-    // Linear shapes don't resize via handles in this PR
+    // A stroke has no box of its own to stretch. Lines and arrows are edited
+    // point by point instead and never reach here; freehand has no handles yet.
     return original;
   }
   if (original.kind === 'text') {
@@ -501,6 +502,12 @@ export const toolMachine = setup({
       return { resizeHandle: event.hitHandle };
     }),
     clearResize: assign({ resizeHandle: null, resizeOriginShape: null }),
+
+    beginVertexDrag: assign(({ event }) => {
+      if (event.type !== 'POINTER_DOWN' || event.hitVertex === null) return {};
+      return { vertexGrab: event.hitVertex };
+    }),
+    clearVertexDrag: assign({ vertexGrab: null }),
   },
   guards: {
     /**
@@ -535,9 +542,13 @@ export const toolMachine = setup({
       if (event.type !== 'POINTER_DOWN') return false;
       return event.hitHandle !== null;
     },
+    hitAVertex: ({ event }) => {
+      if (event.type !== 'POINTER_DOWN') return false;
+      return event.hitVertex !== null;
+    },
     hitAShape: ({ event }) => {
       if (event.type !== 'POINTER_DOWN') return false;
-      return event.hitShapeId !== null && event.hitHandle === null;
+      return event.hitShapeId !== null && event.hitHandle === null && event.hitVertex === null;
     },
     isShiftClick: ({ event }) => {
       if (event.type !== 'POINTER_DOWN') return false;
@@ -576,6 +587,7 @@ export const toolMachine = setup({
     dragOriginShapes: {},
     resizeHandle: null,
     resizeOriginShape: null,
+    vertexGrab: null,
     itemStyle: DEFAULT_ITEM_STYLE,
     erasePending: [],
   },
@@ -689,6 +701,11 @@ export const toolMachine = setup({
     selectPointerDown: {
       always: [
         {
+          guard: 'hitAVertex',
+          target: 'draggingVertex',
+          actions: 'beginVertexDrag',
+        },
+        {
           guard: 'hitAHandle',
           target: 'resizingSelection',
           actions: 'beginResize',
@@ -745,6 +762,16 @@ export const toolMachine = setup({
           actions: [],
         },
         POINTER_UP: { target: 'idle', actions: 'clearResize' },
+      },
+    },
+    /**
+     * One point of a line or arrow being dragged. Like a resize, the geometry
+     * is worked out in the Editor — it needs the board to attach an arrow end
+     * to whatever it is dropped on, which the machine does not have.
+     */
+    draggingVertex: {
+      on: {
+        POINTER_UP: { target: 'idle', actions: 'clearVertexDrag' },
       },
     },
     marqueeSelecting: {

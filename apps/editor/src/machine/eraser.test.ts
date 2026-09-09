@@ -16,6 +16,7 @@ function startErasing() {
     shiftKey: false,
     hitShapeId: null,
     hitHandle: null,
+    hitVertex: null,
   });
   return { actor, deleted };
 }
@@ -98,6 +99,7 @@ describe('eraser', () => {
       shiftKey: false,
       hitShapeId: null,
       hitHandle: null,
+      hitVertex: null,
     });
     actor.send({ type: 'ERASE_MARK', ids: ['b'], restore: false });
     actor.send({ type: 'POINTER_UP', point: { x: 20, y: 20 } });

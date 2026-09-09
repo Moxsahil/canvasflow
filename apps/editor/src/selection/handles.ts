@@ -1,4 +1,4 @@
-import { shapeBounds, type Shape } from '@canvasflow/canvas-engine';
+import { hasPointHandles, shapeBounds, type Shape } from '@canvasflow/canvas-engine';
 import type { HandleIndex } from '../machine/tool-machine.types';
 
 const HANDLE_SIZE = 8;
@@ -7,7 +7,8 @@ const HANDLE_SIZE = 8;
  * If (px, py) — in world coords — is on one of the shape's 8 handles,
  * return the handle index. Else return null.
  *
- * Called only when exactly one shape is selected.
+ * Called only when exactly one shape is selected. Shapes edited point by point
+ * have no box handles to hit — see `shapeHandleAt` for those.
  */
 export function hitTestHandles(
   shape: Shape,
@@ -15,6 +16,8 @@ export function hitTestHandles(
   py: number,
   zoom: number,
 ): HandleIndex | null {
+  if (hasPointHandles(shape)) return null;
+
   const b = shapeBounds(shape);
   const pad = 4 / zoom;
   const outerBounds = {

@@ -19,9 +19,13 @@ import {
   frameLabelAt,
   frameLabelBounds,
   framesIn,
+  hasPointHandles,
   hitTest,
   isFrame,
   isText,
+  shapeHandleAt,
+  withHandlePointInserted,
+  withHandlePointMoved,
   membershipAfterResize,
   type FrameShape,
   presenceColorFor,
@@ -95,6 +99,7 @@ import {
   type HandleIndex,
   type ItemStyle,
   type Point,
+  type VertexGrab,
 } from './machine/tool-machine.types';
 import { ShortcutsModal } from './help';
 import { decodeJwtUser, decodeJwtWorkspaceId } from './auth/token';
@@ -168,7 +173,33 @@ const ARROW_BIND_MARGIN = SNAP_THRESHOLD_PX;
  * where it was drawn.
  */
 function attachArrowEnds(arrow: ArrowShape, shapes: readonly Shape[]): ArrowShape {
+  const attached = arrowEndsAttached(arrow, shapes);
+  // Nothing under either end leaves the arrow exactly as it was drawn, rather
+  // than writing two nulls over two nulls.
+  return attached ?? arrow;
+}
+
+/**
+ * The same, for an end that has been dragged somewhere new.
+ *
+ * The difference is what happens when an end lands on nothing: here that is an
+ * answer — the end was pulled off whatever it was attached to and should let
+ * go — where for a freshly drawn arrow it is simply nothing to say.
+ */
+function reattachArrowEnds(arrow: ArrowShape, shapes: readonly Shape[]): ArrowShape {
+  // An arrow with a bend in it is routed by hand and never attaches to
+  // anything, here or anywhere else — see `arrowsAffectedBy`. Left alone,
+  // rather than told to let go of attachments it does not have.
   if (arrow.points.length !== 2) return arrow;
+  return arrowEndsAttached(arrow, shapes) ?? { ...arrow, startBinding: null, endBinding: null };
+}
+
+/**
+ * An arrow with each end attached to whatever it is over, or null when neither
+ * end is over anything it could attach to.
+ */
+function arrowEndsAttached(arrow: ArrowShape, shapes: readonly Shape[]): ArrowShape | null {
+  if (arrow.points.length !== 2) return null;
 
   const [first, last] = [arrow.points[0]!, arrow.points[1]!];
   const start = { x: arrow.x + first[0], y: arrow.y + first[1] };
@@ -177,14 +208,25 @@ function attachArrowEnds(arrow: ArrowShape, shapes: readonly Shape[]): ArrowShap
   const startTarget = bindingTargetAt(shapes, start, ARROW_BIND_MARGIN, arrow.id);
   const endTarget = bindingTargetAt(shapes, end, ARROW_BIND_MARGIN, arrow.id);
 
-  if (!startTarget && !endTarget) return arrow;
-  if (startTarget && endTarget && startTarget.id === endTarget.id) return arrow;
+  if (!startTarget && !endTarget) return null;
+  if (startTarget && endTarget && startTarget.id === endTarget.id) return null;
 
   return {
     ...arrow,
     startBinding: startTarget ? bindingFor(startTarget, start) : null,
     endBinding: endTarget ? bindingFor(endTarget, end) : null,
   };
+}
+
+/**
+ * The same arrow with the attachment on the end at `index` let go.
+ *
+ * Only the two ends have one, so a bend point being dragged changes nothing.
+ */
+function releasedEnd(arrow: ArrowShape, index: number): ArrowShape {
+  if (index === 0) return { ...arrow, startBinding: null };
+  if (index === arrow.points.length - 1) return { ...arrow, endBinding: null };
+  return arrow;
 }
 
 /**
@@ -502,6 +544,8 @@ export function Editor({ boardId }: EditorProps) {
   const [channel, setChannel] = useState<PresenceChannel | null>(null);
   /** The frame whose name is open for editing, if any. */
   const [renamingFrameId, setRenamingFrameId] = useState<string | null>(null);
+  /** The point handle under the pointer, if any — see `drawPointHandles`. */
+  const [hoveredHandleId, setHoveredHandleId] = useState<string | null>(null);
   useEffect(() => {
     if (!awareness) {
       setChannel(null);
@@ -799,6 +843,13 @@ export function Editor({ boardId }: EditorProps) {
 
   const dragOriginsRef = useRef<Record<string, Shape>>({});
   const resizeOriginRef = useRef<Shape | null>(null);
+  /**
+   * The line or arrow a point-drag started from, already carrying any point the
+   * gesture created and with the dragged end's attachment let go.
+   */
+  const vertexOriginRef = useRef<Shape | null>(null);
+  /** Whether this point-drag has already written the attachment it let go of. */
+  const vertexReleasedRef = useRef(false);
   const pointerDownWorldRef = useRef<Point | null>(null);
   /** Previous point of the eraser stroke, so each move sweeps a segment. */
   const lastErasePointRef = useRef<Point | null>(null);
@@ -1093,18 +1144,39 @@ export function Editor({ boardId }: EditorProps) {
 
       let hitShapeId: string | null = null;
       let hitHandle: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | null = null;
+      let hitVertex: VertexGrab | null = null;
 
       if (activeTool === 'select' && !isSpacePressed && button !== 1) {
         if (selectedIds.length === 1) {
           const selectedShape = shapes.find((s) => s.id === selectedIds[0]);
-          if (selectedShape) {
+          if (selectedShape && hasPointHandles(selectedShape)) {
+            const handle = shapeHandleAt(selectedShape, point.x, point.y, camera.zoom);
+            if (handle) {
+              const inserts = handle.type !== 'vertex';
+              hitVertex = { index: handle.index, inserts };
+              // The point a midpoint handle creates is made here rather than on
+              // the first move, so that every frame of the drag rewrites the
+              // same shape — one already carrying the new point — instead of
+              // adding another one each time the pointer moves.
+              const origin = inserts
+                ? withHandlePointInserted(selectedShape, handle.index, handle.x, handle.y)
+                : selectedShape;
+              // An end being dragged has let go of whatever it was attached to
+              // by the time it has moved at all. Left in place, the binding
+              // would pull the end straight back to the shape it came from.
+              vertexOriginRef.current = isArrow(origin)
+                ? releasedEnd(origin, handle.index)
+                : origin;
+              vertexReleasedRef.current = false;
+            }
+          } else if (selectedShape) {
             hitHandle = hitTestHandles(selectedShape, point.x, point.y, camera.zoom);
             if (hitHandle !== null) {
               resizeOriginRef.current = selectedShape;
             }
           }
         }
-        if (hitHandle === null) {
+        if (hitHandle === null && hitVertex === null) {
           const hit = hitTest(shapes, spatialIndex, point.x, point.y, camera.zoom);
           hitShapeId = hit?.id ?? null;
 
@@ -1132,7 +1204,12 @@ export function Editor({ boardId }: EditorProps) {
       snapOverrideRef.current = snapOverride;
 
       let downPoint = point;
-      if (activeTool === 'select' && hitHandle !== null && resizeOriginRef.current) {
+      if (activeTool === 'select' && hitVertex !== null && vertexOriginRef.current) {
+        // No arrows to settle: an end being dragged has already let go, and
+        // nothing can attach itself to a line or an arrow in the first place.
+        measureSnapTargets(new Set([vertexOriginRef.current.id]));
+        boundArrowsRef.current = EMPTY_IDS;
+      } else if (activeTool === 'select' && hitHandle !== null && resizeOriginRef.current) {
         const moving = new Set([resizeOriginRef.current.id]);
         measureSnapTargets(moving);
         boundArrowsRef.current = affectedArrowIds(shapes, moving);
@@ -1166,6 +1243,7 @@ export function Editor({ boardId }: EditorProps) {
         shiftKey,
         hitShapeId,
         hitHandle,
+        hitVertex,
       });
 
       // After POINTER_DOWN, so the machine is already in `erasing` — the idle
@@ -1306,6 +1384,61 @@ export function Editor({ boardId }: EditorProps) {
         }
       }
 
+      const vertexOrigin = vertexOriginRef.current;
+      const vertexGrab = snap.context.vertexGrab;
+      if (
+        snap.matches('draggingVertex') &&
+        pointerDownWorldRef.current &&
+        vertexOrigin &&
+        vertexGrab &&
+        hasPointHandles(vertexOrigin)
+      ) {
+        const from = vertexOrigin.points[vertexGrab.index]!;
+        let x = vertexOrigin.x + from[0] + (point.x - pointerDownWorldRef.current.x);
+        let y = vertexOrigin.y + from[1] + (point.y - pointerDownWorldRef.current.y);
+
+        if (snapping) {
+          // One point moves, so there is one point to line up and no box to
+          // fit into a gap. Its own shape is not a target — that was left out
+          // when the targets were measured — so an end cannot snap to the line
+          // it is the end of.
+          const result = resolveSnap({
+            bounds: { x, y, width: 0, height: 0 },
+            points: [{ x, y }],
+            targets: snapTargetsRef.current,
+            threshold,
+            gaps: false,
+          });
+          x += result.dx;
+          y += result.dy;
+          showSnapGuides(result.guides);
+        } else {
+          showSnapGuides(EMPTY_GUIDES);
+        }
+
+        const moved = withHandlePointMoved(vertexOrigin, vertexGrab.index, x, y);
+        const geometry = { x: moved.x, y: moved.y, points: moved.points };
+
+        // The attachment is let go on the first move rather than on the press,
+        // so that clicking an end without moving it leaves the arrow attached
+        // to what it was attached to. Written once: every frame after this one
+        // is geometry alone, and a board with other people on it feels every
+        // needless write.
+        const releasing = !vertexReleasedRef.current && isArrow(vertexOrigin);
+        vertexReleasedRef.current = true;
+
+        doc.updateShape(
+          vertexOrigin.id,
+          (releasing
+            ? {
+                ...geometry,
+                startBinding: vertexOrigin.startBinding,
+                endBinding: vertexOrigin.endBinding,
+              }
+            : geometry) as Partial<Shape>,
+        );
+      }
+
       if (
         snap.matches('resizingSelection') &&
         pointerDownWorldRef.current &&
@@ -1366,6 +1499,31 @@ export function Editor({ boardId }: EditorProps) {
     ],
   );
 
+  /**
+   * Every pointer position over the board, pressed or not.
+   *
+   * Two things want it: collaborators, who are shown where your pointer is,
+   * and the handles that make a new point — those are drawn only once the
+   * pointer has found one, and finding one is something you do before you
+   * press anything, which is why this cannot live in the move handler.
+   */
+  const handlePointerHover = useCallback(
+    (point: Point | null) => {
+      setCursor(point);
+
+      const onlySelected =
+        point && activeTool === 'select' && selectedIds.length === 1
+          ? shapes.find((s) => s.id === selectedIds[0])
+          : undefined;
+      setHoveredHandleId(
+        onlySelected && hasPointHandles(onlySelected)
+          ? (shapeHandleAt(onlySelected, point!.x, point!.y, camera.zoom)?.id ?? null)
+          : null,
+      );
+    },
+    [setCursor, activeTool, selectedIds, shapes, camera.zoom],
+  );
+
   const handlePointerUp = useCallback(
     (point: Point) => {
       if (activeTool === 'laser') {
@@ -1375,7 +1533,26 @@ export function Editor({ boardId }: EditorProps) {
       }
 
       const snap = actorRef.getSnapshot();
-      const wasInteracting = snap.matches('draggingSelection') || snap.matches('resizingSelection');
+      const draggedVertex = snap.matches('draggingVertex') && vertexReleasedRef.current;
+      const wasInteracting =
+        snap.matches('draggingSelection') || snap.matches('resizingSelection') || draggedVertex;
+
+      // An end dropped on a shape takes hold of it, and one dropped on nothing
+      // stays let go. Decided on release rather than during the drag for the
+      // same reason a freshly drawn arrow is: it is where an end comes to rest
+      // that says what it is pointing at.
+      if (draggedVertex && vertexOriginRef.current && bindArrowsRef.current) {
+        const current = doc.getShapes();
+        const dragged = current.find((s) => s.id === vertexOriginRef.current!.id);
+        if (dragged && isArrow(dragged)) {
+          const rebound = reattachArrowEnds(dragged, current);
+          doc.updateShape(dragged.id, {
+            startBinding: rebound.startBinding,
+            endBinding: rebound.endBinding,
+          } as Partial<Shape>);
+          settleBoundArrowsInDocument(doc, new Set([dragged.id]));
+        }
+      }
 
       // Membership settles on release, not during the gesture: recomputing it
       // every pointer move would write a change to the document each time a
@@ -1383,7 +1560,9 @@ export function Editor({ boardId }: EditorProps) {
       // somewhere else would join and leave it on the wire.
       if (wasInteracting) {
         const current = doc.getShapes();
-        const resized = resizeOriginRef.current;
+        // Never a frame — a frame is resized, not edited point by point — so
+        // the membership question below stays the ordinary one.
+        const resized = resizeOriginRef.current ?? vertexOriginRef.current;
         const resizedFrame =
           resized && isFrame(resized)
             ? current.find((s): s is FrameShape => s.id === resized.id && isFrame(s))
@@ -1418,6 +1597,8 @@ export function Editor({ boardId }: EditorProps) {
       actorRef.send({ type: 'POINTER_UP', point });
       dragOriginsRef.current = {};
       resizeOriginRef.current = null;
+      vertexOriginRef.current = null;
+      vertexReleasedRef.current = false;
       pointerDownWorldRef.current = null;
       lastErasePointRef.current = null;
       snapTargetsRef.current = NO_SNAP_TARGETS;
@@ -2068,9 +2249,10 @@ export function Editor({ boardId }: EditorProps) {
               showGrid={preferences.values.showGrid}
               searchHighlights={search.highlights}
               snapGuides={snapGuides}
+              hoveredHandleId={hoveredHandleId}
               peersRef={peersRef}
               subscribePeers={subscribe}
-              onPointerHover={setCursor}
+              onPointerHover={handlePointerHover}
             />
 
             {/* Laser trails, ours and everyone's. Outside CanvasStack for the

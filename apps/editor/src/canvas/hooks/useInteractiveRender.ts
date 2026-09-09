@@ -20,6 +20,8 @@ interface UseInteractiveRenderOptions {
   search?: { rects: readonly Rect[]; focusedRects: readonly Rect[] };
   /** Alignment evidence for the gesture in progress, drawn over it. */
   snapGuides?: readonly SnapGuide[];
+  /** The point handle under the pointer, which reveals the hidden ones. */
+  hoveredHandleId?: string | null;
 }
 
 export function useInteractiveRender(
@@ -36,6 +38,7 @@ export function useInteractiveRender(
     devicePixelRatio,
     search,
     snapGuides,
+    hoveredHandleId,
   } = options;
 
   useEffect(() => {
@@ -52,6 +55,7 @@ export function useInteractiveRender(
       camera,
       search,
       snapGuides,
+      hoveredHandleId,
     });
   }, [
     canvasRef,
@@ -64,5 +68,6 @@ export function useInteractiveRender(
     devicePixelRatio,
     search,
     snapGuides,
+    hoveredHandleId,
   ]);
 }
