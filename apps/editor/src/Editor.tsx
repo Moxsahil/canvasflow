@@ -71,7 +71,7 @@ import { ToolLockButton } from './toolbar/ToolLockButton';
 import { GlassDock, GlassDockSeparator } from '@/components/ui/glass-dock';
 import { TextEditor } from './text-editor/TextEditor';
 import { ZoomPanel } from './zoom-panel/ZoomPanel';
-import { toolMachine, resizeShape } from './machine/tool-machine';
+import { toolMachine, resizeShape, resizeSnapHandle } from './machine/tool-machine';
 import { useKeyboardShortcuts } from './tools/useKeyboardShortcuts';
 import { CommandPalette, useEditorCommands } from './commands';
 import { hitTestHandles } from './selection/handles';
@@ -1456,7 +1456,12 @@ export function Editor({ boardId }: EditorProps) {
             // keeps every rule it enforces — the minimum size, the anchored
             // opposite corner — applying to what actually lands.
             const dragged = shapeBounds(resizeShape(originalShape, handle, dx, dy));
-            const { points, axes } = resizeSnapPoints(dragged, handle);
+            // The mirrored handle once the box has turned inside out, so the
+            // edges offered up are the ones the drag is actually moving.
+            const { points, axes } = resizeSnapPoints(
+              dragged,
+              resizeSnapHandle(originalShape, handle, dx, dy),
+            );
             const result = resolveSnap({
               bounds: dragged,
               points,
