@@ -28,6 +28,8 @@ import {
   withHandlePointMoved,
   membershipAfterResize,
   type FrameShape,
+  hitTestMarquee,
+  type MarqueeMode,
   presenceColorFor,
   rectIntersectsViewport,
   shapeBounds,
@@ -1055,17 +1057,22 @@ export function Editor({ boardId }: EditorProps) {
     });
   }, [shapes, width, height, actorRef]);
 
+  // The marquee is read on the frame it disappears, which is the frame the
+  // gesture ended on. The index alone would answer with everything whose box
+  // came near the marquee, so the shapes go through the hit test rather than
+  // straight into the selection.
+  const marqueeMode: MarqueeMode = preferences.values.selectOnWrap ? 'wrap' : 'overlap';
   const marqueeRef = useRef(marquee);
   useEffect(() => {
     if (marqueeRef.current && !marquee) {
       const finalMarquee = marqueeRef.current;
-      const ids = spatialIndex.searchRect(finalMarquee);
+      const ids = hitTestMarquee(shapes, spatialIndex, finalMarquee, marqueeMode).map((s) => s.id);
       if (ids.length > 0) {
         actorRef.send({ type: 'SELECT_ALL', shapeIds: ids });
       }
     }
     marqueeRef.current = marquee;
-  }, [marquee, spatialIndex, actorRef]);
+  }, [marquee, shapes, spatialIndex, marqueeMode, actorRef]);
 
   /**
    * Measure what this gesture can line up with, leaving out what it is moving.
