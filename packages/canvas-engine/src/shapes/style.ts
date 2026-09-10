@@ -52,6 +52,8 @@ export interface BaseStyleInput {
   opacity?: number;
   rotation?: number;
   seed?: number;
+  /** See `BaseShape.scale`. Omitted, or 1, means the style is drawn as chosen. */
+  scale?: number;
 }
 
 export interface ResolvedBaseStyle {
@@ -64,6 +66,8 @@ export interface ResolvedBaseStyle {
   roughness: Roughness;
   opacity: number;
   seed: number;
+  /** Present only when it isn't 1, so an ordinary shape carries no key for it. */
+  scale?: number;
 }
 
 /**
@@ -72,7 +76,14 @@ export interface ResolvedBaseStyle {
  * `?? default` lines each.
  */
 export function resolveBaseStyle(input: BaseStyleInput): ResolvedBaseStyle {
+  // Written only when it changes something, matching how `frameId` is stored:
+  // a board drawn at 1:1 is then byte-identical to one made before scale
+  // existed, and nothing has to be migrated to read it.
+  const scale = input.scale;
+  const scaled = typeof scale === 'number' && Number.isFinite(scale) && scale > 0 && scale !== 1;
+
   return {
+    ...(scaled && { scale }),
     rotation: input.rotation ?? 0,
     strokeColor: input.strokeColor ?? DEFAULT_STROKE_COLOR,
     fillColor: input.fillColor ?? null,

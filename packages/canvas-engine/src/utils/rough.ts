@@ -11,6 +11,7 @@ import type {
   FreehandShape,
   BaseShape,
 } from '../shapes/shape.js';
+import { shapeScale, strokeWidthOf } from '../shapes/shape.js';
 import type { Arrowhead, StrokeStyle } from '../shapes/style.js';
 import { ARROWHEAD_GEOMETRY } from '../shapes/style.js';
 import { diamondPoints } from '../shapes/diamond.js';
@@ -65,11 +66,12 @@ function dashArray(strokeStyle: StrokeStyle, strokeWidth: number): number[] | un
 
 /** Common Rough.js options derived from a shape. */
 function baseOptions(shape: BaseShape): Options {
-  const lineDash = dashArray(shape.strokeStyle, shape.strokeWidth);
+  const strokeWidth = strokeWidthOf(shape);
+  const lineDash = dashArray(shape.strokeStyle, strokeWidth);
   return {
     seed: shape.seed,
     stroke: shape.strokeColor,
-    strokeWidth: shape.strokeWidth,
+    strokeWidth,
     fill: shape.fillColor ?? undefined,
     fillStyle: shape.fillColor ? shape.fillStyle : undefined,
     roughness: shape.roughness,
@@ -365,13 +367,14 @@ export function freehandPressureSegments(shape: FreehandShape): TaperedSegment[]
   if (pts.length < 2) return [];
 
   const segments = pts.length - 1;
+  const strokeWidth = strokeWidthOf(shape);
   const out: TaperedSegment[] = [];
   for (let i = 0; i < segments; i++) {
     // sin() peaks at the midpoint and reaches zero at both ends; the floor
     // keeps the tips visible rather than vanishing.
     const t = (i + 0.5) / segments;
     const taper = 0.35 + 0.65 * Math.sin(Math.PI * t);
-    out.push({ from: pts[i]!, to: pts[i + 1]!, width: shape.strokeWidth * taper });
+    out.push({ from: pts[i]!, to: pts[i + 1]!, width: strokeWidth * taper });
   }
   return out;
 }
@@ -389,7 +392,7 @@ export function drawFreehandPressure(
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  const dash = dashArray(shape.strokeStyle, shape.strokeWidth);
+  const dash = dashArray(shape.strokeStyle, strokeWidthOf(shape));
   if (dash) ctx.setLineDash(dash);
 
   for (const segment of segments) {
@@ -468,14 +471,19 @@ function arrowheadMark(
   const { size, angle, lengthRatio } = ARROWHEAD_GEOMETRY[arrowhead];
   const nx = (tx - from[0]) / distance;
   const ny = (ty - from[1]) / distance;
-  const minSize = Math.min(size, arrowLength * lengthRatio);
+  // The nominal size is a constant in board units, so it takes the shape's
+  // scale like the stroke does — otherwise an arrow drawn zoomed out gets a
+  // head that stays small against its own thickened shaft. The cap does not:
+  // it is a fraction of the arrow's real length, which is already as long as
+  // it was dragged.
+  const minSize = Math.min(size * shapeScale(shape), arrowLength * lengthRatio);
 
   // Base point: back along the shaft from the tip.
   const bx = tx - nx * minSize;
   const by = ty - ny * minSize;
 
   if (arrowhead === 'circle' || arrowhead === 'circle_outline') {
-    const radius = (Math.hypot(by - ty, bx - tx) + shape.strokeWidth - 2) / 2;
+    const radius = (Math.hypot(by - ty, bx - tx) + strokeWidthOf(shape) - 2) / 2;
     if (radius <= 0) return null;
     return { kind: 'circle', cx: tx, cy: ty, radius, filled: arrowhead === 'circle' };
   }
@@ -539,7 +547,7 @@ export function drawArrowheads(
   ctx.save();
   ctx.fillStyle = shape.strokeColor;
   ctx.strokeStyle = shape.strokeColor;
-  ctx.lineWidth = shape.strokeWidth;
+  ctx.lineWidth = strokeWidthOf(shape);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   // Arrowheads are solid markers even on a dashed arrow.

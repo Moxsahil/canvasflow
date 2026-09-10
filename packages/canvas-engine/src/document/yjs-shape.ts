@@ -50,6 +50,11 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
   if (shape.frameId != null) {
     map.set('frameId', shape.frameId);
   }
+  // Same reasoning: a shape drawn at 1:1 stores nothing here, so it is written
+  // exactly as it was before scale existed.
+  if (shape.scale !== undefined && shape.scale !== 1) {
+    map.set('scale', shape.scale);
+  }
 
   // Shape-kind-specific fields
   switch (shape.kind) {
@@ -131,6 +136,20 @@ function readTextValue(value: unknown): string {
 }
 
 /**
+ * Coerce a stored scale to one it is safe to multiply by, or to nothing.
+ *
+ * Everything downstream multiplies a stroke width or a font size by this, so a
+ * zero or a negative would collapse the shape and a NaN would spread through
+ * its bounds into the spatial index — the same blast radius as a broken arrow
+ * binding, and dropped here for the same reason. Nothing stored means 1, which
+ * is what every shape drawn before this existed says.
+ */
+function readScale(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
+  return value === 1 ? undefined : value;
+}
+
+/**
  * Coerce a stored image status to one the renderer knows.
  *
  * An unknown value means the writer had a vocabulary this client doesn't, and
@@ -176,6 +195,7 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
   const lastEditedByRaw = map.get('lastEditedBy');
   const lastEditedAtRaw = map.get('lastEditedAt');
   const frameIdRaw = map.get('frameId');
+  const scale = readScale(map.get('scale'));
 
   // Every `??` here is the upgrade path for boards persisted before the field
   // existed; the defaults match the shape factories.
@@ -192,6 +212,7 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
     roughness: (map.get('roughness') as Roughness) ?? 1,
     opacity: (map.get('opacity') as number) ?? 100,
     seed: (map.get('seed') as number) ?? 0,
+    ...(scale !== undefined && { scale }),
     ...(typeof lastEditedByRaw === 'string' && { lastEditedBy: lastEditedByRaw }),
     ...(typeof lastEditedAtRaw === 'number' && { lastEditedAt: lastEditedAtRaw }),
     // A frame that has since been deleted leaves its members pointing at

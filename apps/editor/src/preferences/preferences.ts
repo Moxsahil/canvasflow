@@ -155,7 +155,7 @@ export const PREFERENCE_GROUPS: readonly PreferenceGroupMeta[] = [
       {
         id: 'dynamicSize',
         label: 'Dynamic size',
-        hint: 'Strokes and text keep their size on screen as you zoom',
+        hint: 'Draw at the size things look now, however far out the board is',
       },
       {
         id: 'pasteAtCursor',

@@ -14,6 +14,25 @@ export interface BaseShape {
   /** 0–100. */
   readonly opacity: number;
   readonly seed: number;
+  /**
+   * How much wider this shape's stroke and taller its text are than the style
+   * asked for.
+   *
+   * Written once, when the shape is made, from the zoom it was made at: a
+   * stroke laid down at 25% stores 4 here and is drawn four times as wide, so
+   * it reads on screen as the weight it would have had at 1:1. Nothing
+   * recomputes it afterwards. The multiplier belongs to the shape from then
+   * on, which is what lets a board look the same to someone whose preferences
+   * differ from the ones it was drawn under.
+   *
+   * Held apart from `strokeWidth` and `fontSize` rather than multiplied into
+   * them, so those two keep the value the panel offered and the panel can go
+   * on showing which of its presets is the selected one.
+   *
+   * Absent means 1 — what every shape written before this existed says, which
+   * is why there is no migration.
+   */
+  readonly scale?: number;
   readonly lastEditedBy?: string;
   readonly lastEditedAt?: number;
   /**
@@ -187,6 +206,36 @@ export type Shape =
   | TextShape
   | ImageShape
   | FrameShape;
+
+/**
+ * A shape's scale, checked at every read rather than trusted.
+ *
+ * The value arrives from storage, from a board file and from other clients,
+ * and everything downstream multiplies by it. A zero, a negative or a NaN here
+ * would not draw a wrong stroke — it would erase the shape, or spread NaN
+ * through its bounds into the spatial index and take out far more than the one
+ * shape. Anything that is not a positive finite number reads as 1.
+ */
+export function shapeScale(shape: { readonly scale?: number }): number {
+  const { scale } = shape;
+  return typeof scale === 'number' && Number.isFinite(scale) && scale > 0 ? scale : 1;
+}
+
+/**
+ * The stroke width to draw, measure and hit-test with.
+ *
+ * Every reader of `strokeWidth` outside the properties panel wants this
+ * instead: the panel is asking which preset the shape was given, and everyone
+ * else is asking how wide the line actually is.
+ */
+export function strokeWidthOf(shape: BaseShape): number {
+  return shape.strokeWidth * shapeScale(shape);
+}
+
+/** The font size to draw and measure with. `fontSize` is the chosen preset. */
+export function fontSizeOf(shape: TextShape): number {
+  return shape.fontSize * shapeScale(shape);
+}
 
 /** Type guards — use these in renderer code for exhaustiveness checks. */
 export function isRectangle(s: Shape): s is RectangleShape {

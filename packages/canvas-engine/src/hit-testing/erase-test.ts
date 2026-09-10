@@ -5,17 +5,20 @@ import {
   shapeHasSolidInterior,
   shapeOutlineSegments,
 } from '../shapes/outline.js';
-import type { Shape } from '../shapes/shape.js';
+import { strokeWidthOf, type Shape } from '../shapes/shape.js';
 import type { SpatialIndex } from '../spatial/spatial-index.js';
 
 function eraseTolerance(shape: Shape, zoom: number): number {
   if (shape.kind === 'freehand') {
     return Math.max(2.25, 5 / zoom);
   }
+  // The width the line was actually drawn at, so the eraser keeps the same
+  // reach over a thick stroke as over a thin one.
+  const strokeWidth = strokeWidthOf(shape);
   if (shape.kind === 'arrow' || shape.kind === 'line') {
-    return Math.max(shape.strokeWidth, (shape.strokeWidth * 2) / zoom);
+    return Math.max(strokeWidth, (strokeWidth * 2) / zoom);
   }
-  return Math.max(shape.strokeWidth / 2, 2 / zoom);
+  return Math.max(strokeWidth / 2, 2 / zoom);
 }
 
 /**
