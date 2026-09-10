@@ -2,7 +2,9 @@ import type { Drawable } from 'roughjs/bin/core';
 import type { RoughGenerator } from 'roughjs/bin/generator';
 import {
   assertNever,
+  fontSizeOf,
   isFrame,
+  strokeWidthOf,
   type FrameShape,
   type ImageShape,
   type Shape,
@@ -167,7 +169,8 @@ function pointsToPath(points: ReadonlyArray<readonly [number, number]>, close: b
 
 function textToSvg(shape: TextShape): string {
   const lines = shape.text.split('\n');
-  const lineHeight = shape.fontSize * 1.2;
+  const fontSize = fontSizeOf(shape);
+  const lineHeight = fontSize * 1.2;
   const anchor =
     shape.textAlign === 'center' ? 'middle' : shape.textAlign === 'right' ? 'end' : 'start';
 
@@ -176,7 +179,7 @@ function textToSvg(shape: TextShape): string {
       const y = shape.y + index * lineHeight;
       return (
         `<text x="${num(shape.x)}" y="${num(y)}" font-family="${escapeXml(shape.fontFamily)}" ` +
-        `font-size="${num(shape.fontSize)}px" fill="${escapeXml(shape.strokeColor)}" ` +
+        `font-size="${num(fontSize)}px" fill="${escapeXml(shape.strokeColor)}" ` +
         `text-anchor="${anchor}" dominant-baseline="text-before-edge" ` +
         `style="white-space: pre;">${escapeXml(line)}</text>`
       );
@@ -263,7 +266,7 @@ function shapeToSvg(
       for (const mark of arrowheadMarks(shape)) {
         // Solid markers even on a dashed arrow, matching the canvas renderer.
         const common = `stroke="${escapeXml(shape.strokeColor)}" stroke-width="${num(
-          shape.strokeWidth,
+          strokeWidthOf(shape),
         )}" stroke-linejoin="round" stroke-linecap="round"`;
         if (mark.kind === 'circle') {
           content +=
@@ -286,7 +289,7 @@ function shapeToSvg(
       if (fill) content += drawableToSvg(generator, fill);
 
       if (shape.simulatePressure) {
-        const dash = strokeDashArray(shape.strokeStyle, shape.strokeWidth);
+        const dash = strokeDashArray(shape.strokeStyle, strokeWidthOf(shape));
         const dashAttr = dash ? ` stroke-dasharray="${dash.map(num).join(' ')}"` : '';
         for (const segment of freehandPressureSegments(shape)) {
           content +=

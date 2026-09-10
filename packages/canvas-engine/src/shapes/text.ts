@@ -1,4 +1,4 @@
-import type { TextShape } from './shape.js';
+import { fontSizeOf, type TextShape } from './shape.js';
 import type { Rect } from '../math.js';
 import { measureTextWidth } from '../utils/text-measure.js';
 import { resolveBaseStyle, type BaseStyleInput } from './style.js';
@@ -40,7 +40,8 @@ export function createText(
  * a per-character guess.
  */
 export function textBoundsEstimate(s: TextShape): Rect {
-  const font = `${s.fontSize}px ${s.fontFamily}`;
+  const fontSize = fontSizeOf(s);
+  const font = `${fontSize}px ${s.fontFamily}`;
 
   const lines = s.text.split('\n');
   let width = 0;
@@ -48,7 +49,7 @@ export function textBoundsEstimate(s: TextShape): Rect {
     const lineWidth = measureTextWidth(line, font);
     if (lineWidth > width) width = lineWidth;
   }
-  const height = lines.length * s.fontSize * 1.2;
+  const height = lines.length * fontSize * 1.2;
 
   // The renderer sets ctx.textAlign, so x is the anchor rather than always the
   // left edge. Shift the box to match, or selection outlines and hit-testing

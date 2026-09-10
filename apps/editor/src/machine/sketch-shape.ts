@@ -27,7 +27,12 @@ type Point = readonly [number, number];
  * Points are stored relative to the first one, which is what every other
  * linear shape here does — it keeps a stroke's origin at the stroke.
  */
-export function sketchStroke(points: readonly Point[], id: string, style: ItemStyle): Shape {
+export function sketchStroke(
+  points: readonly Point[],
+  id: string,
+  style: ItemStyle,
+  scale: number,
+): Shape {
   const [originX, originY] = points[0] ?? [0, 0];
   return createFreehand({
     id,
@@ -35,18 +40,24 @@ export function sketchStroke(points: readonly Point[], id: string, style: ItemSt
     y: originY,
     points: points.map(([x, y]) => [x - originX, y - originY] as Point),
     ...style,
+    scale,
   });
 }
 
 /** The shape a read stroke becomes, in the style the next shape would be drawn in. */
-export function sketchShape(verdict: StrokeVerdict, id: string, style: ItemStyle): Shape {
+export function sketchShape(
+  verdict: StrokeVerdict,
+  id: string,
+  style: ItemStyle,
+  scale: number,
+): Shape {
   switch (verdict.kind) {
     case 'rectangle':
-      return createRectangle({ id, ...verdict.bounds, ...style });
+      return createRectangle({ id, ...verdict.bounds, ...style, scale });
     case 'ellipse':
-      return createEllipse({ id, ...verdict.bounds, ...style });
+      return createEllipse({ id, ...verdict.bounds, ...style, scale });
     case 'diamond':
-      return createDiamond({ id, ...verdict.bounds, ...style });
+      return createDiamond({ id, ...verdict.bounds, ...style, scale });
     case 'line':
     case 'arrow': {
       const [fromX, fromY] = verdict.from;
@@ -55,8 +66,8 @@ export function sketchShape(verdict: StrokeVerdict, id: string, style: ItemStyle
         [verdict.to[0] - fromX, verdict.to[1] - fromY],
       ];
       return verdict.kind === 'arrow'
-        ? createArrow({ id, x: fromX, y: fromY, points, ...style })
-        : createLine({ id, x: fromX, y: fromY, points, ...style });
+        ? createArrow({ id, x: fromX, y: fromY, points, ...style, scale })
+        : createLine({ id, x: fromX, y: fromY, points, ...style, scale });
     }
   }
 }
@@ -76,9 +87,10 @@ export function sketchPreview(
   verdict: StrokeVerdict | null,
   id: string,
   style: ItemStyle,
+  scale: number,
 ): Shape {
   const pending: ItemStyle = { ...style, opacity: style.opacity * PENDING_OPACITY };
   return verdict && verdict.kind !== 'line' && verdict.kind !== 'arrow'
-    ? sketchShape(verdict, id, pending)
-    : sketchStroke(points, id, pending);
+    ? sketchShape(verdict, id, pending, scale)
+    : sketchStroke(points, id, pending, scale);
 }

@@ -15,6 +15,7 @@ import {
   fitRectToViewport,
   FRAME_LABEL_FONT_FAMILY,
   FRAME_LABEL_FONT_SIZE,
+  fontSizeOf,
   frameForShape,
   frameLabelAt,
   frameLabelBounds,
@@ -106,6 +107,7 @@ import {
 } from './tools/tool';
 import {
   IDENTITY_CAMERA,
+  newShapeScale,
   type HandleIndex,
   type ItemStyle,
   type Point,
@@ -829,8 +831,13 @@ export function Editor({ boardId }: EditorProps) {
   // Editing an existing shape shows that shape's type; new text previews the
   // style the panel is set to, so the overlay matches what gets committed.
   const editingText = editingTextShape && isText(editingTextShape) ? editingTextShape : null;
+  // The scale new text would be committed at, which the overlay has to preview
+  // as well as the draft: with dynamic size on it cancels the zoom exactly, so
+  // what is being typed stays at the size the panel says however far out the
+  // board is.
+  const newTextScale = newShapeScale(camera, preferences.values.dynamicSize);
   const textEditorFontSize =
-    (editingText ? editingText.fontSize : itemStyle.fontSize) * camera.zoom;
+    (editingText ? fontSizeOf(editingText) : itemStyle.fontSize * newTextScale) * camera.zoom;
   const textEditorFontFamily = editingText ? editingText.fontFamily : itemStyle.fontFamily;
   const textEditorColor = editingText ? editingText.strokeColor : itemStyle.strokeColor;
 
@@ -1009,8 +1016,9 @@ export function Editor({ boardId }: EditorProps) {
       fontFamily: itemStyle.fontFamily,
       fontSize: itemStyle.fontSize,
       textAlign: itemStyle.textAlign,
+      scale: newTextScale,
     });
-  }, [newElement, textEditingAt, editingText, liveText, itemStyle]);
+  }, [newElement, textEditingAt, editingText, liveText, itemStyle, newTextScale]);
 
   // Published from the machine's own preview rather than the pointer handlers,
   // so every tool that draws something gets this for free — and so the draft
@@ -2167,6 +2175,12 @@ export function Editor({ boardId }: EditorProps) {
     actorRef.send({ type: 'SET_TOOL_LOCK', locked: preferences.values.toolLock });
   }, [actorRef, preferences.values.toolLock]);
 
+  // Travels the same way, and for the same reason: the actions that make a
+  // shape read it alongside the camera they already hold.
+  useEffect(() => {
+    actorRef.send({ type: 'SET_DYNAMIC_SIZE', enabled: preferences.values.dynamicSize });
+  }, [actorRef, preferences.values.dynamicSize]);
+
   // Read-only takes the drawing tools off the toolbar; it has to take the one
   // in hand as well, or the next drag draws a shape the document then refuses.
   // View mode goes further and keeps only the hand, so that a press on the
@@ -2321,6 +2335,9 @@ export function Editor({ boardId }: EditorProps) {
           fontFamily,
           fontSize,
           textAlign,
+          // From the machine rather than the render closure, so the text is
+          // committed at the zoom the caret was actually placed at.
+          scale: newShapeScale(snap.context.camera, snap.context.dynamicSize),
         });
         doc.addShape(textShape);
         // The id travels with the commit so the machine can hold the new text

@@ -79,6 +79,16 @@ function opacity(value: unknown): number | undefined {
   return n === undefined ? undefined : Math.min(100, Math.max(0, n));
 }
 
+/**
+ * A scale is a multiplier, so it has to be positive as well as finite: a zero
+ * would collapse every stroke on the shape and a negative would invert it.
+ * Anything else drops back to the factory default of none.
+ */
+function scale(value: unknown): number | undefined {
+  const n = finite(value);
+  return n !== undefined && n > 0 ? n : undefined;
+}
+
 /** `null` is meaningful here — it's "no fill" — so it survives the check. */
 function fillColor(value: unknown): string | null | undefined {
   if (value === null) return null;
@@ -109,6 +119,7 @@ function baseStyle(raw: Raw) {
     opacity: opacity(raw.opacity),
     rotation: finite(raw.rotation),
     seed: finite(raw.seed),
+    scale: scale(raw.scale),
   };
 }
 

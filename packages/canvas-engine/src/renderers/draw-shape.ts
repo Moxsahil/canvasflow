@@ -1,6 +1,6 @@
 import type { RoughCanvas } from 'roughjs/bin/canvas';
 import type { Shape } from '../shapes/shape.js';
-import { assertNever } from '../shapes/shape.js';
+import { assertNever, fontSizeOf } from '../shapes/shape.js';
 import { drawImageShape, type ImageSource } from './draw-image.js';
 import { drawFrameBody } from './draw-frame.js';
 import {
@@ -93,7 +93,7 @@ export function drawSceneShape(
       break;
     }
     case 'text':
-      drawText(ctx, shape);
+      drawText(ctx, { ...shape, fontSize: fontSizeOf(shape) });
       break;
     case 'image':
       drawImageShape(ctx, shape, context.images, context.darkMode ?? false);

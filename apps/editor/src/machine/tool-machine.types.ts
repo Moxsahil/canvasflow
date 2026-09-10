@@ -29,6 +29,22 @@ export const IDENTITY_CAMERA: Camera = { x: 0, y: 0, zoom: 1 };
 export const MIN_ZOOM = 0.1;
 export const MAX_ZOOM = 5;
 
+/**
+ * The `scale` to stamp on the next shape drawn.
+ *
+ * The reciprocal of the zoom is the whole of the feature: a stroke drawn at
+ * 25% is stored four times as wide, and four times as wide seen through a
+ * quarter-scale camera is the weight it would have had at 1:1. So what gets
+ * drawn always matches what was on screen when it was drawn, at any zoom.
+ *
+ * Read once, when the shape is made. It is deliberately not consulted again —
+ * a shape keeps the size it was born at, and turning the preference off leaves
+ * everything already on the board exactly as it is.
+ */
+export function newShapeScale(camera: Camera, dynamicSize: boolean): number {
+  return dynamicSize ? 1 / camera.zoom : 1;
+}
+
 export type HandleIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 /**
@@ -133,6 +149,15 @@ export interface ToolMachineContext {
    */
   toolLocked: boolean;
 
+  /**
+   * Whether a new shape is sized against the screen instead of the board.
+   *
+   * Mirrored from the `dynamicSize` preference for the same reason as
+   * `toolLocked`: the creation actions read it together with `camera`, and
+   * both belong to the machine's own context so those actions stay pure.
+   */
+  dynamicSize: boolean;
+
   selectedIds: string[];
 
   marquee: { x: number; y: number; width: number; height: number } | null;
@@ -188,6 +213,7 @@ export type ToolMachineEvent =
   | { type: 'DESELECT' }
   | { type: 'SET_ITEM_STYLE'; style: Partial<ItemStyle> }
   | { type: 'SET_TOOL_LOCK'; locked: boolean }
+  | { type: 'SET_DYNAMIC_SIZE'; enabled: boolean }
   | { type: 'ERASE_MARK'; ids: readonly string[]; restore: boolean }
   | { type: 'INTERNAL_UPDATE_SHAPES'; shapes: Shape[] };
 

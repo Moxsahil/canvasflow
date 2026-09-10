@@ -18,6 +18,7 @@ import {
   IDENTITY_CAMERA,
   MAX_ZOOM,
   MIN_ZOOM,
+  newShapeScale,
   type HandleIndex,
   type ToolMachineContext,
   type ToolMachineEvent,
@@ -277,6 +278,7 @@ export const toolMachine = setup({
       const p = event.point;
       const tool = context.activeTool;
       const style = context.itemStyle;
+      const scale = newShapeScale(context.camera, context.dynamicSize);
       let newElement: Shape | null = null;
       switch (tool) {
         case 'rectangle':
@@ -287,6 +289,7 @@ export const toolMachine = setup({
             width: 1,
             height: 1,
             ...style,
+            scale,
           });
           break;
         case 'ellipse':
@@ -297,6 +300,7 @@ export const toolMachine = setup({
             width: 1,
             height: 1,
             ...style,
+            scale,
           });
           break;
         case 'diamond':
@@ -307,12 +311,15 @@ export const toolMachine = setup({
             width: 1,
             height: 1,
             ...style,
+            scale,
           });
           break;
         // Deliberately not given the current item style. A frame is
         // scaffolding for the work rather than part of it, so inheriting
         // whatever colour and roughness the last shape was drawn with would
-        // produce containers that read as drawing.
+        // produce containers that read as drawing. No `scale` either, for the
+        // same reason it takes no stroke width: a frame's border and label are
+        // chrome, drawn at a fixed weight the shape's own style never reaches.
         case 'frame':
           newElement = createFrame({ id: genId(), x: p.x, y: p.y, width: 1, height: 1 });
           break;
@@ -326,6 +333,7 @@ export const toolMachine = setup({
               [1, 1],
             ],
             ...style,
+            scale,
           });
           break;
         case 'arrow':
@@ -338,6 +346,7 @@ export const toolMachine = setup({
               [1, 1],
             ],
             ...style,
+            scale,
           });
           break;
         default:
@@ -356,6 +365,7 @@ export const toolMachine = setup({
           y: p.y,
           points: [[0, 0]],
           ...context.itemStyle,
+          scale: newShapeScale(context.camera, context.dynamicSize),
         }),
       };
     }),
@@ -364,7 +374,13 @@ export const toolMachine = setup({
       const points = [[event.point.x, event.point.y] as readonly [number, number]];
       return {
         sketchPoints: points,
-        newElement: sketchPreview(points, null, genId(), context.itemStyle),
+        newElement: sketchPreview(
+          points,
+          null,
+          genId(),
+          context.itemStyle,
+          newShapeScale(context.camera, context.dynamicSize),
+        ),
       };
     }),
     updateSketch: assign(({ context, event }) => {
@@ -380,6 +396,7 @@ export const toolMachine = setup({
           recogniseStroke(points, context.camera.zoom),
           context.newElement.id,
           context.itemStyle,
+          newShapeScale(context.camera, context.dynamicSize),
         ),
       };
     }),
@@ -392,10 +409,11 @@ export const toolMachine = setup({
       const points = context.sketchPoints;
       const id = genId();
       const verdict = recogniseStroke(points, context.camera.zoom);
+      const scale = newShapeScale(context.camera, context.dynamicSize);
       return {
         newElement: verdict
-          ? sketchShape(verdict, id, context.itemStyle)
-          : sketchStroke(points, id, context.itemStyle),
+          ? sketchShape(verdict, id, context.itemStyle, scale)
+          : sketchStroke(points, id, context.itemStyle, scale),
       };
     }),
     markForErase: assign(({ context, event }) => {
@@ -501,6 +519,10 @@ export const toolMachine = setup({
     setToolLock: assign(({ event }) => {
       if (event.type !== 'SET_TOOL_LOCK') return {};
       return { toolLocked: event.locked };
+    }),
+    setDynamicSize: assign(({ event }) => {
+      if (event.type !== 'SET_DYNAMIC_SIZE') return {};
+      return { dynamicSize: event.enabled };
     }),
     /**
      * Hold the shape that was just drawn.
@@ -673,6 +695,7 @@ export const toolMachine = setup({
     camera: IDENTITY_CAMERA,
     isSpacePressed: false,
     toolLocked: false,
+    dynamicSize: false,
     selectedIds: [],
     marquee: null,
     dragOriginShapes: {},
@@ -686,6 +709,7 @@ export const toolMachine = setup({
     SELECT_TOOL: { target: '.idle', actions: 'selectTool' },
     SET_ITEM_STYLE: { actions: 'setItemStyle' },
     SET_TOOL_LOCK: { actions: 'setToolLock' },
+    SET_DYNAMIC_SIZE: { actions: 'setDynamicSize' },
     ESCAPE: { target: '.idle', actions: ['clearDraw', 'clearTextEditing', 'deselectAll'] },
     EDIT_TEXT_SHAPE: { target: '.editingText', actions: 'startEditingExistingText' },
     SPACE_DOWN: { actions: 'trackSpaceDown' },
