@@ -31,6 +31,8 @@ interface UseKeyboardShortcutsOptions {
   onToggleGrid: () => void;
   onToggleSnapping: () => void;
   onToggleToolLock: () => void;
+  onToggleFocusMode: () => void;
+  onToggleViewMode: () => void;
   onOpenFile: () => void;
   onSaveFile: () => void;
   onExportImage: () => void;
@@ -69,6 +71,8 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onToggleGrid,
     onToggleSnapping,
     onToggleToolLock,
+    onToggleFocusMode,
+    onToggleViewMode,
     onOpenFile,
     onSaveFile,
     onExportImage,
@@ -175,6 +179,19 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
       if (!mod && event.altKey && !event.shiftKey && event.code === 'KeyS') {
         event.preventDefault();
         onToggleSnapping();
+        return;
+      }
+
+      // Focus mode: Alt+Z. View mode: Alt+R. By code, as Alt+S is, and for the
+      // same reason.
+      if (!mod && event.altKey && !event.shiftKey && event.code === 'KeyZ') {
+        event.preventDefault();
+        onToggleFocusMode();
+        return;
+      }
+      if (!mod && event.altKey && !event.shiftKey && event.code === 'KeyR') {
+        event.preventDefault();
+        onToggleViewMode();
         return;
       }
 
@@ -358,6 +375,8 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onToggleGrid,
     onToggleSnapping,
     onToggleToolLock,
+    onToggleFocusMode,
+    onToggleViewMode,
     onOpenFile,
     onSaveFile,
     onExportImage,

@@ -90,6 +90,8 @@ export const SHORTCUTS: ShortcutCategory[] = [
       { keys: 'alt+s', description: 'Snap to nearby shapes' },
       { keys: 'mod+drag', description: 'Snap for one gesture (or stop snapping)' },
       { keys: 'alt+shift+d', description: 'Toggle light / dark theme' },
+      { keys: 'alt+z', description: 'Focus mode (just the canvas; shortcuts still work)' },
+      { keys: 'alt+r', description: 'View mode (just the canvas, read-only)' },
       { keys: 'shift+?', description: 'Show this dialog' },
     ],
   },

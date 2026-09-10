@@ -46,13 +46,14 @@ export function useEditorCommands(
     handlersRef.current = handlers;
   });
 
-  const { readOnly, selectionCount, shapeCount, canUndo, canRedo, canRename } = context;
+  const { readOnly, viewMode, selectionCount, shapeCount, canUndo, canRedo, canRename } = context;
 
   // Rebuilt from the fields rather than the object, so the editor can pass a
   // literal without defeating the memo on every render.
   return useMemo(() => {
     const current: CommandContext = {
       readOnly,
+      viewMode,
       selectionCount,
       shapeCount,
       canUndo,
@@ -73,5 +74,5 @@ export function useEditorCommands(
       });
     }
     return commands;
-  }, [readOnly, selectionCount, shapeCount, canUndo, canRedo, canRename]);
+  }, [readOnly, viewMode, selectionCount, shapeCount, canUndo, canRedo, canRename]);
 }

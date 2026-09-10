@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react';
-import { Fragment } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -33,10 +33,19 @@ interface PreferencesMenuProps {
  */
 export function PreferencesMenu({ preferences, portalContainer }: PreferencesMenuProps) {
   const { label, icon: Icon } = MENU_ITEMS.preferences;
+  const [open, setOpen] = useState(false);
+
+  // Focus and view mode take the rail away, and with it the row this menu is
+  // anchored to — left up, the menu would drift to the corner of the window.
+  // Closed from here rather than on the row, so the shortcuts close it too.
+  const chromeHidden = preferences.values.focusMode || preferences.values.viewMode;
+  useEffect(() => {
+    if (chromeHidden) setOpen(false);
+  }, [chromeHidden]);
 
   return (
     <SidebarMenuItem>
-      <DropdownMenu>
+      <DropdownMenu open={open} onOpenChange={setOpen}>
         <SidebarMenuButton asChild tooltip={label} data-testid="menu-preferences">
           <DropdownMenuTrigger>
             <Icon aria-hidden="true" />

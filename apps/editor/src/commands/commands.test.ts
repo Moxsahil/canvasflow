@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { COMMANDS, COMMANDS_BY_ID, COMMAND_CATEGORIES, type CommandContext } from './commands';
-import { TOOLS, VIEW_ONLY_TOOLS } from '../tools/tool';
+import { TOOLS, VIEW_MODE_TOOL, VIEW_ONLY_TOOLS } from '../tools/tool';
 
 const editing: CommandContext = {
   readOnly: false,
+  viewMode: false,
   selectionCount: 1,
   shapeCount: 3,
   canUndo: true,
@@ -61,6 +62,16 @@ describe('availability', () => {
     }
   });
 
+  it('leaves view mode the hand tool and nothing else', () => {
+    // A press on the canvas pans in view mode, so a select or laser row here
+    // would be a tool the canvas then ignores.
+    const ids = available({ ...editing, readOnly: true, viewMode: true });
+    for (const tool of TOOLS) {
+      expect(ids.includes(`tool:${tool.id}`), tool.id).toBe(tool.id === VIEW_MODE_TOOL);
+    }
+    expect(ids).toContain('toggleViewMode');
+  });
+
   it('withholds every command that would change the board from a viewer', () => {
     const ids = available({ ...editing, readOnly: true });
     for (const id of [
@@ -79,7 +90,18 @@ describe('availability', () => {
 
   it('leaves a viewer able to look around and to leave', () => {
     const ids = available({ ...editing, readOnly: true });
-    for (const id of ['zoomIn', 'zoomToFit', 'toggleTheme', 'help', 'settings', 'signOut']) {
+    for (const id of [
+      'zoomIn',
+      'zoomToFit',
+      'toggleTheme',
+      'toggleFocusMode',
+      // View mode is read-only by choice, and the palette is one of the ways
+      // out of it — which it cannot be if read-only takes the command away.
+      'toggleViewMode',
+      'help',
+      'settings',
+      'signOut',
+    ]) {
       expect(ids, id).toContain(id);
     }
   });
