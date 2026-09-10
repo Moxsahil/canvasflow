@@ -15,7 +15,7 @@ export interface EditorPreferences {
   arrowBinding: boolean;
   dynamicSize: boolean;
   pasteAtCursor: boolean;
-  zenMode: boolean;
+  focusMode: boolean;
   viewMode: boolean;
   canvasStats: boolean;
   debugMode: boolean;
@@ -42,7 +42,7 @@ export const DEFAULT_PREFERENCES: EditorPreferences = {
   arrowBinding: true,
   dynamicSize: false,
   pasteAtCursor: false,
-  zenMode: false,
+  focusMode: false,
   viewMode: false,
   canvasStats: false,
   debugMode: false,
@@ -125,11 +125,7 @@ export const PREFERENCE_GROUPS: readonly PreferenceGroupMeta[] = [
         shortcut: 'alt+s',
         hint: 'Line up with nearby shapes as you draw',
       },
-      {
-        id: 'snapToMidpoints',
-        label: 'Snap to midpoints',
-        hint: 'Snap to the centre of an edge as well as its ends',
-      },
+
       {
         id: 'edgeScrolling',
         label: 'Edge scrolling',
@@ -172,10 +168,10 @@ export const PREFERENCE_GROUPS: readonly PreferenceGroupMeta[] = [
     id: 'view',
     items: [
       {
-        id: 'zenMode',
-        label: 'Zen mode',
+        id: 'focusMode',
+        label: 'Focus mode',
         shortcut: 'alt+z',
-        hint: 'Put away everything but the canvas and the tools',
+        hint: 'Put away everything but the canvas; the shortcuts still work',
       },
       {
         id: 'viewMode',

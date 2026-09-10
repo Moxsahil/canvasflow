@@ -74,6 +74,7 @@ import { ToolLockButton } from './toolbar/ToolLockButton';
 import { GlassDock, GlassDockSeparator } from '@/components/ui/glass-dock';
 import { TextEditor } from './text-editor/TextEditor';
 import { ZoomPanel } from './zoom-panel/ZoomPanel';
+import { ExitModeButton } from './modes/ExitModeButton';
 import { toolMachine, resizeShape, resizeSnapHandle } from './machine/tool-machine';
 import { useKeyboardShortcuts } from './tools/useKeyboardShortcuts';
 import { CommandPalette, useEditorCommands } from './commands';
@@ -96,7 +97,13 @@ import { SignOutDialog } from './auth/SignOutDialog';
 import { signOutTo } from './auth/sign-out';
 import { env } from './lib/env';
 import { PropertiesPanel, itemStyleFromShape } from './properties';
-import { TOOL_TO_SHAPE_KIND, isPickerTool, type Tool } from './tools/tool';
+import {
+  TOOL_TO_SHAPE_KIND,
+  VIEW_MODE_TOOL,
+  VIEW_ONLY_TOOLS,
+  isPickerTool,
+  type Tool,
+} from './tools/tool';
 import {
   IDENTITY_CAMERA,
   type HandleIndex,
@@ -461,8 +468,21 @@ export function Editor({ boardId }: EditorProps) {
    * A revoked session is read-only for the same reason and then some: there is
    * no longer a socket to reject its writes, so this is the only thing between
    * a keystroke and a shape appearing in a document nobody will ever collect.
+   *
+   * View mode is the same rule, chosen rather than imposed: someone reading a
+   * board they could edit, who would rather not knock anything while they do.
+   * It rides on this one flag so that every gate below covers it too, and so
+   * that leaving it is a matter of the flag going back down.
    */
-  const readOnly = accessRevoked || (user?.readOnly ?? true);
+  const viewMode = preferences.values.viewMode;
+  const readOnly = accessRevoked || (user?.readOnly ?? true) || viewMode;
+  /**
+   * Both of the modes that put the chrome away, leaving the canvas and the one
+   * button that brings it back. Focus mode keeps editing — by shortcut, since
+   * the toolbar goes with everything else; view mode is the same screen with
+   * `readOnly` on top and the hand as its only tool.
+   */
+  const chromeHidden = preferences.values.focusMode || viewMode;
 
   useEffect(() => {
     doc.setReadOnly(readOnly);
@@ -849,8 +869,10 @@ export function Editor({ boardId }: EditorProps) {
     : itemStyle;
 
   // Nothing in the properties panel does anything for a viewer, and offering
-  // controls that silently no-op is worse than not offering them.
-  const showProperties = !readOnly && (selectedShapes.length > 0 || toolShapeKind !== null);
+  // controls that silently no-op is worse than not offering them. Focus mode
+  // puts it away with the rest of the chrome.
+  const showProperties =
+    !readOnly && !chromeHidden && (selectedShapes.length > 0 || toolShapeKind !== null);
 
   const handleStyleChange = useCallback(
     (patch: Partial<ItemStyle>, transient = false) => {
@@ -1724,7 +1746,7 @@ export function Editor({ boardId }: EditorProps) {
       }
 
       const hit = hitTest(shapes, spatialIndex, point.x, point.y, camera.zoom);
-      if (hit && isText(hit)) {
+      if (hit && isText(hit) && !readOnly) {
         actorRef.send({
           type: 'EDIT_TEXT_SHAPE',
           shapeId: hit.id,
@@ -1755,6 +1777,11 @@ export function Editor({ boardId }: EditorProps) {
   );
   const handleToolChange = useCallback(
     (tool: Tool) => {
+      // The toolbar and the palette both drop these for a viewer; the keyboard
+      // does not know to. Refused here rather than drawn and then refused by
+      // the document, which would show the shape for a frame and take it back.
+      if (readOnly && !VIEW_ONLY_TOOLS.has(tool)) return;
+      if (viewMode && tool !== VIEW_MODE_TOOL) return;
       if (actorRef.getSnapshot().matches('editingText')) {
         const active = document.activeElement;
         if (active instanceof HTMLTextAreaElement) {
@@ -1767,7 +1794,7 @@ export function Editor({ boardId }: EditorProps) {
       }
       actorRef.send({ type: 'SELECT_TOOL', tool });
     },
-    [actorRef, handlePickImage],
+    [actorRef, handlePickImage, readOnly, viewMode],
   );
   const handleEscape = useCallback(() => actorRef.send({ type: 'ESCAPE' }), [actorRef]);
   const handleSpaceDown = useCallback(() => actorRef.send({ type: 'SPACE_DOWN' }), [actorRef]);
@@ -1781,10 +1808,12 @@ export function Editor({ boardId }: EditorProps) {
     [actorRef, width, height],
   );
   const handleDelete = useCallback(() => actorRef.send({ type: 'DELETE_SELECTED' }), [actorRef]);
-  const handleSelectAll = useCallback(
-    () => actorRef.send({ type: 'SELECT_ALL', shapeIds: shapes.map((s) => s.id) }),
-    [actorRef, shapes],
-  );
+  const handleSelectAll = useCallback(() => {
+    // Nothing is selectable in view mode, by the keyboard any more than by
+    // the pointer.
+    if (viewMode) return;
+    actorRef.send({ type: 'SELECT_ALL', shapeIds: shapes.map((s) => s.id) });
+  }, [actorRef, shapes, viewMode]);
   // handleUndo/handleRedo are defined further down, with the open-file flow —
   // they have to know about the camera an open moved.
 
@@ -2116,12 +2145,48 @@ export function Editor({ boardId }: EditorProps) {
     preferences.set('snapToObjects', !preferences.values.snapToObjects);
   }, [preferences]);
 
+  const toggleFocusMode = useCallback(() => {
+    preferences.set('focusMode', !preferences.values.focusMode);
+  }, [preferences]);
+
+  const toggleViewMode = useCallback(() => {
+    preferences.set('viewMode', !preferences.values.viewMode);
+  }, [preferences]);
+
+  // View mode outranks focus mode when both are on: it is the one that changes
+  // what the canvas does, so it is the one to be shown and let go of first.
+  const exitMode = useCallback(() => {
+    if (preferences.values.viewMode) preferences.set('viewMode', false);
+    else preferences.set('focusMode', false);
+  }, [preferences]);
+
   // The machine decides what happens when a tool finishes, so it has to hold
   // the preference rather than reach for it — same channel the item style
   // travels on.
   useEffect(() => {
     actorRef.send({ type: 'SET_TOOL_LOCK', locked: preferences.values.toolLock });
   }, [actorRef, preferences.values.toolLock]);
+
+  // Read-only takes the drawing tools off the toolbar; it has to take the one
+  // in hand as well, or the next drag draws a shape the document then refuses.
+  // View mode goes further and keeps only the hand, so that a press on the
+  // canvas moves the board rather than outlining what is on it — whatever key
+  // was pressed last, and whatever Escape hands back.
+  useEffect(() => {
+    if (viewMode) {
+      if (activeTool !== VIEW_MODE_TOOL) {
+        actorRef.send({ type: 'SELECT_TOOL', tool: VIEW_MODE_TOOL });
+      }
+    } else if (readOnly && !VIEW_ONLY_TOOLS.has(activeTool)) {
+      actorRef.send({ type: 'SELECT_TOOL', tool: 'select' });
+    }
+  }, [actorRef, readOnly, viewMode, activeTool]);
+
+  // Nothing stays outlined either: a selection is a promise of what the next
+  // drag will move, and in view mode the next drag moves the board.
+  useEffect(() => {
+    if (viewMode) actorRef.send({ type: 'DESELECT' });
+  }, [actorRef, viewMode]);
 
   useKeyboardShortcuts({
     onSelectTool: handleToolChange,
@@ -2152,6 +2217,8 @@ export function Editor({ boardId }: EditorProps) {
     onToggleGrid: toggleGrid,
     onToggleSnapping: toggleSnapping,
     onToggleToolLock: toggleToolLock,
+    onToggleFocusMode: toggleFocusMode,
+    onToggleViewMode: toggleViewMode,
     onOpenFile: openBoardFile,
     onSaveFile: saveBoardFileToDisk,
     onExportImage: showExport,
@@ -2190,6 +2257,8 @@ export function Editor({ boardId }: EditorProps) {
       zoomToFit: handleZoomToFit,
       zoomToSelection: handleZoomToSelection,
       toggleTheme,
+      toggleFocusMode,
+      toggleViewMode,
       undo: handleUndo,
       redo: handleRedo,
       cut: handleCut,
@@ -2216,6 +2285,7 @@ export function Editor({ boardId }: EditorProps) {
     },
     {
       readOnly,
+      viewMode,
       selectionCount: selectedIds.length,
       shapeCount: shapes.length,
       canUndo,
@@ -2272,6 +2342,9 @@ export function Editor({ boardId }: EditorProps) {
       ref={editorRef}
       className="cf-editor"
       data-theme={resolvedTheme}
+      // Read by global.css, which hides the sidebar on it. The chrome drawn
+      // below is simply left out of the tree instead.
+      data-chrome-hidden={chromeHidden ? '' : undefined}
       style={
         {
           position: 'fixed',
@@ -2375,56 +2448,72 @@ export function Editor({ boardId }: EditorProps) {
             )}
 
             {/* Top-right chrome shares one axis; the dock places them so neither
-          child has to know the other's width. */}
+          child has to know the other's width.
+
+          With the chrome away this corner is the one thing left on screen: the
+          way out stands exactly where the share button stands the rest of the
+          time. ⌘F still has to land somewhere, so the search comes up on its
+          own for as long as it is in use and leaves on Escape like the rest. */}
             <div className="cf-top-right-dock">
-              <FindBar search={search} />
-              <PeerList
-                roster={roster}
-                theme={presenceTheme}
-                following={follow.following}
-                onFollow={follow.follow}
-                onStopFollowing={follow.stop}
-                onShare={showShare}
-                readOnly={readOnly}
-                portalContainer={editorRoot}
-              />
+              {(!chromeHidden || search.open) && <FindBar search={search} />}
+              {chromeHidden ? (
+                <ExitModeButton mode={viewMode ? 'view' : 'focus'} onExit={exitMode} />
+              ) : (
+                <PeerList
+                  roster={roster}
+                  theme={presenceTheme}
+                  following={follow.following}
+                  onFollow={follow.follow}
+                  onStopFollowing={follow.stop}
+                  onShare={showShare}
+                  readOnly={readOnly}
+                  portalContainer={editorRoot}
+                />
+              )}
             </div>
 
             {/* Collapses and expands the sidebar. Floating over the canvas because
           the editor has no header bar to seat it in, and it is the only way
-          back to the sidebar on a viewport too narrow to keep one on screen. */}
-            <SidebarTrigger className="absolute top-4 left-4 z-(--zIndex-layerUI)" />
+          back to the sidebar on a viewport too narrow to keep one on screen.
+          Gone with the rail it opens once the chrome is away. */}
+            {!chromeHidden && (
+              <SidebarTrigger className="absolute top-4 left-4 z-(--zIndex-layerUI)" />
+            )}
 
-            <div className="cf-bottom-dock">
-              {/* Above the bar, and not for viewers: it governs what happens
-                  after a tool draws, and a viewer's tools never do. */}
-              {!readOnly && (
-                <ToolLockButton
-                  activeTool={activeTool}
-                  locked={preferences.values.toolLock}
-                  onToggle={toggleToolLock}
-                />
-              )}
-              <GlassDock aria-label="Editing tools">
+            {/* The dock goes with the rest of the chrome. The tools themselves
+                do not — every one keeps its key, see useKeyboardShortcuts. */}
+            {!chromeHidden && (
+              <div className="cf-bottom-dock">
+                {/* Above the bar, and not for viewers: it governs what happens
+                    after a tool draws, and a viewer's tools never do. */}
                 {!readOnly && (
-                  <>
-                    <HistoryPanel
-                      canUndo={canUndo}
-                      canRedo={canRedo}
-                      onUndo={handleUndo}
-                      onRedo={handleRedo}
-                    />
-                    <GlassDockSeparator />
-                  </>
+                  <ToolLockButton
+                    activeTool={activeTool}
+                    locked={preferences.values.toolLock}
+                    onToggle={toggleToolLock}
+                  />
                 )}
-                <Toolbar
-                  activeTool={activeTool}
-                  onToolChange={handleToolChange}
-                  readOnly={readOnly}
-                  portalContainer={editorRoot}
-                />
-              </GlassDock>
-            </div>
+                <GlassDock aria-label="Editing tools">
+                  {!readOnly && (
+                    <>
+                      <HistoryPanel
+                        canUndo={canUndo}
+                        canRedo={canRedo}
+                        onUndo={handleUndo}
+                        onRedo={handleRedo}
+                      />
+                      <GlassDockSeparator />
+                    </>
+                  )}
+                  <Toolbar
+                    activeTool={activeTool}
+                    onToolChange={handleToolChange}
+                    readOnly={readOnly}
+                    portalContainer={editorRoot}
+                  />
+                </GlassDock>
+              </div>
+            )}
 
             {showProperties && (
               <PropertiesPanel
@@ -2469,16 +2558,18 @@ export function Editor({ boardId }: EditorProps) {
               />
             )}
 
-            <ZoomPanel
-              zoom={camera.zoom}
-              syncStatus={syncStatus}
-              canZoomToFit={shapes.length > 0}
-              canvasWidth={width}
-              onZoomIn={handleZoomIn}
-              onZoomOut={handleZoomOut}
-              onResetZoom={handleZoomTo100}
-              onZoomToFit={handleZoomToFit}
-            />
+            {!chromeHidden && (
+              <ZoomPanel
+                zoom={camera.zoom}
+                syncStatus={syncStatus}
+                canZoomToFit={shapes.length > 0}
+                canvasWidth={width}
+                onZoomIn={handleZoomIn}
+                onZoomOut={handleZoomOut}
+                onResetZoom={handleZoomTo100}
+                onZoomToFit={handleZoomToFit}
+              />
+            )}
 
             <ShortcutsModal open={helpOpen} onClose={handleCloseHelp} theme={presenceTheme} />
 

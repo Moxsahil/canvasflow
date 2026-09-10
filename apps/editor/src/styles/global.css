@@ -123,6 +123,15 @@ html[data-theme='dark'] #root {
   z-index: var(--zIndex-layerUI);
 }
 
+/* Focus and view mode put the sidebar away with the rest of the chrome
+   (Editor.tsx drops the other panels from the tree directly). Hidden rather
+   than unmounted: the dialogs the sidebar owns — rename, manage — are still
+   reachable from the palette, and they portal out to the editor root, so they
+   go on working from behind a sidebar nobody can see. */
+.cf-editor[data-chrome-hidden] [data-slot='sidebar'] {
+  display: none;
+}
+
 /* The whole stack is inverted in dark mode: the container paints the canvas
    background, and the three canvases above it hold the drawing and the
    selection UI, so one filter covers board and chrome-on-canvas alike. */

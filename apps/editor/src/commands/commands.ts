@@ -7,7 +7,9 @@ import {
   CopyPlus,
   Crosshair,
   Expand,
+  Eye,
   Focus,
+  Maximize,
   MoveDown,
   MoveUp,
   Redo2,
@@ -20,7 +22,7 @@ import {
 } from 'lucide-react';
 import type { ComponentType, SVGProps } from 'react';
 import { MENU_ITEMS, type MenuItemId } from '../menu/menu-items';
-import { TOOLS, VIEW_ONLY_TOOLS, type Tool } from '../tools/tool';
+import { TOOLS, VIEW_MODE_TOOL, VIEW_ONLY_TOOLS, type Tool } from '../tools/tool';
 
 /**
  * Both icon families the editor draws with: the menu's are from the icon
@@ -64,6 +66,8 @@ export type CommandId =
   | 'zoomToFit'
   | 'zoomToSelection'
   | 'toggleTheme'
+  | 'toggleFocusMode'
+  | 'toggleViewMode'
   | 'undo'
   | 'redo'
   | 'cut'
@@ -89,6 +93,8 @@ export type CommandCategory = (typeof COMMAND_CATEGORIES)[number];
  */
 export interface CommandContext {
   readOnly: boolean;
+  /** Read-only by choice, with the hand as the only tool. Implies `readOnly`. */
+  viewMode: boolean;
   selectionCount: number;
   shapeCount: number;
   canUndo: boolean;
@@ -160,8 +166,11 @@ const TOOL_COMMANDS: readonly CommandMeta[] = TOOLS.map((tool) => ({
   shortcut: tool.shortcut.toLowerCase(),
   keywords: ['tool', ...(TOOL_KEYWORDS[tool.id] ?? [])],
   // Matching the toolbar, which drops the drawing tools for a viewer rather
-  // than disabling them.
-  available: VIEW_ONLY_TOOLS.has(tool.id) ? undefined : canEdit,
+  // than disabling them. View mode keeps the hand and nothing else.
+  available: (context) =>
+    context.viewMode
+      ? tool.id === VIEW_MODE_TOOL
+      : VIEW_ONLY_TOOLS.has(tool.id) || canEdit(context),
 }));
 
 /**
@@ -221,6 +230,24 @@ export const COMMANDS: readonly CommandMeta[] = [
     category: 'View',
     shortcut: 'alt+shift+d',
     keywords: ['dark mode', 'light mode', 'appearance', 'colour scheme', 'color scheme'],
+  },
+  {
+    id: 'toggleFocusMode',
+    label: 'Toggle focus mode',
+    icon: Maximize,
+    category: 'View',
+    shortcut: 'alt+z',
+    keywords: ['zen', 'hide panels', 'distraction free', 'chrome', 'minimal', 'clean'],
+  },
+  // No `available`: read-only is what this switches on, so it has to stay
+  // offered while read-only, or the palette could enter it and not leave it.
+  {
+    id: 'toggleViewMode',
+    label: 'Toggle view mode',
+    icon: Eye,
+    category: 'View',
+    shortcut: 'alt+r',
+    keywords: ['read only', 'look', 'present', 'lock editing', 'viewer'],
   },
 
   {

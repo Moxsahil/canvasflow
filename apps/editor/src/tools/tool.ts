@@ -163,3 +163,10 @@ export function isLockableTool(tool: Tool): boolean {
  * where the whole point is asking about a part of the board out loud.
  */
 export const VIEW_ONLY_TOOLS: ReadonlySet<Tool> = new Set<Tool>(['select', 'hand', 'laser']);
+
+/**
+ * The one tool view mode keeps. Looking at a board is panning it, and the
+ * select tool would only outline shapes that cannot then be moved — so every
+ * press on the canvas is the hand, whatever key was pressed last.
+ */
+export const VIEW_MODE_TOOL: Tool = 'hand';
