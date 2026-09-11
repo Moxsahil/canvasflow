@@ -133,7 +133,7 @@ import { FindBar, useCanvasSearch } from './search';
 import { AccessRevokedDialog, ShareDialog } from './share';
 import { SettingsDialog } from './settings';
 import { usePreferences } from './preferences';
-import { useProfile } from './profile';
+import { useAvatar, useProfile } from './profile';
 import { ConfirmDialog } from './ui';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -461,6 +461,15 @@ export function Editor({ boardId }: EditorProps) {
   const cursorColor = account.profile?.cursorColor ?? null;
 
   /**
+   * The photo this client publishes to the board, if any.
+   *
+   * Only one uploaded here. A sign-in provider's generated avatar stays out of
+   * presence altogether: it is not a picture of anyone, and the coloured
+   * initial it would replace says more.
+   */
+  const publishedAvatar = account.profile?.avatarUploaded ? account.profile.avatarVersion : null;
+
+  /**
    * The account as this window shows it — the token's copy, and only that.
    *
    * The profile is the authority on what was saved, but it is loaded once and
@@ -469,7 +478,26 @@ export function Editor({ boardId }: EditorProps) {
    * copy that refreshes, and a save now prompts that refresh in every window
    * of this browser, so it is also the one that is current.
    */
-  const chromeUser = useMemo(() => user && { name: user.name, email: user.email }, [user]);
+  /**
+   * This account's photo.
+   *
+   * Held here rather than in the settings dialog because the sidebar shows it
+   * whether or not the dialog has ever been opened, and because the bytes live
+   * in storage the gateway guards — so it takes the board's own token, and the
+   * board it is being asked through.
+   */
+  const avatar = useAvatar({
+    boardId,
+    token: authToken,
+    userId,
+    version: account.profile?.avatarVersion ?? null,
+    onChanged: account.reload,
+  });
+
+  const chromeUser = useMemo(
+    () => user && { name: user.name, email: user.email, avatarUrl: avatar.url },
+    [user, avatar.url],
+  );
 
   // The board's identity in the rail: its title, the workspace it sits in, and
   // the rest of the account's boards. Also the only place the board's real
@@ -689,6 +717,7 @@ export function Editor({ boardId }: EditorProps) {
     channel,
     user,
     cursorColor,
+    avatarVersion: publishedAvatar,
     activity,
     camera,
     screen,
@@ -700,8 +729,11 @@ export function Editor({ boardId }: EditorProps) {
   // Your own row reads from the token like everyone else's does, so the name
   // beside your avatar is the one collaborators have.
   const rosterSelf = useMemo(
-    () => (user ? { id: user.id, name: user.name, color: cursorColor } : null),
-    [user, cursorColor],
+    () =>
+      user
+        ? { id: user.id, name: user.name, color: cursorColor, avatarVersion: publishedAvatar }
+        : null,
+    [user, cursorColor, publishedAvatar],
   );
 
   const { peersRef, subscribe, roster } = usePeerPresence({
@@ -2520,6 +2552,8 @@ export function Editor({ boardId }: EditorProps) {
               ) : (
                 <PeerList
                   roster={roster}
+                  boardId={boardId}
+                  authToken={authToken}
                   theme={presenceTheme}
                   following={follow.following}
                   onFollow={follow.follow}
@@ -2638,6 +2672,7 @@ export function Editor({ boardId }: EditorProps) {
               boardId={boardId}
               boardName={boardTitle}
               presenceKey={presenceKey}
+              authToken={authToken}
               theme={presenceTheme}
               portalContainer={editorRoot}
             />
@@ -2731,6 +2766,7 @@ export function Editor({ boardId }: EditorProps) {
               <SettingsDialog
                 user={chromeUser}
                 account={account}
+                avatar={avatar}
                 theme={presenceTheme}
                 onClose={hideSettings}
               />

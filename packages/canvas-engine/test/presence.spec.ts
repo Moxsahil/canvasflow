@@ -18,7 +18,7 @@ const SCREEN = { width: 1000, height: 800 };
 
 describe('parsePresenceState', () => {
   const valid = {
-    user: { id: 'u1', name: 'Sahil', color: null },
+    user: { id: 'u1', name: 'Sahil', color: null, avatar: null },
     cursor: { x: 10, y: 20 },
     selection: ['s1'],
     lasering: true,
@@ -91,7 +91,7 @@ describe('parsePresenceState', () => {
         lastActive: 'soon',
       }),
     ).toEqual({
-      user: { id: 'u1', name: '', color: null },
+      user: { id: 'u1', name: '', color: null, avatar: null },
       cursor: null,
       selection: [],
       lasering: false,
@@ -268,5 +268,25 @@ describe('parsePresenceState colours', () => {
 
   it('reads a peer with no colour at all as no choice', () => {
     expect(parsePresenceState({ user: { id: 'u1', name: 'Sahil' } })?.user.color).toBeNull();
+  });
+});
+
+describe('parsePresenceState photos', () => {
+  const record = (avatar: unknown) => ({ user: { id: 'u1', name: 'Sahil', avatar } });
+
+  it('keeps a version that looks like one', () => {
+    expect(parsePresenceState(record('a1b2c3d4e5f60718'))?.user.avatar).toBe('a1b2c3d4e5f60718');
+  });
+
+  it('drops anything that could not be one', () => {
+    // This value goes into a request path, so its shape is checked rather than
+    // trusted — a peer running modified code writes whatever it likes here.
+    for (const avatar of ['../../etc/passwd', 'https://tracker.example/pixel', 'XYZ', 7, '']) {
+      expect(parsePresenceState(record(avatar))?.user.avatar, String(avatar)).toBeNull();
+    }
+  });
+
+  it('reads a peer with no photo as none', () => {
+    expect(parsePresenceState({ user: { id: 'u1', name: 'Sahil' } })?.user.avatar).toBeNull();
   });
 });

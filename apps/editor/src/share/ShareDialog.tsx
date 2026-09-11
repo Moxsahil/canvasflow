@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Play, Square, Users } from 'lucide-react';
 import { SurfaceButton } from '../ui/surface-ui';
 import { initialsOf } from '@/lib/initials';
+import { useAvatarUrls } from '../profile/useAvatar';
 import { SurfaceDialog } from '../ui/SurfaceDialog';
 import type { SurfaceTheme } from '../ui/surface-palette';
 import { TeamInvite, type PermissionLevel, type TeamMember } from '@/components/ui/team-invite';
@@ -35,6 +36,13 @@ interface ShareDialogProps {
    * up the list this refetches is guaranteed to include them.
    */
   presenceKey: string;
+  /**
+   * The editor's bearer token, for the members' photos.
+   *
+   * The rest of this dialog talks to the web app with a cookie; photos live in
+   * storage the gateway guards, and that is reached with the token instead.
+   */
+  authToken: string | null;
   /** The theme on screen — the dialog surface carries its own palette for each. */
   theme: SurfaceTheme;
   /** Radix portals out of the tree; the theme tokens live on `.cf-editor`. */
@@ -63,6 +71,7 @@ export function ShareDialog({
   boardId,
   boardName,
   presenceKey,
+  authToken,
   theme,
   portalContainer,
 }: ShareDialogProps) {
@@ -109,9 +118,28 @@ export function ShareDialog({
     [boardId],
   );
 
+  /**
+   * Read the board's sharing state once the board loads, not once the card
+   * opens.
+   *
+   * Who has access is the first thing a person looks at here, and fetching it
+   * on open means watching it arrive: the card spends a second saying "0
+   * members" and "Only you, for now" — which is not merely blank, it is wrong,
+   * and about a board they have just been looking at other people draw on.
+   *
+   * Two small queries, once per board. Quiet, because nobody asked for it and
+   * there is nowhere to report a failure to; opening the card tries again, and
+   * that one speaks up.
+   */
+  useEffect(() => {
+    void refresh({ quiet: true });
+  }, [refresh]);
+
   useEffect(() => {
     if (!open) return;
     setError(null);
+    // Whatever the prefetch found is already on screen, so this is a silent
+    // correction rather than a load: nothing is cleared while it runs.
     void refresh();
   }, [open, refresh]);
 
@@ -214,18 +242,34 @@ export function ShareDialog({
     }
   };
 
+  const active = useMemo(() => members.filter((member) => member.status === 'active'), [members]);
+
+  // Photos are read through the board, which is what authorizes seeing one —
+  // membership comes from the web app, which knows nothing about storage.
+  // Only while the card is open: a board with fifty members would otherwise
+  // cost fifty requests on every load, for a list most people never open.
+  // Anyone currently on the board is already resolved for the peer stack, and
+  // that cache is shared — so the faces that matter are there immediately.
+  const photos = useAvatarUrls({
+    boardId,
+    token: authToken,
+    subjects: useMemo(
+      () => (open ? active.map((member) => ({ id: member.userId })) : []),
+      [open, active],
+    ),
+  });
+
   const people = useMemo<TeamMember[]>(
     () =>
-      members
-        .filter((member) => member.status === 'active')
-        .map((member) => ({
-          id: member.userId,
-          name: member.name,
-          email: member.isGuest ? 'Guest' : member.email,
-          role: toPermission(member.role),
-          isOwner: member.isOwner,
-        })),
-    [members],
+      active.map((member) => ({
+        id: member.userId,
+        name: member.name,
+        email: member.isGuest ? 'Guest' : member.email,
+        avatar: photos[member.userId] ?? null,
+        role: toPermission(member.role),
+        isOwner: member.isOwner,
+      })),
+    [active, photos],
   );
 
   // A live session's terms are fixed at creation, so once one is running the

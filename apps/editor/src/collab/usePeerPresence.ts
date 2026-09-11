@@ -17,6 +17,8 @@ export interface RosterEntry {
   readonly isSelf: boolean;
   /** Their chosen colour, or null to use the one their id lands on. */
   readonly color: CursorColor | null;
+  /** Their uploaded photo's version, or null to draw their initial instead. */
+  readonly avatarVersion: string | null;
 }
 
 /** This client's own identity in the roster, as the editor knows it. */
@@ -24,6 +26,7 @@ export interface RosterSelf {
   readonly id: string;
   readonly name: string;
   readonly color: CursorColor | null;
+  readonly avatarVersion: string | null;
 }
 
 export interface PeerPresence {
@@ -59,6 +62,7 @@ function buildRoster(
       activity: selfActivity,
       isSelf: true,
       color: self.color,
+      avatarVersion: self.avatarVersion,
     });
   }
 
@@ -76,6 +80,7 @@ function buildRoster(
       activity: peer.activity,
       isSelf: false,
       color: peer.user.color ?? null,
+      avatarVersion: peer.user.avatar ?? null,
     });
   }
 
@@ -97,9 +102,10 @@ function rosterEquals(a: readonly RosterEntry[], b: readonly RosterEntry[]): boo
       entry.name === other.name &&
       entry.activity === other.activity &&
       entry.isSelf === other.isSelf &&
-      // Their avatar is filled with it, so a colour changed mid-session has to
-      // get past this guard to be repainted.
-      entry.color === other.color
+      // Their avatar is drawn from both, so a colour or a photo changed
+      // mid-session has to get past this guard to be repainted.
+      entry.color === other.color &&
+      entry.avatarVersion === other.avatarVersion
     );
   });
 }
