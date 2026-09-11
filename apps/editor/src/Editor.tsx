@@ -133,6 +133,7 @@ import { FindBar, useCanvasSearch } from './search';
 import { AccessRevokedDialog, ShareDialog } from './share';
 import { SettingsDialog } from './settings';
 import { usePreferences } from './preferences';
+import { useProfile } from './profile';
 import { ConfirmDialog } from './ui';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -441,6 +442,33 @@ export function Editor({ boardId }: EditorProps) {
   const user = useMemo(() => (authToken ? decodeJwtUser(authToken) : null), [authToken]);
   const userId = user?.id ?? null;
 
+  /**
+   * The account's own profile: the cursor colour this client publishes, and the
+   * display name the settings dialog writes.
+   *
+   * A guest has no account behind their share link, so they are never asked for
+   * one — the request would only come back 401.
+   */
+  const account = useProfile(user !== null && !user.isGuest);
+  const cursorColor = account.profile?.cursorColor ?? null;
+
+  /**
+   * The account as this window should show it.
+   *
+   * A token is a snapshot up to five minutes old, so a name saved in settings
+   * would appear to revert until the next refresh. The saved profile wins in
+   * the chrome; what goes out on the wire keeps using the token's copy, which
+   * is the one peers can trust.
+   */
+  const chromeUser = useMemo(
+    () =>
+      user && {
+        name: account.profile?.name ?? user.name,
+        email: account.profile?.email ?? user.email,
+      },
+    [user, account.profile],
+  );
+
   // The board's identity in the rail: its title, the workspace it sits in, and
   // the rest of the account's boards. Also the only place the board's real
   // title is known — everything else here has nothing but its id.
@@ -658,15 +686,24 @@ export function Editor({ boardId }: EditorProps) {
   const { setCursor, setSelection, setLasering, setDraft } = useSelfPresence({
     channel,
     user,
+    cursorColor,
     activity,
     camera,
     screen,
     following: follow.following,
   });
 
+  // Memoized because the hook resubscribes whenever this changes, and a fresh
+  // object every render would have it do so on every render.
+  const rosterSelf = useMemo(
+    () =>
+      user ? { id: user.id, name: account.profile?.name ?? user.name, color: cursorColor } : null,
+    [user, account.profile, cursorColor],
+  );
+
   const { peersRef, subscribe, roster } = usePeerPresence({
     channel,
-    self: user ? { id: user.id, name: user.name } : null,
+    self: rosterSelf,
     selfActivity: activity,
   });
 
@@ -676,6 +713,7 @@ export function Editor({ boardId }: EditorProps) {
     peersRef,
     subscribe,
     userId,
+    cursorColor,
     theme: presenceTheme,
   });
 
@@ -713,9 +751,9 @@ export function Editor({ boardId }: EditorProps) {
   const pointerCursor = useMemo(
     () =>
       collaborating && userId
-        ? pointerCursorValue(presenceColorFor(userId, presenceTheme))
+        ? pointerCursorValue(presenceColorFor(userId, presenceTheme, cursorColor))
         : undefined,
-    [collaborating, userId, presenceTheme],
+    [collaborating, userId, presenceTheme, cursorColor],
   );
 
   const shapesForRender = useMemo(
@@ -2375,7 +2413,7 @@ export function Editor({ boardId }: EditorProps) {
       <SidebarProvider defaultOpen={sidebarDefaultOpen} className="h-full min-h-0">
         <AppSidebar
           boardSwitcher={boardSwitcher}
-          user={user && { name: user.name, email: user.email }}
+          user={chromeUser}
           theme={theme}
           onThemeChange={setTheme}
           surfaceTheme={presenceTheme}
@@ -2459,6 +2497,7 @@ export function Editor({ boardId }: EditorProps) {
               <FollowingChip
                 name={followedPeer.name}
                 userId={followedPeer.userId}
+                color={followedPeer.color}
                 theme={presenceTheme}
                 onStop={follow.stop}
               />
@@ -2672,8 +2711,8 @@ export function Editor({ boardId }: EditorProps) {
               onOpenChange={(open) => {
                 if (!signingOut) setSignOutOpen(open);
               }}
-              name={user?.name ?? 'Account'}
-              email={user?.email ?? null}
+              name={chromeUser?.name ?? 'Account'}
+              email={chromeUser?.email ?? null}
               isGuest={user?.isGuest ?? false}
               synced={syncStatus === 'connected'}
               busy={signingOut}
@@ -2687,7 +2726,8 @@ export function Editor({ boardId }: EditorProps) {
                 and closing the dialog is what discards them. */}
             {settingsOpen && (
               <SettingsDialog
-                user={user && { name: user.name, email: user.email }}
+                user={chromeUser}
+                account={account}
                 theme={presenceTheme}
                 onClose={hideSettings}
               />

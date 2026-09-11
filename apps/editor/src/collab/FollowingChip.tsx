@@ -4,10 +4,13 @@ import {
   presenceTagTextColor,
   type PresenceTheme,
 } from '@canvasflow/canvas-engine';
+import type { CursorColor } from '@canvasflow/types';
 
 interface FollowingChipProps {
   name: string;
   userId: string;
+  /** The colour they chose, if any — the chip wears whatever their cursor does. */
+  color: CursorColor | null;
   theme: PresenceTheme;
   onStop: () => void;
 }
@@ -21,13 +24,13 @@ interface FollowingChipProps {
  * panning or zooming yourself also stops it, but that is a thing you have to
  * discover, whereas a button is a thing you can see.
  */
-export function FollowingChip({ name, userId, theme, onStop }: FollowingChipProps) {
-  const color = presenceColorFor(userId, theme);
+export function FollowingChip({ name, userId, color, theme, onStop }: FollowingChipProps) {
+  const fill = presenceColorFor(userId, theme, color);
 
   return (
     <div
       className="cf-following-chip"
-      style={{ background: color, color: presenceTagTextColor(theme) }}
+      style={{ background: fill, color: presenceTagTextColor(theme) }}
       role="status"
     >
       Following {name}

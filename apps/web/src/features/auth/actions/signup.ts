@@ -8,7 +8,6 @@ import { users, verificationTokens } from '@canvasflow/db';
 import { env } from '@/lib/env';
 import { eq } from 'drizzle-orm';
 import { sendVerificationEmail } from '@/lib/email/send-verification';
-import type { HexColor } from '@canvasflow/types';
 
 const signupSchema = z.object({
   email: z.string().email('Invalid email'),
@@ -40,12 +39,6 @@ export async function signup(input: unknown): Promise<SignupResult> {
     email: parsed.data.email,
     name: parsed.data.name,
     passwordHash,
-    preferences: {
-      theme: 'system',
-      cursorColor: '#6366f1' as HexColor,
-      showCursorsOfOthers: true,
-      defaultBoardTool: 'select',
-    },
   });
 
   const token = randomBytes(32).toString('hex');

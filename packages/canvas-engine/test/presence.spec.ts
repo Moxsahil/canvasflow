@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { CURSOR_COLORS } from '@canvasflow/types';
 import {
   PRESENCE_PALETTE,
   isPeerFresh,
   parsePresenceState,
   presenceColor,
   presenceColorFor,
+  presenceColorOf,
   presenceInitial,
   PEER_STALE_AFTER_MS,
   type Peer,
@@ -16,7 +18,7 @@ const SCREEN = { width: 1000, height: 800 };
 
 describe('parsePresenceState', () => {
   const valid = {
-    user: { id: 'u1', name: 'Sahil' },
+    user: { id: 'u1', name: 'Sahil', color: null },
     cursor: { x: 10, y: 20 },
     selection: ['s1'],
     lasering: true,
@@ -89,7 +91,7 @@ describe('parsePresenceState', () => {
         lastActive: 'soon',
       }),
     ).toEqual({
-      user: { id: 'u1', name: '' },
+      user: { id: 'u1', name: '', color: null },
       cursor: null,
       selection: [],
       lasering: false,
@@ -226,5 +228,45 @@ describe('presenceInitial', () => {
 
   it('falls back for an empty name', () => {
     expect(presenceInitial('   ')).toBe('?');
+  });
+});
+
+describe('presenceColorOf', () => {
+  it('gives a person the colour they chose', () => {
+    expect(presenceColorOf('u1', 'teal').name).toBe('teal');
+  });
+
+  it('falls back to the id colour when nothing is chosen', () => {
+    expect(presenceColorOf('u1', null)).toBe(presenceColor('u1'));
+    expect(presenceColorOf('u1')).toBe(presenceColor('u1'));
+  });
+
+  it('resolves a chosen colour differently per theme', () => {
+    expect(presenceColorFor('u1', 'light', 'teal')).toBe('#0D9488');
+    expect(presenceColorFor('u1', 'dark', 'teal')).toBe('#2DD4BF');
+  });
+
+  it('keeps the palette in step with the names a choice is stored as', () => {
+    // The id hash indexes this array, so a colour on one side only would shift
+    // everyone who has never chosen one.
+    expect(PRESENCE_PALETTE.map((entry) => entry.name)).toEqual([...CURSOR_COLORS]);
+  });
+});
+
+describe('parsePresenceState colours', () => {
+  const record = (color: unknown) => ({ user: { id: 'u1', name: 'Sahil', color } });
+
+  it('keeps a palette colour', () => {
+    expect(parsePresenceState(record('teal'))?.user.color).toBe('teal');
+  });
+
+  it('drops anything that is not one', () => {
+    // A peer running modified code can put whatever it likes here.
+    expect(parsePresenceState(record('#000000'))?.user.color).toBeNull();
+    expect(parsePresenceState(record(42))?.user.color).toBeNull();
+  });
+
+  it('reads a peer with no colour at all as no choice', () => {
+    expect(parsePresenceState({ user: { id: 'u1', name: 'Sahil' } })?.user.color).toBeNull();
   });
 });

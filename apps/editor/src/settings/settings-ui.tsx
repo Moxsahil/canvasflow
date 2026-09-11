@@ -12,11 +12,30 @@ interface SettingsPaneProps {
   title: string;
   subtitle: string;
   onClose: () => void;
+  /**
+   * Persist what the pane is holding.
+   *
+   * Optional because most panes still have nothing behind them: without it the
+   * footer button closes, which is what it has always done. A pane that can
+   * save passes this and decides for itself whether to close afterwards.
+   */
+  onSave?: () => void;
+  saving?: boolean;
+  /** Replaces the footer's usual line while something is wrong. */
+  error?: string | null;
   children: ReactNode;
 }
 
 /** Header, scrolling body, footer — the frame all six panes share. */
-export function SettingsPane({ title, subtitle, onClose, children }: SettingsPaneProps) {
+export function SettingsPane({
+  title,
+  subtitle,
+  onClose,
+  onSave,
+  saving = false,
+  error = null,
+  children,
+}: SettingsPaneProps) {
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
       <header className="flex w-full shrink-0 items-center gap-[12px] pb-[8px] pl-[30px] pr-[22px] pt-[26px]">
@@ -41,8 +60,13 @@ export function SettingsPane({ title, subtitle, onClose, children }: SettingsPan
       {/* The same line under every pane, including the ones that save nothing
           to the account yet. */}
       <footer className="flex w-full shrink-0 items-center gap-[10px] pb-[18px] pl-[30px] pr-[22px] pt-[16px]">
-        <p className="min-w-0 flex-1 text-[11px] text-[var(--surface-fg-faint)]">
-          Changes save to your account, not this board.
+        <p
+          role={error ? 'alert' : undefined}
+          className={`min-w-0 flex-1 text-[11px] ${
+            error ? 'text-[var(--surface-danger)]' : 'text-[var(--surface-fg-faint)]'
+          }`}
+        >
+          {error ?? 'Changes save to your account, not this board.'}
         </p>
         <button
           type="button"
@@ -53,10 +77,11 @@ export function SettingsPane({ title, subtitle, onClose, children }: SettingsPan
         </button>
         <button
           type="button"
-          onClick={onClose}
-          className="flex shrink-0 items-center rounded-[7px] bg-[var(--surface-accent)] px-[14px] py-[8px] text-[12px] font-medium text-[var(--surface-on-accent)] transition-colors hover:bg-[var(--surface-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-fg)]"
+          onClick={onSave ?? onClose}
+          disabled={saving}
+          className="flex shrink-0 items-center rounded-[7px] bg-[var(--surface-accent)] px-[14px] py-[8px] text-[12px] font-medium text-[var(--surface-on-accent)] transition-colors hover:bg-[var(--surface-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-fg)] disabled:opacity-60"
         >
-          Save changes
+          {saving ? 'Saving…' : 'Save changes'}
         </button>
       </footer>
     </div>
@@ -112,11 +137,14 @@ export function TextField({
   value,
   onChange,
   placeholder,
+  disabled = false,
 }: {
   label: string;
   value: string;
   onChange: (next: string) => void;
   placeholder: string;
+  /** For a field with nothing to write to — a guest's, or one mid-save. */
+  disabled?: boolean;
 }) {
   return (
     <input
@@ -124,8 +152,9 @@ export function TextField({
       value={value}
       aria-label={label}
       placeholder={placeholder}
+      disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
-      className="w-[240px] shrink-0 rounded-[7px] border border-[var(--surface-border)] bg-[var(--surface-input)] px-[10px] py-[8px] text-[12.5px] text-[var(--surface-fg)] placeholder:text-[var(--surface-fg-faint)] focus:border-[var(--surface-accent)] focus:outline-none"
+      className="w-[240px] shrink-0 rounded-[7px] border border-[var(--surface-border)] bg-[var(--surface-input)] px-[10px] py-[8px] text-[12.5px] text-[var(--surface-fg)] placeholder:text-[var(--surface-fg-faint)] focus:border-[var(--surface-accent)] focus:outline-none disabled:opacity-60"
     />
   );
 }

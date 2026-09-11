@@ -6,6 +6,7 @@ import {
   type PresenceScreen,
   type Shape,
 } from '@canvasflow/canvas-engine';
+import type { CursorColor } from '@canvasflow/types';
 import type { PresenceChannel } from './PresenceChannel';
 import type { EditorUser } from '../auth/token';
 
@@ -50,6 +51,13 @@ function forBroadcast(shape: Shape | null): Shape | null {
 interface UseSelfPresenceOptions {
   channel: PresenceChannel | null;
   user: EditorUser | null;
+  /**
+   * The colour this account chose, or null to keep the one its id lands on.
+   *
+   * Unlike the rest of the identity this does not come from the token — it is
+   * account data, read from the profile route.
+   */
+  cursorColor: CursorColor | null;
   activity: PresenceActivity;
   /** Live camera and viewport, published only while someone follows us. */
   camera: PresenceCamera;
@@ -88,6 +96,7 @@ export interface SelfPresence {
 export function useSelfPresence({
   channel,
   user,
+  cursorColor,
   activity,
   camera,
   screen,
@@ -105,6 +114,12 @@ export function useSelfPresence({
 
   const followedRef = useRef(false);
 
+  // Read through a ref so that choosing a colour does not re-run the identity
+  // publish below; the effect after it carries the change on its own, without
+  // resetting the rest of the record.
+  const cursorColorRef = useRef(cursorColor);
+  cursorColorRef.current = cursorColor;
+
   useEffect(() => {
     if (!channel || !user) return;
     return channel.subscribe((peers) => {
@@ -119,7 +134,7 @@ export function useSelfPresence({
     if (!channel || !user) return;
 
     channel.publish({
-      user: { id: user.id, name: user.name },
+      user: { id: user.id, name: user.name, color: cursorColorRef.current },
       cursor: cursorRef.current,
       selection: selectionRef.current,
       lasering: false,
@@ -137,6 +152,15 @@ export function useSelfPresence({
 
     return () => window.clearInterval(heartbeat);
   }, [channel, user]);
+
+  // A colour chosen in settings reaches everyone on the board at once rather
+  // than at the next reconnect: the record is already published, so this edits
+  // the identity on it in place.
+  useEffect(() => {
+    const local = channel?.getLocal();
+    if (!channel || !local || local.user.color === cursorColor) return;
+    channel.patch({ user: { ...local.user, color: cursorColor } });
+  }, [channel, cursorColor]);
 
   useEffect(() => {
     channel?.patch({ activity });

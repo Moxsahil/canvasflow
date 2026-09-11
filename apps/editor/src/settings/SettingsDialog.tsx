@@ -7,6 +7,7 @@ import { ProfilePane } from './ProfilePane';
 import { WorkspacePane } from './WorkspacePane';
 import { SearchIcon } from './settings-icons';
 import { surfaceThemeVars, type SurfaceTheme } from '../ui/surface-palette';
+import type { ProfileState } from '../profile';
 import { SETTINGS_SECTIONS, type SettingsSectionId } from './settings-sections';
 
 /**
@@ -19,6 +20,8 @@ const FONT_STACK = 'Inter, "Segoe UI", system-ui, -apple-system, sans-serif';
 interface SettingsDialogProps {
   /** Seeds the profile fields. Null until the token decodes. */
   user: { name: string; email: string | null } | null;
+  /** The account's saved profile. Owned by the editor, because presence reads it too. */
+  account: ProfileState;
   /** The theme on screen — the dialog carries its own palette for each. */
   theme: SurfaceTheme;
   onClose: () => void;
@@ -34,7 +37,7 @@ interface SettingsDialogProps {
  * colours flatly, and this is the one window in the app that is not chrome
  * around the canvas. Both themes of that surface live in settings-palette.
  */
-export function SettingsDialog({ user, theme, onClose }: SettingsDialogProps) {
+export function SettingsDialog({ user, account, theme, onClose }: SettingsDialogProps) {
   const [section, setSection] = useState<SettingsSectionId>('profile');
   const [query, setQuery] = useState('');
   const panelRef = useRef<HTMLDivElement>(null);
@@ -139,7 +142,9 @@ export function SettingsDialog({ user, theme, onClose }: SettingsDialogProps) {
           })}
         </nav>
 
-        {section === 'profile' && <ProfilePane user={user} onClose={onClose} />}
+        {section === 'profile' && (
+          <ProfilePane user={user} account={account} theme={theme} onClose={onClose} />
+        )}
         {section === 'account' && <AccountPane onClose={onClose} />}
         {section === 'workspace' && <WorkspacePane onClose={onClose} />}
         {section === 'notifications' && <NotificationsPane onClose={onClose} />}

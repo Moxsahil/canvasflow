@@ -7,7 +7,6 @@ import { parseEnv } from '../src/env.js';
 import { createClient } from '../src/client.js';
 import { users, workspaces, memberships, boards } from '../src/schema/index.js';
 import { eq } from 'drizzle-orm';
-import type { HexColor } from '@canvasflow/types';
 
 const env = parseEnv();
 
@@ -35,12 +34,6 @@ async function main() {
       name: 'MOX',
       passwordHash,
       emailVerifiedAt: new Date(),
-      preferences: {
-        theme: 'system',
-        cursorColor: '#6366f1' as HexColor,
-        showCursorsOfOthers: true,
-        defaultBoardTool: 'select',
-      },
     })
     .returning();
   if (!user) throw new Error('Failed to create demo user');

@@ -32,18 +32,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { id: 'privacy', label: 'Data & Privacy', icon: PrivacyIcon },
 ];
 
-/**
- * The eight cursor colours, read off the design's swatch row in its own order.
- * Board presence derives a colour from the user id today; nothing here is wired
- * to that yet, so this is the design's palette rather than that one.
+/*
+ * The cursor swatches are no longer listed here. They come from the board's own
+ * presence palette now, so what a person picks in this dialog is the colour
+ * their collaborators actually see — see PRESENCE_PALETTE.
  */
-export const CURSOR_COLORS = [
-  '#3B82F6',
-  '#8B5CF6',
-  '#EC4899',
-  '#EF4444',
-  '#F97316',
-  '#F59E0B',
-  '#22C55E',
-  '#14B8A6',
-] as const;

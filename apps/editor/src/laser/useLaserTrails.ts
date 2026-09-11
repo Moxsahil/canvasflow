@@ -7,6 +7,7 @@ import {
   type Peer,
   type PresenceTheme,
 } from '@canvasflow/canvas-engine';
+import type { CursorColor } from '@canvasflow/types';
 
 /**
  * Every laser trail on the board — this client's, and one per peer.
@@ -46,6 +47,8 @@ interface UseLaserTrailsOptions {
   subscribe: (listener: () => void) => () => void;
   /** This client's own id, so its own presence record isn't drawn twice. */
   userId: string | null;
+  /** This client's chosen colour, so its own trail matches its own cursor. */
+  cursorColor: CursorColor | null;
   theme: PresenceTheme;
 }
 
@@ -53,13 +56,16 @@ export function useLaserTrails({
   peersRef,
   subscribe,
   userId,
+  cursorColor,
   theme,
 }: UseLaserTrailsOptions): LaserTrails {
   const localRef = useRef(new LaserTrail());
   // The author's id is kept beside the trail rather than looked up each frame:
   // a peer who leaves mid-stroke drops off the roster while their trail is
   // still fading, and a lookup would lose their colour partway through.
-  const peerTrailsRef = useRef(new Map<number, { trail: LaserTrail; userId: string }>());
+  const peerTrailsRef = useRef(
+    new Map<number, { trail: LaserTrail; userId: string; color: CursorColor | null }>(),
+  );
   const listenersRef = useRef(new Set<() => void>());
 
   const themeRef = useRef(theme);
@@ -67,6 +73,9 @@ export function useLaserTrails({
 
   const userIdRef = useRef(userId);
   userIdRef.current = userId;
+
+  const cursorColorRef = useRef(cursorColor);
+  cursorColorRef.current = cursorColor;
 
   const wake = useCallback(() => {
     for (const listener of listenersRef.current) listener();
@@ -115,9 +124,18 @@ export function useLaserTrails({
 
           let entry = trails.get(peer.clientId);
           if (!entry) {
-            entry = { trail: new LaserTrail(), userId: peer.user.id };
+            entry = {
+              trail: new LaserTrail(),
+              userId: peer.user.id,
+              color: peer.user.color ?? null,
+            };
             trails.set(peer.clientId, entry);
           }
+          // Refreshed while they are here, so a colour chosen mid-stroke takes
+          // effect on the next frame rather than at their next connection. The
+          // last value stays with the trail once they leave, which is what keeps
+          // a fading stroke in the colour it was drawn in.
+          entry.color = peer.user.color ?? null;
           const trail = entry.trail;
 
           const point = peer.cursor;
@@ -166,13 +184,13 @@ export function useLaserTrails({
       }
       // Their presence colour, so two people pointing at once stay apart —
       // and so a trail matches the cursor it came from.
-      const color = presenceColorFor(entry.userId, themeRef.current);
+      const color = presenceColorFor(entry.userId, themeRef.current, entry.color);
       drawLaserTrail(ctx, entry.trail, { color, zoom, now });
     }
 
     const self = userIdRef.current;
     if (self) {
-      const color = presenceColorFor(self, themeRef.current);
+      const color = presenceColorFor(self, themeRef.current, cursorColorRef.current);
       drawLaserTrail(ctx, localRef.current, { color, zoom, now });
     }
   }, []);
