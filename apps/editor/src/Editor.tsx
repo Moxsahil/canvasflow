@@ -449,25 +449,27 @@ export function Editor({ boardId }: EditorProps) {
    * A guest has no account behind their share link, so they are never asked for
    * one — the request would only come back 401.
    */
-  const account = useProfile(user !== null && !user.isGuest);
+  const account = useProfile(user !== null && !user.isGuest, {
+    // A saved name only reaches collaborators when the token carrying it is
+    // reminted, so a rename asks for that at once rather than waiting for the
+    // refresh already scheduled minutes out.
+    onNameSaved: refreshAuthToken,
+    // Re-read on every remint, so a change made elsewhere — another device,
+    // beyond the reach of this browser's channel — lands without a reload.
+    revalidateOn: authToken,
+  });
   const cursorColor = account.profile?.cursorColor ?? null;
 
   /**
-   * The account as this window should show it.
+   * The account as this window shows it — the token's copy, and only that.
    *
-   * A token is a snapshot up to five minutes old, so a name saved in settings
-   * would appear to revert until the next refresh. The saved profile wins in
-   * the chrome; what goes out on the wire keeps using the token's copy, which
-   * is the one peers can trust.
+   * The profile is the authority on what was saved, but it is loaded once and
+   * never re-read, so preferring it here left a window that had not done the
+   * saving showing a name the token had already replaced. The token is the one
+   * copy that refreshes, and a save now prompts that refresh in every window
+   * of this browser, so it is also the one that is current.
    */
-  const chromeUser = useMemo(
-    () =>
-      user && {
-        name: account.profile?.name ?? user.name,
-        email: account.profile?.email ?? user.email,
-      },
-    [user, account.profile],
-  );
+  const chromeUser = useMemo(() => user && { name: user.name, email: user.email }, [user]);
 
   // The board's identity in the rail: its title, the workspace it sits in, and
   // the rest of the account's boards. Also the only place the board's real
@@ -695,10 +697,11 @@ export function Editor({ boardId }: EditorProps) {
 
   // Memoized because the hook resubscribes whenever this changes, and a fresh
   // object every render would have it do so on every render.
+  // Your own row reads from the token like everyone else's does, so the name
+  // beside your avatar is the one collaborators have.
   const rosterSelf = useMemo(
-    () =>
-      user ? { id: user.id, name: account.profile?.name ?? user.name, color: cursorColor } : null,
-    [user, account.profile, cursorColor],
+    () => (user ? { id: user.id, name: user.name, color: cursorColor } : null),
+    [user, cursorColor],
   );
 
   const { peersRef, subscribe, roster } = usePeerPresence({

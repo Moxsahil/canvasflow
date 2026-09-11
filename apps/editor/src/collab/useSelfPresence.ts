@@ -120,6 +120,18 @@ export function useSelfPresence({
   const cursorColorRef = useRef(cursorColor);
   cursorColorRef.current = cursorColor;
 
+  // Read by the identity publish below, which runs again whenever the token is
+  // reminted — a few minutes apart, and now also the moment a name is saved.
+  // Taking these from refs is what stops that republish from posting stale
+  // defaults over them: a follower whose record was reset to `following: null`
+  // stops being counted as one, and the person they follow stops publishing the
+  // camera that was moving their board.
+  const activityRef = useRef(activity);
+  activityRef.current = activity;
+
+  const followingRef = useRef(following);
+  followingRef.current = following;
+
   useEffect(() => {
     if (!channel || !user) return;
     return channel.subscribe((peers) => {
@@ -141,8 +153,8 @@ export function useSelfPresence({
       draft: null,
       camera: null,
       screen: null,
-      following: null,
-      activity: 'active',
+      following: followingRef.current,
+      activity: activityRef.current,
       lastActive: Date.now(),
     });
 
