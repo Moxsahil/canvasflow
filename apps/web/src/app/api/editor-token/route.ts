@@ -1,6 +1,6 @@
 import { type NextRequest } from 'next/server';
 import { and, eq } from 'drizzle-orm';
-import { createClient, users } from '@canvasflow/db';
+import { createClient, getProfile, users } from '@canvasflow/db';
 import { env } from '@/lib/env';
 import { auth } from '@/lib/auth';
 import { checkBoardAccess } from '@/lib/boards/access';
@@ -34,21 +34,11 @@ export async function OPTIONS() {
 }
 
 export async function GET(request: NextRequest) {
-  // A guest joined by share link and has no NextAuth session, only the guest
-  // cookie issued at redemption. They still need re-mints — without this their
-  // board silently stops syncing when the first token lapses. Access is
-  // resolved from the database either way, so this identifies the caller and
-  // authorizes nothing.
   const session = await auth();
   const sessionUser = session?.user;
 
   const identity: EditorIdentity | null = sessionUser?.id
-    ? {
-        id: sessionUser.id,
-        email: sessionUser.email ?? null,
-        name: sessionUser.name ?? null,
-        isGuest: false,
-      }
+    ? await loadAccountIdentity(sessionUser.id)
     : await loadGuestIdentityFromCookie();
 
   if (!identity) {
@@ -75,12 +65,13 @@ export async function GET(request: NextRequest) {
   return corsJson(await mintEditorToken(identity, access));
 }
 
-/**
- * Look the guest up rather than trusting the cookie for anything but the id.
- *
- * The `isGuest` check matters: it stops a stale or forged guest cookie from
- * ever resolving to a real account, even if it named one.
- */
+async function loadAccountIdentity(userId: string): Promise<EditorIdentity | null> {
+  const profile = await getProfile(db, userId);
+  if (!profile || profile.isGuest) return null;
+
+  return { id: profile.id, email: profile.email, name: profile.name, isGuest: false };
+}
+
 async function loadGuestIdentityFromCookie(): Promise<EditorIdentity | null> {
   const guestId = await readGuestSession();
   if (!guestId) return null;

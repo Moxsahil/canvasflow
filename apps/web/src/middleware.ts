@@ -25,7 +25,7 @@ const PUBLIC_PATHS = ['/', '/login', '/logout', '/signup', '/verify'];
  * here is therefore not a hole: it moves the check from the middleware into
  * the handler, it does not remove it.
  */
-const EDITOR_API_PREFIXES = ['/api/editor-token', '/api/boards/', '/api/workspaces'];
+const EDITOR_API_PREFIXES = ['/api/editor-token', '/api/boards/', '/api/workspaces', '/api/me'];
 
 export default auth((req) => {
   const isPublic =

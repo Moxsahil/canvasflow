@@ -39,7 +39,7 @@ export function CursorLayer({ peersRef, subscribe, camera, screen, theme }: Curs
         // unclean disconnect doesn't sit on the board looking alive.
         if (!peer.cursor || peer.activity === 'away' || !isPeerFresh(peer, now)) return null;
 
-        const color = presenceColorFor(peer.user.id, theme);
+        const color = presenceColorFor(peer.user.id, theme, peer.user.color);
 
         // One shared predicate decides which of the two renderers draws this
         // peer, so they stay exhaustive and mutually exclusive — no peer can

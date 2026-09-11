@@ -7,9 +7,25 @@ import { PrivacyPane } from './PrivacyPane';
 import { ProfilePane } from './ProfilePane';
 import { SettingsDialog } from './SettingsDialog';
 import { WorkspacePane } from './WorkspacePane';
-import { CURSOR_COLORS, SETTINGS_SECTIONS } from './settings-sections';
+import { SETTINGS_SECTIONS } from './settings-sections';
+import { PRESENCE_PALETTE } from '@canvasflow/canvas-engine';
+import type { Profile, ProfileState } from '../profile';
 
 const noop = () => {};
+
+/** A profile that has already loaded, for the panes that read one. */
+const SAVED: Profile = {
+  id: 'u1',
+  name: 'Sahil Saved',
+  email: 'sahil@example.com',
+  avatarUrl: null,
+  isGuest: false,
+  cursorColor: 'teal',
+};
+
+function accountStub(profile: Profile | null = null): ProfileState {
+  return { profile, loading: false, saving: false, error: null, save: async () => true };
+}
 
 /**
  * One pane on its own. The dialog shows the selected one and keeps that choice
@@ -18,7 +34,7 @@ const noop = () => {};
  */
 function renderPane(id: string) {
   const panes: Record<string, JSX.Element> = {
-    profile: <ProfilePane user={null} onClose={noop} />,
+    profile: <ProfilePane user={null} account={accountStub()} theme="dark" onClose={noop} />,
     account: <AccountPane onClose={noop} />,
     workspace: <WorkspacePane onClose={noop} />,
     notifications: <NotificationsPane onClose={noop} />,
@@ -34,8 +50,11 @@ function render(
     email: 'sahil@example.com',
   },
   theme: 'light' | 'dark' = 'dark',
+  account: ProfileState = accountStub(),
 ) {
-  return renderToString(<SettingsDialog user={user} theme={theme} onClose={noop} />);
+  return renderToString(
+    <SettingsDialog user={user} account={account} theme={theme} onClose={noop} />,
+  );
 }
 
 describe('SettingsDialog', () => {
@@ -119,11 +138,26 @@ describe('SettingsDialog', () => {
     expect(light).toContain('--surface-accent:#3b82f6');
   });
 
-  it('offers the design’s eight cursor colours, the first one checked', () => {
+  it('offers the board’s own palette, with nothing marked until a colour is picked', () => {
+    // The swatches are the colours collaborators actually see, so they come
+    // from the presence palette rather than a second list kept beside it.
     const html = render();
-    for (const color of CURSOR_COLORS) {
-      expect(html).toContain(`aria-label="${color}"`);
+    for (const entry of PRESENCE_PALETTE) {
+      expect(html).toContain(`aria-label="${entry.name}"`);
     }
+    // No choice yet means the colour still comes from the account id, and
+    // marking a swatch would claim otherwise.
+    expect(html).not.toContain('aria-checked="true"');
+  });
+
+  it('seeds the fields from the saved profile, not the token', () => {
+    const html = render(undefined, 'dark', accountStub(SAVED));
+    expect(html).toContain('value="Sahil Saved"');
     expect(html.match(/aria-checked="true"/g)).toHaveLength(1);
+  });
+
+  it('disables the live fields for a guest, who has no profile to save to', () => {
+    const html = render();
+    expect(html).toContain('disabled=""');
   });
 });

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Peer } from '@canvasflow/canvas-engine';
+import type { CursorColor } from '@canvasflow/types';
 import type { PresenceChannel } from './PresenceChannel';
 
 /**
@@ -14,6 +15,15 @@ export interface RosterEntry {
   readonly name: string;
   readonly activity: Peer['activity'];
   readonly isSelf: boolean;
+  /** Their chosen colour, or null to use the one their id lands on. */
+  readonly color: CursorColor | null;
+}
+
+/** This client's own identity in the roster, as the editor knows it. */
+export interface RosterSelf {
+  readonly id: string;
+  readonly name: string;
+  readonly color: CursorColor | null;
 }
 
 export interface PeerPresence {
@@ -37,7 +47,7 @@ const ACTIVITY_RANK: Record<Peer['activity'], number> = { active: 0, idle: 1, aw
 
 function buildRoster(
   peers: readonly Peer[],
-  self: { id: string; name: string } | null,
+  self: RosterSelf | null,
   selfActivity: Peer['activity'],
 ): RosterEntry[] {
   const byUser = new Map<string, RosterEntry>();
@@ -48,6 +58,7 @@ function buildRoster(
       name: self.name,
       activity: selfActivity,
       isSelf: true,
+      color: self.color,
     });
   }
 
@@ -64,6 +75,7 @@ function buildRoster(
       name: peer.user.name,
       activity: peer.activity,
       isSelf: false,
+      color: peer.user.color ?? null,
     });
   }
 
@@ -84,14 +96,17 @@ function rosterEquals(a: readonly RosterEntry[], b: readonly RosterEntry[]): boo
       entry.userId === other.userId &&
       entry.name === other.name &&
       entry.activity === other.activity &&
-      entry.isSelf === other.isSelf
+      entry.isSelf === other.isSelf &&
+      // Their avatar is filled with it, so a colour changed mid-session has to
+      // get past this guard to be repainted.
+      entry.color === other.color
     );
   });
 }
 
 interface UsePeerPresenceOptions {
   channel: PresenceChannel | null;
-  self: { id: string; name: string } | null;
+  self: RosterSelf | null;
   selfActivity: Peer['activity'];
 }
 

@@ -164,7 +164,7 @@ function PeerAvatar({ entry, theme }: { entry: RosterEntry; theme: PresenceTheme
       <AvatarFallback
         className="text-[11px]"
         style={{
-          background: presenceColorFor(entry.userId, theme),
+          background: presenceColorFor(entry.userId, theme, entry.color),
           color: presenceTagTextColor(theme),
         }}
       >
@@ -185,7 +185,7 @@ function PeerRow({
   isFollowing: boolean;
   onSelect: () => void;
 }) {
-  const color = presenceColorFor(entry.userId, theme);
+  const color = presenceColorFor(entry.userId, theme, entry.color);
 
   return (
     <button

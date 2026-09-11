@@ -1,3 +1,4 @@
+import { isCursorColor, type CursorColor } from '@canvasflow/types';
 import { sanitizeShape } from '../sanitize/sanitize-shape.js';
 import type { Shape } from '../shapes/shape.js';
 
@@ -29,10 +30,26 @@ export interface PresenceScreen {
 export interface PresenceUser {
   readonly id: string;
   readonly name: string;
+  /**
+   * The colour this peer chose for their cursor, if they have one.
+   *
+   * Absent from a peer on an older build, null for anyone who never picked one.
+   * Both mean the same thing to a reader: fall back to the colour their id
+   * lands on, which is what presenceColorOf does.
+   */
+  readonly color?: CursorColor | null;
 }
 
 export interface PresenceState {
-  /** Taken from the verified editor token — never asserted by the client. */
+  /**
+   * Id and name are taken from the verified editor token, never asserted by
+   * the client.
+   *
+   * The colour is the one exception, because it is account data the token does
+   * not carry. Nothing rests on it — the worst a forged value does is draw that
+   * peer's own cursor in a different palette colour — and it is checked against
+   * the palette on arrival regardless.
+   */
   readonly user: PresenceUser;
   /**
    * Pointer position in **world** coordinates, or null when the pointer is off
@@ -164,7 +181,7 @@ export function parsePresenceState(raw: unknown): PresenceState | null {
   if (!raw || typeof raw !== 'object') return null;
 
   const candidate = raw as Record<string, unknown>;
-  const user = candidate.user as { id?: unknown; name?: unknown } | undefined;
+  const user = candidate.user as { id?: unknown; name?: unknown; color?: unknown } | undefined;
   if (!user || typeof user.id !== 'string' || user.id.length === 0) return null;
 
   const name = typeof user.name === 'string' ? user.name : '';
@@ -176,6 +193,9 @@ export function parsePresenceState(raw: unknown): PresenceState | null {
       // Trimmed here rather than at the draw call: the renderer measures text
       // before it clips, so an unbounded string is a cost, not just ugly.
       name: name.slice(0, MAX_NAME_LENGTH),
+      // Anything that is not a palette name reads as no choice at all, which
+      // is also what a peer on an older build sends.
+      color: isCursorColor(user.color) ? user.color : null,
     },
     cursor: parsePoint(candidate.cursor),
     selection: Array.isArray(candidate.selection)
