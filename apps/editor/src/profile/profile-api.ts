@@ -15,10 +15,26 @@ export interface Profile {
   name: string;
   /** Null for a guest, whose stored address is a synthetic placeholder. */
   email: string | null;
+  /** The provider's own photo, if they signed in with one. */
   avatarUrl: string | null;
   isGuest: boolean;
   /** Null means automatic: the colour is derived from the id instead. */
   cursorColor: CursorColor | null;
+  /**
+   * Changes with the photo, and null when there is none.
+   *
+   * Not a URL: photos live in private storage, so one is fetched against this
+   * token rather than travelling as a link. See useAvatar.
+   */
+  avatarVersion: string | null;
+  /**
+   * Whether that photo is one uploaded here rather than a sign-in provider's.
+   *
+   * Only an uploaded photo is published to the board: providers issue a
+   * generated letter-avatar for accounts that never set one, and that is not a
+   * picture of anybody.
+   */
+  avatarUploaded: boolean;
 }
 
 export interface ProfileChanges {

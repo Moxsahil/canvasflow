@@ -23,6 +23,15 @@ interface SettingsPaneProps {
   saving?: boolean;
   /** Replaces the footer's usual line while something is wrong. */
   error?: string | null;
+  /**
+   * Something drawn over the whole pane, footer included.
+   *
+   * A step that has to finish before anything else makes sense — positioning a
+   * photo, so far — rather than a second window over the dialog: the pane is
+   * already a modal surface, and stacking another on it would leave two things
+   * to dismiss.
+   */
+  overlay?: ReactNode;
   children: ReactNode;
 }
 
@@ -34,10 +43,11 @@ export function SettingsPane({
   onSave,
   saving = false,
   error = null,
+  overlay,
   children,
 }: SettingsPaneProps) {
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+    <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden">
       <header className="flex w-full shrink-0 items-center gap-[12px] pb-[8px] pl-[30px] pr-[22px] pt-[26px]">
         <div className="flex min-w-0 flex-1 flex-col gap-[6px]">
           <h2 className="text-[19px] font-semibold text-[var(--surface-fg)]">{title}</h2>
@@ -84,6 +94,8 @@ export function SettingsPane({
           {saving ? 'Saving…' : 'Save changes'}
         </button>
       </footer>
+
+      {overlay}
     </div>
   );
 }
@@ -159,22 +171,33 @@ export function TextField({
   );
 }
 
-export function SecondaryButton({ children }: { children: ReactNode }) {
+/** A row's button. Inert without an `onClick`, as the unbuilt panes leave it. */
+interface RowButtonProps {
+  children: ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+}
+
+export function SecondaryButton({ children, onClick, disabled = false }: RowButtonProps) {
   return (
     <button
       type="button"
-      className="flex shrink-0 items-center rounded-[7px] border border-[var(--surface-border)] bg-[var(--surface-raised)] px-[12px] py-[7px] text-[12px] font-medium text-[var(--surface-fg)] transition-colors hover:bg-[var(--surface-raised-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex shrink-0 items-center rounded-[7px] border border-[var(--surface-border)] bg-[var(--surface-raised)] px-[12px] py-[7px] text-[12px] font-medium text-[var(--surface-fg)] transition-colors hover:bg-[var(--surface-raised-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] disabled:opacity-60"
     >
       {children}
     </button>
   );
 }
 
-export function GhostButton({ children }: { children: ReactNode }) {
+export function GhostButton({ children, onClick, disabled = false }: RowButtonProps) {
   return (
     <button
       type="button"
-      className="flex shrink-0 items-center rounded-[7px] px-[12px] py-[7px] text-[12px] font-medium text-[var(--surface-fg-faint)] transition-colors hover:text-[var(--surface-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex shrink-0 items-center rounded-[7px] px-[12px] py-[7px] text-[12px] font-medium text-[var(--surface-fg-faint)] transition-colors hover:text-[var(--surface-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] disabled:opacity-60"
     >
       {children}
     </button>

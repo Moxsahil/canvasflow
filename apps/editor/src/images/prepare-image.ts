@@ -34,7 +34,13 @@ export interface PreparedImage {
   naturalHeight: number;
 }
 
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
+/**
+ * The content hash that names an object in storage.
+ *
+ * Exported because profile photos are filed the same way — same digest, same
+ * property that uploading identical bytes twice writes them once.
+ */
+export async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', bytes as unknown as ArrayBuffer);
   return Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, '0'))

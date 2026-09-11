@@ -10,14 +10,20 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
 import { AvatarStack } from '@/components/kibo-ui/avatar-stack';
+import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import { useAvatarUrls } from '../profile';
 import type { RosterEntry } from './usePeerPresence';
 
 interface PeerListProps {
   roster: readonly RosterEntry[];
+  /** The board these people share, which is what authorizes seeing a photo. */
+  boardId: string;
+  /** The editor's bearer token, for the same. */
+  authToken: string | null;
   theme: PresenceTheme;
   following: string | null;
   onFollow: (userId: string) => void;
@@ -46,6 +52,8 @@ const AVATAR = 26;
  */
 export function PeerList({
   roster,
+  boardId,
+  authToken,
   theme,
   following,
   onFollow,
@@ -56,6 +64,25 @@ export function PeerList({
 }: PeerListProps) {
   const others = roster.filter((entry) => !entry.isSelf);
   const isLive = others.length > 0;
+
+  /**
+   * Photos for the faces on show.
+   *
+   * Only for people whose presence record names one, which is only ever a photo
+   * uploaded here — so nobody appears as a sign-in provider's generated avatar,
+   * and everyone else keeps the coloured initial that already identifies them.
+   */
+  const photos = useAvatarUrls({
+    boardId,
+    token: authToken,
+    subjects: useMemo(
+      () =>
+        roster
+          .filter((entry) => entry.avatarVersion !== null)
+          .map((entry) => ({ id: entry.userId, version: entry.avatarVersion })),
+      [roster],
+    ),
+  });
 
   // Self last, nearest the edge, so the people you are working with read first
   // and your own avatar never shifts as others come and go.
@@ -83,7 +110,12 @@ export function PeerList({
               >
                 <AvatarStack size={AVATAR} animate>
                   {visible.map((entry) => (
-                    <PeerAvatar key={entry.userId} entry={entry} theme={theme} />
+                    <PeerAvatar
+                      key={entry.userId}
+                      entry={entry}
+                      photo={photos[entry.userId] ?? null}
+                      theme={theme}
+                    />
                   ))}
                   {overflow > 0 && (
                     <Avatar>
@@ -104,6 +136,7 @@ export function PeerList({
                 <PeerRow
                   key={entry.userId}
                   entry={entry}
+                  photo={photos[entry.userId] ?? null}
                   theme={theme}
                   isFollowing={following === entry.userId}
                   onSelect={() =>
@@ -151,7 +184,15 @@ export function PeerList({
   );
 }
 
-function PeerAvatar({ entry, theme }: { entry: RosterEntry; theme: PresenceTheme }) {
+function PeerAvatar({
+  entry,
+  photo,
+  theme,
+}: {
+  entry: RosterEntry;
+  photo: string | null;
+  theme: PresenceTheme;
+}) {
   const label = entry.isSelf ? `${entry.name} (you)` : entry.name;
 
   return (
@@ -161,6 +202,9 @@ function PeerAvatar({ entry, theme }: { entry: RosterEntry; theme: PresenceTheme
       // removing them would make the bar jump whenever a person pauses.
       style={{ opacity: entry.activity === 'active' ? 1 : 0.45 }}
     >
+      {/* Radix keeps the fallback showing unless the image actually loads, so
+          a photo that fails leaves the colour and initial rather than a hole. */}
+      {photo && <AvatarImage src={photo} alt="" />}
       <AvatarFallback
         className="text-[11px]"
         style={{
@@ -176,11 +220,13 @@ function PeerAvatar({ entry, theme }: { entry: RosterEntry; theme: PresenceTheme
 
 function PeerRow({
   entry,
+  photo,
   theme,
   isFollowing,
   onSelect,
 }: {
   entry: RosterEntry;
+  photo: string | null;
   theme: PresenceTheme;
   isFollowing: boolean;
   onSelect: () => void;
@@ -198,13 +244,19 @@ function PeerRow({
       <span
         className="cf-peer-list__disc cf-peer-list__disc--sm"
         style={{
+          // The colour still fills the disc behind a photo, so it shows at the
+          // rim and the person stays the same colour they are on the canvas.
           background: color,
           color: presenceTagTextColor(theme),
           opacity: entry.activity === 'active' ? 1 : 0.45,
         }}
         aria-hidden="true"
       >
-        {presenceInitial(entry.name)}
+        {photo ? (
+          <img src={photo} alt="" className="size-full rounded-full object-cover" />
+        ) : (
+          presenceInitial(entry.name)
+        )}
       </span>
       <span className="cf-peer-list__name">{entry.name}</span>
       {entry.isSelf ? (

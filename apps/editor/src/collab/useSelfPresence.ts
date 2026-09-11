@@ -58,6 +58,13 @@ interface UseSelfPresenceOptions {
    * account data, read from the profile route.
    */
   cursorColor: CursorColor | null;
+  /**
+   * The version of this account's uploaded photo, or null.
+   *
+   * Null for a provider's avatar as well as for no photo at all — the board
+   * draws only a picture somebody chose.
+   */
+  avatarVersion: string | null;
   activity: PresenceActivity;
   /** Live camera and viewport, published only while someone follows us. */
   camera: PresenceCamera;
@@ -97,6 +104,7 @@ export function useSelfPresence({
   channel,
   user,
   cursorColor,
+  avatarVersion,
   activity,
   camera,
   screen,
@@ -119,6 +127,9 @@ export function useSelfPresence({
   // resetting the rest of the record.
   const cursorColorRef = useRef(cursorColor);
   cursorColorRef.current = cursorColor;
+
+  const avatarVersionRef = useRef(avatarVersion);
+  avatarVersionRef.current = avatarVersion;
 
   // Read by the identity publish below, which runs again whenever the token is
   // reminted — a few minutes apart, and now also the moment a name is saved.
@@ -146,7 +157,12 @@ export function useSelfPresence({
     if (!channel || !user) return;
 
     channel.publish({
-      user: { id: user.id, name: user.name, color: cursorColorRef.current },
+      user: {
+        id: user.id,
+        name: user.name,
+        color: cursorColorRef.current,
+        avatar: avatarVersionRef.current,
+      },
       cursor: cursorRef.current,
       selection: selectionRef.current,
       lasering: false,
@@ -170,9 +186,10 @@ export function useSelfPresence({
   // the identity on it in place.
   useEffect(() => {
     const local = channel?.getLocal();
-    if (!channel || !local || local.user.color === cursorColor) return;
-    channel.patch({ user: { ...local.user, color: cursorColor } });
-  }, [channel, cursorColor]);
+    if (!channel || !local) return;
+    if (local.user.color === cursorColor && local.user.avatar === avatarVersion) return;
+    channel.patch({ user: { ...local.user, color: cursorColor, avatar: avatarVersion } });
+  }, [channel, cursorColor, avatarVersion]);
 
   useEffect(() => {
     channel?.patch({ activity });

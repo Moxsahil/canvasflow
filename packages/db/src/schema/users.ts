@@ -18,7 +18,21 @@ export const users = pgTable('users', {
    * The flag is what lets sign-in, listings and cleanup tell them apart.
    */
   isGuest: boolean('is_guest').notNull().default(false),
+  /**
+   * A photo from whoever they signed in with, when there is one.
+   *
+   * Someone else's URL on someone else's origin, which is why an uploaded
+   * photo does not go here: those live in our own object storage and are named
+   * by the two columns below.
+   */
   avatarUrl: text('avatar_url'),
+  /**
+   * The sha256 of an uploaded photo, which is also its object key under
+   * `avatars/<user id>/`. Null for anyone who has not uploaded one.
+   */
+  avatarFileId: text('avatar_file_id'),
+  /** Pinned into the signature of every URL issued for that object. */
+  avatarMimeType: text('avatar_mime_type'),
   passwordHash: text('password_hash'),
   emailVerifiedAt: timestamp('email_verified_at', {
     withTimezone: true,

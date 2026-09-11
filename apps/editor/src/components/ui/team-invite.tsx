@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, Edit3, Crown, Copy, Check, QrCode, Trash2 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { PersonAvatar } from '@/ui/PersonAvatar';
 import { useSurfacePortal } from '@/ui/SurfaceDialog';
 import {
   SURFACE_INPUT_CLASS,
@@ -30,7 +31,8 @@ export interface TeamMember {
   id: string;
   name: string;
   email: string;
-  avatar?: string;
+  /** Their photo, already resolved to a URL. Initials stand in without one. */
+  avatar?: string | null;
   role: PermissionLevel;
   isOwner?: boolean;
 }
@@ -129,14 +131,6 @@ const TeamInvite = React.forwardRef<HTMLDivElement, TeamInviteProps>(function Te
   const menuContainer = surfacePortal ?? portalContainer;
 
   /** Two letters for a member with no avatar image. */
-  const getInitials = (name: string) =>
-    name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-
   const handleUpdatePermission = (memberId: string, value: string) => {
     if (value === REMOVE_VALUE) {
       onRemoveMember?.(memberId);
@@ -271,9 +265,11 @@ const TeamInvite = React.forwardRef<HTMLDivElement, TeamInviteProps>(function Te
               const PermissionIcon = getPermissionIcon(member.role);
               return (
                 <SurfaceRow key={member.id} className="gap-[12px]">
-                  <span className="flex size-[30px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-raised)] text-[11px] font-medium text-[var(--surface-fg-muted)]">
-                    {getInitials(member.name)}
-                  </span>
+                  <PersonAvatar
+                    url={member.avatar}
+                    name={member.name}
+                    className="size-[30px] text-[11px]"
+                  />
                   <SurfaceRowText title={member.name} hint={member.email} />
                   {member.isOwner ? (
                     <span className="flex shrink-0 items-center gap-[5px] rounded-[6px] border border-[var(--surface-border)] px-[8px] py-[4px] text-[11px] text-[var(--surface-fg-muted)]">

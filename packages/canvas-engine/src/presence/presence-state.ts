@@ -38,6 +38,18 @@ export interface PresenceUser {
    * lands on, which is what presenceColorOf does.
    */
   readonly color?: CursorColor | null;
+  /**
+   * Which version of this peer's photo to draw, if they have one.
+   *
+   * A token, not a URL — for the same reason the colour is a name: a URL here
+   * would let a peer point every other browser at an address of their choosing.
+   * The photo itself is fetched from our own API against this, and the token
+   * doubles as the cache key, since it changes whenever the photo does.
+   *
+   * Only ever set for a photo uploaded to this app. A sign-in provider's
+   * generated avatar is not a picture of anyone, and an initial says more.
+   */
+  readonly avatar?: string | null;
 }
 
 export interface PresenceState {
@@ -117,6 +129,17 @@ const ACTIVITIES: readonly PresenceActivity[] = ['active', 'idle', 'away'];
 /** Longest display name we will render. Bounds text measurement cost. */
 const MAX_NAME_LENGTH = 64;
 
+/**
+ * Whether a peer's photo token is one we would ask our own API about.
+ *
+ * The shape is checked rather than trusted: this goes into a request path, and
+ * hex of a bounded length is the whole vocabulary a real one uses. Anything
+ * else reads as no photo, which costs that peer an initial and nothing more.
+ */
+function isAvatarVersion(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{8,32}$/.test(value);
+}
+
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
@@ -181,7 +204,9 @@ export function parsePresenceState(raw: unknown): PresenceState | null {
   if (!raw || typeof raw !== 'object') return null;
 
   const candidate = raw as Record<string, unknown>;
-  const user = candidate.user as { id?: unknown; name?: unknown; color?: unknown } | undefined;
+  const user = candidate.user as
+    | { id?: unknown; name?: unknown; color?: unknown; avatar?: unknown }
+    | undefined;
   if (!user || typeof user.id !== 'string' || user.id.length === 0) return null;
 
   const name = typeof user.name === 'string' ? user.name : '';
@@ -196,6 +221,7 @@ export function parsePresenceState(raw: unknown): PresenceState | null {
       // Anything that is not a palette name reads as no choice at all, which
       // is also what a peer on an older build sends.
       color: isCursorColor(user.color) ? user.color : null,
+      avatar: isAvatarVersion(user.avatar) ? user.avatar : null,
     },
     cursor: parsePoint(candidate.cursor),
     selection: Array.isArray(candidate.selection)

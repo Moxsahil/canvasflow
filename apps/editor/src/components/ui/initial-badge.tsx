@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import { initialsOf } from '@/lib/initials';
 import { cn } from '@/lib/utils';
 
 /**
@@ -25,32 +27,57 @@ export const identityRowClasses = cn(
 export const identityDetailClasses = 'group-data-[collapsible=icon]:hidden';
 
 interface InitialBadgeProps {
-  /** The name behind the badge; its first character is what shows. */
+  /** The name behind the badge, which its letters are taken from. */
   label: string;
-  /** A logo or photo, when there is one. Falls back to the initial. */
+  /** A logo or photo, when there is one. Falls back to the letters. */
   src?: string | null;
+  /**
+   * This badge stands in for a person rather than for a board or a workspace.
+   *
+   * People are circles throughout — the peer stack, the share dialog's access
+   * list, the photo in settings — and they abbreviate to two letters, one per
+   * name, where a board takes just its first. They also sit on the quiet fill
+   * the access list uses, rather than the accent a board is marked with: in a
+   * rail full of boards, the account at the foot is not another one of them.
+   */
+  person?: boolean;
   className?: string;
 }
 
 /**
- * The square that stands in for a board, a workspace or a person.
+ * The badge that stands in for a board, a workspace or a person.
  *
  * Deliberately not the Avatar component: that one's fallback paints with the
  * old chrome tokens, so its colour depended on a class merge going the right
  * way. This paints once, from the sidebar's own palette.
  */
-export function InitialBadge({ label, src, className }: InitialBadgeProps) {
-  const initial = label.trim().charAt(0).toUpperCase() || '?';
+export function InitialBadge({ label, src, person = false, className }: InitialBadgeProps) {
+  // A photo that will not load falls back to the letters rather than leaving a
+  // broken image in the rail. Sign-in providers hand out a URL for accounts
+  // that never set a picture, and those are exactly the ones that fail.
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => setFailed(false), [src]);
+
+  const letters = person ? initialsOf(label) : label.trim().charAt(0).toUpperCase() || '?';
 
   return (
     <span
       aria-hidden="true"
       className={cn(
-        'flex aspect-square size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground',
+        'flex aspect-square size-8 shrink-0 items-center justify-center overflow-hidden text-xs font-semibold',
+        person
+          ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+          : 'bg-sidebar-primary text-sidebar-primary-foreground',
+        person ? 'rounded-full' : 'rounded-lg',
         className,
       )}
     >
-      {src ? <img src={src} alt="" className="size-full object-cover" /> : initial}
+      {src && !failed ? (
+        <img src={src} alt="" className="size-full object-cover" onError={() => setFailed(true)} />
+      ) : (
+        letters
+      )}
     </span>
   );
 }

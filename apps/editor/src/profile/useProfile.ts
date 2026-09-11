@@ -18,6 +18,14 @@ export interface ProfileState {
   readonly error: string | null;
   /** True once it saved. False leaves `error` set, and the dialog stays open. */
   readonly save: (changes: ProfileChanges) => Promise<boolean>;
+  /**
+   * Re-read the profile and tell the other windows.
+   *
+   * For changes this hook did not make itself: a photo is uploaded through the
+   * gateway rather than through the profile route, and only the re-read says
+   * what version it landed as.
+   */
+  readonly reload: () => Promise<void>;
 }
 
 /**
@@ -166,8 +174,18 @@ export function useProfile(enabled: boolean, options: UseProfileOptions = {}): P
     [apply],
   );
 
+  const reload = useCallback(async () => {
+    try {
+      const next = await fetchProfile();
+      apply(next);
+      channelRef.current?.postMessage(next);
+    } catch (cause: unknown) {
+      setError(messageOf(cause));
+    }
+  }, [apply]);
+
   return useMemo(
-    () => ({ profile, loading, saving, error, save }),
-    [profile, loading, saving, error, save],
+    () => ({ profile, loading, saving, error, save, reload }),
+    [profile, loading, saving, error, save, reload],
   );
 }

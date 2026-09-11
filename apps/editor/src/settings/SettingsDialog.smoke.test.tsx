@@ -9,7 +9,7 @@ import { SettingsDialog } from './SettingsDialog';
 import { WorkspacePane } from './WorkspacePane';
 import { SETTINGS_SECTIONS } from './settings-sections';
 import { PRESENCE_PALETTE } from '@canvasflow/canvas-engine';
-import type { Profile, ProfileState } from '../profile';
+import type { AvatarState, Profile, ProfileState } from '../profile';
 
 const noop = () => {};
 
@@ -21,10 +21,30 @@ const SAVED: Profile = {
   avatarUrl: null,
   isGuest: false,
   cursorColor: 'teal',
+  avatarVersion: null,
+  avatarUploaded: false,
 };
 
 function accountStub(profile: Profile | null = null): ProfileState {
-  return { profile, loading: false, saving: false, error: null, save: async () => true };
+  return {
+    profile,
+    loading: false,
+    saving: false,
+    error: null,
+    save: async () => true,
+    reload: async () => {},
+  };
+}
+
+/** A photo that has resolved, or none at all. */
+function avatarStub(url: string | null = null): AvatarState {
+  return {
+    url,
+    busy: false,
+    error: null,
+    upload: async () => true,
+    remove: async () => true,
+  };
 }
 
 /**
@@ -34,7 +54,15 @@ function accountStub(profile: Profile | null = null): ProfileState {
  */
 function renderPane(id: string) {
   const panes: Record<string, JSX.Element> = {
-    profile: <ProfilePane user={null} account={accountStub()} theme="dark" onClose={noop} />,
+    profile: (
+      <ProfilePane
+        user={null}
+        account={accountStub()}
+        avatar={avatarStub()}
+        theme="dark"
+        onClose={noop}
+      />
+    ),
     account: <AccountPane onClose={noop} />,
     workspace: <WorkspacePane onClose={noop} />,
     notifications: <NotificationsPane onClose={noop} />,
@@ -51,9 +79,10 @@ function render(
   },
   theme: 'light' | 'dark' = 'dark',
   account: ProfileState = accountStub(),
+  avatar: AvatarState = avatarStub(),
 ) {
   return renderToString(
-    <SettingsDialog user={user} account={account} theme={theme} onClose={noop} />,
+    <SettingsDialog user={user} account={account} avatar={avatar} theme={theme} onClose={noop} />,
   );
 }
 
@@ -109,10 +138,11 @@ describe('SettingsDialog', () => {
     expect(pane).toContain('width:48%');
   });
 
-  it('seeds the display name from the account, and its initial from the name', () => {
+  it('seeds the display name from the account, and its initials from the name', () => {
     const html = render();
     expect(html).toContain('value="Sahil Barak"');
-    expect(html).toContain('>S</div>');
+    // One letter per name, as the share dialog's access list abbreviates people.
+    expect(html).toContain('>SB</div>');
   });
 
   it('falls back to a placeholder name before the token decodes', () => {
@@ -159,5 +189,25 @@ describe('SettingsDialog', () => {
   it('disables the live fields for a guest, who has no profile to save to', () => {
     const html = render();
     expect(html).toContain('disabled=""');
+  });
+
+  it('shows initials until a photo resolves, and the photo once it does', () => {
+    expect(render()).toContain('>SB</div>');
+
+    const withPhoto = render(undefined, 'dark', accountStub(SAVED), avatarStub('blob:photo'));
+    expect(withPhoto).toContain('src="blob:photo"');
+  });
+
+  it('offers Remove only when there is a photo to remove', () => {
+    // Both buttons render either way; what changes is whether Remove can be
+    // pressed, and an enabled Remove over an initial would remove nothing.
+    const withPhoto = render(undefined, 'dark', accountStub(SAVED), avatarStub('blob:photo'));
+    const withoutPhoto = render(undefined, 'dark', accountStub(SAVED));
+
+    expect(withPhoto).toContain('Remove');
+    expect(withoutPhoto).toContain('Remove');
+    expect(withoutPhoto.match(/disabled=""/g)?.length).toBeGreaterThan(
+      withPhoto.match(/disabled=""/g)?.length ?? 0,
+    );
   });
 });

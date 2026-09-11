@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { PRESENCE_PALETTE, type PresenceTheme } from '@canvasflow/canvas-engine';
 import type { CursorColor } from '@canvasflow/types';
-import type { ProfileState } from '../profile';
+import { initialsOf } from '@/lib/initials';
+import { AvatarCropper } from '../profile/AvatarCropper';
+import type { AvatarState, ProfileState } from '../profile';
 import {
   Card,
   GhostButton,
@@ -18,6 +20,8 @@ interface ProfilePaneProps {
   user: { name: string; email: string | null } | null;
   /** The account's saved profile, and the way to write to it. */
   account: ProfileState;
+  /** The photo, which is stored as bytes rather than as a profile field. */
+  avatar: AvatarState;
   /** Each palette colour has a shade per theme; this picks which one is drawn. */
   theme: PresenceTheme;
   onClose: () => void;
@@ -34,9 +38,14 @@ interface ProfilePaneProps {
  * A guest has no profile to load, so the two live fields are disabled rather
  * than offering a save that would be refused.
  */
-export function ProfilePane({ user, account, theme, onClose }: ProfilePaneProps) {
+export function ProfilePane({ user, account, avatar, theme, onClose }: ProfilePaneProps) {
   const { profile, saving, error, save } = account;
   const fallbackName = user?.name?.trim() || 'Account';
+
+  // The file waiting to be positioned. Set by the picker, cleared when the
+  // cropper is done with it either way.
+  const [picked, setPicked] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [displayName, setDisplayName] = useState(profile?.name ?? fallbackName);
   const [username, setUsername] = useState('');
@@ -86,7 +95,22 @@ export function ProfilePane({ user, account, theme, onClose }: ProfilePaneProps)
     });
   };
 
-  const initial = (trimmedName || fallbackName).charAt(0).toUpperCase();
+  // One letter per name, as the share dialog's access list abbreviates people.
+  const letters = initialsOf(trimmedName || fallbackName);
+
+  // A photo that will not load leaves the letters showing rather than a broken
+  // image. Sign-in providers issue a URL even for an account that never set a
+  // picture, and those are the ones that fail.
+  const [photoFailed, setPhotoFailed] = useState(false);
+  useEffect(() => setPhotoFailed(false), [avatar.url]);
+
+  const handleUse = (blob: Blob, mimeType: string) => {
+    void avatar.upload(blob, mimeType).then((uploaded) => {
+      // Left open on failure, with the message under it, so the photo that was
+      // just positioned is not lost to a retry.
+      if (uploaded) setPicked(null);
+    });
+  };
 
   return (
     <SettingsPane
@@ -95,28 +119,67 @@ export function ProfilePane({ user, account, theme, onClose }: ProfilePaneProps)
       onClose={onClose}
       onSave={handleSave}
       saving={saving}
-      error={formError ?? error}
+      error={formError ?? avatar.error ?? error}
+      overlay={
+        picked && (
+          <AvatarCropper
+            file={picked}
+            busy={avatar.busy}
+            onCancel={() => setPicked(null)}
+            onUse={handleUse}
+          />
+        )
+      }
     >
       <GroupLabel>Identity</GroupLabel>
       <Card>
         {/* The avatar row is taller than the rest — 16px of padding against
             their 15px — because the 52px circle sets the height. */}
         <div className="flex w-full items-center gap-[16px] px-[18px] py-[16px]">
-          {profile?.avatarUrl ? (
+          {avatar.url && !photoFailed ? (
             <img
-              src={profile.avatarUrl}
+              src={avatar.url}
               alt=""
+              onError={() => setPhotoFailed(true)}
               className="size-[52px] shrink-0 rounded-full object-cover"
             />
           ) : (
-            <div className="flex size-[52px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-accent)] text-[20px] font-semibold text-[var(--surface-on-accent)]">
-              {initial}
+            <div className="flex size-[52px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-raised)] text-[16px] font-medium text-[var(--surface-fg-muted)]">
+              {letters}
             </div>
           )}
-          <RowText title="Profile photo" hint="JPG, PNG or GIF. 2 MB max." />
+          <RowText title="Profile photo" hint="JPG, PNG or WebP. 2 MB max." />
           <div className="flex shrink-0 items-start gap-[8px]">
-            <SecondaryButton>Upload</SecondaryButton>
-            <GhostButton>Remove</GhostButton>
+            {/* The real control is this input; the button is what it looks
+                like. A bare file input cannot be styled to match the row, and
+                replacing it with a scripted picker would lose the keyboard. */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                // Cleared so that choosing the same file twice still counts as
+                // a change; without it a cancelled crop cannot be reopened.
+                event.target.value = '';
+                if (file) setPicked(file);
+              }}
+            />
+            <SecondaryButton
+              disabled={!editable || avatar.busy}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Upload
+            </SecondaryButton>
+            <GhostButton
+              disabled={!editable || avatar.busy || !avatar.url}
+              onClick={() => {
+                void avatar.remove();
+              }}
+            >
+              Remove
+            </GhostButton>
           </div>
         </div>
 

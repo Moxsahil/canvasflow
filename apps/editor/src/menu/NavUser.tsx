@@ -18,6 +18,8 @@ import { MENU_ITEMS, type MenuActions } from './menu-items';
 export interface SidebarUser {
   name: string;
   email: string | null;
+  /** Their photo, already resolved to a URL this browser may load. */
+  avatarUrl?: string | null;
 }
 
 interface NavUserProps {
@@ -45,7 +47,12 @@ export function NavUser({ user, actions, portalContainer }: NavUserProps) {
           data-testid="menu-account"
           className={identityRowClasses}
         >
-          <Identity name={name} email={email} className={identityDetailClasses} />
+          <Identity
+            name={name}
+            email={email}
+            avatarUrl={user?.avatarUrl ?? null}
+            className={identityDetailClasses}
+          />
           <ChevronsUpDown className={cn('ml-auto size-4 shrink-0', identityDetailClasses)} />
         </DropdownMenuTrigger>
 
@@ -98,15 +105,19 @@ export function NavUser({ user, actions, portalContainer }: NavUserProps) {
 function Identity({
   name,
   email,
+  avatarUrl,
   className,
 }: {
   name: string;
   email: string | null;
+  avatarUrl?: string | null;
   className?: string;
 }) {
   return (
     <>
-      <InitialBadge label={name} />
+      {/* A person, so: a circle, two letters, and the quiet fill — the board
+          and workspace rows above keep the square accent badge. */}
+      <InitialBadge label={name} src={avatarUrl} person />
       <span className={cn('grid min-w-0 flex-1 text-left text-sm leading-tight', className)}>
         <span className="truncate font-medium">{name}</span>
         {email && <span className="truncate text-xs opacity-70">{email}</span>}
