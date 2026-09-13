@@ -186,6 +186,20 @@ describe('SettingsDialog', () => {
     expect(html.match(/aria-checked="true"/g)).toHaveLength(1);
   });
 
+  it('marks the unbuilt rows rather than letting them look ready', () => {
+    // They keep their place in the design — somebody looking for the setting
+    // should find it and learn it is coming, not conclude it does not exist.
+    const html = render(undefined, 'dark', accountStub(SAVED));
+    expect(html.match(/Coming soon/g)).toHaveLength(2);
+    expect(html).toContain('aria-label="Username"');
+    expect(html).toContain('Change');
+
+    // Both hints described behaviour that did not exist, which is what made
+    // the rows look finished.
+    expect(html).not.toContain('Used in board URLs and @mentions');
+    expect(html).not.toContain('invite destination');
+  });
+
   it('disables the live fields for a guest, who has no profile to save to', () => {
     const html = render();
     expect(html).toContain('disabled=""');

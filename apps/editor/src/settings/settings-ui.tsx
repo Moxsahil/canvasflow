@@ -135,12 +135,41 @@ export function Row({ children }: { children: ReactNode }) {
   return <div className="flex w-full items-center gap-[16px] px-[18px] py-[15px]">{children}</div>;
 }
 
-export function RowText({ title, hint }: { title: string; hint: string }) {
+export function RowText({
+  title,
+  hint,
+  badge,
+}: {
+  title: string;
+  hint: string;
+  /** Sits beside the title — a ComingSoonTag, so far. */
+  badge?: ReactNode;
+}) {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-[4px]">
-      <p className="text-[12.5px] font-medium text-[var(--surface-fg)]">{title}</p>
+      <div className="flex items-center gap-[8px]">
+        <p className="text-[12.5px] font-medium text-[var(--surface-fg)]">{title}</p>
+        {badge}
+      </div>
       <p className="text-[11px] text-[var(--surface-fg-faint)]">{hint}</p>
     </div>
+  );
+}
+
+/**
+ * Says a row is not built yet, on a row that otherwise looks exactly like the
+ * ones that are.
+ *
+ * The alternative was to blur or hide it, and both are worse: a blur reads as
+ * broken or censored, and hiding it means somebody who looks for the setting
+ * concludes it does not exist. This leaves the design intact and tells the
+ * truth about it — including to anyone being shown around the app.
+ */
+export function ComingSoonTag() {
+  return (
+    <span className="shrink-0 rounded-full border border-[var(--surface-border)] px-[7px] py-[2px] text-[10px] font-medium text-[var(--surface-fg-faint)]">
+      Coming soon
+    </span>
   );
 }
 
