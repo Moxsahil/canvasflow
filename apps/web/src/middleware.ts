@@ -59,5 +59,11 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // The public/ assets are the home page's own images, video and icons, served
+  // to people who are not signed in — that is who the page is for. Without them
+  // here the matcher redirects every one of them to /login and the page renders
+  // with nothing in it.
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|images/|videos/|icon.svg|icon-light-32x32.png|icon-dark-32x32.png|apple-icon.png).*)',
+  ],
 };
