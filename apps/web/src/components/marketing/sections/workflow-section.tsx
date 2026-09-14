@@ -1,9 +1,8 @@
 'use client';
 
 import { BentoCard, trackPointer } from '@/components/marketing/bento-card';
-import { PixelIcon } from '@/components/marketing/pixel-icon';
 import { RevealText } from '@/components/marketing/reveal-text';
-import { Tag } from '@/components/marketing/tag';
+import { SectionLabel } from '@/components/marketing/section-label';
 
 const STEPS = [
   {
@@ -38,16 +37,10 @@ const STEPS = [
 
 export function WorkflowSection() {
   return (
-    <section
-      id="workflow"
-      className="py-32 px-6 md:px-12 lg:px-20 border-t border-white/[0.08] overflow-hidden"
-    >
+    <section id="workflow" className="py-32 px-6 md:px-12 lg:px-20 overflow-hidden">
       <div className="max-w-6xl mx-auto">
         <div className="mb-16">
-          <PixelIcon type="workflow" size={40} dark />
-          <div className="mt-4">
-            <Tag dark>GETTING STARTED</Tag>
-          </div>
+          <SectionLabel dark>Getting started</SectionLabel>
           <RevealText className="mt-5 text-4xl md:text-5xl font-light tracking-tight leading-[1.05]">
             {'From blank canvas to shared link \n in under a minute.'}
           </RevealText>

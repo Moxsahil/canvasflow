@@ -1,8 +1,8 @@
 'use client';
 
 import { trackPointer } from '@/components/marketing/bento-card';
-import { PixelIcon } from '@/components/marketing/pixel-icon';
 import { RevealText } from '@/components/marketing/reveal-text';
+import { SectionLabel } from '@/components/marketing/section-label';
 import { Tag } from '@/components/marketing/tag';
 
 const GLASS_PANEL = {
@@ -20,10 +20,7 @@ export function IntegrationsSection() {
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-8 mb-16">
           <div>
-            <PixelIcon type="integrations" size={40} />
-            <div className="mt-4">
-              <Tag>INTEGRATIONS</Tag>
-            </div>
+            <SectionLabel>Integrations</SectionLabel>
             <RevealText className="mt-5 text-4xl md:text-5xl font-light tracking-tight leading-[1.05]">
               {'Connect any tool.\nControl any system.'}
             </RevealText>

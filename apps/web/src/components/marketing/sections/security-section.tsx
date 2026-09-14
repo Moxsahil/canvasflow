@@ -1,9 +1,8 @@
 'use client';
 
 import { BentoCard } from '@/components/marketing/bento-card';
-import { PixelIcon } from '@/components/marketing/pixel-icon';
 import { RevealText } from '@/components/marketing/reveal-text';
-import { Tag } from '@/components/marketing/tag';
+import { SectionLabel } from '@/components/marketing/section-label';
 
 const GUARANTEES = [
   {
@@ -35,10 +34,7 @@ export function SecuritySection() {
     <section id="security" className="py-32 px-6 md:px-12 lg:px-20 border-t border-black/[0.06]">
       <div className="max-w-6xl mx-auto">
         <div className="mb-16">
-          <PixelIcon type="platform" size={40} />
-          <div className="mt-4">
-            <Tag>SECURITY</Tag>
-          </div>
+          <SectionLabel>Security</SectionLabel>
           <RevealText className="mt-5 text-4xl md:text-5xl font-light tracking-tight leading-[1.05]">
             {'Enterprise-grade\nfrom day one.'}
           </RevealText>

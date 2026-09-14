@@ -1,19 +1,15 @@
 'use client';
 
 import { BentoCard, trackPointer } from '@/components/marketing/bento-card';
-import { PixelIcon } from '@/components/marketing/pixel-icon';
 import { RevealText } from '@/components/marketing/reveal-text';
-import { Tag } from '@/components/marketing/tag';
+import { SectionLabel } from '@/components/marketing/section-label';
 
 export function PlatformSection() {
   return (
     <section id="platform" className="py-32 px-6 md:px-12 lg:px-20">
       <div className="max-w-6xl mx-auto">
         <div className="mb-16">
-          <PixelIcon type="platform" size={40} />
-          <div className="mt-4">
-            <Tag>PRODUCT</Tag>
-          </div>
+          <SectionLabel>Product</SectionLabel>
           <RevealText className="mt-5 text-4xl md:text-5xl lg:text-6xl font-light tracking-tight leading-[1.05]">
             {'Everything a team needs\nto think out louds.'}
           </RevealText>

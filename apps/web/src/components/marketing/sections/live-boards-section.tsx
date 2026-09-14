@@ -1,7 +1,6 @@
 import { LiveBoardCounter, LiveBoardFeed } from '@/components/marketing/live-board-feed';
-import { PixelIcon } from '@/components/marketing/pixel-icon';
 import { RevealText } from '@/components/marketing/reveal-text';
-import { Tag } from '@/components/marketing/tag';
+import { SectionLabel } from '@/components/marketing/section-label';
 
 export function LiveBoardsSection() {
   return (
@@ -9,10 +8,7 @@ export function LiveBoardsSection() {
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
           <div>
-            <PixelIcon type="collab" size={40} />
-            <div className="mt-4">
-              <Tag>LIVE RIGHT NOW</Tag>
-            </div>
+            <SectionLabel>Live right now</SectionLabel>
             <RevealText className="mt-5 text-4xl md:text-5xl lg:text-6xl font-light tracking-tight leading-[1.05]">
               {'Boards in motion,\nright this second.'}
             </RevealText>
