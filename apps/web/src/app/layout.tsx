@@ -1,5 +1,12 @@
 import type { Metadata } from 'next';
-import { Courier_Prime, Geist, Geist_Mono, IBM_Plex_Sans, Inter } from 'next/font/google';
+import {
+  Courier_Prime,
+  Geist,
+  Geist_Mono,
+  IBM_Plex_Sans,
+  Instrument_Sans,
+  Inter,
+} from 'next/font/google';
 import { Providers } from '@/providers';
 import './globals.css';
 
@@ -35,12 +42,22 @@ const ibmPlexSans = IBM_Plex_Sans({
   variable: '--font-ibm-plex-sans',
 });
 
+// The navigation bar sets everything — wordmark and links alike — in this one
+// face. Kept off the page-wide variables so the sections below the bar keep the
+// scale they were built on; `.cf-nav` in globals.css is what points the bar's
+// `font-sans` at it.
+const instrumentSans = Instrument_Sans({
+  subsets: ['latin'],
+  variable: '--font-instrument-sans',
+});
+
 const fontVariables = [
   inter.variable,
   geist.variable,
   geistMono.variable,
   courierPrime.variable,
   ibmPlexSans.variable,
+  instrumentSans.variable,
 ].join(' ');
 
 export const metadata: Metadata = {
