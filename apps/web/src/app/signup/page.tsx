@@ -3,7 +3,14 @@
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
-import { Button, Input, Text, Card, CardContent, CardHeader, CardTitle } from '@canvasflow/ui';
+import {
+  AuthShell,
+  AuthDivider,
+  authStyles,
+  GoogleMark,
+  GitHubMark,
+} from '@/components/auth/auth-shell';
+import { Component as PencilLoader } from '@/components/ui/loader-1';
 import { signup } from '@/features/auth/actions/signup';
 
 export default function SignupPage() {
@@ -31,104 +38,108 @@ export default function SignupPage() {
 
   if (success) {
     return (
-      <main className="flex min-h-screen items-center justify-center px-4 bg-zinc-50">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Check your email</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Text tone="secondary">
-              We sent a verification link to <strong>{email}</strong>. Click it to activate your
-              account.
-            </Text>
-            <Text size="sm" tone="muted" className="mt-4">
-              Didn&apos;t receive it? Check your spam folder.
-            </Text>
-          </CardContent>
-        </Card>
-      </main>
+      <AuthShell
+        label="Almost there"
+        heading="Check your email."
+        footer={
+          <>
+            Wrong address?{' '}
+            <Link href="/signup" className={authStyles.link}>
+              Start again
+            </Link>
+          </>
+        }
+      >
+        <p className="text-sm leading-relaxed text-white/55">
+          We sent a verification link to <span className="text-[#F5F4F0]">{email}</span>. Click it
+          to activate your account.
+        </p>
+        <p className="mt-4 text-sm text-white/35">
+          Didn&apos;t receive it? Check your spam folder.
+        </p>
+      </AuthShell>
     );
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-8 bg-zinc-50">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Create your account</CardTitle>
-          <Text tone="secondary" size="sm" className="mt-1">
-            Get started with CanvasFlow
-          </Text>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => signIn('google', { callbackUrl: '/open' })}
-            >
-              Continue with Google
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => signIn('github', { callbackUrl: '/open' })}
-            >
-              Continue with GitHub
-            </Button>
-          </div>
+    <AuthShell
+      label="Create account"
+      heading="Start with a blank canvas."
+      sub="Free forever for personal use."
+      footer={
+        <>
+          Already have an account?{' '}
+          <Link href="/login" className={authStyles.link}>
+            Sign in
+          </Link>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <button
+          type="button"
+          className={authStyles.provider}
+          onClick={() => signIn('google', { callbackUrl: '/open' })}
+        >
+          <GoogleMark />
+          Continue with Google
+        </button>
+        <button
+          type="button"
+          className={authStyles.provider}
+          onClick={() => signIn('github', { callbackUrl: '/open' })}
+        >
+          <GitHubMark />
+          Continue with GitHub
+        </button>
+      </div>
 
-          <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-zinc-200" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-zinc-500">or</span>
-            </div>
-          </div>
+      <AuthDivider />
 
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <Input
-              type="text"
-              placeholder="Your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-            <Input
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <Input
-              type="password"
-              placeholder="Password (8+ characters)"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              minLength={8}
-              required
-            />
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <input
+          type="text"
+          placeholder="Your name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          className={authStyles.field}
+        />
+        <input
+          type="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          className={authStyles.field}
+        />
+        <input
+          type="password"
+          placeholder="Password (8+ characters)"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          minLength={8}
+          required
+          className={authStyles.field}
+        />
 
-            {error && (
-              <Text size="sm" tone="danger">
-                {error}
-              </Text>
-            )}
+        {error && (
+          <p role="alert" className="text-sm text-red-400">
+            {error}
+          </p>
+        )}
 
-            <Button type="submit" variant="primary" className="w-full" disabled={loading}>
-              {loading ? 'Creating account...' : 'Create account'}
-            </Button>
-          </form>
-
-          <Text size="sm" tone="secondary" className="text-center mt-4">
-            Already have an account?{' '}
-            <Link href="/login" className="font-medium text-brand-600 hover:text-brand-700">
-              Sign in
-            </Link>
-          </Text>
-        </CardContent>
-      </Card>
-    </main>
+        <button type="submit" disabled={loading} className={authStyles.submit}>
+          {loading ? (
+            <>
+              <PencilLoader className="h-7 w-7" />
+              <span className="sr-only">Creating account</span>
+            </>
+          ) : (
+            'Create account'
+          )}
+        </button>
+      </form>
+    </AuthShell>
   );
 }

@@ -3,8 +3,8 @@ import { createClient } from '@canvasflow/db';
 import { users, verificationTokens } from '@canvasflow/db';
 import { eq, and, gt } from 'drizzle-orm';
 import { env } from '@/lib/env';
-import { Card, CardContent, CardHeader, CardTitle, Text } from '@canvasflow/ui';
 import Link from 'next/link';
+import { AuthShell, authStyles } from '@/components/auth/auth-shell';
 
 interface VerifyPageProps {
   searchParams: Promise<{ token?: string; email?: string }>;
@@ -58,21 +58,16 @@ export default async function VerifyPage({ searchParams }: VerifyPageProps) {
 
 function VerifyShell({ title, message }: { title: string; message: string }) {
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 bg-zinc-50">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Text tone="secondary">{message}</Text>
-          <Link
-            href="/login"
-            className="mt-4 inline-block text-brand-600 hover:text-brand-700 text-sm font-medium"
-          >
-            Back to login
-          </Link>
-        </CardContent>
-      </Card>
-    </main>
+    <AuthShell
+      label="Verification"
+      heading={title}
+      footer={
+        <Link href="/login" className={authStyles.link}>
+          Back to sign in
+        </Link>
+      }
+    >
+      <p className="text-sm leading-relaxed text-white/55">{message}</p>
+    </AuthShell>
   );
 }
