@@ -1,4 +1,4 @@
-import { MobileNav } from '@/components/marketing/mobile-nav';
+import { Navigation } from '@/components/marketing/navigation';
 // import { CapabilitiesMarquee } from '@/components/marketing/sections/capabilities-marquee';
 import { CtaSection } from '@/components/marketing/sections/cta-section';
 // import { DevExSection } from '@/components/marketing/sections/devex-section';
@@ -19,7 +19,7 @@ import { WorkflowSection } from '@/components/marketing/sections/workflow-sectio
 export default function HomePage() {
   return (
     <div className="cf-landing bg-[#F5F4F0] text-[#111] min-h-screen font-sans antialiased">
-      <MobileNav />
+      <Navigation />
 
       <HeroSection />
       <PlatformSection />

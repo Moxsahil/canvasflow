@@ -72,6 +72,35 @@
   --font-pixel: var(--font-courier-prime), ui-monospace, monospace;
 }
 
+/* ---------------------------------------------------------------------------
+   Site navigation
+   ---------------------------------------------------------------------------
+   Once the page scrolls the bar becomes a near-black pill with light type, and
+   the mobile menu opens as a near-black sheet. Rather than hard-code those
+   colours into the component, the palette is swapped here for the header's
+   subtree only, the same way `.dark` does it above — the `bg-background` /
+   `text-foreground` utilities inside resolve against whichever value is
+   nearest in the cascade. The rest of the page keeps the light palette it
+   renders in today.
+
+   Only the pill and the sheet are dark. Unscrolled there is neither, and the
+   bar sits on the cream hero video, so that state is written as ink literals
+   in the component rather than drawn from these tokens.
+
+   This block has to follow `.cf-landing`: both are single-class selectors, so
+   equal specificity makes source order the tiebreak for the shared font
+   variables. */
+.cf-nav {
+  --color-background: oklch(0.06 0.008 260);
+  --color-foreground: oklch(0.94 0.005 90);
+  --color-muted-foreground: oklch(0.55 0.015 90);
+  --color-accent: oklch(0.14 0.01 260);
+  --color-accent-foreground: oklch(0.94 0.005 90);
+  --color-border: oklch(0.18 0.008 260);
+
+  --font-sans: var(--font-instrument-sans), system-ui, sans-serif;
+}
+
 html:has(.cf-landing) {
   scroll-behavior: smooth;
 }
