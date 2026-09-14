@@ -53,3 +53,57 @@
   --color-input: hsl(0 0% 100% / 5%);
   --color-ring: hsl(0 0% 56%);
 }
+
+/* ---------------------------------------------------------------------------
+   Home page
+   ---------------------------------------------------------------------------
+   The home page brings its own type scale and hides the scrollbar; every other
+   page keeps Inter and a normal one. Both are scoped to the `.cf-landing`
+   wrapper on the page root so the two never meet. Registering `--font-pixel`
+   in @theme is what makes Tailwind emit the `font-pixel` utility at all — the
+   value below is only the fallback for anything outside the home page. */
+@theme {
+  --font-pixel: ui-monospace, monospace;
+}
+
+.cf-landing {
+  --font-sans: var(--font-geist), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-pixel: var(--font-courier-prime), ui-monospace, monospace;
+}
+
+html:has(.cf-landing) {
+  scroll-behavior: smooth;
+}
+
+/* Scrolling still works via wheel, touch and keys — only the bar is hidden. */
+html:has(.cf-landing),
+html:has(.cf-landing) body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html:has(.cf-landing)::-webkit-scrollbar,
+html:has(.cf-landing) body::-webkit-scrollbar {
+  display: none;
+}
+
+/* Logo marquee. The rest of the page's keyframes are declared inline next to
+   the components that use them. */
+@keyframes marqueeLeft {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-33.333%);
+  }
+}
+
+@keyframes marqueeRight {
+  from {
+    transform: translateX(-33.333%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}

@@ -1,22 +1,44 @@
-import { Button, Heading, Text } from '@canvasflow/ui';
-import Link from 'next/link';
+import { MobileNav } from '@/components/marketing/mobile-nav';
+// import { CapabilitiesMarquee } from '@/components/marketing/sections/capabilities-marquee';
+import { CtaSection } from '@/components/marketing/sections/cta-section';
+// import { DevExSection } from '@/components/marketing/sections/devex-section';
+import { HeroSection } from '@/components/marketing/sections/hero-section';
+// import { IntegrationsSection } from '@/components/marketing/sections/integrations-section';
+// import { LiveBoardsSection } from '@/components/marketing/sections/live-boards-section';
+import { PlatformSection } from '@/components/marketing/sections/platform-section';
+import { PricingSection } from '@/components/marketing/sections/pricing-section';
+// import { SecuritySection } from '@/components/marketing/sections/security-section';
+import { SiteFooter } from '@/components/marketing/sections/site-footer';
+import { UseCasesSection } from '@/components/marketing/sections/use-cases-section';
+import { WorkflowSection } from '@/components/marketing/sections/workflow-section';
 
+/**
+ * The `cf-landing` class is what scopes this page's type scale and hidden
+ * scrollbar in globals.css — without it the page inherits the app's Inter.
+ */
 export default function HomePage() {
   return (
-    <main className="container mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center px-6 text-center">
-      <Heading level={1} className="mb-4">
-        CanvasFlow
-      </Heading>
-      <Text size="lg" tone="secondary" className="mb-8 max-w-xl">
-        Homepage
-      </Text>
-      {/* /open resolves which board to land on and hands off to the editor —
-          there is no board list page to send anyone to. */}
-      <Link href="/open">
-        <Button variant="primary" size="lg">
-          Open your canvas
-        </Button>
-      </Link>
-    </main>
+    <div className="cf-landing bg-[#F5F4F0] text-[#111] min-h-screen font-sans antialiased">
+      <MobileNav />
+
+      <HeroSection />
+      <PlatformSection />
+
+      {/* The page turns over here: everything from the use cases down is
+          painted on #020204, so each section inside asks its shared parts
+          (BentoCard, Tag, PixelIcon) for their dark form. */}
+      <div className="bg-[#020204] text-[#F5F4F0]">
+        <UseCasesSection />
+        <WorkflowSection />
+        {/* <IntegrationsSection /> */}
+        {/* <SecuritySection /> */}
+        {/* <DevExSection /> */}
+        {/* <CapabilitiesMarquee /> */}
+        {/* <LiveBoardsSection /> */}
+        <PricingSection />
+        <CtaSection />
+        <SiteFooter />
+      </div>
+    </div>
   );
 }

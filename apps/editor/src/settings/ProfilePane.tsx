@@ -6,6 +6,7 @@ import { AvatarCropper } from '../profile/AvatarCropper';
 import type { AvatarState, ProfileState } from '../profile';
 import {
   Card,
+  ComingSoonTag,
   GhostButton,
   GroupLabel,
   Row,
@@ -48,7 +49,6 @@ export function ProfilePane({ user, account, avatar, theme, onClose }: ProfilePa
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [displayName, setDisplayName] = useState(profile?.name ?? fallbackName);
-  const [username, setUsername] = useState('');
   const [cursorColor, setCursorColor] = useState<CursorColor | null>(profile?.cursorColor ?? null);
   /** What this pane refused to send, as against what the server refused. */
   const [formError, setFormError] = useState<string | null>(null);
@@ -198,20 +198,36 @@ export function ProfilePane({ user, account, avatar, theme, onClose }: ProfilePa
         </Row>
 
         <Row>
-          <RowText title="Email" hint="Sign-in address and invite destination" />
+          {/* "Invite destination" described nothing: sharing is by link, and
+              this address is never sent an invitation. What it really is, for
+              a password account, is the login — and for one signed in with a
+              provider, a copy of the address that provider asserted. */}
+          <RowText
+            title="Email"
+            hint="The address this account is known by"
+            badge={<ComingSoonTag />}
+          />
           {/* The design shows the address nowhere on this row — the button is
               the whole control, and the address itself lives in the account
               menu that opened this dialog. */}
-          <SecondaryButton>Change</SecondaryButton>
+          <SecondaryButton disabled>Change</SecondaryButton>
         </Row>
 
         <Row>
-          <RowText title="Username" hint="Used in board URLs and @mentions" />
+          {/* The hint used to describe what a username is "used in", present
+              tense, while nothing used it at all. It says what it is for when
+              it exists, which is the honest version of the same sentence. */}
+          <RowText
+            title="Username"
+            hint="Will name you in @mentions and shorter board links"
+            badge={<ComingSoonTag />}
+          />
           <TextField
             label="Username"
-            value={username}
-            onChange={setUsername}
+            value=""
+            onChange={() => {}}
             placeholder="username"
+            disabled
           />
         </Row>
       </Card>
