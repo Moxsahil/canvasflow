@@ -1,5 +1,12 @@
 @import '@canvasflow/ui/styles.css';
 
+/* Tailwind's `dark:` follows the OS setting unless told otherwise. The landing
+   page's dark half is a design decision, not an OS preference, so the variant
+   is bound to a class instead — that way a `dark` wrapper can put a component
+   written with `dark:` into its dark form wherever we place it. Nothing in the
+   app used `dark:` before this, so nothing changes meaning by moving it. */
+@custom-variant dark (&:is(.dark *));
+
 /* Let Tailwind see the classes used in this app's own sources — the design
    system's stylesheet only points the scan at its own package. */
 @source '../**/*.{ts,tsx}';
@@ -90,7 +97,9 @@
    This block has to follow `.cf-landing`: both are single-class selectors, so
    equal specificity makes source order the tiebreak for the shared font
    variables. */
-.cf-nav {
+.cf-nav,
+.cf-pricing,
+.cf-cta {
   --color-background: oklch(0.06 0.008 260);
   --color-foreground: oklch(0.94 0.005 90);
   --color-muted-foreground: oklch(0.55 0.015 90);
@@ -99,6 +108,21 @@
   --color-border: oklch(0.18 0.008 260);
 
   --font-sans: var(--font-instrument-sans), system-ui, sans-serif;
+}
+
+/* The pricing block sets its figures and small caps in a mono, and carries one
+   stroked word in its heading; the label that opens every section is set in the
+   same mono. Neither is registered page-wide — the sections below the labels
+   keep the mono they were built on. */
+.cf-pricing,
+.cf-cta,
+.cf-eyebrow {
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+
+.cf-pricing .text-stroke {
+  -webkit-text-stroke: 1.5px currentColor;
+  -webkit-text-fill-color: transparent;
 }
 
 html:has(.cf-landing) {

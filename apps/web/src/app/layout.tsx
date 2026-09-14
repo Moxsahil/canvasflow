@@ -6,6 +6,7 @@ import {
   IBM_Plex_Sans,
   Instrument_Sans,
   Inter,
+  JetBrains_Mono,
 } from 'next/font/google';
 import { Providers } from '@/providers';
 import './globals.css';
@@ -51,6 +52,12 @@ const instrumentSans = Instrument_Sans({
   variable: '--font-instrument-sans',
 });
 
+// Only the pricing block asks for this one, for its small caps and figures.
+const jetBrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-jetbrains-mono',
+});
+
 const fontVariables = [
   inter.variable,
   geist.variable,
@@ -58,6 +65,7 @@ const fontVariables = [
   courierPrime.variable,
   ibmPlexSans.variable,
   instrumentSans.variable,
+  jetBrainsMono.variable,
 ].join(' ');
 
 export const metadata: Metadata = {

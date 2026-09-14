@@ -1,77 +1,117 @@
 'use client';
 
 import { useState } from 'react';
+import { ArrowRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useInView } from '@/components/marketing/use-in-view';
 
+/**
+ * The one way in. /open picks up the board the user last touched — creating
+ * their first one if they have none — and the middleware sends anyone without
+ * a session to /login with this as the `next`, so the same link serves both.
+ *
+ * A plain anchor rather than next/link: /open answers with a redirect to the
+ * editor, which is a different origin, and a client-side navigation cannot
+ * follow it. `asChild` is what lets the anchor wear the button's styling.
+ */
+const START_HREF = '/open';
+
+/**
+ * `cf-cta` swaps the palette for this subtree — the layout is written against
+ * `border-foreground`, `text-muted-foreground` and `bg-foreground`, and this
+ * page's values for those are the light ones. Same mechanism as the nav and
+ * the pricing block; see globals.css.
+ */
 export function CtaSection() {
-  const [email, setEmail] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const { ref, inView } = useInView(0.2);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMousePosition({
+      x: ((e.clientX - rect.left) / rect.width) * 100,
+      y: ((e.clientY - rect.top) / rect.height) * 100,
+    });
+  };
 
   return (
-    <section className="relative py-32 px-6 md:px-12 lg:px-20 border-t border-white/[0.08] overflow-hidden">
-      {/* Glass panels image — anchored to bottom center */}
-      <img
-        src="/images/footer.png"
-        alt=""
-        aria-hidden="true"
-        className="absolute bottom-0 left-0 w-full object-cover object-bottom pointer-events-none select-none"
-        style={{ opacity: 0.35 }}
-      />
-      {/* Progressive blur from bottom — blends into site bg */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          maskImage: 'linear-gradient(to top, transparent 0%, black 55%)',
-          WebkitMaskImage: 'linear-gradient(to top, transparent 0%, black 55%)',
-          backdropFilter: 'blur(18px)',
-          WebkitBackdropFilter: 'blur(18px)',
-        }}
-      />
-      {/* Colour fade from bottom to site bg #020204 */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            'linear-gradient(to top, rgb(2,2,4) 0%, rgba(2,2,4,0.92) 18%, rgba(2,2,4,0.55) 35%, transparent 55%)',
-        }}
-      />
-      <div className="relative z-10 max-w-2xl mx-auto text-center">
-        <h2 className="text-4xl md:text-5xl lg:text-6xl font-light tracking-tight leading-[1.05] mb-6">
-          Start with a
-          <br />
-          blank canvas.
-        </h2>
-        <p className="text-sm text-white/45 leading-relaxed mb-10">
-          Join thousands of teams thinking out loud on one board, across every timezone.
-        </p>
-        {!submitted ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (email) setSubmitted(true);
+    <section
+      ref={ref}
+      className="cf-cta font-sans relative py-24 lg:py-32 px-6 md:px-12 lg:px-20 overflow-hidden"
+    >
+      <div className="max-w-6xl mx-auto">
+        <div
+          className={`relative border border-foreground transition-all duration-1000 ${
+            inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+          }`}
+          onMouseMove={handleMouseMove}
+        >
+          {/* Spotlight effect */}
+          <div
+            className="absolute inset-0 opacity-10 pointer-events-none transition-opacity duration-300"
+            style={{
+              background: `radial-gradient(600px circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(0,0,0,0.15), transparent 40%)`,
             }}
-            className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto"
-          >
-            <input
-              type="email"
-              placeholder="your@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="flex-1 bg-white/[0.04] border border-white/15 rounded-xl px-4 py-3 text-sm text-[#F5F4F0] placeholder:text-white/25 focus:outline-none focus:border-white/35 transition-colors"
-            />
-            <button
-              type="submit"
-              className="px-8 py-3 bg-[#F5F4F0] text-[#020204] text-sm rounded-xl hover:bg-white transition-colors tracking-widest font-medium"
-            >
-              JOIN
-            </button>
-          </form>
-        ) : (
-          <div className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-emerald-400/25 bg-emerald-400/[0.08] text-emerald-300 text-sm">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            {"You're on the list. We'll be in touch."}
+          />
+
+          <div className="relative z-10 px-8 lg:px-16 py-16 lg:py-24">
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-12">
+              {/* Left content */}
+              <div className="flex-1">
+                <h2 className="text-6xl md:text-7xl lg:text-[72px] tracking-tight mb-8 leading-[0.95]">
+                  Ready to bring
+                  <br />
+                  your ideas to life?
+                </h2>
+
+                <p className="text-xl text-muted-foreground mb-12 leading-relaxed max-w-xl">
+                  Join teams designing, diagramming, and brainstorming on CanvasFlow. Open your
+                  first board in seconds.
+                </p>
+
+                <div className="flex flex-col sm:flex-row items-start gap-4">
+                  <Button
+                    asChild
+                    size="lg"
+                    className="bg-foreground hover:bg-foreground/90 text-background px-8 h-14 text-base font-medium rounded-full group"
+                  >
+                    <a href={START_HREF}>
+                      Open your first board
+                      <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
+                    </a>
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="h-14 px-8 text-base font-medium rounded-full border-foreground/20 hover:bg-foreground/5"
+                  >
+                    Book a demo
+                  </Button>
+                </div>
+
+                <p className="text-sm text-muted-foreground mt-8 font-mono">
+                  Free forever for personal use
+                </p>
+              </div>
+
+              {/* Right image — left empty on purpose; drop an <img> in here and
+                  it lands where the reference puts its own.
+
+                  The width is a share of the row rather than the reference's
+                  flat 600px. That figure was measured against a wider container
+                  than this page uses, and inside ours it left the heading 438px
+                  to play with when its longest line needs 569 — so the two
+                  lines it is written to break into came out as four. A share
+                  keeps the text column ahead of that number as the row
+                  narrows. */}
+              <div className="hidden lg:flex items-end justify-center w-[38%] max-w-[480px] h-[520px] shrink-0 -mr-16" />
+            </div>
           </div>
-        )}
+
+          {/* Decorative corner */}
+          <div className="absolute top-0 right-0 w-32 h-32 border-b border-l border-foreground/10" />
+          <div className="absolute bottom-0 left-0 w-32 h-32 border-t border-r border-foreground/10" />
+        </div>
       </div>
     </section>
   );
