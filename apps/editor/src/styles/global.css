@@ -132,13 +132,6 @@ html[data-theme='dark'] #root {
   display: none;
 }
 
-/* The whole stack is inverted in dark mode: the container paints the canvas
-   background, and the three canvases above it hold the drawing and the
-   selection UI, so one filter covers board and chrome-on-canvas alike. */
-.canvas-stack {
-  filter: var(--theme-filter);
-}
-
 .canvas-stack,
 .canvas-stack * {
   user-select: none;
@@ -147,9 +140,9 @@ html[data-theme='dark'] #root {
 }
 
 /* Between the board colour and the canvases, and a sibling of .canvas-stack
-   rather than a child: inside it the inversion filter would turn the dots into
-   a colour nobody chose, the same reason the cursors are kept out. Transparent
-   to the pointer, so the interactive canvas above still sees every event. */
+   rather than a child, so it is painted once under the drawing instead of
+   being cleared with it on every frame. Transparent to the pointer, so the
+   interactive canvas above still sees every event. */
 .cf-grid {
   position: absolute;
   inset: 0;

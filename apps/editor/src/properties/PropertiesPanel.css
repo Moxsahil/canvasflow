@@ -34,9 +34,8 @@
 
 /* ---------- swatches ---------- */
 
-/* Wears the theme filter, like every other preview of a canvas colour: dark
-   mode inverts the board, so an un-inverted swatch would promise a colour the
-   shape never takes. */
+/* Unfiltered on purpose: a swatch names the colour you are choosing, and that
+   is one colour, not one per theme. The palette reads the same in both. */
 .cf-swatch {
   display: inline-block;
   box-sizing: border-box;
@@ -46,7 +45,6 @@
   border: 1px solid var(--default-border-color);
   border-radius: var(--border-radius-md);
   transition: transform 100ms ease;
-  filter: var(--theme-filter);
 }
 
 /* Only the pickable swatches react — the trailing preview is a readout. */
@@ -69,14 +67,19 @@ button.cf-swatch:hover {
   outline-offset: 1px;
 }
 
-/* Transparent reads as a checkerboard rather than as "white". */
+/* Transparent reads as a checkerboard rather than as "white".
+
+   The one swatch whose colours are the panel's rather than the board's — it
+   stands for the absence of a colour, so it follows the chrome into dark mode
+   while every swatch beside it holds still. */
 .cf-swatch--transparent {
-  background-color: #ffffff;
+  --checker: color-mix(in srgb, var(--color-chrome-muted) 55%, var(--color-surface-lowest));
+  background-color: var(--color-surface-lowest);
   background-image:
-    linear-gradient(45deg, #d6d6d6 25%, transparent 25%),
-    linear-gradient(-45deg, #d6d6d6 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #d6d6d6 75%),
-    linear-gradient(-45deg, transparent 75%, #d6d6d6 75%);
+    linear-gradient(45deg, var(--checker) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--checker) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--checker) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--checker) 75%);
   background-size: 8px 8px;
   background-position:
     0 0,
@@ -123,6 +126,21 @@ button.cf-swatch:hover {
   color: var(--color-on-primary-container);
 }
 
+/* The pointer is still over the button you just clicked, and the hover rule
+   above outweighs the selected fill on specificity — so without this, choosing
+   an option leaves it looking grey until you move the mouse off it, which
+   reads as the click not having landed.
+
+   Mixed towards its own foreground, the same answer the dock's buttons give:
+   plain grey here would say "off". */
+.cf-option-button--active:hover:not(:disabled) {
+  background-color: color-mix(
+    in srgb,
+    var(--color-surface-primary-container) 85%,
+    var(--color-on-primary-container)
+  );
+}
+
 .cf-option-button:focus-visible {
   outline: 2px solid var(--focus-highlight-color);
   outline-offset: 1px;
@@ -167,14 +185,6 @@ button.cf-swatch:hover {
   position: relative;
   align-self: center;
   line-height: 0;
-}
-
-/* The wheel and the brightness track preview canvas colours too, so they take
-   the same filter — including the markers riding on them, which keeps the
-   handles legible against the inverted gradient. */
-.cf-wheel,
-.cf-color-popover__value {
-  filter: var(--theme-filter);
 }
 
 .cf-wheel__canvas {

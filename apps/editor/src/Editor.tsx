@@ -36,6 +36,7 @@ import {
   shapeBounds,
   shapesIntersectingSegment,
   SpatialIndex,
+  strokeColorFor,
   unionRect,
   type Camera,
   type Rect,
@@ -913,7 +914,12 @@ export function Editor({ boardId }: EditorProps) {
   const textEditorFontSize =
     (editingText ? fontSizeOf(editingText) : itemStyle.fontSize * newTextScale) * camera.zoom;
   const textEditorFontFamily = editingText ? editingText.fontFamily : itemStyle.fontFamily;
-  const textEditorColor = editingText ? editingText.strokeColor : itemStyle.strokeColor;
+  // Resolved for the board being typed on, so the caret's text is the colour
+  // the shape takes the moment it is committed.
+  const textEditorColor = strokeColorFor(
+    editingText ? editingText.strokeColor : itemStyle.strokeColor,
+    resolvedTheme === 'dark',
+  );
 
   // Rebuilt only when the marked set actually changes, so the static canvas
   // isn't invalidated on every pointer move of an eraser stroke.
@@ -2621,6 +2627,7 @@ export function Editor({ boardId }: EditorProps) {
                   onBringForward: handleBringForward,
                   onBringToFront: handleBringToFront,
                 }}
+                darkMode={resolvedTheme === 'dark'}
               />
             )}
 

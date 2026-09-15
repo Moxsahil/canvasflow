@@ -60,7 +60,8 @@ export interface ToolMeta {
   readonly icon: FC<SVGProps<SVGSVGElement>>;
   /** Letter shortcut. */
   readonly shortcut: string;
-  /** Digit shortcut, shown as a superscript on the toolbar button. Hand has none. */
+  /** Digit shortcut. Unpainted — it reaches the user through the button's
+   * `aria-keyshortcuts` and the shortcuts modal. Hand has none. */
   readonly numericKey: string | null;
   /**
    * Lives behind the toolbar's overflow control rather than in the row itself.

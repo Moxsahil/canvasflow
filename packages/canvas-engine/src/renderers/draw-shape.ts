@@ -1,6 +1,7 @@
 import type { RoughCanvas } from 'roughjs/bin/canvas';
 import type { Shape } from '../shapes/shape.js';
 import { assertNever, fontSizeOf } from '../shapes/shape.js';
+import { strokeColorFor } from '../shapes/style.js';
 import { drawImageShape, type ImageSource } from './draw-image.js';
 import { drawFrameBody } from './draw-frame.js';
 import {
@@ -20,19 +21,29 @@ import {
 export const ERASE_PENDING_OPACITY = 20;
 
 /**
+ * The shape as the current board should paint it.
+ *
+ * Returns the shape itself unless the theme actually changes a colour, so the
+ * common case allocates nothing: this runs for every shape of every frame.
+ */
+function withThemedStroke<T extends Shape>(shape: T, darkMode: boolean): T {
+  const strokeColor = strokeColorFor(shape.strokeColor, darkMode);
+  return strokeColor === shape.strokeColor ? shape : { ...shape, strokeColor };
+}
+
+/**
  * Everything a shape might need beyond its own fields.
  *
- * Only image shapes read any of it, which is why every field is optional: a
- * board with no images renders exactly as it did before, and the callers that
- * never had images to paint do not have to learn about them.
+ * Every field is optional, so a caller with no images to paint and no theme to
+ * honour renders exactly as it did before and does not have to learn about
+ * either.
  */
 export interface SceneShapeContext {
   /** Decoded bitmaps. Absent means every image paints as a placeholder. */
   readonly images?: ImageSource;
   /**
-   * Whether the finished canvas will have the dark-mode filter applied over it.
-   * Images pre-apply its inverse so their own colours survive it; nothing else
-   * cares, because being inverted is what makes the rest of the board dark.
+   * Which board this shape is being painted on. Only the default stroke reads
+   * it, to paint as ink rather than as near-black on a near-black ground.
    */
   readonly darkMode?: boolean;
   /**
@@ -64,50 +75,52 @@ export function drawSceneShape(
   ctx.globalAlpha =
     previousAlpha * (shape.opacity / 100) * (pendingErasure ? ERASE_PENDING_OPACITY / 100 : 1);
 
-  switch (shape.kind) {
+  const painted = withThemedStroke(shape, context.darkMode ?? false);
+
+  switch (painted.kind) {
     case 'rectangle':
-      drawShape(rc, generateRectangleDrawable(rc, shape));
+      drawShape(rc, generateRectangleDrawable(rc, painted));
       break;
     case 'ellipse':
-      drawShape(rc, generateEllipseDrawable(rc, shape));
+      drawShape(rc, generateEllipseDrawable(rc, painted));
       break;
     case 'diamond':
-      drawShape(rc, generateDiamondDrawable(rc, shape));
+      drawShape(rc, generateDiamondDrawable(rc, painted));
       break;
     case 'line':
-      drawShape(rc, generateLineDrawable(rc, shape));
+      drawShape(rc, generateLineDrawable(rc, painted));
       break;
     case 'arrow':
-      drawShape(rc, generateArrowDrawable(rc, shape));
-      drawArrowheads(ctx, shape);
+      drawShape(rc, generateArrowDrawable(rc, painted));
+      drawArrowheads(ctx, painted);
       break;
     case 'freehand': {
-      const fill = generateFreehandFillDrawable(rc, shape);
+      const fill = generateFreehandFillDrawable(rc, painted);
       if (fill) drawShape(rc, fill);
 
-      if (shape.simulatePressure) {
-        drawFreehandPressure(ctx, shape);
+      if (painted.simulatePressure) {
+        drawFreehandPressure(ctx, painted);
       } else {
-        drawShape(rc, generateFreehandDrawable(rc, shape));
+        drawShape(rc, generateFreehandDrawable(rc, painted));
       }
       break;
     }
     case 'text':
-      drawText(ctx, { ...shape, fontSize: fontSizeOf(shape) });
+      drawText(ctx, { ...painted, fontSize: fontSizeOf(painted) });
       break;
     case 'image':
-      drawImageShape(ctx, shape, context.images, context.darkMode ?? false);
+      drawImageShape(ctx, painted, context.images);
       break;
     // Body only. The label is chrome sized in screen pixels, so it needs the
     // zoom the scene renderer has and this function does not.
     case 'frame':
-      drawFrameBody(ctx, shape, {
+      drawFrameBody(ctx, painted, {
         zoom: context.zoom ?? 1,
-        highlight: context.editingFrameIds?.has(shape.id),
+        highlight: context.editingFrameIds?.has(painted.id),
       });
       break;
     default:
-      assertNever(shape);
+      assertNever(painted);
   }
 
   ctx.globalAlpha = previousAlpha;

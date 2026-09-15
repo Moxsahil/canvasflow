@@ -4,7 +4,6 @@ import { shapeBounds } from '../src/shapes/bounds.js';
 import { shapeContainsPoint, shapeHasSolidInterior } from '../src/shapes/outline.js';
 import { createImage, fitPlacedImageSize, MAX_PLACED_IMAGE_EXTENT } from '../src/shapes/image.js';
 import type { ImageShape } from '../src/shapes/shape.js';
-import { DARK_EXPORT_FILTER, DARK_IMAGE_COMPENSATION_FILTER } from '../src/theme-filter.js';
 
 function integrate(map: Y.Map<unknown>): Y.Map<unknown> {
   const doc = new Y.Doc();
@@ -98,29 +97,5 @@ describe('fitPlacedImageSize', () => {
     const { width, height } = fitPlacedImageSize(0, 0);
     expect(width).toBeGreaterThan(0);
     expect(height).toBeGreaterThan(0);
-  });
-});
-
-describe('dark mode compensation', () => {
-  /** Apply `invert(amount)` to one channel, as the filter spec defines it. */
-  const invert = (c: number, amount: number) => c * (1 - 2 * amount) + amount;
-  /** Apply `contrast(amount)`, likewise. */
-  const contrast = (c: number, amount: number) => amount * c + 0.5 - 0.5 * amount;
-
-  it('cancels the board filter out, so a photo survives it unchanged', () => {
-    const boardInvert = Number(/invert\(([\d.]+)%\)/.exec(DARK_EXPORT_FILTER)![1]) / 100;
-    const compContrast =
-      Number(/contrast\(([\d.]+)%\)/.exec(DARK_IMAGE_COMPENSATION_FILTER)![1]) / 100;
-
-    for (const original of [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1]) {
-      // What the renderer paints: full inversion, then the contrast stretch.
-      // Hue rotation is its own inverse at 180° and leaves greys alone, so it
-      // drops out of a per-channel check.
-      const painted = contrast(invert(original, 1), compContrast);
-      // What the board filter then does to those pixels.
-      const onScreen = invert(painted, boardInvert);
-
-      expect(onScreen).toBeCloseTo(original, 5);
-    }
   });
 });

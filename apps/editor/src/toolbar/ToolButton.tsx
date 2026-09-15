@@ -34,7 +34,6 @@ export function ToolButton({ meta, active, group, onSelect }: ToolButtonProps) {
       />
       <span className="cf-tool-button__icon" aria-hidden="true">
         <Icon />
-        {numericKey && <span className="cf-tool-button__keybinding">{numericKey}</span>}
       </span>
     </label>
   );

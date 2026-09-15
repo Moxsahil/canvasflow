@@ -1,8 +1,6 @@
 export {
-  applyDarkFilter,
   measureExportSize,
   renderSceneToCanvas,
-  DARK_EXPORT_FILTER,
   DEFAULT_EXPORT_PADDING,
   EmptySceneError,
   type ExportSceneOptions,
