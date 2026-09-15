@@ -134,6 +134,7 @@ import { AccessRevokedDialog, ShareDialog } from './share';
 import { SettingsDialog } from './settings';
 import { usePreferences } from './preferences';
 import { useAvatar, useProfile } from './profile';
+import { VerificationNotice } from './profile/VerificationNotice';
 import { ConfirmDialog } from './ui';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -2787,6 +2788,10 @@ export function Editor({ boardId }: EditorProps) {
               isGuest={user?.isGuest ?? false}
               theme={presenceTheme}
             />
+
+            {/* Bottom right of the board, inside .cf-editor so it reads the
+                same theme tokens as the rest of the chrome. */}
+            <VerificationNotice profile={account.profile} />
           </div>
         </SidebarInset>
       </SidebarProvider>

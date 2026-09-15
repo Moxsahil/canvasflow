@@ -119,6 +119,11 @@
   --color-accent-foreground: hsl(0 0% 20%);
   --color-destructive: hsl(9 96% 47%);
   --color-destructive-foreground: hsl(0 0% 98%);
+  /* Added for the notification card, which reads `text-success` and
+     `text-warning`. Registered here rather than at the app root so they resolve
+     inside `.cf-editor` like every other token the chrome uses. */
+  --color-success: oklch(0.432 0.095 166.913);
+  --color-warning: oklch(0.473 0.137 46.201);
   /* The red a delete button is filled with. Separate from --color-destructive,
      which also has to carry small error text on a light card and so cannot be
      lightened; this one only ever sits under white, in both themes. */
@@ -150,6 +155,8 @@ html[data-theme='dark'],
   --color-accent-foreground: hsl(0 0% 100%);
   --color-destructive: hsl(0 84% 50%);
   --color-destructive-foreground: hsl(0 0% 98%);
+  --color-success: oklch(0.765 0.177 163.223);
+  --color-warning: oklch(0.828 0.189 84.429);
   --color-border: hsl(0 0% 100% / 10%);
   --color-input: hsl(0 0% 100% / 5%);
   --color-ring: hsl(0 0% 56%);
