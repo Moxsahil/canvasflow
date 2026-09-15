@@ -5,7 +5,7 @@ import { ColorSwatchRow } from './ColorSwatchRow';
 import { OpacitySlider } from './OpacitySlider';
 import { OptionButton } from './OptionButton';
 import { PanelSection } from './PanelSection';
-import type { Arrowhead } from '@canvasflow/canvas-engine';
+import { strokeColorFor, type Arrowhead } from '@canvasflow/canvas-engine';
 import { useRef, useState, type ComponentType } from 'react';
 import { ColorPickerPopover } from './color/ColorPickerPopover';
 import {
@@ -106,6 +106,8 @@ interface PropertiesPanelProps {
    */
   onStyleChange: (patch: Partial<ItemStyle>, transient?: boolean) => void;
   layerActions: LayerActions;
+  /** Which board the swatches are previewing colours for. */
+  darkMode: boolean;
 }
 
 /** Which colour the open picker is editing, and where to anchor it. */
@@ -131,6 +133,7 @@ export function PropertiesPanel({
   canReorder,
   onStyleChange,
   layerActions,
+  darkMode,
 }: PropertiesPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [picker, setPicker] = useState<OpenPicker | null>(null);
@@ -171,6 +174,7 @@ export function PropertiesPanel({
               onChange={(strokeColor) => onStyleChange({ strokeColor })}
               onOpenPicker={openPicker('stroke')}
               pickerOpen={picker?.target === 'stroke'}
+              paint={(strokeColor) => strokeColorFor(strokeColor, darkMode)}
             />
           </PanelSection>
 

@@ -1,5 +1,4 @@
 import type { ImageShape } from '../shapes/shape.js';
-import { DARK_IMAGE_COMPENSATION_FILTER } from '../theme-filter.js';
 
 /**
  * Read-only view of decoded bitmaps, as the renderer needs them.
@@ -100,7 +99,6 @@ export function drawImageShape(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   shape: ImageShape,
   images: ImageSource | undefined,
-  darkMode: boolean,
 ): void {
   const bitmap = images?.get(shape.fileId) ?? null;
 
@@ -109,14 +107,5 @@ export function drawImageShape(
     return;
   }
 
-  ctx.save();
-  // The board-wide dark filter is applied to the finished canvas, so an image
-  // has to arrive at that filter already carrying its own inverse. The
-  // placeholder above deliberately does not: it is chrome, and should invert
-  // with the rest of the board.
-  if (darkMode && 'filter' in ctx) {
-    ctx.filter = DARK_IMAGE_COMPENSATION_FILTER;
-  }
   ctx.drawImage(bitmap, shape.x, shape.y, shape.width, shape.height);
-  ctx.restore();
 }

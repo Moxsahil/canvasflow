@@ -7,6 +7,12 @@ interface ColorSwatchRowProps<T extends string | null> {
   /** Opens the picker; receives the trigger so the popover can align to it. */
   onOpenPicker: (trigger: HTMLElement) => void;
   pickerOpen: boolean;
+  /**
+   * How the board would paint this colour. A swatch is a preview, so the row
+   * showing one thing while the canvas draws another is the bug this closes.
+   * Omitted means the stored colour is what paints.
+   */
+  paint?: (value: string) => string;
 }
 
 /**
@@ -20,6 +26,7 @@ export function ColorSwatchRow<T extends string | null>({
   onChange,
   onOpenPicker,
   pickerOpen,
+  paint = (v: string) => v,
 }: ColorSwatchRowProps<T>) {
   return (
     <>
@@ -32,7 +39,7 @@ export function ColorSwatchRow<T extends string | null>({
             swatchValue === null && 'cf-swatch--transparent',
             swatchValue === value && 'cf-swatch--active',
           )}
-          style={swatchValue === null ? undefined : { backgroundColor: swatchValue }}
+          style={swatchValue === null ? undefined : { backgroundColor: paint(swatchValue) }}
           title={label}
           aria-label={label}
           aria-pressed={swatchValue === value}
@@ -48,7 +55,7 @@ export function ColorSwatchRow<T extends string | null>({
           value === null && 'cf-swatch--transparent',
           pickerOpen && 'cf-swatch--active',
         )}
-        style={value === null ? undefined : { backgroundColor: value }}
+        style={value === null ? undefined : { backgroundColor: paint(value) }}
         title="Choose a colour"
         aria-label={`Choose a colour — currently ${value ?? 'transparent'}`}
         aria-haspopup="dialog"

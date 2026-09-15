@@ -1,11 +1,10 @@
 /**
  * Collaborator cursors.
  *
- * This layer is mounted as a SIBLING of `.canvas-stack`, never inside it. That
- * container carries `filter: var(--theme-filter)`, an invert plus hue-rotate in
- * dark mode, so anything drawn within it comes out the wrong colour — a teal
- * collaborator would render orange for half the room. Placement in the tree is
- * load-bearing here, not incidental.
+ * This layer is mounted as a SIBLING of `.canvas-stack`, never inside it: the
+ * canvases within are cleared and repainted every frame from the shapes, and a
+ * cursor is not one of them. Placement in the tree is load-bearing here, not
+ * incidental.
  */
 
 .cf-cursor-layer {

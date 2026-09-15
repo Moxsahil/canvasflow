@@ -5,8 +5,11 @@
   --color-surface-mid: #f6f6f9;
   --color-surface-high: #f1f0ff;
   --color-on-surface: #1b1b1f;
-  --color-surface-primary-container: #e0dfff;
-  --color-on-primary-container: #030064;
+  /* The selected fill is the one palette entry both themes share: a chosen
+     tool, a pressed dock button and an active option all take this blue
+     whichever theme is on, so the dark block below restates neither. */
+  --color-surface-primary-container: #3344ff;
+  --color-on-primary-container: #e0dfff;
   --color-brand-active: #4440bf;
   /* Named for the chrome rather than plain "muted": the component palette
      further down owns --color-muted, and both live on this element. */
@@ -41,12 +44,9 @@
   --dock-tooltip-bg: #1b1b1f;
   --dock-tooltip-fg: #ffffff;
 
-  /* The grid sits outside the inverted stack, so — like the board colour it is
-     painted on — each theme states the value it wants rather than inheriting
-     the other one flipped. */
+  /* Like the board colour it is painted on, each theme states the value it
+     wants: a dot that reads on paper is not the one that reads on slate. */
   --grid-dot-color: hsl(0, 0%, 43%);
-
-  --theme-filter: none;
 
   /* ---------- metrics ---------- */
   /* Every Island padding and Stack gap is a multiple of this, so the whole
@@ -73,15 +73,11 @@
   --color-surface-mid: hsl(240, 6%, 10%);
   --color-surface-high: #2e2d39;
   --color-on-surface: #e3e3e8;
-  --color-surface-primary-container: #3344FF;
-  --color-on-primary-container: #e0dfff;
   --color-brand-active: #d0ccff;
   --color-chrome-muted: #7a7a7a;
   --color-danger: #ff8383;
 
   --grid-dot-color: hsl(0, 0%, 40%);
-
-  --theme-filter: invert(93%) hue-rotate(180deg);
 
   /* No surface or border colours here: they all resolve through --sidebar,
      which this theme has already flipped. Only what the sidebar has no say in

@@ -13,9 +13,9 @@
  * Every value ends in a keyword fallback. Safari has never supported SVG
  * cursors, and a url() with no fallback there leaves the pointer as `auto`.
  *
- * Theme-aware because the OS draws cursors outside the page: `--theme-filter`
- * inverts .canvas-stack in dark mode but cannot touch the cursor, so dark mode
- * needs its own light-on-dark artwork.
+ * Theme-aware because a cursor is drawn by the OS against whatever board is
+ * under it: the dark theme needs its own light-on-dark artwork, since nothing
+ * in the page can restyle the pointer once it leaves.
  */
 
 .cf-editor {

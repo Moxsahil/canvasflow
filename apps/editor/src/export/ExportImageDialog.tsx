@@ -187,10 +187,7 @@ export function ExportImageDialog({
   const exportPng = useCallback(
     () =>
       run(async () => {
-        const { canvas, darkApplied } = renderExportCanvas(exported, settings, images);
-        if (settings.dark && !darkApplied) {
-          throw new Error("This browser can't render a dark export.");
-        }
+        const { canvas } = renderExportCanvas(exported, settings, images);
         const png = await canvasToPngBlob(canvas);
         // Only the exported shapes go in, so opening the image gives back what
         // the image shows rather than a board that disagrees with it.

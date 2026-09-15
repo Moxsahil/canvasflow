@@ -5,6 +5,7 @@ import { createRectangle } from '../src/shapes/rectangle';
 import { createText } from '../src/shapes/text';
 import { createArrow } from '../src/shapes/arrow';
 import { createFreehand } from '../src/shapes/freehand';
+import { DARK_INK_COLOR, DEFAULT_STROKE_COLOR, strokeColorFor } from '../src/shapes/style';
 
 const rect = (over: Partial<Parameters<typeof createRectangle>[0]> = {}) =>
   createRectangle({ id: 'r1', x: 0, y: 0, width: 100, height: 50, seed: 1, ...over });
@@ -131,5 +132,35 @@ describe('renderSceneToSvgString', () => {
 
   it('refuses an empty scene', () => {
     expect(() => renderSceneToSvgString([])).toThrow(EmptySceneError);
+  });
+});
+
+describe('theme', () => {
+  it('paints the default stroke as ink on a dark board, and as itself on a light one', () => {
+    const light = renderSceneToSvgString([rect()], {});
+    const dark = renderSceneToSvgString([rect()], { darkMode: true });
+
+    expect(light).toContain(DEFAULT_STROKE_COLOR);
+    expect(light).not.toContain(DARK_INK_COLOR);
+    expect(dark).toContain(DARK_INK_COLOR);
+    expect(dark).not.toContain(DEFAULT_STROKE_COLOR);
+  });
+
+  it('leaves a chosen colour alone, so a red shape exports red in either theme', () => {
+    const chosen = '#e03131';
+    for (const darkMode of [false, true]) {
+      expect(renderSceneToSvgString([rect({ strokeColor: chosen })], { darkMode })).toContain(
+        chosen,
+      );
+    }
+  });
+});
+
+describe('strokeColorFor', () => {
+  it('swaps only the default, and only in the dark', () => {
+    expect(strokeColorFor(DEFAULT_STROKE_COLOR, true)).toBe(DARK_INK_COLOR);
+    expect(strokeColorFor(DEFAULT_STROKE_COLOR, false)).toBe(DEFAULT_STROKE_COLOR);
+    expect(strokeColorFor('#1971c2', true)).toBe('#1971c2');
+    expect(strokeColorFor('#1971c2', false)).toBe('#1971c2');
   });
 });

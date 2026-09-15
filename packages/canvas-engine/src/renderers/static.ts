@@ -114,7 +114,7 @@ export function renderStaticScene(
   // paint over the name of the frame holding it.
   for (const frame of frames.values()) {
     if (editingFrameIds?.has(frame.id)) continue;
-    drawFrameLabel(ctx, frame, zoom);
+    drawFrameLabel(ctx, frame, zoom, darkMode ?? false);
   }
 
   ctx.restore();

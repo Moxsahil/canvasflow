@@ -31,8 +31,8 @@
 
 /* Hovering an on button still has to do something, and the answer cannot be
    the grey above — that reads as switching off. Mixed towards its own
-   foreground instead, which deepens it in the light theme and lifts it in the
-   dark one without either needing to name a second colour. */
+   foreground instead, which lifts the fill in either theme without naming a
+   second colour. */
 .cf-icon-button[data-pressed]:hover:not(:disabled) {
   background-color: color-mix(
     in srgb,

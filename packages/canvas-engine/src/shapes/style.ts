@@ -40,6 +40,31 @@ export const ARROWHEAD_GEOMETRY: Record<
 
 export const DEFAULT_STROKE_COLOR = '#1e1e1e';
 
+/**
+ * What the default stroke paints as on a dark board.
+ *
+ * Every other colour in the palette is a choice, and a choice is kept: a red
+ * shape is the same red whichever theme is on. The default is not a choice —
+ * it is whatever the pen happened to be, and on a dark board it would be a
+ * near-black line on a near-black ground. So this one value follows the board
+ * instead, which is also what makes a drawing survive being opened in the
+ * other theme.
+ *
+ * The board's own text colour, so a line and a label agree.
+ */
+export const DARK_INK_COLOR = '#e3e3e8';
+
+/**
+ * The stroke colour to actually paint, for the theme being painted on.
+ *
+ * Every renderer goes through this — the live canvases, the PNG export and the
+ * SVG export alike — so a board, a saved image and a copied bitmap can't
+ * disagree about what a colour looks like.
+ */
+export function strokeColorFor(strokeColor: string, darkMode: boolean): string {
+  return darkMode && strokeColor === DEFAULT_STROKE_COLOR ? DARK_INK_COLOR : strokeColor;
+}
+
 /** Style fields every factory accepts, all optional. */
 export interface BaseStyleInput {
   strokeColor?: string;

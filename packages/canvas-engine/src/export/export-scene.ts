@@ -4,12 +4,9 @@ import { framesIn } from '../frames/membership.js';
 import { frameLabelBounds } from '../frames/frame-geometry.js';
 import { computeBoundingRect } from '../document/camera.js';
 import { renderStaticScene } from '../renderers/static.js';
-import { DARK_EXPORT_FILTER } from '../theme-filter.js';
 import type { ImageSource } from '../renderers/draw-image.js';
 
 export const DEFAULT_EXPORT_PADDING = 10;
-
-export { DARK_EXPORT_FILTER };
 
 export interface ExportSceneOptions {
   /** World-unit margin around the content. */
@@ -33,7 +30,10 @@ export interface ExportSceneOptions {
    * free of any dependency on the DOM.
    */
   readonly imageDataUrls?: ReadonlyMap<string, string>;
-  /** Whether the export will have the dark-mode filter applied over it. */
+  /**
+   * Which board the export represents. Reaches the renderer so the default
+   * stroke paints as the ink of that board, exactly as it does on screen.
+   */
   readonly darkMode?: boolean;
   /**
    * The world rectangle to cover, instead of the box the shapes happen to fill.
@@ -141,33 +141,4 @@ export function renderSceneToCanvas(
   });
 
   return size;
-}
-
-/**
- * Apply the dark theme to an already-rendered export canvas.
- *
- * Done as a filtered copy rather than by transforming each shape's colour: the
- * editor shows dark mode by putting this exact filter over the live canvas, so
- * running the same operation over the same pixels is the only way the file is
- * guaranteed to match the screen.
- *
- * It has to be a *copy* — filtering the composited image, not each draw call.
- * Setting the filter before rendering would apply it per shape, which differs
- * wherever shapes overlap or are translucent, and would no longer match what
- * the screen shows.
- *
- * Returns false where `ctx.filter` isn't supported, so a caller can report the
- * gap rather than silently save a light image the user asked to be dark.
- */
-export function applyDarkFilter(source: CanvasLike, target: CanvasLike): boolean {
-  const ctx = target.getContext('2d');
-  if (!ctx) return false;
-  if (!('filter' in ctx)) return false;
-
-  target.width = source.width;
-  target.height = source.height;
-  ctx.filter = DARK_EXPORT_FILTER;
-  (ctx as CanvasRenderingContext2D).drawImage(source as unknown as HTMLCanvasElement, 0, 0);
-  ctx.filter = 'none';
-  return true;
 }

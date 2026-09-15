@@ -60,17 +60,3 @@
 .cf-tool-button__input:focus-visible:checked + .cf-tool-button__icon {
   box-shadow: 0 0 0 2px var(--focus-highlight-color);
 }
-
-.cf-tool-button__keybinding {
-  position: absolute;
-  right: 3px;
-  bottom: 2px;
-  font-family: var(--font-sans);
-  font-size: 0.5rem;
-  line-height: 1;
-  color: var(--keybinding-color);
-}
-
-.cf-tool-button__input:checked + .cf-tool-button__icon .cf-tool-button__keybinding {
-  color: var(--color-on-primary-container);
-}

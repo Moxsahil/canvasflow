@@ -16,6 +16,7 @@ import { frameLabel } from '../shapes/frame.js';
 import { FRAME_LABEL_FONT_SIZE, FRAME_LABEL_GAP } from '../shapes/frame.js';
 import { frameLabelFont } from '../frames/frame-geometry.js';
 import type { FrameShape } from '../shapes/shape.js';
+import { strokeColorFor } from '../shapes/style.js';
 import { measureTextWidth } from '../utils/text-measure.js';
 import { SELECTION_COLOR } from './interactive.js';
 
@@ -97,6 +98,7 @@ export function drawFrameLabel(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   frame: FrameShape,
   zoom: number,
+  darkMode = false,
 ): void {
   const font = frameLabelFont(zoom);
   const label = truncateToWidth(frameLabel(frame), font, frame.width);
@@ -104,7 +106,9 @@ export function drawFrameLabel(
 
   ctx.save();
   ctx.font = font;
-  ctx.fillStyle = frame.strokeColor;
+  // Through the same resolver the border goes through, so a frame's name and
+  // its outline are never two different colours.
+  ctx.fillStyle = strokeColorFor(frame.strokeColor, darkMode);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   ctx.globalAlpha *= frame.opacity / 100;
