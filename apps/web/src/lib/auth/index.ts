@@ -9,7 +9,7 @@ import {
   authAdapterSessions,
   authAdapterVerificationTokens,
 } from '@canvasflow/db';
-import { eq } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import Google from 'next-auth/providers/google';
 import GitHub from 'next-auth/providers/github';
 import Credentials from 'next-auth/providers/credentials';
@@ -18,7 +18,7 @@ import z from 'zod';
 import { env } from '@/lib/env';
 
 const credentialsSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().email().toLowerCase(),
   password: z.string().min(8),
 });
 
@@ -53,18 +53,31 @@ export const { auth, handlers, signOut, signIn } = NextAuth({
         const parsed = credentialsSchema.safeParse(credentials);
         if (!parsed.success) return null;
 
-        const result = await db
+        // Case-insensitive on purpose. The address is lowered on the way in,
+        // but accounts created before that still hold mixed case, and an exact
+        // match would lock their owners out of their own accounts.
+        //
+        // No limit, and every candidate is checked. Addresses that differ only
+        // by case were allowed to register twice before this, so a handful of
+        // them still map to two rows; taking the first would be a coin flip
+        // that fails the password check on an account the person really owns.
+        // The password is what says which one they meant. Once the duplicates
+        // are merged this is a one-row query and behaves exactly as before.
+        const candidates = await db
           .select()
           .from(users)
-          .where(eq(users.email, parsed.data.email))
-          .limit(1);
+          .where(sql`lower(${users.email}) = ${parsed.data.email}`);
 
-        const user = result[0];
+        let user: (typeof candidates)[number] | undefined;
+        for (const candidate of candidates) {
+          if (!candidate.passwordHash) continue;
+          if (await bcrypt.compare(parsed.data.password, candidate.passwordHash)) {
+            user = candidate;
+            break;
+          }
+        }
 
-        if (!user || !user.passwordHash) return null;
-
-        const isValid = await bcrypt.compare(parsed.data.password, user.passwordHash);
-        if (!isValid) return null;
+        if (!user) return null;
 
         return {
           id: user.id,

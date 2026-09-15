@@ -35,6 +35,11 @@ export interface Profile {
    * picture of anybody.
    */
   avatarUploaded: boolean;
+  /**
+   * Whether the address has been confirmed. Guests read as verified: they have
+   * no real address, so there is nothing to confirm.
+   */
+  emailVerified: boolean;
 }
 
 export interface ProfileChanges {

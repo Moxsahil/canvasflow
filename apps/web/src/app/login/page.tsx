@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from 'react';
 import { signIn } from 'next-auth/react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -12,6 +13,7 @@ import {
   GitHubMark,
 } from '@/components/auth/auth-shell';
 import { Component as PencilLoader } from '@/components/ui/loader-1';
+import { cn } from '@/lib/utils';
 import { safeRedirect } from '@/lib/safe-redirect';
 
 function LoginForm() {
@@ -24,6 +26,7 @@ function LoginForm() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -99,14 +102,35 @@ function LoginForm() {
           required
           className={authStyles.field}
         />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          className={authStyles.field}
-        />
+        <div className="relative">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+            // `pr-12` through cn so it replaces the field's own right padding
+            // rather than racing it; the value then runs under the button
+            // instead of behind it.
+            className={cn(authStyles.field, 'pr-12')}
+          />
+          <button
+            // Not a submit: a bare button inside a form posts it, so revealing
+            // the password would send the form.
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            aria-pressed={showPassword}
+            className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-white/35 transition-colors hover:text-white/80 focus:outline-none focus-visible:text-[#F5F4F0]"
+          >
+            {showPassword ? (
+              <EyeOff className="size-4" aria-hidden="true" />
+            ) : (
+              <Eye className="size-4" aria-hidden="true" />
+            )}
+          </button>
+        </div>
 
         {error && (
           <p role="alert" className="text-sm text-red-400">

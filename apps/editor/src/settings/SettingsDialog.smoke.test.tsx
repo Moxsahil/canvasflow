@@ -23,6 +23,7 @@ const SAVED: Profile = {
   cursorColor: 'teal',
   avatarVersion: null,
   avatarUploaded: false,
+  emailVerified: true,
 };
 
 function accountStub(profile: Profile | null = null): ProfileState {

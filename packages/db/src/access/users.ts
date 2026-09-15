@@ -27,6 +27,14 @@ export interface Profile {
    * worth putting on a cursor.
    */
   avatarUploaded: boolean;
+  /**
+   * Whether the address has been confirmed.
+   *
+   * Signing in does not require it — see the credentials provider — so an
+   * account can be in use and unconfirmed at once, and the only way anything
+   * downstream can tell is if we say so here.
+   */
+  emailVerified: boolean;
 }
 
 /** The stored photo itself, for the one caller that turns it into a URL. */
@@ -50,6 +58,7 @@ const PROFILE_COLUMNS = {
   avatarFileId: users.avatarFileId,
   isGuest: users.isGuest,
   preferences: users.preferences,
+  emailVerifiedAt: users.emailVerifiedAt,
 };
 
 type ProfileRow = Pick<UserRow, keyof typeof PROFILE_COLUMNS>;
@@ -81,6 +90,9 @@ function toProfile(row: ProfileRow): Profile {
     // is not a picture of anyone, and drawing it beside a cursor would say less
     // than the initial it replaced.
     avatarUploaded: row.avatarFileId !== null,
+    // A guest has no real address, so there is nothing for them to confirm and
+    // nothing to nag them about.
+    emailVerified: row.isGuest || row.emailVerifiedAt !== null,
   };
 }
 
