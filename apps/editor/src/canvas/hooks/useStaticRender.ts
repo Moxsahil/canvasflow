@@ -17,6 +17,7 @@ interface UseStaticRenderOptions {
   pendingErasureIds?: ReadonlySet<string>;
   /** Frames whose name is open for editing: label suppressed, border highlighted. */
   editingFrameIds?: ReadonlySet<string>;
+  editingArrowLabelId?: string;
   /** Decoded image bitmaps. */
   images?: ImageSource;
   /**
@@ -25,7 +26,13 @@ interface UseStaticRenderOptions {
    * what turns "bytes arrived" into a repaint.
    */
   imageRevision?: number;
-  darkMode?: boolean;
+  /**
+   * Which board these shapes are being painted on. Required, not optional with
+   * a safe-looking default, because every layer that paints a shape has to be
+   * given the same answer — a layer left to assume one paints the default
+   * stroke as near-black on a near-black ground, and says nothing about it.
+   */
+  darkMode: boolean;
 }
 
 /**
@@ -47,6 +54,7 @@ export function useStaticRender(
     devicePixelRatio,
     pendingErasureIds,
     editingFrameIds,
+    editingArrowLabelId,
     images,
     imageRevision,
     darkMode,
@@ -65,6 +73,7 @@ export function useStaticRender(
       camera,
       pendingErasureIds,
       editingFrameIds,
+      editingArrowLabelId,
       images,
       darkMode,
     });
@@ -77,6 +86,7 @@ export function useStaticRender(
     devicePixelRatio,
     pendingErasureIds,
     editingFrameIds,
+    editingArrowLabelId,
     images,
     imageRevision,
     darkMode,

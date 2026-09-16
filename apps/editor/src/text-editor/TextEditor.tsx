@@ -3,6 +3,13 @@ import { useLayoutEffect, useRef, useState } from 'react';
 interface TextEditorProps {
   /** Screen-space position (already converted from world space via camera). */
   position: { x: number; y: number };
+  /**
+   * Where `position` sits relative to the text: its top-left, or its centre.
+   *
+   * A caption typed into the middle of something has to stay in the middle as
+   * it grows, or what is on screen drifts away from where it will land.
+   */
+  align?: 'left' | 'center';
   /** Screen-space font size (already scaled by camera zoom). */
   fontSize: number;
   fontFamily: string;
@@ -21,6 +28,7 @@ interface TextEditorProps {
 
 export function TextEditor({
   position,
+  align = 'left',
   fontSize,
   fontFamily,
   color,
@@ -60,6 +68,8 @@ export function TextEditor({
 
   const font = `${fontSize}px ${fontFamily}`;
   const lineCount = value.split('\n').length;
+  const height = lineCount * fontSize * 1.2;
+  const centred = align === 'center';
 
   return (
     <>
@@ -98,10 +108,11 @@ export function TextEditor({
         }}
         style={{
           position: 'absolute',
-          left: position.x,
-          top: position.y,
+          left: centred ? position.x - width / 2 : position.x,
+          top: centred ? position.y - height / 2 : position.y,
           width,
-          height: lineCount * fontSize * 1.2,
+          height,
+          textAlign: align,
           padding: 0,
           margin: 0,
           border: 'none',

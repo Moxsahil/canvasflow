@@ -99,18 +99,18 @@ export const DEFAULT_ITEM_STYLE: ItemStyle = {
   strokeColor: DEFAULT_STROKE_COLOR,
   fillColor: null,
   fillStyle: 'hachure',
-  strokeWidth: 2,
+  strokeWidth: 4,
   strokeStyle: 'solid',
-  roughness: 1,
+  roughness: 0,
   edges: 'sharp',
   opacity: 100,
   fontFamily: DEFAULT_FONT_FAMILY,
   fontSize: DEFAULT_FONT_SIZE,
   textAlign: 'left',
-  arrowType: 'straight',
+  arrowType: 'curved',
   startArrowhead: 'none',
-  endArrowhead: 'arrow',
-  simulatePressure: true,
+  endArrowhead: 'triangle',
+  simulatePressure: false,
 };
 
 export interface ToolMachineContext {
@@ -203,6 +203,12 @@ export type ToolMachineEvent =
   | { type: 'COMMIT_TEXT'; text: string; shapeId?: string }
   | { type: 'CANCEL_TEXT' }
   | { type: 'EDIT_TEXT_SHAPE'; shapeId: string; position: Point; existingText: string }
+  /**
+   * Open an empty text box at a point on the board, for the double press that
+   * asks for one. `EDIT_TEXT_SHAPE` reopens text that already exists; this
+   * makes text where there is none, wherever the gesture landed.
+   */
+  | { type: 'START_TEXT_AT'; point: Point }
   | { type: 'SPACE_DOWN' }
   | { type: 'SPACE_UP' }
   | { type: 'PAN_BY'; dx: number; dy: number }

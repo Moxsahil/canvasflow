@@ -6,6 +6,7 @@ export * from './diamond.js';
 export * from './line.js';
 export * from './arrow.js';
 export * from './arrow-binding.js';
+export * from './arrow-label.js';
 export * from './freehand.js';
 export * from './text.js';
 export * from './image.js';

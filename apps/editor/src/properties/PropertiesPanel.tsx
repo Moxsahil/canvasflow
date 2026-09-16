@@ -79,12 +79,7 @@ const FILLABLE_KINDS: ReadonlySet<Shape['kind']> = new Set([
   'freehand',
 ]);
 /** Shape kinds whose corners or joints can be rounded off. */
-const EDGED_KINDS: ReadonlySet<Shape['kind']> = new Set([
-  'rectangle',
-  'diamond',
-  'line',
-  'freehand',
-]);
+const EDGED_KINDS: ReadonlySet<Shape['kind']> = new Set(['rectangle', 'diamond', 'line']);
 
 export interface LayerActions {
   onSendToBack: () => void;
@@ -160,7 +155,18 @@ export function PropertiesPanel({
   // pixels and is never outlined. Neither has a stroke to configure.
   const showStroke = !isTextOnly && !every((k) => k === 'image');
   const showEdges = every((k) => EDGED_KINDS.has(k));
-  const showPressure = every((k) => k === 'freehand');
+  const isFreehandOnly = every((k) => k === 'freehand');
+  const showPressure = isFreehandOnly;
+  /**
+   * The stroke treatments a hand-drawn line isn't offered.
+   *
+   * Roughness and corner treatment genuinely miss it — a tapered stroke is
+   * painted segment by segment rather than generated, so neither reaches it.
+   * A dash pattern would apply, but a line that was drawn rather than
+   * described carries its own character, and cutting it into dashes reads as
+   * fighting the stroke instead of styling it.
+   */
+  const showStrokeTreatments = showStroke && !isFreehandOnly;
   const showArrow = every((k) => k === 'arrow');
 
   return (
@@ -227,7 +233,7 @@ export function PropertiesPanel({
             </PanelSection>
           )}
 
-          {showStroke && (
+          {showStrokeTreatments && (
             <PanelSection label="Stroke style">
               <OptionButton
                 icon={<SolidStrokeIcon />}
@@ -267,7 +273,7 @@ export function PropertiesPanel({
             </PanelSection>
           )}
 
-          {showStroke && (
+          {showStrokeTreatments && (
             <PanelSection label="Sloppiness">
               <OptionButton
                 icon={<ArchitectIcon />}

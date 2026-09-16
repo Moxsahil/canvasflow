@@ -169,6 +169,7 @@ export function sanitizeShape(candidate: unknown, genId: () => string): Shape | 
         startArrowhead: oneOf(candidate.startArrowhead, ARROWHEADS),
         endArrowhead: oneOf(candidate.endArrowhead, ARROWHEADS),
         arrowType: oneOf(candidate.arrowType, ARROW_TYPES),
+        label: text(candidate.label),
       });
     }
 

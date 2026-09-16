@@ -5,11 +5,15 @@ import {
   fontSizeOf,
   isFrame,
   strokeWidthOf,
+  type ArrowShape,
   type FrameShape,
   type ImageShape,
   type Shape,
   type TextShape,
 } from '../shapes/shape.js';
+import type { Rect } from '../math.js';
+import { arrowInkBounds } from '../shapes/arrow.js';
+import { arrowLabelLayout, type ArrowLabelLayout } from '../shapes/arrow-label.js';
 import { FRAME_LABEL_FONT_SIZE, FRAME_LABEL_GAP, frameLabel } from '../shapes/frame.js';
 import { strokeColorFor } from '../shapes/style.js';
 import { FRAME_BORDER_WIDTH } from './draw-frame.js';
@@ -174,6 +178,25 @@ function pointsToPath(points: ReadonlyArray<readonly [number, number]>, close: b
   return `M ${num(first[0])} ${num(first[1])} ${segments}${close ? ' Z' : ''}`;
 }
 
+/** A rectangle as a closed subpath, for composing an even-odd clip. */
+function rectPath(r: Rect): string {
+  return `M${num(r.x)} ${num(r.y)}H${num(r.x + r.width)}V${num(r.y + r.height)}H${num(r.x)}Z`;
+}
+
+function arrowLabelToSvg(shape: ArrowShape, label: ArrowLabelLayout): string {
+  const lineHeight = label.fontSize * 1.2;
+
+  return label.lines
+    .map(
+      (line, index) =>
+        `<text x="${num(label.anchor.x)}" y="${num(label.textTop + index * lineHeight)}" ` +
+        `font-family="${escapeXml(label.fontFamily)}" font-size="${num(label.fontSize)}px" ` +
+        `fill="${escapeXml(shape.strokeColor)}" text-anchor="middle" ` +
+        `dominant-baseline="text-before-edge" style="white-space: pre;">${escapeXml(line)}</text>`,
+    )
+    .join('');
+}
+
 function textToSvg(shape: TextShape): string {
   const lines = shape.text.split('\n');
   const fontSize = fontSizeOf(shape);
@@ -288,6 +311,22 @@ function shapeToSvg(
           mark.kind === 'closed' && mark.filled
             ? `<path d="${d}" fill="${escapeXml(shape.strokeColor)}" stroke="none"/>`
             : `<path d="${d}" fill="none" ${common}/>`;
+      }
+
+      const label = arrowLabelLayout(shape);
+      if (label) {
+        // The clip path is emitted beside its only user rather than in the
+        // document's `<defs>`, where the frame clips live: those are shared by
+        // every member of a frame, this one is referenced once and reads
+        // better next to the group it cuts.
+        const clipId = `arrow-label-${shape.id}`;
+        content =
+          `<clipPath id="${escapeXml(clipId)}">` +
+          `<path clip-rule="evenodd" d="${rectPath(arrowInkBounds(shape))} ${rectPath(
+            label.box,
+          )}"/></clipPath>` +
+          `<g clip-path="url(#${escapeXml(clipId)})">${content}</g>` +
+          arrowLabelToSvg(shape, label);
       }
       break;
     }

@@ -17,6 +17,8 @@ interface CanvasStackProps {
   shapes: readonly Shape[];
   pendingErasureIds?: ReadonlySet<string>;
   editingFrameIds?: ReadonlySet<string>;
+  /** The arrow whose label is open for typing, so its line breaks for the caret. */
+  editingArrowLabelId?: string;
   newElement: Shape | null;
   selectedIds: readonly string[];
   marquee: { x: number; y: number; width: number; height: number } | null;
@@ -36,7 +38,7 @@ interface CanvasStackProps {
   /** Decoded image bitmaps, and a counter that changes when one lands. */
   images?: ImageSource;
   imageRevision?: number;
-  /** Drives the compensating filter that keeps photographs out of the inversion. */
+  /** Which board this is. Every layer that paints a shape is told the same. */
   darkMode?: boolean;
   /** Image files dropped onto the canvas, with the world point they landed on. */
   onDropFiles?: (files: File[], at: Point) => void;
@@ -75,6 +77,7 @@ export function CanvasStack({
   shapes,
   pendingErasureIds,
   editingFrameIds,
+  editingArrowLabelId,
   newElement,
   selectedIds,
   marquee,
@@ -88,7 +91,7 @@ export function CanvasStack({
   hoveredHandleId,
   images,
   imageRevision,
-  darkMode,
+  darkMode = false,
   peersRef,
   subscribePeers,
   onDropFiles,
@@ -117,6 +120,7 @@ export function CanvasStack({
     devicePixelRatio: dpr,
     pendingErasureIds,
     editingFrameIds,
+    editingArrowLabelId,
     images,
     imageRevision,
     darkMode,
@@ -129,6 +133,7 @@ export function CanvasStack({
     devicePixelRatio: dpr,
     peersRef,
     subscribePeers,
+    darkMode,
   });
   useInteractiveRender(interactiveCanvasRef, {
     width,
@@ -227,11 +232,9 @@ export function CanvasStack({
   }
 
   return (
-    // The background is painted out here, not on .canvas-stack, because that
-    // element carries the dark-mode inversion filter. Inside it, a chosen
-    // colour would be inverted into a different one; out here each theme's
-    // colour lands exactly as written, while the canvases within still invert
-    // so existing drawings stay readable.
+    // The background is painted out here, not on .canvas-stack, so that it is
+    // laid down once under the drawing rather than cleared and repainted with
+    // it on every frame.
     <div
       ref={containerRef}
       style={{ position: 'absolute', inset: 0, background: backgroundColor }}

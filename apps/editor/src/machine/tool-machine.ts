@@ -492,7 +492,17 @@ export const toolMachine = setup({
         newElement: { ...context.newElement, points: nextPoints },
       };
     }),
+    // Both ways of asking for a new text box — the text tool's press, and a
+    // double press anywhere with select in hand — say the same thing: a box,
+    // there, empty.
     startTextEditing: assign(({ event }) => {
+      if (event.type === 'START_TEXT_AT') {
+        // A double press lands on whatever is under it, which the press before
+        // it has just selected. Let it go: an outline drawn around a shape
+        // behind the caret reads as the thing being typed into, and the box is
+        // free text that happens to sit there, not a label that shape owns.
+        return { textEditingAt: event.point, editingTextShapeId: null, selectedIds: [] };
+      }
       if (event.type !== 'POINTER_DOWN') return {};
       return { textEditingAt: event.point, editingTextShapeId: null };
     }),
@@ -712,6 +722,7 @@ export const toolMachine = setup({
     SET_DYNAMIC_SIZE: { actions: 'setDynamicSize' },
     ESCAPE: { target: '.idle', actions: ['clearDraw', 'clearTextEditing', 'deselectAll'] },
     EDIT_TEXT_SHAPE: { target: '.editingText', actions: 'startEditingExistingText' },
+    START_TEXT_AT: { target: '.editingText', actions: 'startTextEditing' },
     SPACE_DOWN: { actions: 'trackSpaceDown' },
     SPACE_UP: { actions: 'trackSpaceUp' },
     PAN_BY: { actions: 'applyPan' },
@@ -963,6 +974,18 @@ export const toolMachine = setup({
             guard: 'returnsToSelect',
             target: 'idle',
             actions: ['selectCommittedText', 'returnToSelect', 'clearTextEditing'],
+          },
+          /**
+           * Text made by double-pressing the board is made with select already
+           * in hand, so there is no tool to hand back — but the box should
+           * still end up selected, the way a shape just drawn does. Nothing to
+           * select when the commit edited existing text or came back empty:
+           * `selectCommittedText` only acts on a commit carrying a new id.
+           */
+          {
+            guard: 'isSelectTool',
+            target: 'idle',
+            actions: ['selectCommittedText', 'clearTextEditing'],
           },
           { target: 'idle', actions: 'clearTextEditing' },
         ],

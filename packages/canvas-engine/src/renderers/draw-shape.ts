@@ -1,6 +1,8 @@
 import type { RoughCanvas } from 'roughjs/bin/canvas';
-import type { Shape } from '../shapes/shape.js';
+import type { ArrowShape, Shape } from '../shapes/shape.js';
 import { assertNever, fontSizeOf } from '../shapes/shape.js';
+import { arrowInkBounds } from '../shapes/arrow.js';
+import { arrowLabelLayout, type ArrowLabelLayout } from '../shapes/arrow-label.js';
 import { strokeColorFor } from '../shapes/style.js';
 import { drawImageShape, type ImageSource } from './draw-image.js';
 import { drawFrameBody } from './draw-frame.js';
@@ -19,6 +21,27 @@ import {
 } from '../utils/rough.js';
 
 export const ERASE_PENDING_OPACITY = 20;
+
+/**
+ * Clip the arrow's ink to everything outside its label.
+ *
+ * Even-odd over two rectangles — everything the arrow can paint, and the
+ * label's own box, which the rule turns into a hole. The line is generated as
+ * one jittered path, so breaking it any other way would mean splitting a path
+ * we did not draw.
+ */
+function clipOutsideLabel(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  shape: ArrowShape,
+  box: ArrowLabelLayout['box'],
+): void {
+  const outer = arrowInkBounds(shape);
+
+  ctx.beginPath();
+  ctx.rect(outer.x, outer.y, outer.width, outer.height);
+  ctx.rect(box.x, box.y, box.width, box.height);
+  ctx.clip('evenodd');
+}
 
 /**
  * The shape as the current board should paint it.
@@ -53,6 +76,16 @@ export interface SceneShapeContext {
   readonly zoom?: number;
   /** Frames whose name is open for editing, drawn in the selection colour. */
   readonly editingFrameIds?: ReadonlySet<string>;
+  /**
+   * The arrow whose label is open in the text overlay, if one is.
+   *
+   * Its gap is cut to what is being typed — and cut at all, even before the
+   * first character — while the glyphs are left to the overlay that owns the
+   * caret. Drawing them here as well would double them, a pixel out of step.
+   *
+   * One id rather than a set: there is a single text overlay.
+   */
+  readonly editingArrowLabelId?: string;
 }
 
 /**
@@ -90,10 +123,33 @@ export function drawSceneShape(
     case 'line':
       drawShape(rc, generateLineDrawable(rc, painted));
       break;
-    case 'arrow':
+    case 'arrow': {
+      const beingTyped = painted.id === context.editingArrowLabelId;
+      const label = arrowLabelLayout(painted, { caret: beingTyped });
+      if (label) {
+        ctx.save();
+        clipOutsideLabel(ctx, painted, label.box);
+      }
       drawShape(rc, generateArrowDrawable(rc, painted));
       drawArrowheads(ctx, painted);
+      if (label) {
+        ctx.restore();
+        // While the overlay holds the caret it draws the words too; all this
+        // layer owes them is the gap to sit in.
+        if (!beingTyped) {
+          drawText(ctx, {
+            x: label.anchor.x,
+            y: label.textTop,
+            text: label.lines.join('\n'),
+            fontSize: label.fontSize,
+            fontFamily: label.fontFamily,
+            textAlign: 'center',
+            strokeColor: painted.strokeColor,
+          });
+        }
+      }
       break;
+    }
     case 'freehand': {
       const fill = generateFreehandFillDrawable(rc, painted);
       if (fill) drawShape(rc, fill);

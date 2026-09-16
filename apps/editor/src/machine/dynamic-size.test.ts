@@ -2,8 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { createActor, type Actor } from 'xstate';
 import { strokeWidthOf, type Shape } from '@canvasflow/canvas-engine';
 import { toolMachine } from './tool-machine';
-import { newShapeScale, IDENTITY_CAMERA } from './tool-machine.types';
+import { newShapeScale, DEFAULT_ITEM_STYLE, IDENTITY_CAMERA } from './tool-machine.types';
 import type { Tool } from '@/tools/tool';
+
+/**
+ * The width a shape is drawn with when nobody has touched the panel. Read
+ * rather than written out, because what these tests are about is the relation
+ * between the preset stored and the width painted — not which preset the app
+ * happens to open on, which is free to change.
+ */
+const DEFAULT_STROKE_WIDTH = DEFAULT_ITEM_STYLE.strokeWidth;
 
 /** A board zoomed to `zoom`, with the preference either way. */
 function boardAt(zoom: number, dynamicSize: boolean, tool: Tool) {
@@ -97,9 +105,9 @@ describe('drawing with dynamic size on', () => {
   it('leaves the chosen stroke width legible to the panel', () => {
     const drawn = draw(boardAt(0.25, true, 'rectangle'));
     // What the panel reads is still the preset that was picked...
-    expect(drawn.strokeWidth).toBe(2);
+    expect(drawn.strokeWidth).toBe(DEFAULT_STROKE_WIDTH);
     // ...while what gets drawn is four times as wide.
-    expect(strokeWidthOf(drawn)).toBe(8);
+    expect(strokeWidthOf(drawn)).toBe(DEFAULT_STROKE_WIDTH * 4);
   });
 
   it('gives a frame nothing, since its border and label are chrome', () => {
@@ -129,6 +137,6 @@ describe('turning the preference off', () => {
 
     // The multiplier belongs to the shape, not to the session that made it.
     expect(drawn.scale).toBe(4);
-    expect(strokeWidthOf(drawn)).toBe(8);
+    expect(strokeWidthOf(drawn)).toBe(DEFAULT_STROKE_WIDTH * 4);
   });
 });
