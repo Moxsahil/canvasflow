@@ -100,6 +100,78 @@ describe('yMapToShape', () => {
   });
 });
 
+describe('arrow labels through the document', () => {
+  it('round-trips a label', () => {
+    const original = createArrow({
+      id: 'a1',
+      x: 0,
+      y: 0,
+      points: [
+        [0, 0],
+        [10, 0],
+      ],
+      label: 'north\nby north',
+    });
+    const read = yMapToShape(integrate(shapeToYMap(original))) as ArrowShape;
+
+    expect(read.label).toBe('north\nby north');
+  });
+
+  it('writes no key for an arrow that has no label', () => {
+    const plain = createArrow({
+      id: 'a1',
+      x: 0,
+      y: 0,
+      points: [
+        [0, 0],
+        [10, 0],
+      ],
+    });
+
+    // An arrow drawn before labels existed has to be written back byte for
+    // byte as it was, or opening a board would rewrite every arrow on it.
+    expect(shapeToYMap(plain).has('label')).toBe(false);
+  });
+
+  it('reads an arrow written before labels existed as having none', () => {
+    const map = shapeToYMap(
+      createArrow({
+        id: 'a1',
+        x: 0,
+        y: 0,
+        points: [
+          [0, 0],
+          [10, 0],
+        ],
+      }),
+    );
+    const read = yMapToShape(integrate(map)) as ArrowShape;
+
+    expect(read.label).toBe('');
+    expect(() => shapeBounds(read)).not.toThrow();
+  });
+
+  it('coerces a label stored as something other than text', () => {
+    const map = shapeToYMap(
+      createArrow({
+        id: 'a1',
+        x: 0,
+        y: 0,
+        points: [
+          [0, 0],
+          [10, 0],
+        ],
+        label: 'placeholder',
+      }),
+    );
+    map.set('label', new Y.Text('from a rich text writer'));
+    const read = yMapToShape(integrate(map)) as ArrowShape;
+
+    expect(read.label).toBe('from a rich text writer');
+    expect(() => shapeBounds(read)).not.toThrow();
+  });
+});
+
 describe('arrow bindings through the document', () => {
   const bound = (startBinding: ArrowShape['startBinding']) =>
     createArrow({

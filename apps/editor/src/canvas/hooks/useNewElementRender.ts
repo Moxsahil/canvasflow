@@ -15,6 +15,15 @@ interface UseNewElementRenderOptions {
   camera: Camera;
   devicePixelRatio: number;
   /**
+   * Which board the draft is being drawn on.
+   *
+   * Required for the same reason the static layer requires it, and the two are
+   * always given the same answer: they paint the same shape either side of one
+   * instant, so a layer left to assume would draw a shape in one colour and
+   * land it in another the moment it was let go.
+   */
+  darkMode: boolean;
+  /**
    * Collaborators, read through a ref rather than passed as values.
    *
    * Their drafts change at the rate the other person's pointer moves, so
@@ -41,7 +50,16 @@ export function useNewElementRender(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   options: UseNewElementRenderOptions,
 ): void {
-  const { width, height, newElement, camera, devicePixelRatio, peersRef, subscribePeers } = options;
+  const {
+    width,
+    height,
+    newElement,
+    camera,
+    devicePixelRatio,
+    darkMode,
+    peersRef,
+    subscribePeers,
+  } = options;
 
   useEffect(() => {
     const draw = () => {
@@ -55,6 +73,7 @@ export function useNewElementRender(
         newElement,
         peerDrafts: draftsFrom(peersRef?.current ?? []),
         camera,
+        darkMode,
       });
     };
 
@@ -63,5 +82,15 @@ export function useNewElementRender(
     // That is more often than a draft actually changes, but the work is one
     // clear and at most a few shapes — cheaper than tracking what changed.
     return subscribePeers?.(draw);
-  }, [canvasRef, width, height, newElement, camera, devicePixelRatio, peersRef, subscribePeers]);
+  }, [
+    canvasRef,
+    width,
+    height,
+    newElement,
+    camera,
+    devicePixelRatio,
+    darkMode,
+    peersRef,
+    subscribePeers,
+  ]);
 }

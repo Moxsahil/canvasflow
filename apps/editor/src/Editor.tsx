@@ -8,6 +8,9 @@ import {
   computeBoundingRect,
   createText,
   isArrow,
+  arrowLabelAnchor,
+  arrowLabelFont,
+  arrowLabelOf,
   withBindingsCleared,
   type ArrowShape,
   type BoardDocument,
@@ -65,6 +68,7 @@ import {
 } from './clipboard';
 import { CanvasStack } from './canvas/CanvasStack';
 import { pointerCursorValue } from './canvas/pointer-cursor';
+import { useCameraPersistence } from './canvas/useCameraPersistence';
 import { canvasBackgroundFor } from './properties/palette';
 import { useCanvasResize } from './canvas/hooks/useCanvasResize';
 import { useEdgeScroll } from './canvas/hooks/useEdgeScroll';
@@ -660,8 +664,12 @@ export function Editor({ boardId }: EditorProps) {
   const editingTextShape = editingTextShapeId
     ? shapes.find((s) => s.id === editingTextShapeId)
     : undefined;
+  // Two shapes can be open for typing, and they keep their words in different
+  // places: a text shape is its text, an arrow only carries one.
+  const editingText = editingTextShape && isText(editingTextShape) ? editingTextShape : null;
+  const editingArrow = editingTextShape && isArrow(editingTextShape) ? editingTextShape : null;
   const editingTextInitialValue =
-    editingTextShape && isText(editingTextShape) ? editingTextShape.text : undefined;
+    editingText?.text ?? (editingArrow ? arrowLabelOf(editingArrow) : undefined);
   // Bump a key whenever a new text-editing session starts (a new textEditingAt
   // reference), so <TextEditor> remounts with blank state instead of reusing
   // the previous instance — commit/re-entry into editingText happens within
@@ -677,6 +685,12 @@ export function Editor({ boardId }: EditorProps) {
     prevTextEditingAtRef.current = textEditingAt;
   }
   const camera = useSelector(actorRef, (s) => s.context.camera);
+  const restoreCamera = useCallback(
+    (next: Camera) => actorRef.send({ type: 'SET_CAMERA', camera: next }),
+    [actorRef],
+  );
+  // Reopen the board looking where it was left, rather than at the origin.
+  const restoredViewRef = useCameraPersistence(boardId, camera, restoreCamera);
   const isSpacePressed = useSelector(actorRef, (s) => s.context.isSpacePressed);
   const selectedIds = useSelector(actorRef, (s) => s.context.selectedIds);
   const marquee = useSelector(actorRef, (s) => s.context.marquee);
@@ -793,9 +807,26 @@ export function Editor({ boardId }: EditorProps) {
     [collaborating, userId, presenceTheme, cursorColor],
   );
 
-  const shapesForRender = useMemo(
-    () => (editingTextShapeId ? shapes.filter((s) => s.id !== editingTextShapeId) : shapes),
-    [shapes, editingTextShapeId],
+  // Whatever is open in the overlay is not also painted underneath it. An
+  // arrow is more than its label, though: it keeps its line, and carries what
+  // is being typed rather than what was last committed, so the gap the words
+  // sit in grows under them as they are written.
+  const shapesForRender = useMemo(() => {
+    if (!editingTextShapeId) return shapes;
+    return shapes.flatMap((shape) => {
+      if (shape.id !== editingTextShapeId) return [shape];
+      return isArrow(shape) ? [{ ...shape, label: liveText }] : [];
+    });
+  }, [shapes, editingTextShapeId, liveText]);
+
+  // An arrow with its label open shows no selection chrome. The outline traces
+  // the line, so it would run straight through the gap the caret is standing
+  // in and put the whole of it back. Only what the layer paints: the selection
+  // itself is untouched, so the panel still answers for the arrow and it is
+  // still what a delete would take.
+  const selectedIdsForRender = useMemo(
+    () => (editingArrow ? selectedIds.filter((id) => id !== editingArrow.id) : selectedIds),
+    [selectedIds, editingArrow],
   );
 
   const showImageNotice = useCallback((body: string) => setNotice({ title: 'Image', body }), []);
@@ -903,21 +934,24 @@ export function Editor({ boardId }: EditorProps) {
   );
 
   const handleCancelFrameName = useCallback(() => setRenamingFrameId(null), []);
-  // Editing an existing shape shows that shape's type; new text previews the
-  // style the panel is set to, so the overlay matches what gets committed.
-  const editingText = editingTextShape && isText(editingTextShape) ? editingTextShape : null;
   // The scale new text would be committed at, which the overlay has to preview
   // as well as the draft: with dynamic size on it cancels the zoom exactly, so
   // what is being typed stays at the size the panel says however far out the
   // board is.
   const newTextScale = newShapeScale(camera, preferences.values.dynamicSize);
+  // Editing an existing shape shows that shape's own type; new text previews
+  // the style the panel is set to. Either way the overlay is set the way the
+  // commit will be, so nothing shifts at the moment it lands.
+  const arrowLabelType = editingArrow ? arrowLabelFont(editingArrow) : null;
   const textEditorFontSize =
-    (editingText ? fontSizeOf(editingText) : itemStyle.fontSize * newTextScale) * camera.zoom;
-  const textEditorFontFamily = editingText ? editingText.fontFamily : itemStyle.fontFamily;
+    (arrowLabelType?.fontSize ??
+      (editingText ? fontSizeOf(editingText) : itemStyle.fontSize * newTextScale)) * camera.zoom;
+  const textEditorFontFamily =
+    arrowLabelType?.fontFamily ?? (editingText ? editingText.fontFamily : itemStyle.fontFamily);
   // Resolved for the board being typed on, so the caret's text is the colour
   // the shape takes the moment it is committed.
   const textEditorColor = strokeColorFor(
-    editingText ? editingText.strokeColor : itemStyle.strokeColor,
+    editingArrow?.strokeColor ?? editingText?.strokeColor ?? itemStyle.strokeColor,
     resolvedTheme === 'dark',
   );
 
@@ -1076,16 +1110,22 @@ export function Editor({ boardId }: EditorProps) {
    * else's static layer — a draft on top of it would read as the text doubled
    * rather than as it being changed.
    */
-  // A new session starts empty. Cheaper than threading a reset through the
-  // overlay's remount, and correct for the end of a session too, where there
-  // is no overlay left to tell us anything.
+  // A session starts holding whatever the overlay opens with, so an arrow
+  // reopened for editing keeps the gap its existing label already had instead
+  // of collapsing to a caret and springing back on the first keystroke. Read
+  // through a ref because the value belongs to the session the effect is
+  // starting, not to every render that changes it.
+  const openingTextRef = useRef(editingTextInitialValue);
+  openingTextRef.current = editingTextInitialValue;
   useEffect(() => {
-    setLiveText('');
+    setLiveText(openingTextRef.current ?? '');
   }, [textEditingAt]);
 
   const draft = useMemo<Shape | null>(() => {
     if (newElement) return newElement;
-    if (!textEditingAt || editingText || !liveText.trim()) return null;
+    // Only a box being made from nothing: editing a shape that already exists
+    // previews itself, on the shape.
+    if (!textEditingAt || editingTextShapeId || !liveText.trim()) return null;
     return createText({
       id: 'draft-text',
       x: textEditingAt.x,
@@ -1098,7 +1138,7 @@ export function Editor({ boardId }: EditorProps) {
       textAlign: itemStyle.textAlign,
       scale: newTextScale,
     });
-  }, [newElement, textEditingAt, editingText, liveText, itemStyle, newTextScale]);
+  }, [newElement, textEditingAt, editingTextShapeId, liveText, itemStyle, newTextScale]);
 
   // Published from the machine's own preview rather than the pointer handlers,
   // so every tool that draws something gets this for free — and so the draft
@@ -1181,6 +1221,13 @@ export function Editor({ boardId }: EditorProps) {
 
   useEffect(() => {
     if (didInitialViewFitRef.current) return;
+    // A board opened at the view it was left at is already looking where it
+    // should be. Fitting on top of that would overrule the choice, and would
+    // do it a beat late — after the content arrived, so as a visible jump.
+    if (restoredViewRef.current) {
+      didInitialViewFitRef.current = true;
+      return;
+    }
     // Wait for both the content and a measured viewport — fitting against a
     // zero-sized canvas would put the camera somewhere meaningless.
     if (shapes.length === 0 || width === 0 || height === 0) return;
@@ -1196,7 +1243,7 @@ export function Editor({ boardId }: EditorProps) {
       type: 'SET_CAMERA',
       camera: fitRectToViewport(rect, { width, height }, { maxZoom: 1 }),
     });
-  }, [shapes, width, height, actorRef]);
+  }, [shapes, width, height, actorRef, restoredViewRef]);
 
   // The marquee is read on the frame it disappears, which is the frame the
   // gesture ended on. The index alone would answer with everything whose box
@@ -1817,14 +1864,17 @@ export function Editor({ boardId }: EditorProps) {
     [actorRef, activeTool, laser, setLasering, doc, showSnapGuides],
   );
 
-  // Double-clicking a text shape (with any tool active) reopens it for editing.
+  // Double-pressing a text shape (with any tool active) reopens it for editing;
+  // double-pressing anywhere else, with select in hand, starts a new one there.
   const handleDoubleClick = useCallback(
     (point: Point) => {
+      if (readOnly) return;
+
       // Frame labels first. They sit above the frame in space that otherwise
       // belongs to the board, so nothing else is competing for the gesture —
       // but a shape standing just above a frame would win a plain hit test.
       const labelled = frameLabelAt(framesIn(shapes), point.x, point.y, camera.zoom);
-      if (labelled && !readOnly) {
+      if (labelled) {
         // Selected as well as opened, so the frame being renamed is outlined
         // while its name is in the field. Editing a label with nothing marking
         // out which frame it belongs to reads as a box floating on the board.
@@ -1834,16 +1884,45 @@ export function Editor({ boardId }: EditorProps) {
       }
 
       const hit = hitTest(shapes, spatialIndex, point.x, point.y, camera.zoom);
-      if (hit && isText(hit) && !readOnly) {
+      if (hit && isText(hit)) {
         actorRef.send({
           type: 'EDIT_TEXT_SHAPE',
           shapeId: hit.id,
           position: { x: hit.x, y: hit.y },
           existingText: hit.text,
         });
+        return;
       }
+
+      // An arrow is captioned rather than covered: the box opens in the break
+      // in its line, centred on the same point the label will be drawn at,
+      // whether or not it has one yet.
+      if (hit && isArrow(hit)) {
+        actorRef.send({
+          type: 'EDIT_TEXT_SHAPE',
+          shapeId: hit.id,
+          position: arrowLabelAnchor(hit),
+          existingText: arrowLabelOf(hit),
+        });
+        return;
+      }
+
+      /**
+       * Everything else the gesture can land on — bare board, or anywhere
+       * inside a shape or a frame — takes a new text box at the point pressed.
+       * The box is free text sitting at that point rather than a label the
+       * shape underneath owns, so it can be moved off afterwards like any
+       * other text.
+       *
+       * Select only. Under a drawing tool the two presses have each already
+       * drawn something, and putting a text box on top of that is not what the
+       * gesture meant; the text tool makes a box on a single press, so a second
+       * would only stack another on the first.
+       */
+      if (activeTool !== 'select') return;
+      actorRef.send({ type: 'START_TEXT_AT', point });
     },
-    [actorRef, shapes, spatialIndex, camera.zoom, readOnly],
+    [actorRef, shapes, spatialIndex, camera.zoom, readOnly, activeTool],
   );
 
   // Moving the view yourself ends a follow. You cannot be carried and steer at
@@ -2396,10 +2475,16 @@ export function Editor({ boardId }: EditorProps) {
       const trimmed = text.trim();
 
       if (editingId) {
-        if (trimmed) {
+        const editing = doc.getShapes().find((shape) => shape.id === editingId);
+        if (editing && isArrow(editing)) {
+          // Trimmed, because a centred caption hangs off its own trailing
+          // space — and emptied out it leaves the arrow, which was never the
+          // label's to delete.
+          doc.updateShape(editingId, { label: trimmed });
+        } else if (trimmed) {
           doc.updateShape(editingId, { text });
         } else {
-          // Editing an existing shape down to empty text deletes it.
+          // Editing an existing text shape down to empty deletes it.
           doc.deleteShapes([editingId]);
         }
       } else if (pos && trimmed) {
@@ -2492,8 +2577,9 @@ export function Editor({ boardId }: EditorProps) {
               shapes={shapesForRender}
               pendingErasureIds={pendingErasureIds}
               editingFrameIds={editingFrameIds}
+              editingArrowLabelId={editingArrow?.id}
               newElement={newElement}
-              selectedIds={selectedIds}
+              selectedIds={selectedIdsForRender}
               marquee={marquee}
               images={images.cache}
               imageRevision={images.revision}
@@ -2649,6 +2735,7 @@ export function Editor({ boardId }: EditorProps) {
               <TextEditor
                 key={textEditingKeyRef.current}
                 position={textEditorScreenPosition}
+                align={editingArrow ? 'center' : 'left'}
                 fontSize={textEditorFontSize}
                 fontFamily={textEditorFontFamily}
                 color={textEditorColor}

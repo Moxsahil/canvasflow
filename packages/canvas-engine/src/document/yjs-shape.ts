@@ -90,6 +90,11 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
       if (shape.endBinding) {
         map.set('endBinding', shape.endBinding);
       }
+      // Same reasoning again: an unlabelled arrow carries no key for it, so a
+      // board made before arrows could be labelled is written back unchanged.
+      if (shape.label !== '') {
+        map.set('label', shape.label);
+      }
       break;
     case 'text':
       map.set('text', shape.text);
@@ -268,6 +273,7 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
         arrowType: (map.get('arrowType') as ArrowType) ?? 'straight',
         startBinding: readArrowBinding(map.get('startBinding')),
         endBinding: readArrowBinding(map.get('endBinding')),
+        label: readTextValue(map.get('label')),
       } as Shape);
     case 'freehand':
       return withZ({

@@ -103,6 +103,52 @@ describe('renderSceneToSvgString', () => {
     expect(svg).toMatch(/<path d="M [^"]+ Z" fill="#/);
   });
 
+  describe('a labelled arrow', () => {
+    const labelled = (label: string) =>
+      createArrow({
+        id: 'a1',
+        x: 0,
+        y: 0,
+        points: [
+          [0, 0],
+          [100, 0],
+        ],
+        label,
+        seed: 1,
+      });
+
+    it('writes the label as text, centred on the arrow', () => {
+      const svg = renderSceneToSvgString([labelled('north')]);
+
+      expect(svg).toContain('>north</text>');
+      expect(svg).toContain('text-anchor="middle"');
+    });
+
+    it('clips the line so the label sits in a gap, as it does on the board', () => {
+      const svg = renderSceneToSvgString([labelled('north')]);
+
+      expect(svg).toContain('<clipPath id="arrow-label-a1">');
+      // Two subpaths under the even-odd rule: everything the arrow paints,
+      // and the label's box, which the rule turns into the hole.
+      expect(svg).toMatch(/<path clip-rule="evenodd" d="M[^"]+Z M[^"]+Z"\/>/);
+      expect(svg).toContain('clip-path="url(#arrow-label-a1)"');
+    });
+
+    it('leaves an unlabelled arrow with no clip and no text', () => {
+      const svg = renderSceneToSvgString([labelled('')]);
+
+      expect(svg).not.toContain('clipPath');
+      expect(svg).not.toContain('<text');
+    });
+
+    it('splits a multi-line label into one element per line', () => {
+      const svg = renderSceneToSvgString([labelled('north\nby north')]);
+
+      expect(svg).toContain('>north</text>');
+      expect(svg).toContain('>by north</text>');
+    });
+  });
+
   it('tapers a pressure-simulated freehand stroke segment by segment', () => {
     const svg = renderSceneToSvgString([
       createFreehand({

@@ -119,6 +119,14 @@ export interface ArrowShape extends BaseShape {
   readonly arrowType: ArrowType;
   readonly startBinding: ArrowBinding | null;
   readonly endBinding: ArrowBinding | null;
+  /**
+   * Text carried at the arrow's midpoint, empty when it has none.
+   *
+   * A field rather than a text shape tied to the arrow: there is no second
+   * shape to keep beside it through a drag, a delete, an undo or another
+   * client's edit, and no way for the two to arrive out of step.
+   */
+  readonly label: string;
 }
 
 export interface FreehandShape extends BaseShape {
