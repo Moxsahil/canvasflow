@@ -4,6 +4,9 @@
   "private": true,
   "description": "CanvasFlow editor — Vite + React canvas application",
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "vite --port 3002 --host",
     "build": "tsc -b && vite build",
