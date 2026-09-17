@@ -1,0 +1,82 @@
+# Fly.io — sync-server.
+#
+# Lives at the repo root because that is the Docker build context. Deploy from
+# here, naming this file:
+#
+#   fly deploy -c fly.sync-server.toml
+#
+# Secrets (DATABASE_URL, AUTH_SECRET, and REDIS_URL when it exists) are set
+# with `fly secrets set` and never appear in this file.
+#
+# Two public ports, because the process binds two: Hocuspocus owns the
+# WebSocket on 4000 and Express serves /health and /internal/board-access on
+# 4001. The second cannot also sit on 443, so it lands on 8443 and the web
+# app's SYNC_INTERNAL_URL has to carry that port.
+
+app = "canvasflow-sync"
+primary_region = "sin"
+
+[build]
+  dockerfile = "services/sync-server/Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT_WS = "4000"
+  PORT_HTTP = "4001"
+  LOG_LEVEL = "info"
+  # The handshake origin allowlist. EDITOR_URL is the origin that actually
+  # connects; it is right once the editor has moved there.
+  WEB_URL = "https://canvasflowapp.com"
+  EDITOR_URL = "https://app.canvasflowapp.com"
+
+[deploy]
+  # Replace the machine outright rather than running two at once. Rooms live
+  # in this process's memory, so an overlap is two copies of every open board
+  # that cannot see each other. A few seconds of reconnects is the better deal.
+  strategy = "immediate"
+
+# --- board traffic: the WebSocket -------------------------------------------
+[[services]]
+  protocol = "tcp"
+  internal_port = 4000
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  # A WebSocket server's load is open connections, not CPU.
+  [services.concurrency]
+    type = "connections"
+    soft_limit = 400
+    hard_limit = 500
+
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "20s"
+
+# --- /health and /internal/board-access -------------------------------------
+[[services]]
+  protocol = "tcp"
+  internal_port = 4001
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 8443
+    handlers = ["tls", "http"]
+
+  [[services.http_checks]]
+    method = "GET"
+    path = "/health"
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "20s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"

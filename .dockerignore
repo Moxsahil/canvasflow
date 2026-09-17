@@ -1,0 +1,24 @@
+# What a container build is allowed to see. Everything below is either rebuilt
+# inside the image or must never be baked into a layer. Note that .gitignore
+# has no say here: a deploy uploads the working directory as it is on disk,
+# and a stale .next alone is several hundred megabytes of nothing.
+
+# Rebuilt inside the image.
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+.turbo
+**/*.tsbuildinfo
+
+# Never in a layer.
+**/.env
+**/.env.*
+!**/.env.example
+.git
+.husky
+
+# Not part of any service.
+apps/e2e
+**/*.log
