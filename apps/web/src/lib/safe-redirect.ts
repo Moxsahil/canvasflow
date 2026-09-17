@@ -1,28 +1,28 @@
-/**
- * Validate that a redirect target is safe — i.e., a same-origin path.
- *
- * Rejects:
- *   - Absolute URLs (https://evil.com)
- *   - Protocol-relative URLs (//evil.com)
- *   - URLs with embedded protocols
- *
- * Use this any time we redirect based on a user-controlled value
- * (query params, form input, etc.) to prevent open-redirect phishing.
- *
- * @example
- *   const next = searchParams.get('next');
- *   const dest = safeRedirect(next, '/open');
- *   router.push(dest);
- */
 export function safeRedirect(target: string | null | undefined, fallback: string): string {
-  if (!target) return fallback;
-  if (typeof target !== 'string') return fallback;
+  if (typeof target !== 'string' || !target.startsWith('/') || target.startsWith('//')) {
+    return fallback;
+  }
 
-  // Must start with single slash, must not start with double slash
-  if (!target.startsWith('/') || target.startsWith('//')) return fallback;
+  // Reject backslashes, whitespace/control characters, and protocols.
+  //
+  // Both matter because the URL parser rewrites them before the browser
+  // navigates: a backslash is a path separator for http(s), and tab, newline
+  // and carriage return are stripped outright — so "/\host" and a tab between
+  // two slashes both end up as "//host", which is off-origin.
+  //
+  // The rule is disabled for this line rather than the file: the control
+  // characters in the class are the point, and no-control-regex assumes they
+  // got there by accident.
+  // eslint-disable-next-line no-control-regex
+  if (/[\\\u0000-\u0020\u007f]/.test(target) || target.includes(':')) {
+    return fallback;
+  }
 
-  // Reject any path containing a protocol marker
-  if (target.includes(':')) return fallback;
-
-  return target;
+  try {
+    const base = 'https://redirect-validation.invalid';
+    if (new URL(target, base).origin !== base) return fallback;
+    return target;
+  } catch {
+    return fallback;
+  }
 }
