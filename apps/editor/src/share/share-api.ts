@@ -52,14 +52,20 @@ function shareLinksUrl(boardId: string): string {
  */
 async function failureMessage(res: Response): Promise<string> {
   if (res.status === 401) return 'Your session expired. Reload the board and try again.';
-  if (res.status === 403) return 'Only the board owner can share this board.';
   if (res.status === 404) return 'This board is no longer available.';
+
+  // The route's own message comes first, because a 403 no longer has one
+  // cause. Refusing to share now covers both a role that may not and an
+  // address that has not been confirmed, and a fixed sentence here told a
+  // board's owner they were not its owner.
   try {
     const body = (await res.json()) as { error?: string };
     if (body.error) return body.error;
   } catch {
-    // Fall through to the generic message.
+    // Fall through to the status-based wording below.
   }
+
+  if (res.status === 403) return 'Only the board owner can share this board.';
   return `Something went wrong (${res.status}).`;
 }
 

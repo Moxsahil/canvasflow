@@ -10,6 +10,7 @@ import { env } from '@/lib/env';
 import { auth } from '@/lib/auth';
 import { checkBoardAccess } from '@/lib/boards/access';
 import { corsJson, corsPreflight } from '@/lib/api/cors';
+import { requireVerified } from '@/lib/api/require-verified';
 
 /**
  * Share-link management for one board.
@@ -73,6 +74,17 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ boardI
   const { boardId } = await ctx.params;
   const authorized = await authorize(boardId);
   if ('error' in authorized) return authorized.error;
+
+  // Minting is the one action here that reaches outside the account: a link
+  // hands standing access to whoever holds it, and it is how every
+  // collaborator arrives, since nothing else adds one. So it is the action a
+  // confirmed address is required for.
+  //
+  // Only this one. Listing, revoking, and changing or removing a member are
+  // all left open on purpose — they are how somebody takes sharing back, and
+  // refusing those would leave an unconfirmed owner unable to undo a mistake.
+  const refusal = await requireVerified(authorized.userId, 'sharing a board');
+  if (refusal) return refusal;
 
   let body: CreateBody = {};
   try {
