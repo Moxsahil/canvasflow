@@ -20,9 +20,6 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeRedirect(searchParams.get('next'), '/open');
-  // Set by /verify once an address is confirmed, so the first thing someone
-  // sees after clicking the email is that it worked.
-  const justVerified = searchParams.get('verified') === '1';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -65,13 +62,6 @@ function LoginForm() {
         </>
       }
     >
-      {justVerified && (
-        <div className="mb-6 flex items-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/[0.08] px-4 py-3 text-sm text-emerald-300">
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
-          Email confirmed. Sign in to continue.
-        </div>
-      )}
-
       <div className="space-y-3">
         <button
           type="button"

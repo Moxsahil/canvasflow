@@ -30,6 +30,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "prune:verification-tokens": "tsx scripts/prune-verification-tokens.ts",
     "db:studio": "drizzle-kit studio",
     "verify:sharing": "tsx scripts/verify-sharing.mts"
   },

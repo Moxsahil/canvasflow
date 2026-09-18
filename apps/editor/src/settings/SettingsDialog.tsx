@@ -20,6 +20,8 @@ const FONT_STACK = 'Inter, "Segoe UI", system-ui, -apple-system, sans-serif';
 interface SettingsDialogProps {
   /** Seeds the profile fields. Null until the token decodes. */
   user: { name: string; email: string | null } | null;
+  /** Passed through to the profile pane, which reaches the gateway with it. */
+  token: string | null;
   /** The account's saved profile. Owned by the editor, because presence reads it too. */
   account: ProfileState;
   /** The photo behind that profile, which the sidebar shows as well. */
@@ -39,7 +41,14 @@ interface SettingsDialogProps {
  * colours flatly, and this is the one window in the app that is not chrome
  * around the canvas. Both themes of that surface live in settings-palette.
  */
-export function SettingsDialog({ user, account, avatar, theme, onClose }: SettingsDialogProps) {
+export function SettingsDialog({
+  user,
+  token,
+  account,
+  avatar,
+  theme,
+  onClose,
+}: SettingsDialogProps) {
   const [section, setSection] = useState<SettingsSectionId>('profile');
   const [query, setQuery] = useState('');
   const panelRef = useRef<HTMLDivElement>(null);
@@ -147,6 +156,7 @@ export function SettingsDialog({ user, account, avatar, theme, onClose }: Settin
         {section === 'profile' && (
           <ProfilePane
             user={user}
+            token={token}
             account={account}
             avatar={avatar}
             theme={theme}

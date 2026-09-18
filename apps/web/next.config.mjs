@@ -14,6 +14,22 @@ const nextConfig = {
     // Reduces hydration warnings in dev
     optimizePackageImports: ['@canvasflow/ui'],
   },
+  async headers() {
+    return [
+      {
+        // The one page whose address bar holds a live credential. Without this
+        // any outbound request from it puts the whole URL, token and all, into
+        // a Referer header.
+        //
+        // The page also declares this as a meta tag, which is what governs the
+        // requests the page itself makes. The header is the stronger of the
+        // two: it applies before a single byte of HTML is parsed, so it still
+        // holds if the document fails to render.
+        source: '/verify-email',
+        headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

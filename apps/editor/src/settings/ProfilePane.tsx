@@ -15,10 +15,13 @@ import {
   SettingsPane,
   TextField,
 } from './settings-ui';
+import { EmailRow } from './EmailRow';
 
 interface ProfilePaneProps {
   /** Seeds the fields before the profile arrives. Null until the token decodes. */
   user: { name: string; email: string | null } | null;
+  /** The editor's bearer token. The verification routes live on the gateway. */
+  token: string | null;
   /** The account's saved profile, and the way to write to it. */
   account: ProfileState;
   /** The photo, which is stored as bytes rather than as a profile field. */
@@ -39,7 +42,7 @@ interface ProfilePaneProps {
  * A guest has no profile to load, so the two live fields are disabled rather
  * than offering a save that would be refused.
  */
-export function ProfilePane({ user, account, avatar, theme, onClose }: ProfilePaneProps) {
+export function ProfilePane({ user, token, account, avatar, theme, onClose }: ProfilePaneProps) {
   const { profile, saving, error, save } = account;
   const fallbackName = user?.name?.trim() || 'Account';
 
@@ -197,21 +200,12 @@ export function ProfilePane({ user, account, avatar, theme, onClose }: ProfilePa
           />
         </Row>
 
-        <Row>
-          {/* "Invite destination" described nothing: sharing is by link, and
-              this address is never sent an invitation. What it really is, for
-              a password account, is the login — and for one signed in with a
-              provider, a copy of the address that provider asserted. */}
-          <RowText
-            title="Email"
-            hint="The address this account is known by"
-            badge={<ComingSoonTag />}
-          />
-          {/* The design shows the address nowhere on this row — the button is
-              the whole control, and the address itself lives in the account
-              menu that opened this dialog. */}
-          <SecondaryButton disabled>Change</SecondaryButton>
-        </Row>
+        <EmailRow
+          email={profile?.email ?? user?.email ?? null}
+          verified={profile?.emailVerified ?? false}
+          token={token}
+          onVerified={account.reload}
+        />
 
         <Row>
           {/* The hint used to describe what a username is "used in", present

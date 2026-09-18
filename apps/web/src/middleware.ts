@@ -9,7 +9,7 @@ const { auth } = NextAuth(authConfig);
 // middleware answers an unauthenticated request with a redirect to /login,
 // and a 307 on a POST re-posts into a page that only serves GET. The route
 // destroys session state and grants nothing, so there is nothing to guard.
-const PUBLIC_PATHS = ['/', '/login', '/logout', '/signup', '/verify'];
+const PUBLIC_PATHS = ['/', '/login', '/logout', '/signup', '/verify-email'];
 
 /**
  * Routes the editor calls cross-origin, which must answer for themselves.

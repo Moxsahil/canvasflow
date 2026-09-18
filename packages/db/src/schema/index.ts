@@ -7,3 +7,4 @@ export * from './board-updates.js';
 export * from './board-images.js';
 export * from './board-access.js';
 export * from './sharing.js';
+export * from './email-verification.js';

@@ -45,24 +45,6 @@ export const sessions = pgTable('sessions', {
   expires: timestamp('expires', { withTimezone: true }).notNull(),
 });
 
-/**
- * One-time tokens for email verification + password reset.
- */
-
-export const verificationTokens = pgTable(
-  'verifications_token',
-  {
-    identifier: text('identifier').notNull(),
-    token: text('token').notNull(),
-    expires: timestamp('expires', { withTimezone: true }).notNull(),
-  },
-  (table) => ({
-    compositePk: primaryKey({
-      name: 'verification_tokens_identifier_token_pk',
-      columns: [table.identifier, table.token],
-    }),
-  }),
-);
 export const accountsRelations = relations(accounts, ({ one }) => ({
   user: one(users, {
     fields: [accounts.userId],
@@ -79,4 +61,3 @@ export const sessionsRelations = relations(sessions, ({ one }) => ({
 
 export type AccountRow = typeof accounts.$inferSelect;
 export type SessionRow = typeof sessions.$inferSelect;
-export type VerificationTokenRow = typeof verificationTokens.$inferSelect;

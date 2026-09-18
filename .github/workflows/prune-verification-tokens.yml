@@ -1,0 +1,52 @@
+name: Prune verification tokens
+
+# Spent and expired email-verification challenges are dead rows: nothing reads
+# one after its link has been used or its expiry has passed. Left alone they
+# accumulate for the life of the product.
+#
+# The script keeps seven days of them on purpose — those same rows are what the
+# resend limiter counts, and its longest window is a day. See the script for
+# the full reasoning before shortening anything here.
+on:
+  schedule:
+    # Daily, deliberately off the hour: every other repository in the world
+    # schedules on midnight and runners queue behind each other.
+    - cron: '17 3 * * *'
+  # So it can be run by hand after a spike, or to check it still works.
+  workflow_dispatch:
+
+concurrency:
+  group: prune-verification-tokens
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: Prune spent and expired challenges
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Only the database package and what it needs. The full install pulls the
+      # editor's native canvas dependency, which wants a handful of system
+      # libraries this job has no use for.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter @canvasflow/db...
+
+      - name: Prune
+        run: pnpm --filter @canvasflow/db prune:verification-tokens
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
