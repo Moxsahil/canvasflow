@@ -13,7 +13,7 @@ import {
 } from '@/components/auth/auth-shell';
 import { Component as PencilLoader } from '@/components/ui/loader-1';
 import { cn } from '@/lib/utils';
-import { signup } from '@/features/auth/actions/signup';
+import { signup } from '@/features/auth/api/signup';
 
 /**
  * The same four rules the signup action enforces, written out so nobody has to
@@ -52,8 +52,9 @@ export default function SignupPage() {
 
     // Straight onto a board rather than a page telling them to go and read
     // their inbox. Signing in has never required a confirmed address, so the
-    // account that was just created can hold a session immediately; the editor
-    // carries the reminder instead, and the verification mail is already out.
+    // account that was just created can hold a session immediately, and the
+    // verification mail is already on its way.
+
     const signedIn = await signIn('credentials', { email, password, redirect: false });
 
     if (signedIn?.ok) {

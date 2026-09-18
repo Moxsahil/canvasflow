@@ -5,12 +5,16 @@ import { users } from './users.js';
  * Table views passed to `DrizzleAdapter()`.
  *
  * @auth/drizzle-adapter's default schema expects tables named
- * `user`/`account`/`session`/`verificationToken` with specific column
- * names (e.g. `image`, `emailVerified`, `refresh_token`). Our physical
- * tables are `users`/`accounts`/`sessions`/`verifications_token` with
- * different column names — these definitions map the adapter's expected
- * shape onto those existing columns so DrizzleAdapter(db, authAdapterSchema)
- * queries the right tables.
+ * `user`/`account`/`session` with specific column names (e.g. `image`,
+ * `emailVerified`, `refresh_token`). Our physical tables are
+ * `users`/`accounts`/`sessions` with different column names — these
+ * definitions map the adapter's expected shape onto those existing columns so
+ * DrizzleAdapter(db, authAdapterSchema) queries the right tables.
+ *
+ * No verification-token view. That one is only read by `createVerificationToken`
+ * and `useVerificationToken`, which nothing but a magic-link provider calls, and
+ * the adapter's type has it optional. Adding email sign-in later means adding a
+ * table and a view back, not repairing one.
  */
 
 export const authAdapterUsers = pgTable('users', {
@@ -50,15 +54,3 @@ export const authAdapterSessions = pgTable('sessions', {
     .references(() => users.id, { onDelete: 'cascade' }),
   expires: timestamp('expires', { withTimezone: true, mode: 'date' }).notNull(),
 });
-
-export const authAdapterVerificationTokens = pgTable(
-  'verifications_token',
-  {
-    identifier: text('identifier').notNull(),
-    token: text('token').notNull(),
-    expires: timestamp('expires', { withTimezone: true, mode: 'date' }).notNull(),
-  },
-  (table) => ({
-    compositePk: primaryKey({ columns: [table.identifier, table.token] }),
-  }),
-);

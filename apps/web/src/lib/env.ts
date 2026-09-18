@@ -20,10 +20,6 @@ const envSchema = z.object({
   GITHUB_CLIENT_ID: z.string().min(1),
   GITHUB_CLIENT_SECRET: z.string().min(1),
 
-  // Resend
-  RESEND_API_KEY: z.string().startsWith('re'),
-  EMAIL_FROM: z.string().email().default('onboarding@resend.dev'),
-
   // Database (Consumed by @canvasflow/db)
   DATABASE_URL: z.string().url().startsWith('postgresql://'),
 });

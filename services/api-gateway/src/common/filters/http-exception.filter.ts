@@ -16,6 +16,7 @@ interface ErrorResponse {
   path: string;
   timestamp: string;
 }
+
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
@@ -29,8 +30,20 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let message = 'Internal server error';
     let error = 'InternalServerError';
 
+    // Only an HttpException carries text meant for whoever called. Anything
+    // else keeps the generic message above: a raw error's wording is written
+    // by whatever threw it, and forwarding it hands out hostnames, column
+    // names and driver internals. That detail goes to the log instead.
     if (exception instanceof HttpException) {
       status = exception.getStatus();
+
+      // Derived from the status first, so an exception that does not name a
+      // label still gets an honest one. Nest's own exceptions carry the field
+      // and overwrite this a few lines down; a thrown throttler answers with a
+      // bare string instead, which used to leave a 429 reading
+      // "InternalServerError".
+      error = labelFor(status);
+
       const res = exception.getResponse();
       if (typeof res === 'string') {
         message = res;
@@ -39,16 +52,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
         message = obj.message ?? message;
         error = obj.error ?? error;
       }
-    } else if (exception instanceof Error) {
-      message = exception.message;
-      error = exception.name;
     }
 
     if (status >= 500) {
-      this.logger.error(`${request.method} ${request.url} -> ${status}`, exception);
+      this.logger.error(`${request.method} ${request.url} -> ${status}`, describe(exception));
     } else {
-      this.logger.debug(`${request.method} ${request.url} ${request.url}
-        ${status}${message}`);
+      this.logger.debug(`${request.method} ${request.url} -> ${status} ${message}`);
     }
 
     const payload: ErrorResponse = {
@@ -61,4 +70,44 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     response.status(status).json(payload);
   }
+}
+
+/**
+ * A readable name for a status code.
+ *
+ * Spaced words, because that is the form Nest's own exceptions already use for
+ * this field, and one response should not label two refusals in two styles.
+ */
+function labelFor(status: number): string {
+  const name = HttpStatus[status];
+  if (typeof name !== 'string') return 'Error';
+
+  return name
+    .toLowerCase()
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+/**
+ * Render a thrown value for the log.
+ *
+ * AggregateError is why this exists. Node throws one when every address a
+ * hostname resolves to fails to connect, and its own message is empty: the
+ * causes live in `errors`, which printing the stack drops. Without this, a
+ * database that could not be reached reads in the log as one bare word.
+ */
+function describe(exception: unknown): string {
+  if (exception instanceof AggregateError) {
+    const causes = exception.errors
+      .map((cause: unknown) =>
+        cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause),
+      )
+      .join('; ');
+    return `AggregateError(${exception.errors.length}): ${causes}\n${exception.stack ?? ''}`;
+  }
+  if (exception instanceof Error) {
+    return exception.stack ?? `${exception.name}: ${exception.message}`;
+  }
+  return String(exception);
 }

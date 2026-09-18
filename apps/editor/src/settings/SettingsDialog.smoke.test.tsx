@@ -58,6 +58,7 @@ function renderPane(id: string) {
     profile: (
       <ProfilePane
         user={null}
+        token={null}
         account={accountStub()}
         avatar={avatarStub()}
         theme="dark"
@@ -83,7 +84,14 @@ function render(
   avatar: AvatarState = avatarStub(),
 ) {
   return renderToString(
-    <SettingsDialog user={user} account={account} avatar={avatar} theme={theme} onClose={noop} />,
+    <SettingsDialog
+      user={user}
+      token={null}
+      account={account}
+      avatar={avatar}
+      theme={theme}
+      onClose={noop}
+    />,
   );
 }
 
@@ -191,9 +199,11 @@ describe('SettingsDialog', () => {
     // They keep their place in the design — somebody looking for the setting
     // should find it and learn it is coming, not conclude it does not exist.
     const html = render(undefined, 'dark', accountStub(SAVED));
-    expect(html.match(/Coming soon/g)).toHaveLength(2);
+    // One, not two. The email row is built now: it states whether the address
+    // is confirmed and offers to send a link, so it no longer carries a
+    // placeholder or the disabled "Change" button that stood in for one.
+    expect(html.match(/Coming soon/g)).toHaveLength(1);
     expect(html).toContain('aria-label="Username"');
-    expect(html).toContain('Change');
 
     // Both hints described behaviour that did not exist, which is what made
     // the rows look finished.

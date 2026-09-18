@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Info, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Profile } from './profile-api';
+import { useVerificationStatus } from './useVerificationStatus';
 
 /**
  * Remembered per address, so confirming one account does not silence the notice
@@ -17,23 +18,20 @@ const dismissedKey = (email: string) => `cf:verify-dismissed:${email}`;
  * something while the mail is still in flight. Nothing is let through that was
  * not already — signing in never required a confirmed address.
  *
- * The profile is passed in rather than fetched. The editor already loads it
- * once and re-reads it whenever the auth token is reminted, which is what makes
- * this disappear on its own: confirm the address in another tab, and the next
- * remint drops `emailVerified` to true and takes the card with it. A second
- * fetch here would have its own, staler, answer.
- *
- * The card is the one from components/ui/notifications, with two departures.
- * The wrapper sets `text-foreground`, which the reference puts on the section it
- * ships inside — without it the title has no colour of its own and inherits the
- * canvas, which in the dark theme is the same colour it is written on.
- *
- * And the body is `foreground/70` rather than `muted-foreground`: this theme
- * sets that to hsl(0 0% 56%), around 3:1 on white, which is under the contrast
- * a 12px line needs. Seventy per cent of the foreground clears it in both
- * themes and still sits back from the title.
+ * The card watches for the address being confirmed in another tab and takes
+ * itself away when that happens, rather than waiting for a reload.
  */
-export function VerificationNotice({ profile }: { profile: Profile | null }) {
+export function VerificationNotice({
+  profile,
+  token,
+  onVerified,
+}: {
+  profile: Profile | null;
+  /** The editor's bearer token: the status endpoint is on the gateway. */
+  token: string | null;
+  /** Fired once, when confirmation lands, so the rest of the editor re-reads. */
+  onVerified?: () => void;
+}) {
   const [dismissed, setDismissed] = useState(false);
 
   const email = profile && !profile.isGuest && !profile.emailVerified ? profile.email : null;
@@ -48,7 +46,13 @@ export function VerificationNotice({ profile }: { profile: Profile | null }) {
     }
   }
 
-  if (!email || dismissed || alreadySeen) return null;
+  const showing = email !== null && !dismissed && !alreadySeen;
+
+  // Runs only while the card is on screen, and stops itself the moment the
+  // answer comes back true.
+  const verified = useVerificationStatus(token, showing, onVerified);
+
+  if (!showing || verified) return null;
 
   const dismiss = () => {
     setDismissed(true);
