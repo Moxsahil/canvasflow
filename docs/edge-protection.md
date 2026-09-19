@@ -83,6 +83,33 @@ it survives restarts and holds across instances. The per-IP limits are counted
 in the process's memory and reset on deploy, which is acceptable for abuse
 control and is the main reason an edge layer is worth having.
 
+## Outstanding: sign-in has no limits at all
+
+Creating an account is now guarded twice, per IP at the gateway and per account
+in the database. Signing in is guarded not at all. The web app has no rate
+limiting anywhere, so `/api/auth/callback/credentials` will accept password
+guesses as fast as they arrive.
+
+This is the wrong way round. Guessing a password gets somebody into an existing
+account; creating an account gets them an empty one. The better-defended door
+is the less valuable one.
+
+Nothing here fixes it, because the rules above cannot reach it. Sign-in lives
+in the web app on `canvasflowapp.com`, and that hostname resolves straight to
+the hosting provider, unproxied, exactly as the API did before this document
+was written. Two ways to close it:
+
+- **Proxy the web app too**, then add a rule for `/api/auth/*`. This carries a
+  larger blast radius than the API did, because it puts every page behind the
+  proxy rather than one JSON endpoint.
+- **Limit it in the application**, in the Next.js route or its middleware.
+  Smaller and independent of the edge, and it works whether or not the site is
+  ever proxied.
+
+Whichever is chosen, sign-in should end up with at least what signup already
+has. It belongs on the pre-launch checklist, and it is not in the original plan
+document, which lists signup, verify and resend but never sign-in.
+
 ## The origin stays reachable
 
 Proxying the custom hostname does not hide the origin. `canvasflow-api.fly.dev`
