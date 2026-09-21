@@ -46,6 +46,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --filter @canvasflow/db...
 
+      # The schema imports @canvasflow/types, which is a workspace package and
+      # therefore has to be compiled before anything can load it. Installing
+      # only links it; without this the script dies on a missing dist/.
+      - name: Build the database package and what it depends on
+        run: pnpm build --filter=@canvasflow/db...
+
       - name: Prune
         run: pnpm --filter @canvasflow/db prune:verification-tokens
         env:
