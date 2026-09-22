@@ -185,9 +185,6 @@ importers:
 
   apps/web:
     dependencies:
-      '@auth/drizzle-adapter':
-        specifier: ^1.11.2
-        version: 1.11.2
       '@canvasflow/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -212,9 +209,6 @@ importers:
       '@tanstack/react-query-devtools':
         specifier: ^5.62.7
         version: 5.101.0(@tanstack/react-query@5.101.0(react@18.3.1))(react@18.3.1)
-      bcrypt:
-        specifier: ^6.0.0
-        version: 6.0.0
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -233,9 +227,6 @@ importers:
       next:
         specifier: ^15.1.0
         version: 15.5.19(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      next-auth:
-        specifier: 5.0.0-beta.31
-        version: 5.0.0-beta.31(next@15.5.19(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -258,9 +249,6 @@ importers:
       '@canvasflow/config':
         specifier: workspace:*
         version: link:../../packages/config
-      '@types/bcrypt':
-        specifier: ^6.0.0
-        version: 6.0.0
       '@types/node':
         specifier: ^22.10.1
         version: 22.19.19
@@ -643,29 +631,6 @@ packages:
         integrity: sha512-I5wviiIqiFwar9Pdk30Lujk8FczEEc18i22A5c6Z9lbmhPQdTroDnEQdsfXjy404wPe8H62s0I15o4pmMGfTYQ==,
       }
     engines: { node: ^18.13.0 || >=20.9.0, npm: ^6.11.0 || ^7.5.6 || >=8.0.0, yarn: '>= 1.13.0' }
-
-  '@auth/core@0.41.2':
-    resolution:
-      {
-        integrity: sha512-Hx5MNBxN2fJTbJKGUKAA0wca43D0Akl3TvufY54Gn8lop7F+34vU1zA1pn0vQfIoVuLIrpfc2nkyjwIaPJMW7w==,
-      }
-    peerDependencies:
-      '@simplewebauthn/browser': ^9.0.1
-      '@simplewebauthn/server': ^9.0.2
-      nodemailer: ^7.0.7
-    peerDependenciesMeta:
-      '@simplewebauthn/browser':
-        optional: true
-      '@simplewebauthn/server':
-        optional: true
-      nodemailer:
-        optional: true
-
-  '@auth/drizzle-adapter@1.11.2':
-    resolution:
-      {
-        integrity: sha512-VOuj7REI8jfJjpSbsYwDM/Zrn55T6lS9Yc+29V+EXMcel8eqG7x+7LodNfd1WHjakfkLYi+qsbYUHB3E6aDA4w==,
-      }
 
   '@aws-sdk/checksums@3.1000.29':
     resolution:
@@ -3917,12 +3882,6 @@ packages:
     resolution:
       {
         integrity: sha512-FESMOxil5Se014ui/Eq8fT5uHJo6nIRwH0PfJrZJXs6Gek3ZVFOrpUv3YIZT20m+extU98Hg1Ym72U58rlsxUQ==,
-      }
-
-  '@panva/hkdf@1.2.1':
-    resolution:
-      {
-        integrity: sha512-6oclG6Y3PiDFcoyk8srjLfVKyMfVCKJ27JwNPViuXziFpmdz+MZnZN/aKY0JGXgYuO/VghU0jcOAZgWXZ1Dmrw==,
       }
 
   '@pkgjs/parseargs@0.11.0':
@@ -9854,25 +9813,6 @@ packages:
         integrity: sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==,
       }
 
-  next-auth@5.0.0-beta.31:
-    resolution:
-      {
-        integrity: sha512-1OBgCKPzo+S7UWWMp3xgvGvIJ0OpV7B3vR4ZDRqD9a4Ch+OT6dakLXG9ivhtmIWVa71nTSXattOHyCg8sNi8/Q==,
-      }
-    peerDependencies:
-      '@simplewebauthn/browser': ^9.0.1
-      '@simplewebauthn/server': ^9.0.2
-      next: ^14.0.0-0 || ^15.0.0 || ^16.0.0
-      nodemailer: ^7.0.7
-      react: ^18.2.0 || ^19.0.0
-    peerDependenciesMeta:
-      '@simplewebauthn/browser':
-        optional: true
-      '@simplewebauthn/server':
-        optional: true
-      nodemailer:
-        optional: true
-
   next@15.5.19:
     resolution:
       {
@@ -9975,12 +9915,6 @@ packages:
         integrity: sha512-AqZtDUWOMKs1G/8lwylVjrdYgqA4d9nu8hc+0gzRxlDb1I10+FHBGMXs6aiQHFdCUUlqH99MUMuLfzWDNDtfxw==,
       }
     deprecated: This package is no longer supported.
-
-  oauth4webapi@3.8.6:
-    resolution:
-      {
-        integrity: sha512-iwemM91xz8nryHti2yTmg5fhyEMVOkOXwHNqbvcATjyajb5oQxCQzrNOA6uElRHuMhQQTKUyFKV9y/CNyg25BQ==,
-      }
 
   oauth@0.10.2:
     resolution:
@@ -10498,20 +10432,6 @@ packages:
         integrity: sha512-9ZhXKM/rw350N1ovuWHbGxnGh/SNJ4cnxHiM0rxE4VN41wsg8P8zWn9hv/buK00RP4WvlOyr/RBDiptyxVbkZQ==,
       }
     engines: { node: '>=0.10.0' }
-
-  preact-render-to-string@6.5.11:
-    resolution:
-      {
-        integrity: sha512-ubnauqoGczeGISiOh6RjX0/cdaF8v/oDXIjO85XALCQjwQP+SB4RDXXtvZ6yTYSjG+PC1QRP2AhPgCEsM2EvUw==,
-      }
-    peerDependencies:
-      preact: '>=10'
-
-  preact@10.24.3:
-    resolution:
-      {
-        integrity: sha512-Z2dPnBnMUfyQfSQ+GBdsGa16hz35YmLmtTLhM169uW944hYL6xzTYkJjC07j+Wosz733pMWx0fgON3JNw1jJQA==,
-      }
 
   prelude-ls@1.2.1:
     resolution:
@@ -12425,22 +12345,6 @@ snapshots:
       rxjs: 7.8.1
     transitivePeerDependencies:
       - chokidar
-
-  '@auth/core@0.41.2':
-    dependencies:
-      '@panva/hkdf': 1.2.1
-      jose: 6.2.3
-      oauth4webapi: 3.8.6
-      preact: 10.24.3
-      preact-render-to-string: 6.5.11(preact@10.24.3)
-
-  '@auth/drizzle-adapter@1.11.2':
-    dependencies:
-      '@auth/core': 0.41.2
-    transitivePeerDependencies:
-      - '@simplewebauthn/browser'
-      - '@simplewebauthn/server'
-      - nodemailer
 
   '@aws-sdk/checksums@3.1000.29':
     dependencies:
@@ -14607,8 +14511,6 @@ snapshots:
       '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.1)
 
   '@oxc-project/types@0.132.0': {}
-
-  '@panva/hkdf@1.2.1': {}
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -18535,12 +18437,6 @@ snapshots:
 
   neo-async@2.6.2: {}
 
-  next-auth@5.0.0-beta.31(next@15.5.19(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1):
-    dependencies:
-      '@auth/core': 0.41.2
-      next: 15.5.19(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      react: 18.3.1
-
   next@15.5.19(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
       '@next/env': 15.5.19
@@ -18606,8 +18502,6 @@ snapshots:
       console-control-strings: 1.1.0
       gauge: 3.0.2
       set-blocking: 2.0.0
-
-  oauth4webapi@3.8.6: {}
 
   oauth@0.10.2: {}
 
@@ -18894,12 +18788,6 @@ snapshots:
   postgres-interval@1.2.0:
     dependencies:
       xtend: 4.0.2
-
-  preact-render-to-string@6.5.11(preact@10.24.3):
-    dependencies:
-      preact: 10.24.3
-
-  preact@10.24.3: {}
 
   prelude-ls@1.2.1: {}
 

@@ -83,32 +83,21 @@ it survives restarts and holds across instances. The per-IP limits are counted
 in the process's memory and reset on deploy, which is acceptable for abuse
 control and is the main reason an edge layer is worth having.
 
-## Outstanding: sign-in has no limits at all
+## Sign-in
 
-Creating an account is now guarded twice, per IP at the gateway and per account
-in the database. Signing in is guarded not at all. The web app has no rate
-limiting anywhere, so `/api/auth/callback/credentials` will accept password
-guesses as fast as they arrive.
+Sign-in lives in the gateway, so the rules above reach it: `/auth/signin`,
+`/auth/refresh`, `/auth/resume` and the OAuth routes all sit under the `/auth/*`
+ceiling, and the application limits them per IP — 30 sign-ins, 60 refreshes and
+30 resumes a minute.
 
-This is the wrong way round. Guessing a password gets somebody into an existing
-account; creating an account gets them an empty one. The better-defended door
-is the less valuable one.
+The web app's old sign-in endpoint, `/api/auth/callback/credentials`, checked
+passwords with no limit at all and was reachable directly even after the login
+page stopped using it. It has been removed along with the rest of Auth.js, so
+there is no longer a way to test a password that goes around these limits.
 
-Nothing here fixes it, because the rules above cannot reach it. Sign-in lives
-in the web app on `canvasflowapp.com`, and that hostname resolves straight to
-the hosting provider, unproxied, exactly as the API did before this document
-was written. Two ways to close it:
-
-- **Proxy the web app too**, then add a rule for `/api/auth/*`. This carries a
-  larger blast radius than the API did, because it puts every page behind the
-  proxy rather than one JSON endpoint.
-- **Limit it in the application**, in the Next.js route or its middleware.
-  Smaller and independent of the edge, and it works whether or not the site is
-  ever proxied.
-
-Whichever is chosen, sign-in should end up with at least what signup already
-has. It belongs on the pre-launch checklist, and it is not in the original plan
-document, which lists signup, verify and resend but never sign-in.
+Still missing, and wanted: a limit per account as well as per IP. It has to be
+keyed on the address as submitted, not on whether it matches an account, or the
+limiter itself would reveal which addresses exist.
 
 ## The origin stays reachable
 

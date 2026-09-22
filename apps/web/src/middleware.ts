@@ -1,10 +1,6 @@
-import NextAuth from 'next-auth';
-import { NextResponse } from 'next/server';
-import { authConfig } from '@/lib/auth/config';
+import { NextResponse, type NextRequest } from 'next/server';
 import { safeRedirect } from '@/lib/safe-redirect';
 import { ACCESS_COOKIE, accessTokenState, resumeUrl } from '@/lib/auth/gateway-session';
-
-const { auth } = NextAuth(authConfig);
 
 // `/logout` is public because ending a session must not require one: the
 // middleware answers an unauthenticated request with a redirect to /login,
@@ -21,18 +17,16 @@ const PUBLIC_PATHS = ['/', '/login', '/logout', '/signup', '/verify-email'];
  * before the real call is ever sent, so a signed-in user sees a bare
  * "Failed to fetch".
  *
- * Every route behind this prefix list runs `auth()` itself and answers 401 as
- * JSON with CORS headers, which fetch() can actually act on. Adding a route
+ * Every route behind this prefix list checks the session itself and answers
+ * 401 as JSON with CORS headers, which fetch() can actually act on. Adding a route
  * here is therefore not a hole: it moves the check from the middleware into
  * the handler, it does not remove it.
  */
 const EDITOR_API_PREFIXES = ['/api/editor-token', '/api/boards/', '/api/workspaces', '/api/me'];
 
-export default auth(async (req) => {
+export default async function middleware(req: NextRequest) {
   const isPublic =
-    PUBLIC_PATHS.some(
-      (path) => req.nextUrl.pathname === path || req.nextUrl.pathname.startsWith('/api/auth'),
-    ) ||
+    PUBLIC_PATHS.includes(req.nextUrl.pathname) ||
     // Share links must open for people who have no account at all — that is
     // the whole point of a guest invite. The page itself grants nothing; it
     // only reads the link, and every path off it re-validates the token.
@@ -46,17 +40,12 @@ export default auth(async (req) => {
     return NextResponse.next();
   }
 
-  // Two systems mean "signed in" while the migration runs. `req.auth` is the
-  // Auth.js session; the cookie is the API gateway's. Somebody who has just
-  // signed in through the gateway has no Auth.js session at all, so checking
-  // only the first would redirect them straight back to the page they came
-  // from — a sign-in that appears to do nothing.
-  //
-  // Verification only, no database call. This runs on the Edge in front of
+  // The gateway's access token is the only thing that means "signed in".
+  // Verification only, no database call: this runs on the Edge in front of
   // every request, and the signature is what makes the token worth trusting.
   const tokenState = await accessTokenState(req.cookies.get(ACCESS_COOKIE)?.value);
 
-  if (req.auth || tokenState === 'valid') return NextResponse.next();
+  if (tokenState === 'valid') return NextResponse.next();
 
   // Validate the path before using it as a redirect target. Without this the
   // middleware would forward any malicious 'next' value, defeating the
@@ -78,7 +67,7 @@ export default auth(async (req) => {
   const loginUrl = new URL('/login', req.nextUrl);
   loginUrl.searchParams.set('next', safeNext);
   return NextResponse.redirect(loginUrl);
-});
+}
 
 export const config = {
   // The public/ assets are the home page's own images, video and icons, served

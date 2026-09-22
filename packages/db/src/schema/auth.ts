@@ -34,7 +34,10 @@ export const accounts = pgTable(
 );
 
 /**
- * Database-backed sessions. Auth.js manages create/lookup/expire automatically.
+ * Auth.js's session table. Unused: Auth.js ran with JWT sessions and never
+ * wrote a row, and it has since been removed entirely — sessions now live in
+ * `auth_sessions`. Kept only because dropping a table is a migration, and an
+ * empty one costs nothing until there is a reason to take that step.
  */
 
 export const sessions = pgTable('sessions', {
