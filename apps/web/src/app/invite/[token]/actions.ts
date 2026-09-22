@@ -8,7 +8,7 @@ import {
   resolveBoardAccess,
 } from '@canvasflow/db';
 import { env } from '@/lib/env';
-import { auth } from '@/lib/auth';
+import { currentUser } from '@/lib/auth/session';
 import { editorUrlFor, mintEditorToken } from '@/lib/auth/editor-token';
 import { setGuestSession } from '@/lib/auth/guest-session';
 import { checkBoardAccess } from '@/lib/boards/access';
@@ -61,23 +61,25 @@ export async function joinAsGuest(token: string, formData: FormData): Promise<Jo
  * over every other board in that workspace.
  */
 export async function joinAsUser(token: string): Promise<JoinResult> {
-  const session = await auth();
-  if (!session?.user?.id) return { error: 'You need to sign in first.' };
+  // `currentUser` rather than `currentSession`: an editor token carries the
+  // name and address, and the gateway's access token deliberately does not.
+  const user = await currentUser();
+  if (!user) return { error: 'You need to sign in first.' };
 
-  const outcome = await redeemShareLink(db, token, session.user.id);
+  const outcome = await redeemShareLink(db, token, user.id);
   if (!outcome.ok) return { error: describeRejection(outcome.reason) };
 
   // Read the access back rather than trusting the redemption's own answer:
   // the user may already have had a higher role here, and this is the same
   // resolution the sync-server will perform on connect.
-  const access = await checkBoardAccess(session.user.id, outcome.boardId);
+  const access = await checkBoardAccess(user.id, outcome.boardId);
   if (!access) return { error: 'That board is no longer available.' };
 
   const minted = await mintEditorToken(
     {
-      id: session.user.id,
-      email: session.user.email ?? null,
-      name: session.user.name ?? null,
+      id: user.id,
+      email: user.email,
+      name: user.name,
       isGuest: false,
     },
     access,

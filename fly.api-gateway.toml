@@ -28,6 +28,17 @@ primary_region = "sin"
   # Raise to "2" the day a WAF is put in front, and not before — see
   # docs/edge-protection.md.
   TRUST_PROXY_HOPS = "2"
+  # The parent domain, so the web app, the editor and this service all see one
+  # session cookie rather than three unrelated ones. The leading dot is what
+  # makes it cover the subdomains. Deliberately unset in development, where
+  # cookies already cross ports on localhost and naming a domain would stop
+  # them being set at all.
+  SESSION_COOKIE_DOMAIN = ".canvasflowapp.com"
+  # This service's own public address, used to build the OAuth callback URLs.
+  # It has to match what is registered with Google and GitHub character for
+  # character, which is why it is configured rather than read from the Host
+  # header a caller writes.
+  API_PUBLIC_URL = "https://api.canvasflowapp.com"
 
 [http_service]
   internal_port = 3001

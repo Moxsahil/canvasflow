@@ -1,7 +1,6 @@
 'use client';
 
 import { Suspense, useState } from 'react';
-import { signIn } from 'next-auth/react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -15,6 +14,22 @@ import {
 import { Component as PencilLoader } from '@/components/ui/loader-1';
 import { cn } from '@/lib/utils';
 import { safeRedirect } from '@/lib/safe-redirect';
+import { oauthStartUrl, signInWithPassword } from '@/features/auth/api/signin';
+
+/**
+ * What the gateway's `?error=` codes mean to a person.
+ *
+ * Anything unrecognised is left unshown rather than printed raw: the codes are
+ * ours, and echoing an arbitrary query parameter into the page is how a
+ * convincing fake message gets planted there.
+ */
+const OAUTH_ERRORS: Record<string, string> = {
+  no_email: 'That account did not share an email address, so we could not sign you in.',
+  email_unverified: 'Confirm that address with your provider first, then try again.',
+  account_disabled: 'That account cannot be signed in to.',
+  not_configured: 'That sign-in method is unavailable right now.',
+  provider_error: 'That sign-in could not be completed. Please try again.',
+};
 
 function LoginForm() {
   const router = useRouter();
@@ -24,7 +39,11 @@ function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // The OAuth callback cannot render a message, so it says what happened in
+  // the URL and this is where it gets read.
+  const [error, setError] = useState<string | null>(
+    () => OAUTH_ERRORS[searchParams.get('error') ?? ''] ?? null,
+  );
   const [loading, setLoading] = useState(false);
 
   async function handleCredentialsSignIn(e: React.FormEvent) {
@@ -32,20 +51,20 @@ function LoginForm() {
     setLoading(true);
     setError(null);
 
-    const result = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    });
+    const result = await signInWithPassword({ email, password });
 
     setLoading(false);
 
-    if (result?.error) {
-      setError('Invalid email or password');
-    } else if (result?.ok) {
-      router.push(next);
-      router.refresh();
+    if (!result.ok) {
+      setError(result.error ?? 'Invalid email or password');
+      return;
     }
+
+    // `refresh` as well as `push`, because the session arrived as a cookie
+    // rather than as anything React knows about. Without it the destination
+    // renders from a cache built while nobody was signed in.
+    router.push(next);
+    router.refresh();
   }
 
   return (
@@ -66,7 +85,9 @@ function LoginForm() {
         <button
           type="button"
           className={authStyles.provider}
-          onClick={() => signIn('google', { callbackUrl: next })}
+          onClick={() => {
+            window.location.href = oauthStartUrl('google', next);
+          }}
         >
           <GoogleMark />
           Continue with Google
@@ -74,7 +95,9 @@ function LoginForm() {
         <button
           type="button"
           className={authStyles.provider}
-          onClick={() => signIn('github', { callbackUrl: next })}
+          onClick={() => {
+            window.location.href = oauthStartUrl('github', next);
+          }}
         >
           <GitHubMark />
           Continue with GitHub

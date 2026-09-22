@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { createClient, createWorkspaceForUser, listWorkspacesForUser } from '@canvasflow/db';
 import { env } from '@/lib/env';
-import { auth } from '@/lib/auth';
+import { currentSession } from '@/lib/auth/session';
 import { corsJson, corsPreflight } from '@/lib/api/cors';
 
 /**
@@ -25,7 +25,7 @@ export async function OPTIONS() {
 }
 
 export async function GET() {
-  const session = await auth();
+  const session = await currentSession();
   if (!session?.user?.id) {
     return corsJson({ error: 'Not authenticated' }, { status: 401 });
   }
@@ -34,7 +34,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await auth();
+  const session = await currentSession();
   if (!session?.user?.id) {
     return corsJson({ error: 'Not authenticated' }, { status: 401 });
   }

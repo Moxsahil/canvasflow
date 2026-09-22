@@ -8,7 +8,7 @@ import {
   workspaceRoleOf,
 } from '@canvasflow/db';
 import { env } from '@/lib/env';
-import { auth } from '@/lib/auth';
+import { currentSession } from '@/lib/auth/session';
 import { corsJson, corsPreflight } from '@/lib/api/cors';
 
 /**
@@ -39,7 +39,7 @@ async function authorize(workspaceId: string) {
     return { error: corsJson({ error: 'Workspace not found' }, { status: 404 }) };
   }
 
-  const session = await auth();
+  const session = await currentSession();
   if (!session?.user?.id) {
     return { error: corsJson({ error: 'Not authenticated' }, { status: 401 }) };
   }

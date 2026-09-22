@@ -28,6 +28,38 @@ const envSchema = z
     EDITOR_URL: z.string().url().optional(),
 
     /**
+     * The domain the session cookies are scoped to.
+     *
+     * Set to the parent domain in production, `.canvasflowapp.com`, so the web
+     * app, the editor and this service all see one cookie rather than three
+     * unrelated ones.
+     *
+     * Left unset in development on purpose. Cookies ignore port numbers, so a
+     * cookie set by localhost:3001 already reaches localhost:3000, and naming
+     * a domain there would only stop it being set at all.
+     */
+    SESSION_COOKIE_DOMAIN: z.string().optional(),
+
+    /**
+     * This service's own public address.
+     *
+     * Needed to build the OAuth callback URLs, which have to match what is
+     * registered with each provider exactly. Configured rather than read from
+     * the request's Host header, for the same reason the verification link is:
+     * a header a caller writes is not an address worth trusting.
+     */
+    API_PUBLIC_URL: z.string().url(),
+
+    // === OAuth providers ===
+    // Optional as a group. A checkout without them serves every other route,
+    // and the provider buttons answer with a clear message rather than the
+    // service refusing to start.
+    GOOGLE_CLIENT_ID: z.string().optional(),
+    GOOGLE_CLIENT_SECRET: z.string().optional(),
+    GITHUB_CLIENT_ID: z.string().optional(),
+    GITHUB_CLIENT_SECRET: z.string().optional(),
+
+    /**
      * How many proxy hops in front of this service may be believed about who
      * called, which is what decides the address every per-IP limit counts.
      *

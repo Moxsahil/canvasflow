@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { signIn } from 'next-auth/react';
 import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -14,6 +13,7 @@ import {
 import { Component as PencilLoader } from '@/components/ui/loader-1';
 import { cn } from '@/lib/utils';
 import { signup } from '@/features/auth/api/signup';
+import { oauthStartUrl, signInWithPassword } from '@/features/auth/api/signin';
 
 /**
  * The same four rules the signup action enforces, written out so nobody has to
@@ -55,9 +55,9 @@ export default function SignupPage() {
     // account that was just created can hold a session immediately, and the
     // verification mail is already on its way.
 
-    const signedIn = await signIn('credentials', { email, password, redirect: false });
+    const signedIn = await signInWithPassword({ email, password });
 
-    if (signedIn?.ok) {
+    if (signedIn.ok) {
       // A full navigation, not the router: /open answers with a redirect to the
       // editor on another origin, which a client-side navigation cannot follow.
       window.location.href = '/open';
@@ -88,7 +88,9 @@ export default function SignupPage() {
         <button
           type="button"
           className={authStyles.provider}
-          onClick={() => signIn('google', { callbackUrl: '/open' })}
+          onClick={() => {
+            window.location.href = oauthStartUrl('google', '/open');
+          }}
         >
           <GoogleMark />
           Continue with Google
@@ -96,7 +98,9 @@ export default function SignupPage() {
         <button
           type="button"
           className={authStyles.provider}
-          onClick={() => signIn('github', { callbackUrl: '/open' })}
+          onClick={() => {
+            window.location.href = oauthStartUrl('github', '/open');
+          }}
         >
           <GitHubMark />
           Continue with GitHub

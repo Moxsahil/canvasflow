@@ -12,9 +12,16 @@ out/
 
 # Environment files (NEVER commit secrets)
 .env
-.env.local
-.env.*.local
+# Every variant, not just the two that were listed: a file named
+# .env.vercel, .env.production or .env.backup holds the same secrets and
+# was committable until this line existed. This repo is public.
+.env.*
 !.env.example
+!.env.*.example
+
+# Written by `vercel link`. Holds the project and org ids, which are not
+# secrets, but it is machine-local state and differs per checkout.
+.vercel
 
 # Logs
 *.log

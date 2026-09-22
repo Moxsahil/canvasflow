@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient, ensureBoardForUser } from '@canvasflow/db';
 import { env } from '@/lib/env';
-import { auth } from '@/lib/auth';
+import { currentUser } from '@/lib/auth/session';
 import { checkBoardAccess } from '@/lib/boards/access';
 import { editorUrlFor, mintEditorToken } from '@/lib/auth/editor-token';
 
@@ -24,9 +24,10 @@ const db = createClient(env.DATABASE_URL);
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const session = await auth();
-  const user = session?.user;
-  if (!user?.id) {
+  // See the note in invite/actions.ts: this mints an editor token, which
+  // needs the profile the access token does not carry.
+  const user = await currentUser();
+  if (!user) {
     return NextResponse.redirect(new URL('/login?next=/open', env.AUTH_URL));
   }
 
