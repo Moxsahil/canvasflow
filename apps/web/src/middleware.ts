@@ -2,6 +2,7 @@ import NextAuth from 'next-auth';
 import { NextResponse } from 'next/server';
 import { authConfig } from '@/lib/auth/config';
 import { safeRedirect } from '@/lib/safe-redirect';
+import { ACCESS_COOKIE, readAccessToken } from '@/lib/auth/gateway-session';
 
 const { auth } = NextAuth(authConfig);
 
@@ -27,7 +28,7 @@ const PUBLIC_PATHS = ['/', '/login', '/logout', '/signup', '/verify-email'];
  */
 const EDITOR_API_PREFIXES = ['/api/editor-token', '/api/boards/', '/api/workspaces', '/api/me'];
 
-export default auth((req) => {
+export default auth(async (req) => {
   const isPublic =
     PUBLIC_PATHS.some(
       (path) => req.nextUrl.pathname === path || req.nextUrl.pathname.startsWith('/api/auth'),
@@ -45,7 +46,18 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
-  if (!req.auth) {
+  // Two systems mean "signed in" while the migration runs. `req.auth` is the
+  // Auth.js session; the cookie is the API gateway's. Somebody who has just
+  // signed in through the gateway has no Auth.js session at all, so checking
+  // only the first would redirect them straight back to the page they came
+  // from — a sign-in that appears to do nothing.
+  //
+  // Verification only, no database call. This runs on the Edge in front of
+  // every request, and the signature is what makes the token worth trusting.
+  const signedIn =
+    Boolean(req.auth) || (await readAccessToken(req.cookies.get(ACCESS_COOKIE)?.value)) !== null;
+
+  if (!signedIn) {
     const loginUrl = new URL('/login', req.nextUrl);
     // Validate the path before using it as a redirect target.
     // Without this, the middleware would forward any malicious 'next'

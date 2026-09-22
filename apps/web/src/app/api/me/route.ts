@@ -2,7 +2,7 @@ import { isCursorColor } from '@canvasflow/types';
 import { createClient, getProfile, updateProfile, type ProfileChanges } from '@canvasflow/db';
 import { env } from '@/lib/env';
 import { corsJson, corsPreflight } from '@/lib/api/cors';
-import { auth } from '@/lib/auth';
+import { currentSession } from '@/lib/auth/session';
 import type { NextRequest } from 'next/server';
 
 const db = createClient(env.DATABASE_URL);
@@ -14,7 +14,7 @@ export async function OPTIONS() {
 }
 
 async function currentUserId(): Promise<string | null> {
-  const session = await auth();
+  const session = await currentSession();
   return session?.user?.id ?? null;
 }
 

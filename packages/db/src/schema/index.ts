@@ -3,6 +3,7 @@ export * from './users.js';
 export * from './workspaces.js';
 export * from './boards.js';
 export * from './auth.js';
+export * from './auth-sessions.js';
 export * from './board-updates.js';
 export * from './board-images.js';
 export * from './board-access.js';

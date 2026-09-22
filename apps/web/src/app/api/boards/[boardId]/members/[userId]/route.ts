@@ -7,7 +7,7 @@ import {
   type AssignableBoardRole,
 } from '@canvasflow/db';
 import { env } from '@/lib/env';
-import { auth } from '@/lib/auth';
+import { currentSession } from '@/lib/auth/session';
 import { checkBoardAccess } from '@/lib/boards/access';
 import { corsJson, corsPreflight } from '@/lib/api/cors';
 import { notifyBoardAccessChanged } from '@/lib/sync/internal';
@@ -37,7 +37,7 @@ async function authorize(boardId: string, userId: string) {
     return { error: corsJson({ error: 'Not found' }, { status: 404 }) };
   }
 
-  const session = await auth();
+  const session = await currentSession();
   if (!session?.user?.id) {
     return { error: corsJson({ error: 'Not authenticated' }, { status: 401 }) };
   }

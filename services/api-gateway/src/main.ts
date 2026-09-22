@@ -10,10 +10,12 @@ initTelemetry(env.OTEL_SERVICE_NAME, env.OTEL_EXPORTER_OTLP_ENDPOINT);
 
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
 import express from 'express';
 import { AppModule } from './app.module.js';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js';
+import { allowedOrigins } from './common/allowed-origins.js';
 
 /**
  * Room for one Yjs update, which is the largest body this API takes.
@@ -52,20 +54,30 @@ async function bootstrap(): Promise<void> {
 
   app.use(express.json({ limit: MAX_REQUEST_BODY }));
 
+  /**
+   * Express does not parse cookies, and this service now reads them: the
+   * OAuth state on the way back from a provider, and the session credentials
+   * once the clients are moved over.
+   *
+   * Unsigned on purpose. Nothing here trusts a cookie for its contents — the
+   * access token carries its own signature, the refresh token is compared
+   * against a stored digest, and the state is compared against what we sent —
+   * so a second signing scheme would add a key to rotate and prove nothing
+   * that is not already proved.
+   */
+  app.use(cookieParser());
+
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new LoggingInterceptor());
 
-  const DEV_ORIGINS = ['http://localhost:3000', 'http://localhost:3002'];
-  const PROD_ORIGINS = [env.WEB_URL, env.EDITOR_URL].filter((url): url is string => Boolean(url));
+  const origins = allowedOrigins(env);
 
-  const allowedOrigins = env.NODE_ENV === 'production' ? PROD_ORIGINS : DEV_ORIGINS;
-
-  if (env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
+  if (env.NODE_ENV === 'production' && origins.length === 0) {
     logger.warn('⚠️  No PROD_ORIGINS configured. Set WEB_URL and EDITOR_URL env vars.');
   }
 
   app.enableCors({
-    origin: allowedOrigins,
+    origin: origins,
     credentials: true,
   });
 

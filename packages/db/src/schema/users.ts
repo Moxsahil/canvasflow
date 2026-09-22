@@ -37,6 +37,17 @@ export const users = pgTable('users', {
   emailVerifiedAt: timestamp('email_verified_at', {
     withTimezone: true,
   }),
+  /**
+   * Set when an account is barred from signing in. Null means it may.
+   *
+   * A timestamp rather than a boolean, because knowing when somebody was
+   * barred is the first question anybody asks afterwards, and a flag throws
+   * that away.
+   *
+   * Nothing writes it yet. Sign-in reads it, so barring an account is an
+   * update to this column and takes effect on the next attempt.
+   */
+  disabledAt: timestamp('disabled_at', { withTimezone: true }),
   preferences: jsonb('preferences')
     .$type<UserPreferences>()
     .notNull()

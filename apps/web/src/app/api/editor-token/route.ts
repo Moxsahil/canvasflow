@@ -2,7 +2,7 @@ import { type NextRequest } from 'next/server';
 import { and, eq } from 'drizzle-orm';
 import { createClient, getProfile, users } from '@canvasflow/db';
 import { env } from '@/lib/env';
-import { auth } from '@/lib/auth';
+import { currentSession } from '@/lib/auth/session';
 import { checkBoardAccess } from '@/lib/boards/access';
 import { mintEditorToken, type EditorIdentity } from '@/lib/auth/editor-token';
 import { readGuestSession } from '@/lib/auth/guest-session';
@@ -34,7 +34,7 @@ export async function OPTIONS() {
 }
 
 export async function GET(request: NextRequest) {
-  const session = await auth();
+  const session = await currentSession();
   const sessionUser = session?.user;
 
   const identity: EditorIdentity | null = sessionUser?.id

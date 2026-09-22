@@ -5,7 +5,7 @@ import { Edit3, Eye, Link2Off } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { env } from '@/lib/env';
-import { auth } from '@/lib/auth';
+import { currentSession } from '@/lib/auth/session';
 import { JoinForm } from './join-form';
 
 /**
@@ -46,7 +46,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
     .limit(1);
 
   const boardTitle = boardRows[0]?.title ?? 'Untitled board';
-  const session = await auth();
+  const session = await currentSession();
 
   return (
     <InviteShell title={boardTitle} role={found.link.role}>

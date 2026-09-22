@@ -8,7 +8,7 @@ import {
   type BoardSummary,
 } from '@canvasflow/db';
 import { env } from '@/lib/env';
-import { auth } from '@/lib/auth';
+import { currentSession } from '@/lib/auth/session';
 import { checkBoardAccess } from '@/lib/boards/access';
 import { corsJson, corsPreflight } from '@/lib/api/cors';
 
@@ -52,7 +52,7 @@ async function resolve(boardId: string) {
   if (!UUID.test(boardId))
     return { error: corsJson({ error: 'Board not found' }, { status: 404 }) };
 
-  const session = await auth();
+  const session = await currentSession();
   if (!session?.user?.id) {
     return { error: corsJson({ error: 'Not authenticated' }, { status: 401 }) };
   }

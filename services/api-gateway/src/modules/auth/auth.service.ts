@@ -1,20 +1,58 @@
-import { ConflictException, Injectable } from '@nestjs/common';
-import bcrypt from 'bcrypt';
-import { sql } from 'drizzle-orm';
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { eq, sql } from 'drizzle-orm';
 import { users } from '@canvasflow/db';
 import { DatabaseService } from '../../infra/database/database.service.js';
 import { VerificationService } from '../email-verification/verification.service.js';
+import { PasswordService } from './password.service.js';
+import { SessionService } from './session.service.js';
+import { TokenService } from './token.service.js';
 
 /**
- * Cost factor for password hashing. High enough to be slow for an attacker
- * holding a stolen table, low enough that signing up does not feel stalled.
+ * The only thing a failed sign-in ever says.
+ *
+ * One sentence for an address with no account, a wrong password, an account
+ * that signs in with a provider and has no password at all, and an account
+ * that has been barred. Naming which would turn this endpoint into a way to
+ * discover who has a CanvasFlow account.
  */
-const BCRYPT_ROUNDS = 12;
+const SIGN_IN_FAILED = 'Invalid email or password';
 
 export interface SignupInput {
   email: string;
   password: string;
   name: string;
+}
+
+export interface SignInInput {
+  email: string;
+  password: string;
+}
+
+/**
+ * Deliberately carries no session and no token. Issuing those is a later
+ * stage; this says only who the credentials belonged to.
+ */
+export interface AuthenticatedAccount {
+  id: string;
+  email: string;
+  name: string;
+  image: string | null;
+}
+
+/**
+ * What a successful sign-in produces: who they are, a short credential for
+ * ordinary calls, and a long one that renews it.
+ *
+ * Both tokens are plaintext here and are handed to the caller once. The
+ * refresh token is stored only as a digest, so this is the single moment it
+ * exists outside the browser holding it.
+ */
+export interface SignInResult {
+  account: AuthenticatedAccount;
+  accessToken: string;
+  accessTokenExpiresAt: Date;
+  refreshToken: string;
+  refreshTokenExpiresAt: Date;
 }
 
 export interface SignupResult {
@@ -30,6 +68,9 @@ export class AuthService {
   constructor(
     private readonly database: DatabaseService,
     private readonly verification: VerificationService,
+    private readonly passwords: PasswordService,
+    private readonly sessions: SessionService,
+    private readonly tokens: TokenService,
   ) {}
 
   /**
@@ -55,7 +96,7 @@ export class AuthService {
       throw new ConflictException('An account with that email already exists');
     }
 
-    const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+    const passwordHash = await this.passwords.hash(input.password);
 
     let userId: string;
     try {
@@ -79,6 +120,174 @@ export class AuthService {
     const emailSent = await this.verification.sendChallenge(userId, input.email);
 
     return { emailSent };
+  }
+
+  /**
+   * Establish who a pair of credentials belongs to, or refuse without saying
+   * why.
+   *
+   * Four different situations end at the same sentence: no account on that
+   * address, the wrong password, an account that signs in with a provider and
+   * has no password, and an account that has been barred. Every one of them
+   * also costs the same time, because the verification runs against a decoy
+   * hash when there is nothing real to compare with. A message that refuses to
+   * distinguish them is worth nothing if the clock does it instead.
+   *
+   * Issues no session. That is a later stage; this answers only the question
+   * of identity.
+   */
+  async signIn(input: SignInInput, userAgent: string | null): Promise<SignInResult> {
+    // Case-insensitive on purpose, and every candidate is checked. Addresses
+    // differing only by case were allowed to register twice before the address
+    // was normalised, so a handful still map to two rows, and the password is
+    // what says which one was meant.
+    const candidates = await this.database.db
+      .select()
+      .from(users)
+      .where(sql`lower(${users.email}) = ${input.email}`);
+
+    let matched: (typeof candidates)[number] | undefined;
+    for (const candidate of candidates) {
+      if (await this.passwords.verify(input.password, candidate.passwordHash)) {
+        matched = candidate;
+        break;
+      }
+    }
+
+    if (!matched) {
+      // Nothing was compared, because there was nothing to compare against.
+      // Pay the cost anyway, or an address with no account answers in
+      // milliseconds while a wrong password takes nearly two hundred.
+      if (candidates.length === 0) await this.passwords.verify(input.password, null);
+      throw new UnauthorizedException(SIGN_IN_FAILED);
+    }
+
+    // A barred account and a guest both refuse with the same sentence. A guest
+    // has no password and could not reach here anyway; the check is explicit so
+    // that stays true if guests ever gain one.
+    if (matched.disabledAt || matched.isGuest) {
+      throw new UnauthorizedException(SIGN_IN_FAILED);
+    }
+
+    // Identity is settled; now the session. A new row every time, so two
+    // devices hold two credentials and either can be taken away without
+    // touching the other.
+    const session = await this.sessions.create(matched.id, userAgent);
+    const access = await this.tokens.issue({
+      userId: matched.id,
+      sessionId: session.sessionId,
+    });
+
+    return {
+      account: {
+        id: matched.id,
+        email: matched.email,
+        name: matched.name,
+        image: matched.avatarUrl,
+      },
+      accessToken: access.token,
+      accessTokenExpiresAt: access.expiresAt,
+      refreshToken: session.refreshToken,
+      refreshTokenExpiresAt: session.expiresAt,
+    };
+  }
+
+  /**
+   * Renew an access token, and replace the credential that renewed it.
+   *
+   * Refusing and rotating are the same operation here: a token that cannot be
+   * exchanged is one the caller has to sign in over, and a token that can is
+   * spent in the act of exchanging it. There is no third answer.
+   *
+   * Every failure reads the same from outside — expired, revoked, invented, or
+   * caught being replayed. Only the last of those means anything has gone
+   * wrong, and saying so would tell whoever is holding a stolen token that it
+   * has been noticed.
+   */
+  async refresh(refreshToken: string | undefined): Promise<SignInResult | null> {
+    if (!refreshToken) return null;
+
+    const outcome = await this.sessions.rotate(refreshToken);
+    if (outcome.status !== 'rotated') return null;
+
+    const access = await this.tokens.issue({
+      userId: outcome.userId,
+      sessionId: outcome.sessionId,
+    });
+
+    // Read back rather than carried on the token. The account may have been
+    // renamed, or barred, since the session began — and a barred one must stop
+    // renewing rather than coast until its refresh window runs out.
+    const [account] = await this.database.db
+      .select()
+      .from(users)
+      .where(eq(users.id, outcome.userId))
+      .limit(1);
+
+    if (!account || account.disabledAt || account.isGuest) {
+      await this.sessions.revoke(outcome.sessionId);
+      return null;
+    }
+
+    return {
+      account: {
+        id: account.id,
+        email: account.email,
+        name: account.name,
+        image: account.avatarUrl,
+      },
+      accessToken: access.token,
+      accessTokenExpiresAt: access.expiresAt,
+      refreshToken: outcome.refreshToken,
+      refreshTokenExpiresAt: outcome.expiresAt,
+    };
+  }
+
+  /**
+   * End the session these credentials belong to.
+   *
+   * A server operation, not a cleared cookie. Dropping the cookie only removes
+   * one copy of the credential; the session row stays live, so anything that
+   * captured the refresh token before the browser let go of it could carry on
+   * renewing indefinitely. Marking the row is what actually ends it.
+   *
+   * Either credential identifies the session. The refresh token is preferred
+   * because it maps straight to the row, but it is scoped to `/auth` and so is
+   * not sent to most callers — the access token names the same session in its
+   * `sid` claim, which is exactly why that claim is there.
+   *
+   * Silent about everything. Expired, already revoked, forged, absent: all of
+   * them mean the session is not live, which is what was asked for. A sign-out
+   * that reported failure would be a way to ask whether a token was still good.
+   */
+  /**
+   * End every session this account has, including the one asking.
+   *
+   * The thing to reach for when somebody suspects their password or a device
+   * has been taken: one action that makes every credential ever issued to them
+   * stop working, without needing to know how many there were or where.
+   *
+   * Deliberately includes the caller's own. "Everywhere" that quietly spared
+   * the current browser would leave the one session somebody is most likely to
+   * be wrong about — the one on the machine they are not sure is theirs.
+   */
+  async signOutEverywhere(userId: string): Promise<void> {
+    await this.sessions.revokeAllFor(userId);
+  }
+
+  async signOut(credentials: { refreshToken?: string; accessToken?: string }): Promise<void> {
+    if (credentials.refreshToken) {
+      const session = await this.sessions.findLive(credentials.refreshToken);
+      if (session) {
+        await this.sessions.revoke(session.id);
+        return;
+      }
+    }
+
+    if (credentials.accessToken) {
+      const claims = await this.tokens.read(credentials.accessToken);
+      if (claims) await this.sessions.revoke(claims.sessionId);
+    }
   }
 }
 

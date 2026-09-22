@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { canManageMembers, createClient, listBoardAccess } from '@canvasflow/db';
 import { env } from '@/lib/env';
-import { auth } from '@/lib/auth';
+import { currentSession } from '@/lib/auth/session';
 import { checkBoardAccess } from '@/lib/boards/access';
 import { corsJson, corsPreflight } from '@/lib/api/cors';
 
@@ -25,7 +25,7 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ boardI
   const { boardId } = await ctx.params;
   if (!UUID.test(boardId)) return corsJson({ error: 'Board not found' }, { status: 404 });
 
-  const session = await auth();
+  const session = await currentSession();
   if (!session?.user?.id) return corsJson({ error: 'Not authenticated' }, { status: 401 });
 
   const access = await checkBoardAccess(session.user.id, boardId);

@@ -1,21 +1,17 @@
 import { env } from '@/lib/env';
+import { fetchCurrentAccount } from './current-account';
 
 /**
  * Whether this account's address is confirmed, asked of the gateway.
  *
- * A separate client from profile-api for the same reason the avatar one is:
- * the profile's fields come from the web app's cookie-authenticated route,
- * while this goes to the gateway on the editor's bearer token.
+ * Reads the account endpoint rather than the narrower status one. Both answer
+ * live from the database, so neither goes stale, but there is no reason for a
+ * client to learn two URLs for two facts about one account — and this is the
+ * one a reload rebuilds everything else from too.
  */
 export async function fetchVerificationStatus(token: string): Promise<boolean> {
-  const res = await fetch(`${env.VITE_API_URL}/users/me/verification-status`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!res.ok) throw new Error(`Verification status request failed (${res.status})`);
-
-  const body = (await res.json()) as { data?: { emailVerified?: boolean } };
-  return body.data?.emailVerified === true;
+  const account = await fetchCurrentAccount(token);
+  return account.emailVerified;
 }
 
 export type ResendResult =
