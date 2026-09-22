@@ -11,18 +11,26 @@ import { DatabaseService } from '../../infra/database/database.service.js';
 const REFRESH_TOKEN_BYTES = 32;
 
 /**
- * How long a session stays renewable.
+ * How long a session survives without being used.
  *
- * Matched to the thirty days Auth.js currently gives, so moving to this does
- * not quietly start signing people out more often than they are used to.
- *
- * Absolute, not sliding: rotation issues a new token but never moves this
- * date, so a session ends thirty days after it began however much it was used.
- * A sliding window would keep an active session alive forever, which means a
- * credential stolen from somebody who uses the product daily never expires on
- * its own.
+ * Sliding: every renewal pushes the expiry to this far from now, so somebody
+ * who opens CanvasFlow at least once a month is never asked to sign in again.
+ * Only a session left untouched for the whole window lapses. That is how the
+ * tools people compare this with behave, and signing somebody out on day
+ * thirty for having used the product every day was the wrong trade.
  */
 export const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * The longest any one session can live, however active.
+ *
+ * What a sliding window gives up is a natural end: whoever holds a refresh
+ * token can keep it alive by using it. Rotation and reuse detection catch a
+ * copied token the moment both copies are used, but not one whose rightful
+ * owner has stopped visiting. This cap bounds that case — one sign-in a year.
+ * Remove it by making it Infinity; nothing else depends on it.
+ */
+export const ABSOLUTE_SESSION_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 
 /**
  * How soon after a token is spent a second presentation is forgiven.
@@ -164,8 +172,12 @@ export class SessionService {
       return { status: 'reused' };
     }
 
+    const now = Date.now();
+    const cap = session.createdAt.getTime() + ABSOLUTE_SESSION_TTL_MS;
+
     if (session.revokedAt) return { status: 'invalid' };
-    if (session.expiresAt.getTime() <= Date.now()) return { status: 'invalid' };
+    if (session.expiresAt.getTime() <= now) return { status: 'invalid' };
+    if (cap <= now) return { status: 'invalid' };
 
     // Spend it. Conditional on it still being unspent, so that two requests
     // arriving together cannot both be served: the database decides which one
@@ -183,17 +195,20 @@ export class SessionService {
       .insert(authSessionTokens)
       .values({ sessionId: session.id, tokenHash: this.hash(next) });
 
+    // Slide the window forward, but never past the absolute cap. Written in the
+    // same statement as the usage stamp so the two cannot disagree.
+    const expiresAt = new Date(Math.min(now + REFRESH_TOKEN_TTL_MS, cap));
     await db
       .update(authSessions)
-      .set({ lastUsedAt: new Date() })
+      .set({ lastUsedAt: new Date(now), expiresAt })
       .where(eq(authSessions.id, session.id));
 
     return {
       status: 'rotated',
       sessionId: session.id,
       userId: session.userId,
-      // Inherited, never extended: see the note on REFRESH_TOKEN_TTL_MS.
-      expiresAt: session.expiresAt,
+      // The new expiry, so the cookie that carries the token moves with it.
+      expiresAt,
       refreshToken: next,
     };
   }

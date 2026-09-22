@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { env } from '@/lib/env';
 import { currentSession } from '@/lib/auth/session';
+import { resumeUrl } from '@/lib/auth/gateway-session';
 import { JoinForm } from './join-form';
 
 /**
@@ -56,7 +57,11 @@ export default async function InvitePage({ params }: InvitePageProps) {
         role={found.link.role}
         allowGuests={found.link.allowGuests}
         signedIn={Boolean(session?.user?.id)}
-        signInHref={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}
+        // Through the gateway rather than straight to the form: somebody whose
+        // access token lapsed while they had this invite open still has a
+        // session, and should come back here signed in rather than retype a
+        // password. With no session it lands on sign-in with this as `next`.
+        signInHref={resumeUrl(`/invite/${token}`)}
       />
     </InviteShell>
   );

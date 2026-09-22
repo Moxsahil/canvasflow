@@ -61,10 +61,28 @@ export class TokenService {
    * in each case and telling them apart would only invite reporting which.
    */
   async read(token: string): Promise<AccessTokenClaims | null> {
+    return (await this.inspect(token))?.claims ?? null;
+  }
+
+  /**
+   * Read a token and say when it stops working.
+   *
+   * The expiry is what lets a caller renew ahead of time rather than waiting
+   * to be refused: a session renewed while its token still has minutes left
+   * never has a moment where it is not signed in.
+   */
+  async inspect(
+    token: string | undefined,
+  ): Promise<{ claims: AccessTokenClaims; expiresAt: Date } | null> {
+    if (!token) return null;
     try {
       const { payload } = await jwtVerify(token, this.secret);
       if (typeof payload.sub !== 'string' || typeof payload.sid !== 'string') return null;
-      return { userId: payload.sub, sessionId: payload.sid };
+      if (typeof payload.exp !== 'number') return null;
+      return {
+        claims: { userId: payload.sub, sessionId: payload.sid },
+        expiresAt: new Date(payload.exp * 1000),
+      };
     } catch {
       return null;
     }

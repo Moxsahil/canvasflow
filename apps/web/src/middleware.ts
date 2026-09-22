@@ -2,7 +2,7 @@ import NextAuth from 'next-auth';
 import { NextResponse } from 'next/server';
 import { authConfig } from '@/lib/auth/config';
 import { safeRedirect } from '@/lib/safe-redirect';
-import { ACCESS_COOKIE, readAccessToken } from '@/lib/auth/gateway-session';
+import { ACCESS_COOKIE, accessTokenState, resumeUrl } from '@/lib/auth/gateway-session';
 
 const { auth } = NextAuth(authConfig);
 
@@ -54,20 +54,30 @@ export default auth(async (req) => {
   //
   // Verification only, no database call. This runs on the Edge in front of
   // every request, and the signature is what makes the token worth trusting.
-  const signedIn =
-    Boolean(req.auth) || (await readAccessToken(req.cookies.get(ACCESS_COOKIE)?.value)) !== null;
+  const tokenState = await accessTokenState(req.cookies.get(ACCESS_COOKIE)?.value);
 
-  if (!signedIn) {
-    const loginUrl = new URL('/login', req.nextUrl);
-    // Validate the path before using it as a redirect target.
-    // Without this, the middleware would forward any malicious 'next'
-    // value, defeating the safeRedirect protection on the login page
-    const safeNext = safeRedirect(req.nextUrl.pathname, '/open');
-    loginUrl.searchParams.set('next', safeNext);
-    return NextResponse.redirect(loginUrl);
+  if (req.auth || tokenState === 'valid') return NextResponse.next();
+
+  // Validate the path before using it as a redirect target. Without this the
+  // middleware would forward any malicious 'next' value, defeating the
+  // safeRedirect protection on the other end.
+  const safeNext = safeRedirect(req.nextUrl.pathname, '/open');
+
+  // A missing or expired access token usually has a live session behind it —
+  // somebody coming back after the fifteen minutes an access token lasts. This
+  // app cannot renew it, because the refresh cookie never reaches it, so the
+  // browser goes to the gateway, which renews and sends it straight back here.
+  // Nobody with a session they have been using sees a sign-in form.
+  if (tokenState === 'absent' || tokenState === 'expired') {
+    return NextResponse.redirect(resumeUrl(safeNext));
   }
 
-  return NextResponse.next();
+  // A token that fails its signature will fail it again after any renewal, so
+  // sending it to the gateway would bounce between the two forever. Sign-in is
+  // the only way out of that.
+  const loginUrl = new URL('/login', req.nextUrl);
+  loginUrl.searchParams.set('next', safeNext);
+  return NextResponse.redirect(loginUrl);
 });
 
 export const config = {

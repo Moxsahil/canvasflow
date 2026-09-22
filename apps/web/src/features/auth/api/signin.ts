@@ -53,29 +53,3 @@ export function oauthStartUrl(provider: 'google' | 'github', next: string): stri
   url.searchParams.set('next', next);
   return url.toString();
 }
-
-/**
- * Exchange the refresh cookie for a fresh pair.
- *
- * From the browser rather than the server, and not by choice: the refresh
- * cookie is scoped to `/auth`, so it is sent to the gateway's own routes and
- * nowhere else. Nothing on this app's origin ever receives it, which is
- * exactly the point of that scoping and why this call cannot be proxied.
- *
- * Answers only whether the session survived. The new credentials arrive as
- * cookies; there is nothing here for a caller to hold.
- */
-export async function refreshSession(): Promise<boolean> {
-  try {
-    const response = await fetch(`${clientEnv.NEXT_PUBLIC_API_URL}/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include',
-      cache: 'no-store',
-    });
-    return response.ok;
-  } catch {
-    // Offline, or the gateway is down. Not a dead session — reporting it as
-    // one would sign somebody out over a dropped connection.
-    return false;
-  }
-}
