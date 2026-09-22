@@ -14,12 +14,6 @@ const envSchema = z.object({
   // land on live sessions immediately instead of at the next sweep.
   SYNC_INTERNAL_URL: z.string().url().default('http://localhost:4001'),
 
-  // OAuth providers
-  GOOGLE_CLIENT_ID: z.string().min(1),
-  GOOGLE_CLIENT_SECRET: z.string().min(1),
-  GITHUB_CLIENT_ID: z.string().min(1),
-  GITHUB_CLIENT_SECRET: z.string().min(1),
-
   // Database (Consumed by @canvasflow/db)
   DATABASE_URL: z.string().url().startsWith('postgresql://'),
 });
@@ -34,10 +28,6 @@ function parseEnv(): Env {
     AUTH_URL: process.env.AUTH_URL,
     NEXT_PUBLIC_EDITOR_URL: process.env.NEXT_PUBLIC_EDITOR_URL,
     SYNC_INTERNAL_URL: process.env.SYNC_INTERNAL_URL,
-    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
-    GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
-    GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     EMAIL_FROM: process.env.EMAIL_FROM,
     DATABASE_URL: process.env.DATABASE_URL,

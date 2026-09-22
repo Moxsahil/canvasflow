@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { env } from '@/lib/env';
-import { signOut } from '@/lib/auth';
 import { clearGuestSession } from '@/lib/auth/guest-session';
 
 /**
@@ -32,12 +31,10 @@ export async function POST(request: NextRequest) {
     return new NextResponse('Forbidden', { status: 403 });
   }
 
-  // All three, unconditionally: a browser can hold a gateway session, an
-  // Auth.js session and a guest cookie at once — sign in on a machine that
-  // joined a board by share link and it has several — and leaving any behind
-  // leaves the person signed in.
+  // Both, unconditionally: a browser can hold an account session and a guest
+  // cookie at once — sign in on a machine that joined a board by share link
+  // and it has both — and leaving either behind leaves the person signed in.
   await clearGuestSession();
-  await signOut({ redirect: false });
 
   const response = NextResponse.redirect(new URL('/login', env.AUTH_URL), 303);
   await endGatewaySession(request, response);

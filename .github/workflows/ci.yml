@@ -66,10 +66,6 @@ jobs:
           DATABASE_URL: postgresql://placeholder:placeholder@placeholder:5432/placeholder?sslmode=require
           AUTH_SECRET: placeholder-secret-must-be-32-chars-or-more-padding-padding
           AUTH_URL: http://localhost:3000
-          GOOGLE_CLIENT_ID: placeholder
-          GOOGLE_CLIENT_SECRET: placeholder
-          GITHUB_CLIENT_ID: placeholder
-          GITHUB_CLIENT_SECRET: placeholder
           RESEND_API_KEY: re_placeholder
           EMAIL_FROM: onboarding@resend.dev
           NEXT_PUBLIC_API_URL: http://localhost:3001
