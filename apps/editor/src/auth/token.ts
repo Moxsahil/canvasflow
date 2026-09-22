@@ -1,3 +1,5 @@
+import { env } from '@/lib/env';
+
 /**
  * Where a board's token is stashed so it survives a page refresh, one key per
  * board — a token scoped to board A must never be reused on board B. Lives
@@ -197,29 +199,52 @@ export class TokenRefreshError extends Error {
 }
 
 /**
- * Silently mints a fresh editor token, scoped to a specific board, by
- * calling back to the web app with the user's session cookie (cross-origin,
- * credentialed — the web app's /api/editor-token route allows this origin
- * via CORS).
+ * Silently mints a fresh editor token, scoped to a specific board.
  *
- * The board scoping means each token authorizes access to exactly one
- * board. Attempting to use a board-A token against board B is rejected
- * by the sync-server. If the user has lost access to the board, this
- * request returns 404 and refreshing will fail — matching the intended
- * revocation semantics.
+ * Signed-in accounts ask the API gateway, and that is what keeps an editor
+ * open for hours signed in. The gateway renews the account's session itself
+ * whenever this request finds it close to lapsing, and after a laptop has
+ * slept it renews from the refresh cookie before answering. Nothing here
+ * decides whether to renew, retries, or holds a credential it can read: this
+ * is an ordinary request, and the session rides along in cookies.
+ *
+ * Guests ask the web app, because a guest's session is a cookie the web app
+ * sets on its own host and it never reaches the gateway.
+ *
+ * Which one is decided from the token already held. With none — a pasted board
+ * link opened in a fresh tab — the gateway is tried first, since most people
+ * have an account, and a 401 there falls through to the guest route. Nothing
+ * else falls through: a 404 means this board is not theirs, from either side.
+ *
+ * The board scoping means each token authorizes exactly one board; a board-A
+ * token used against board B is rejected by the sync-server.
  */
-export async function refreshAuthToken(webUrl: string, boardId: string): Promise<RefreshedToken> {
-  const url = new URL('/api/editor-token', webUrl);
+export async function refreshAuthToken(
+  boardId: string,
+  currentToken: string | null,
+): Promise<RefreshedToken> {
+  const isGuest = currentToken ? decodeClaims(currentToken)?.isGuest === true : null;
+
+  if (isGuest === true) return mintFrom(env.VITE_WEB_URL, '/api/editor-token', boardId);
+
+  try {
+    return await mintFrom(env.VITE_API_URL, '/auth/editor-token', boardId);
+  } catch (error) {
+    const unknownVisitor = isGuest === null;
+    if (unknownVisitor && error instanceof TokenRefreshError && error.status === 401) {
+      return mintFrom(env.VITE_WEB_URL, '/api/editor-token', boardId);
+    }
+    throw error;
+  }
+}
+
+async function mintFrom(origin: string, path: string, boardId: string): Promise<RefreshedToken> {
+  const url = new URL(path, origin);
   url.searchParams.set('boardId', boardId);
 
   const res = await fetch(url.toString(), { credentials: 'include' });
   if (!res.ok) {
     throw new TokenRefreshError(res.status);
   }
-  const json = (await res.json()) as {
-    token: string;
-    expiresAt: number;
-    boardId: string;
-  };
-  return json;
+  return (await res.json()) as RefreshedToken;
 }

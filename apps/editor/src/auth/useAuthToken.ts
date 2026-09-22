@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { env } from '@/lib/env';
 import {
   authTokenStorageKey as storageKeyFor,
   clearAuthTokenFromHash,
@@ -84,6 +83,8 @@ export function useAuthToken(boardId: string): {
   accessDenied: boolean;
 } {
   const [state, setState] = useState<AuthTokenState>(() => readInitialToken(boardId));
+  const tokenRef = useRef<string | null>(state.token);
+  tokenRef.current = state.token;
   const [accessDenied, setAccessDenied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAttemptRef = useRef(0);
@@ -93,7 +94,10 @@ export function useAuthToken(boardId: string): {
     if (now - lastAttemptRef.current < MIN_REFRESH_INTERVAL_MS) return;
     lastAttemptRef.current = now;
     try {
-      const next = await refreshAuthToken(env.VITE_WEB_URL, boardId);
+      // The token in hand says whether this is an account or a guest, which
+      // decides who can mint the next one. Read through a ref so a new token
+      // does not rebuild this callback and restart every timer that uses it.
+      const next = await refreshAuthToken(boardId, tokenRef.current);
       window.sessionStorage.setItem(storageKeyFor(boardId), next.token);
       setState({ token: next.token, expiresAt: next.expiresAt });
     } catch (err) {
