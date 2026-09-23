@@ -43,6 +43,17 @@ export const authSessions = pgTable(
      */
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     /**
+     * When this session was rescued from a refresh token that was spent but
+     * never arrived — a dropped response, or a machine that lost power before
+     * the browser wrote the cookie down.
+     *
+     * Recorded because the rescue may happen once. Two parties alternately
+     * presenting stale tokens would otherwise hand the session back and forth
+     * forever, each rescue looking exactly like the last; a session that needs
+     * rescuing twice is ended instead.
+     */
+    recoveredAt: timestamp('recovered_at', { withTimezone: true }),
+    /**
      * What the browser called itself when the session began. For showing
      * somebody their own sessions, not for deciding anything: a caller writes
      * this header and can write anything in it.
