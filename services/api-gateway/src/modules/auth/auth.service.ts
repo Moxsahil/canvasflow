@@ -5,6 +5,7 @@ import { DatabaseService } from '../../infra/database/database.service.js';
 import { VerificationService } from '../email-verification/verification.service.js';
 import { PasswordService } from './password.service.js';
 import { SessionService } from './session.service.js';
+import { SignInRateLimiter, SignInThrottledException } from './sign-in-rate-limit.service.js';
 import { TokenService } from './token.service.js';
 
 /**
@@ -70,6 +71,7 @@ export class AuthService {
     private readonly verification: VerificationService,
     private readonly passwords: PasswordService,
     private readonly sessions: SessionService,
+    private readonly signInLimits: SignInRateLimiter,
     private readonly tokens: TokenService,
   ) {}
 
@@ -137,6 +139,16 @@ export class AuthService {
    * of identity.
    */
   async signIn(input: SignInInput, userAgent: string | null): Promise<SignInResult> {
+    // Before the lookup and before any hashing. A per-IP limit counts where a
+    // request came from, which whoever is guessing gets to choose; this counts
+    // the account they are guessing at, which they do not. Asked of the
+    // address as typed, account or no account — a refusal that only happened
+    // for real ones would be a way to discover which those are.
+    const allowance = await this.signInLimits.check(input.email);
+    if (!allowance.allowed) {
+      throw new SignInThrottledException(allowance.retryAfterSeconds);
+    }
+
     // Case-insensitive on purpose, and every candidate is checked. Addresses
     // differing only by case were allowed to register twice before the address
     // was normalised, so a handful still map to two rows, and the password is
@@ -159,6 +171,7 @@ export class AuthService {
       // Pay the cost anyway, or an address with no account answers in
       // milliseconds while a wrong password takes nearly two hundred.
       if (candidates.length === 0) await this.passwords.verify(input.password, null);
+      await this.signInLimits.record(input.email);
       throw new UnauthorizedException(SIGN_IN_FAILED);
     }
 
@@ -166,8 +179,12 @@ export class AuthService {
     // has no password and could not reach here anyway; the check is explicit so
     // that stays true if guests ever gain one.
     if (matched.disabledAt || matched.isGuest) {
+      await this.signInLimits.record(input.email);
       throw new UnauthorizedException(SIGN_IN_FAILED);
     }
+
+    // Settled, so the count of wrong answers stops meaning anything.
+    await this.signInLimits.clear(input.email);
 
     // Identity is settled; now the session. A new row every time, so two
     // devices hold two credentials and either can be taken away without

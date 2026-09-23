@@ -1,4 +1,4 @@
-name: Prune verification tokens
+name: Prune expired rows
 
 # Spent and expired email-verification challenges are dead rows: nothing reads
 # one after its link has been used or its expiry has passed. Left alone they
@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   prune:
-    name: Prune spent and expired challenges
+    name: Prune spent and expired rows
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -52,7 +52,10 @@ jobs:
       - name: Build the database package and what it depends on
         run: pnpm build --filter=@canvasflow/db...
 
-      - name: Prune
+      - name: Prune verification challenges
         run: pnpm --filter @canvasflow/db prune:verification-tokens
+
+      - name: Prune sign-in failures
+        run: pnpm --filter @canvasflow/db prune:sign-in-failures
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
