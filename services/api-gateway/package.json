@@ -6,7 +6,7 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "nest build",
-    "dev": "nest start --watch --exec 'node --env-file=.env'",
+    "dev": "nest start --watch --exec 'node --env-file=.env --network-family-autoselection-attempt-timeout=2000'",
     "start": "node --env-file-if-exists=.env dist/main.js",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist .turbo *.tsbuildinfo",
