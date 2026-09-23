@@ -4,49 +4,67 @@ The gateway enforces its own rate limits. This document covers the layer in
 front of it, which exists to absorb volumetric abuse before it costs us a
 database round trip, a bcrypt hash, or an outbound email.
 
-The edge is defence in depth, not the only defence. Nothing here is required
-for the limits below to hold — they hold in the application already. What the
-edge buys is that a flood never reaches the application at all.
+The edge is defence in depth, not the only defence. What it buys is that a
+flood never reaches the application at all.
 
 ## Where this stands today
 
-There is no edge in front of the API. Cloudflare is the nameserver for
-`canvasflowapp.com`, which is easy to mistake for protection, but the record
-that matters is not proxied:
+Cloudflare proxies `api.canvasflowapp.com`, and Fly's own proxy sits behind it:
 
 ```
-canvasflowapp.com      NS  jillian.ns.cloudflare.com, jermaine.ns.cloudflare.com
-api.canvasflowapp.com  A   66.241.124.56
-canvasflow-api.fly.dev A   66.241.124.56
+browser → Cloudflare → Fly proxy → gateway      TRUST_PROXY_HOPS = 2
 ```
 
-The custom hostname resolves to the same address as the origin, which is how
-you can tell the proxy is off. A proxied record answers with the proxy's own
-address instead. Every request to the API therefore reaches Fly directly, and
-no rule written in Cloudflare has any effect on it.
+Confirm the proxy is on by resolving `api.canvasflowapp.com` and comparing it
+with `canvasflow-api.fly.dev`. Different addresses, and a `cf-ray` header on
+the response, mean proxied; equal means direct.
 
-Confirm this the same way before and after any change: resolve
-`api.canvasflowapp.com` and compare it with `canvasflow-api.fly.dev`. Equal
-means direct; different means proxied.
+## The direct address, and the origin lock
 
-## Turning it on
+Proxying the custom hostname does not hide the origin. `canvasflow-api.fly.dev`
+answers on Fly's address, and a request sent there passes through one proxy
+instead of two:
 
-Three changes, and the order matters.
+```
+Through the edge:  X-Forwarded-For: <client>, <cloudflare>   → req.ip = client
+Direct:            X-Forwarded-For: <anything>, <client>     → req.ip = anything
+```
 
-1. **Enable the proxy** for the `api.canvasflowapp.com` record. Traffic then
-   terminates at the edge and is forwarded to Fly.
-2. **Add the rules** below.
-3. **Set `TRUST_PROXY_HOPS` to `2`** in `fly.api-gateway.toml` and deploy.
+`TRUST_PROXY_HOPS = 2` believes two entries from the right. On the direct path
+the second one is the caller's own, so the entry before it is whatever they
+wrote. They can name a fresh address per request and start every per-IP limit
+from zero, and no rule configured at the edge applies to them. The per-account
+sign-in limit still holds, because it does not look at the address.
 
-Step three belongs with step one, not before and not long after. Set it early
-and the gateway trusts a hop that is not there yet, which lets a caller forge
-their own address through `X-Forwarded-For` and walk past every per-IP limit.
-Leave it late and every caller appears to be the proxy, so the limits count the
-whole internet as one person and throttle everybody together the first time
-anyone trips one.
+The origin lock closes that path. Cloudflare adds a secret header to every
+request it forwards, and the gateway refuses anything without it
+(`services/api-gateway/src/common/origin-lock.ts`):
 
-After deploying, make a request from a known address and confirm the gateway
-attributes it to that address rather than to a proxy.
+| Where      | What                                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Cloudflare | Rules → Transform Rules → Modify Request Header, hostname `api.canvasflowapp.com`, **Set** `X-Origin-Auth` to the secret |
+| Fly        | `fly secrets set ORIGIN_AUTH_SECRET=<same secret> -a canvasflow-api`                                                     |
+| Exempt     | `/health` and `/healthz`, which Fly's own checks call directly                                                           |
+
+**Order matters.** The Cloudflare rule goes in first, the Fly secret second.
+The secret turns enforcement on the moment the machines restart, and without
+the rule already in place every real request is refused along with the direct
+ones.
+
+To rotate: add the new value to the Cloudflare rule, set it on Fly, and only
+then retire the old one. There is a short window during the Fly restart where
+requests carrying the old value are refused; do it at a quiet hour.
+
+Check after any change:
+
+```
+curl -s -o /dev/null -w '%{http_code}\n' https://canvasflow-api.fly.dev/auth/signin -X POST   # 403
+curl -s -o /dev/null -w '%{http_code}\n' https://api.canvasflowapp.com/auth/signin -X POST    # 400
+curl -s -o /dev/null -w '%{http_code}\n' https://canvasflow-api.fly.dev/healthz               # 200
+```
+
+The gateway logs a warning at startup when it trusts an edge hop but has no
+secret, which is the state that leaves the direct path forgeable.
 
 ## Rules to configure
 
@@ -74,14 +92,19 @@ automation costs real users nothing.
 | Operation | Limit                    | Scope       |
 | --------- | ------------------------ | ----------- |
 | Signup    | 10 per minute            | per IP      |
+| Sign-in   | 30 per minute            | per IP      |
+| Sign-in   | 10 failures / 15 minutes | per address |
 | Verify    | 30 per minute            | per IP      |
 | Resend    | 10 per 10 minutes        | per IP      |
 | Resend    | 1/minute, 5/hour, 10/day | per account |
 
-The per-account limit is counted from rows in `email_verification_tokens`, so
-it survives restarts and holds across instances. The per-IP limits are counted
-in the process's memory and reset on deploy, which is acceptable for abuse
-control and is the main reason an edge layer is worth having.
+The per-account limits are counted from database rows, so they survive
+restarts and hold across instances. The per-IP limits are counted in the
+process's memory and reset on deploy, which is acceptable for abuse control and
+is the main reason an edge layer is worth having.
+
+The sign-in limit per address is keyed on the address as submitted, account or
+no account, so being refused for pace does not reveal which addresses exist.
 
 ## Sign-in
 
@@ -95,41 +118,23 @@ passwords with no limit at all and was reachable directly even after the login
 page stopped using it. It has been removed along with the rest of Auth.js, so
 there is no longer a way to test a password that goes around these limits.
 
-Still missing, and wanted: a limit per account as well as per IP. It has to be
-keyed on the address as submitted, not on whether it matches an account, or the
-limiter itself would reveal which addresses exist.
-
-## The origin stays reachable
-
-Proxying the custom hostname does not hide the origin. `canvasflow-api.fly.dev`
-keeps answering on the same address, so anyone who knows it can send traffic
-straight past every rule above.
-
-This is worth knowing rather than worrying about. The application's own limits
-still apply on that path, which is the reason they were built first and the
-reason they are not merely a duplicate of the edge. Closing it properly means
-refusing requests at the origin that did not come through the edge, and that is
-a separate change with its own failure mode: get it wrong and the service is
-unreachable rather than merely unprotected.
-
 ## The header that decides who a caller is
 
 Every per-IP limit counts `req.ip`, which Express derives from
-`X-Forwarded-For` and the `TRUST_PROXY_HOPS` setting.
+`X-Forwarded-For` and the `TRUST_PROXY_HOPS` setting, counting from the right.
 
-**The edge must overwrite `X-Forwarded-For`, not append to a client-supplied
-one.** A caller who can prepend their own entry can invent a fresh address per
-request. Most providers do the right thing by default; confirm it rather than
-assume it.
-
-**`TRUST_PROXY_HOPS` must equal the number of proxies actually in front.** It
-is `1` today, for Fly's own proxy. Nothing else counts until step one above is
-done.
+**`TRUST_PROXY_HOPS` must equal the number of proxies actually in front.** Too
+low and every caller looks like the proxy, so one person tripping a limit
+throttles everybody. Too high and a caller's own entry is believed. Cloudflare
+appending to a client-supplied `X-Forwarded-For` is fine: whatever the client
+wrote sits to the left of the entries being counted.
 
 ## What is deliberately not here
 
 No edge caching for `/auth`. These responses are per-caller and some of them
 spend a single-use token; a cached one would be wrong at best.
 
-No IP allowlisting. Signup and verification are reached by people we have never
-seen before, which is the point of them.
+No IP allowlisting of callers. Signup and verification are reached by people we
+have never seen before, which is the point of them. (Allowlisting Cloudflare's
+ranges at the origin would be an alternative to the secret header, but the
+ranges change and the list would need keeping current.)

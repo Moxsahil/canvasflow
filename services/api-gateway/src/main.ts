@@ -16,6 +16,7 @@ import { AppModule } from './app.module.js';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js';
 import { allowedOrigins } from './common/allowed-origins.js';
+import { originLock } from './common/origin-lock.js';
 
 /**
  * Room for one Yjs update, which is the largest body this API takes.
@@ -51,6 +52,17 @@ async function bootstrap(): Promise<void> {
    * proxy and the socket address is already the caller.
    */
   app.set('trust proxy', env.TRUST_PROXY_HOPS > 0 ? env.TRUST_PROXY_HOPS : false);
+
+  // First, so a request that skipped the edge is refused before any parsing,
+  // limiting or database work. See origin-lock.ts for why the hop count above
+  // is only safe with this in place.
+  app.use(originLock(env.ORIGIN_AUTH_SECRET));
+
+  if (env.NODE_ENV === 'production' && env.TRUST_PROXY_HOPS > 1 && !env.ORIGIN_AUTH_SECRET) {
+    logger.warn(
+      '⚠️  TRUST_PROXY_HOPS counts an edge proxy but ORIGIN_AUTH_SECRET is unset: callers on the direct address can forge their own IP.',
+    );
+  }
 
   app.use(express.json({ limit: MAX_REQUEST_BODY }));
 

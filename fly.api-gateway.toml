@@ -5,7 +5,7 @@
 #
 #   fly deploy -c fly.api-gateway.toml
 #
-# Secrets (DATABASE_URL, AUTH_SECRET, R2_*) are set with `fly secrets set`
+# Secrets (DATABASE_URL, AUTH_SECRET, R2_*, ORIGIN_AUTH_SECRET) are set with `fly secrets set`
 # and never appear in this file.
 
 app = "canvasflow-api"
@@ -22,10 +22,11 @@ primary_region = "sin"
   # calls from the old host are refused — which is the intended end state.
   WEB_URL = "https://canvasflowapp.com"
   EDITOR_URL = "https://app.canvasflowapp.com"
-  # One hop: Fly's own proxy, which is the only thing in front of the app
-  # today. Without this the app sees that proxy as the caller, every request
-  # shares one address, and the per-IP rate limits throttle everybody at once.
-  # Raise to "2" the day a WAF is put in front, and not before — see
+  # Two hops: Cloudflare, then Fly's own proxy. Without this the app sees a
+  # proxy as the caller, every request shares one address, and the per-IP rate
+  # limits throttle everybody at once. Only safe with ORIGIN_AUTH_SECRET set
+  # (a Fly secret): on the direct *.fly.dev address there is one hop fewer,
+  # and without the origin lock a caller there writes their own address. See
   # docs/edge-protection.md.
   TRUST_PROXY_HOPS = "2"
   # The parent domain, so the web app, the editor and this service all see one

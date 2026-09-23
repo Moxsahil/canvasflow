@@ -100,17 +100,17 @@ export class AuthController {
   }
 
   /**
-   * Establish who a pair of credentials belongs to.
+   * Establish who a pair of credentials belongs to, and start a session.
    *
-   * Answers 200 with the account, or 401 with one sentence that covers every
-   * way this can fail. No session and no token yet: issuing those is a later
-   * stage, and nothing calls this route until then.
+   * Answers 200 with the account and the session in two HttpOnly cookies, or
+   * 401 with one sentence that covers every way this can fail.
    *
    * The per-IP budget is looser than signup's because people mistype
    * passwords and offices share one address, and because it is not the real
-   * defence. Limiting failures per account is, and that is deliberately left
-   * to its own stage, since a limiter that behaves differently for an address
-   * that exists becomes the very thing the error message refuses to be.
+   * defence. The limit on failures per address is, and it answers the same
+   * whether or not the address has an account, since a limiter that behaves
+   * differently for one that exists becomes the very thing the error message
+   * refuses to be.
    */
   @Post('signin')
   @HttpCode(200)

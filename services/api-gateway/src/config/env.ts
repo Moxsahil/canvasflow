@@ -72,6 +72,21 @@ const envSchema = z
      */
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(4).default(0),
 
+    /**
+     * The value the edge proxy puts in `X-Origin-Auth` on every request it
+     * forwards. When set, anything without it is refused, which closes the
+     * host's direct address — the path on which `TRUST_PROXY_HOPS` counts one
+     * proxy too many and a caller writes their own address.
+     *
+     * Unset disables the check, which is right wherever nothing sits in front.
+     * Set as a Fly secret, and only once the edge is already sending it.
+     */
+    ORIGIN_AUTH_SECRET: z
+      .string()
+      .min(32, 'ORIGIN_AUTH_SECRET must be at least 32 characters')
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
+
     // === Email delivery (Resend) ===
     // Optional like the storage group below: a checkout without a key still
     // serves every route, and a verification send reports that it did not go

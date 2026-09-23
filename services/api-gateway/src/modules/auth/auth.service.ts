@@ -31,8 +31,8 @@ export interface SignInInput {
 }
 
 /**
- * Deliberately carries no session and no token. Issuing those is a later
- * stage; this says only who the credentials belonged to.
+ * Who the credentials belonged to, and nothing else. The tokens travel
+ * beside it in {@link SignInResult}, so this is safe to return in a body.
  */
 export interface AuthenticatedAccount {
   id: string;
@@ -137,8 +137,7 @@ export class AuthService {
    * hash when there is nothing real to compare with. A message that refuses to
    * distinguish them is worth nothing if the clock does it instead.
    *
-   * Issues no session. That is a later stage; this answers only the question
-   * of identity.
+   * On success, starts a new session and issues the pair of tokens for it.
    */
   async signIn(input: SignInInput, context: RequestContext): Promise<SignInResult> {
     // Before the lookup and before any hashing. A per-IP limit counts where a
