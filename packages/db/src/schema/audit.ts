@@ -7,9 +7,14 @@ export const auditLog = pgTable(
   'audit_log',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    workspaceId: uuid('workspace_id')
-      .notNull()
-      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    /**
+     * Null for events that do not happen inside a workspace.
+     *
+     * Everything here used to: a board renamed, a member invited. Signing in
+     * does not — it happens before any workspace is in view, and a failed one
+     * may not belong to an account at all.
+     */
+    workspaceId: uuid('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
     actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
     action: text('action').$type<AuditAction>().notNull(),
     targetType: text('target_type').notNull(),

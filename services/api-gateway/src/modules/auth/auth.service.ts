@@ -3,6 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { users } from '@canvasflow/db';
 import { DatabaseService } from '../../infra/database/database.service.js';
 import { VerificationService } from '../email-verification/verification.service.js';
+import { AuditService, type RequestContext } from './audit.service.js';
 import { PasswordService } from './password.service.js';
 import { SessionService } from './session.service.js';
 import { SignInRateLimiter, SignInThrottledException } from './sign-in-rate-limit.service.js';
@@ -72,6 +73,7 @@ export class AuthService {
     private readonly passwords: PasswordService,
     private readonly sessions: SessionService,
     private readonly signInLimits: SignInRateLimiter,
+    private readonly audit: AuditService,
     private readonly tokens: TokenService,
   ) {}
 
@@ -138,7 +140,7 @@ export class AuthService {
    * Issues no session. That is a later stage; this answers only the question
    * of identity.
    */
-  async signIn(input: SignInInput, userAgent: string | null): Promise<SignInResult> {
+  async signIn(input: SignInInput, context: RequestContext): Promise<SignInResult> {
     // Before the lookup and before any hashing. A per-IP limit counts where a
     // request came from, which whoever is guessing gets to choose; this counts
     // the account they are guessing at, which they do not. Asked of the
@@ -189,10 +191,19 @@ export class AuthService {
     // Identity is settled; now the session. A new row every time, so two
     // devices hold two credentials and either can be taken away without
     // touching the other.
-    const session = await this.sessions.create(matched.id, userAgent);
+    const session = await this.sessions.create(matched.id, context.userAgent);
     const access = await this.tokens.issue({
       userId: matched.id,
       sessionId: session.sessionId,
+    });
+
+    await this.audit.record({
+      action: 'auth.login',
+      actorId: matched.id,
+      targetType: 'session',
+      targetId: session.sessionId,
+      metadata: { method: 'password' },
+      context,
     });
 
     return {
@@ -288,22 +299,49 @@ export class AuthService {
    * the current browser would leave the one session somebody is most likely to
    * be wrong about — the one on the machine they are not sure is theirs.
    */
-  async signOutEverywhere(userId: string): Promise<void> {
+  async signOutEverywhere(userId: string, context: RequestContext): Promise<void> {
     await this.sessions.revokeAllFor(userId);
+    await this.audit.record({
+      action: 'auth.session.revoked',
+      actorId: userId,
+      targetType: 'user',
+      targetId: userId,
+      metadata: { scope: 'all' },
+      context,
+    });
   }
 
-  async signOut(credentials: { refreshToken?: string; accessToken?: string }): Promise<void> {
+  async signOut(
+    credentials: { refreshToken?: string; accessToken?: string },
+    context: RequestContext,
+  ): Promise<void> {
     if (credentials.refreshToken) {
       const session = await this.sessions.findLive(credentials.refreshToken);
       if (session) {
         await this.sessions.revoke(session.id);
+        await this.audit.record({
+          action: 'auth.logout',
+          actorId: session.userId,
+          targetType: 'session',
+          targetId: session.id,
+          context,
+        });
         return;
       }
     }
 
     if (credentials.accessToken) {
       const claims = await this.tokens.read(credentials.accessToken);
-      if (claims) await this.sessions.revoke(claims.sessionId);
+      if (claims) {
+        await this.sessions.revoke(claims.sessionId);
+        await this.audit.record({
+          action: 'auth.logout',
+          actorId: claims.userId,
+          targetType: 'session',
+          targetId: claims.sessionId,
+          context,
+        });
+      }
     }
   }
 }

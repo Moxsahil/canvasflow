@@ -86,7 +86,10 @@ export class OAuthController {
     // exception, and widening the shared declaration for them would force
     // every other controller to narrow.
     const identity = request.user as unknown as OAuthIdentity;
-    const result = await this.oauth.signIn(identity, userAgent ?? null);
+    const result = await this.oauth.signIn(identity, {
+      ip: request.ip ?? null,
+      userAgent: userAgent ?? null,
+    });
 
     setSessionCookies(response, result);
 

@@ -134,6 +134,13 @@
       "when": 1790142039579,
       "tag": "0018_serious_scarlet_spider",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790152276668,
+      "tag": "0019_redundant_skaar",
+      "breakpoints": true
     }
   ]
 }

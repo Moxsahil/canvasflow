@@ -3,48 +3,21 @@ import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import { authSessionTokens, authSessions, type AuthSessionRow } from '@canvasflow/db';
 import { DatabaseService } from '../../infra/database/database.service.js';
+import { AuditService } from './audit.service.js';
+import {
+  ABSOLUTE_SESSION_TTL_MS,
+  REFRESH_TOKEN_TTL_MS,
+  classifyRotation,
+  resolveSpent,
+} from './rotation-decision.js';
+
+export { ABSOLUTE_SESSION_TTL_MS, REFRESH_TOKEN_TTL_MS };
 
 /**
  * Bytes of entropy in a refresh token. 32 bytes is 256 bits, the same budget
  * a share link and a verification challenge get.
  */
 const REFRESH_TOKEN_BYTES = 32;
-
-/**
- * How long a session survives without being used.
- *
- * Sliding: every renewal pushes the expiry to this far from now, so somebody
- * who opens CanvasFlow at least once a month is never asked to sign in again.
- * Only a session left untouched for the whole window lapses. That is how the
- * tools people compare this with behave, and signing somebody out on day
- * thirty for having used the product every day was the wrong trade.
- */
-export const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-
-/**
- * The longest any one session can live, however active.
- *
- * What a sliding window gives up is a natural end: whoever holds a refresh
- * token can keep it alive by using it. Rotation and reuse detection catch a
- * copied token the moment both copies are used, but not one whose rightful
- * owner has stopped visiting. This cap bounds that case — one sign-in a year.
- * Remove it by making it Infinity; nothing else depends on it.
- */
-export const ABSOLUTE_SESSION_TTL_MS = 365 * 24 * 60 * 60 * 1000;
-
-/**
- * How soon after a token is spent a second presentation is forgiven.
- *
- * Two tabs can reach for the same token at once: both read the cookie before
- * either wrote its replacement, and the slower one arrives holding something
- * that was valid when it set off. That is a race, not a theft, and ending the
- * session over it would sign people out for having two tabs open.
- *
- * Deliberately short. The window is the one gap in reuse detection, and a
- * stolen token replayed inside ten seconds of the real one is a narrow case
- * compared to signing out every user with a second tab.
- */
-const REUSE_GRACE_MS = 10_000;
 
 export interface IssuedSession {
   sessionId: string;
@@ -83,7 +56,10 @@ export type RotationOutcome =
 export class SessionService {
   private readonly logger = new Logger(SessionService.name);
 
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly audit: AuditService,
+  ) {}
 
   /**
    * Digest a refresh token for storage and lookup.
@@ -163,17 +139,15 @@ export class SessionService {
     const now = Date.now();
     const cap = session.createdAt.getTime() + ABSOLUTE_SESSION_TTL_MS;
 
-    // The session's own state decides first. A session that has already ended
-    // is simply over; reading the token before this made every retry against a
-    // revoked session raise a fresh theft alarm and run another revoke, which
-    // buried a real one in noise.
-    if (session.revokedAt) return { status: 'invalid' };
-    if (session.expiresAt.getTime() <= now) return { status: 'invalid' };
-    if (cap <= now) return { status: 'invalid' };
+    // The judgement lives in rotation-decision.ts, with no database in it, so
+    // every branch below is reachable from a test rather than only from a
+    // live session in the right state.
+    const verdict = classifyRotation(token.usedAt, session, now);
 
-    if (token.usedAt) return this.spentAgain(session, token.usedAt, now, cap);
+    if (verdict === 'invalid' || verdict === 'raced') return { status: verdict };
+    if (verdict === 'rotate') return this.issueSuccessor(session, token.id, now, cap);
 
-    return this.issueSuccessor(session, token.id, now, cap);
+    return this.spentAgain(session, token.usedAt as Date, now, cap);
   }
 
   /**
@@ -200,23 +174,27 @@ export class SessionService {
     now: number,
     cap: number,
   ): Promise<RotationOutcome> {
-    // Two tabs reaching for the same token within a moment of each other.
-    if (now - usedAt.getTime() <= REUSE_GRACE_MS) return { status: 'raced' };
-
     const [progressed] = await this.database.db
       .select({ id: authSessionTokens.id })
       .from(authSessionTokens)
       .where(and(eq(authSessionTokens.sessionId, session.id), gt(authSessionTokens.usedAt, usedAt)))
       .limit(1);
 
-    // Rescued once already. A genuine undelivered response happens once; two
-    // parties passing a session back and forth would look like this every
-    // time, and each rescue would read exactly like the last.
-    if (progressed || session.recoveredAt) {
+    if (resolveSpent(progressed !== undefined, session.recoveredAt) === 'reused') {
       this.logger.warn(
         `Refresh token reuse on session ${session.id}; revoking it for user ${session.userId}`,
       );
       await this.revoke(session.id);
+      // The one event here worth being able to ask about later. No request
+      // context: rotation happens several layers below the request, and a
+      // half-true address would be worse than none.
+      await this.audit.record({
+        action: 'auth.session.reuse_detected',
+        actorId: session.userId,
+        targetType: 'session',
+        targetId: session.id,
+        metadata: { recovered: session.recoveredAt !== null },
+      });
       return { status: 'reused' };
     }
 

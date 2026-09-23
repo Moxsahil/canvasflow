@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller.js';
+import { AuditService } from './audit.service.js';
 import { AuthService } from './auth.service.js';
 import { EditorTokenService } from './editor-token.service.js';
 import { PasswordService } from './password.service.js';
@@ -25,6 +26,7 @@ import { EmailVerificationModule } from '../email-verification/email-verificatio
   controllers: [AuthController, OAuthController, SessionController],
   providers: [
     AuthService,
+    AuditService,
     PasswordService,
     SessionService,
     SignInRateLimiter,

@@ -33,7 +33,8 @@
     "prune:verification-tokens": "tsx scripts/prune-verification-tokens.ts",
     "db:studio": "drizzle-kit studio",
     "verify:sharing": "tsx scripts/verify-sharing.mts",
-    "prune:sign-in-failures": "tsx scripts/prune-sign-in-failures.ts"
+    "prune:sign-in-failures": "tsx scripts/prune-sign-in-failures.ts",
+    "show:auth-events": "tsx scripts/show-auth-events.ts"
   },
   "dependencies": {
     "@canvasflow/types": "workspace:*",

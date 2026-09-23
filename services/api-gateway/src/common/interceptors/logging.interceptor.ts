@@ -8,6 +8,7 @@ import {
 import type { Observable } from 'rxjs';
 import type { Request, Response } from 'express';
 import { tap } from 'rxjs/operators';
+import { redactUrl } from '../redact-url.js';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
@@ -18,7 +19,10 @@ export class LoggingInterceptor implements NestInterceptor {
     const request = ctx.getRequest<Request>();
     const response = ctx.getResponse<Response>();
     const startedAt = Date.now();
-    const { method, url } = request;
+    const { method } = request;
+    // The OAuth callback arrives with the authorization code in its query, so
+    // the URL of that one request is itself a credential until it is spent.
+    const url = redactUrl(request.url);
 
     return next.handle().pipe(
       tap(() => {

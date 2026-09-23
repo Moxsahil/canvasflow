@@ -17,6 +17,7 @@ import { AuthService, type AuthenticatedAccount, type SignupResult } from './aut
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { parseEnv } from '../../config/env.js';
 import { isAllowedOrigin } from '../../common/allowed-origins.js';
+import type { RequestContext } from './audit.service.js';
 import { CurrentUser } from './current-user.decorator.js';
 import { type AuthenticatedUser, JwtAuthGuard } from './jwt.guard.js';
 import {
@@ -118,6 +119,7 @@ export class AuthController {
   async signIn(
     @Body() body: unknown,
     @Headers('user-agent') userAgent: string | undefined,
+    @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<{ data: SignInResponse }> {
     const parsed = signInSchema.safeParse(body ?? {});
@@ -125,7 +127,7 @@ export class AuthController {
       throw new BadRequestException('Invalid email or password');
     }
 
-    const result = await this.auth.signIn(parsed.data, userAgent ?? null);
+    const result = await this.auth.signIn(parsed.data, contextOf(request, userAgent));
 
     setSessionCookies(response, result);
 
@@ -213,10 +215,13 @@ export class AuthController {
 
     const cookies = request.cookies as Record<string, string> | undefined;
 
-    await this.auth.signOut({
-      refreshToken: cookies?.[REFRESH_COOKIE],
-      accessToken: cookies?.[ACCESS_COOKIE],
-    });
+    await this.auth.signOut(
+      {
+        refreshToken: cookies?.[REFRESH_COOKIE],
+        accessToken: cookies?.[ACCESS_COOKIE],
+      },
+      contextOf(request, request.headers['user-agent']),
+    );
 
     clearSessionCookies(response);
   }
@@ -239,13 +244,25 @@ export class AuthController {
   async signOutEverywhere(
     @CurrentUser() user: AuthenticatedUser,
     @Headers('origin') origin: string | undefined,
+    @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<void> {
     if (!isAllowedOrigin(origin, parseEnv())) {
       throw new ForbiddenException('Cross-origin sign-out is not allowed');
     }
 
-    await this.auth.signOutEverywhere(user.id);
+    await this.auth.signOutEverywhere(user.id, contextOf(request, request.headers['user-agent']));
     clearSessionCookies(response);
   }
+}
+
+/**
+ * Who is calling, as far as the edge can tell.
+ *
+ * `request.ip` is only as good as the proxy count in `TRUST_PROXY_HOPS`, which
+ * is the same number every per-IP limit already depends on. Recorded for the
+ * audit trail, never used to decide anything.
+ */
+function contextOf(request: Request, userAgent: string | undefined): RequestContext {
+  return { ip: request.ip ?? null, userAgent: userAgent ?? null };
 }
