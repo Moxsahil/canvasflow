@@ -15,7 +15,11 @@ export type AuditAction =
   | 'board.exported'
   | 'auth.login'
   | 'auth.logout'
-  | 'auth.password.changed';
+  | 'auth.password.changed'
+  /** Every session an account had, ended at once. */
+  | 'auth.session.revoked'
+  /** A refresh token was presented after it had already been spent. */
+  | 'auth.session.reuse_detected';
 
 export interface AuditEvent {
   id: AuditEventId;

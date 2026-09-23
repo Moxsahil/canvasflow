@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { accounts, users, type UserRow } from '@canvasflow/db';
 import { DatabaseService } from '../../../infra/database/database.service.js';
+import { AuditService, type RequestContext } from '../audit.service.js';
 import { SessionService } from '../session.service.js';
 import { TokenService } from '../token.service.js';
 import type { SignInResult } from '../auth.service.js';
@@ -65,9 +66,10 @@ export class OAuthService {
     private readonly database: DatabaseService,
     private readonly sessions: SessionService,
     private readonly tokens: TokenService,
+    private readonly audit: AuditService,
   ) {}
 
-  async signIn(identity: OAuthIdentity, userAgent: string | null): Promise<SignInResult> {
+  async signIn(identity: OAuthIdentity, context: RequestContext): Promise<SignInResult> {
     const user = await this.resolveUser(identity);
 
     // Same refusal the password path gives a barred account. Arriving through
@@ -78,8 +80,17 @@ export class OAuthService {
 
     await this.recordVerification(user, identity);
 
-    const session = await this.sessions.create(user.id, userAgent);
+    const session = await this.sessions.create(user.id, context.userAgent);
     const access = await this.tokens.issue({ userId: user.id, sessionId: session.sessionId });
+
+    await this.audit.record({
+      action: 'auth.login',
+      actorId: user.id,
+      targetType: 'session',
+      targetId: session.sessionId,
+      metadata: { method: identity.provider },
+      context,
+    });
 
     return {
       account: { id: user.id, email: user.email, name: user.name, image: user.avatarUrl },

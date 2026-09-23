@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 
 import type { Request, Response } from 'express';
+import { redactUrl } from '../redact-url.js';
 
 interface ErrorResponse {
   statusCode: number;
@@ -62,19 +63,37 @@ export class HttpExceptionFilter implements ExceptionFilter {
         error = obj.error ?? error;
         if (typeof obj.retryAfterSeconds === 'number') retryAfterSeconds = obj.retryAfterSeconds;
       }
+    } else {
+      // Not a Nest exception, but the ecosystem's own convention for one:
+      // body-parser and http-errors both throw plain errors carrying the
+      // status they mean. An oversized body is the case that matters — it was
+      // being reported as this service failing, when in fact the body was
+      // refused exactly as intended, before any password work.
+      //
+      // Client errors only. Something claiming a 5xx is still just something
+      // that broke, and its own wording stays out of the answer either way:
+      // the label comes from the status, never from the thrown error.
+      const claimed = statusFrom(exception);
+      if (claimed !== undefined && claimed >= 400 && claimed < 500) {
+        status = claimed;
+        error = labelFor(status);
+        message = error;
+      }
     }
 
+    const safeUrl = redactUrl(request.url);
+
     if (status >= 500) {
-      this.logger.error(`${request.method} ${request.url} -> ${status}`, describe(exception));
+      this.logger.error(`${request.method} ${safeUrl} -> ${status}`, describe(exception));
     } else {
-      this.logger.debug(`${request.method} ${request.url} -> ${status} ${message}`);
+      this.logger.debug(`${request.method} ${safeUrl} -> ${status} ${message}`);
     }
 
     const payload: ErrorResponse = {
       statusCode: status,
       message,
       error,
-      path: request.url,
+      path: safeUrl,
       timestamp: new Date().toISOString(),
       ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
     };
@@ -127,4 +146,19 @@ function describe(exception: unknown): string {
     return exception.stack ?? `${exception.name}: ${exception.message}`;
   }
   return String(exception);
+}
+
+/**
+ * The status a plain error is claiming, if it claims one.
+ *
+ * `body-parser` sets `status`; `http-errors` sets both it and `statusCode`.
+ * Anything else returns undefined and keeps the generic 500.
+ */
+function statusFrom(exception: unknown): number | undefined {
+  if (typeof exception !== 'object' || exception === null) return undefined;
+  const candidate = exception as { status?: unknown; statusCode?: unknown };
+  for (const value of [candidate.status, candidate.statusCode]) {
+    if (typeof value === 'number' && Number.isInteger(value)) return value;
+  }
+  return undefined;
 }
