@@ -7,6 +7,7 @@ import { PasswordService } from './password.service.js';
 import { SessionController } from './session.controller.js';
 import { SessionRenewalService } from './session-renewal.service.js';
 import { SessionService } from './session.service.js';
+import { SignInRateLimiter } from './sign-in-rate-limit.service.js';
 import { TokenService } from './token.service.js';
 import { GitHubStrategy } from './oauth/github.strategy.js';
 import { GoogleStrategy } from './oauth/google.strategy.js';
@@ -26,6 +27,7 @@ import { EmailVerificationModule } from '../email-verification/email-verificatio
     AuthService,
     PasswordService,
     SessionService,
+    SignInRateLimiter,
     TokenService,
     OAuthService,
     SessionRenewalService,

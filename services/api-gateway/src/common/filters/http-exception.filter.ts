@@ -15,6 +15,14 @@ interface ErrorResponse {
   error: string;
   path: string;
   timestamp: string;
+  /**
+   * How long to wait, when the refusal is about pace rather than credentials.
+   *
+   * Repeated in the body as well as the `Retry-After` header because the apps
+   * calling this are on other origins, and a browser will not let them read a
+   * header that CORS has not been told to expose.
+   */
+  retryAfterSeconds?: number;
 }
 
 @Catch()
@@ -26,6 +34,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
+    let retryAfterSeconds: number | undefined;
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
     let error = 'InternalServerError';
@@ -48,9 +57,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
       if (typeof res === 'string') {
         message = res;
       } else if (typeof res === 'object' && res !== null) {
-        const obj = res as { message?: string; error?: string };
+        const obj = res as { message?: string; error?: string; retryAfterSeconds?: number };
         message = obj.message ?? message;
         error = obj.error ?? error;
+        if (typeof obj.retryAfterSeconds === 'number') retryAfterSeconds = obj.retryAfterSeconds;
       }
     }
 
@@ -66,7 +76,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
       error,
       path: request.url,
       timestamp: new Date().toISOString(),
+      ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
     };
+
+    // The header as well, for anything reading this that is not a browser on
+    // another origin — a proxy, a log, curl.
+    if (retryAfterSeconds !== undefined) {
+      response.setHeader('Retry-After', String(retryAfterSeconds));
+    }
 
     response.status(status).json(payload);
   }
