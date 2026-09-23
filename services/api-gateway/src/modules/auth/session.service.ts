@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull } from 'drizzle-orm';
 import { authSessionTokens, authSessions, type AuthSessionRow } from '@canvasflow/db';
 import { DatabaseService } from '../../infra/database/database.service.js';
 
@@ -160,11 +160,59 @@ export class SessionService {
 
     if (!session) return { status: 'invalid' };
 
-    if (token.usedAt) {
-      if (Date.now() - token.usedAt.getTime() <= REUSE_GRACE_MS) {
-        return { status: 'raced' };
-      }
+    const now = Date.now();
+    const cap = session.createdAt.getTime() + ABSOLUTE_SESSION_TTL_MS;
 
+    // The session's own state decides first. A session that has already ended
+    // is simply over; reading the token before this made every retry against a
+    // revoked session raise a fresh theft alarm and run another revoke, which
+    // buried a real one in noise.
+    if (session.revokedAt) return { status: 'invalid' };
+    if (session.expiresAt.getTime() <= now) return { status: 'invalid' };
+    if (cap <= now) return { status: 'invalid' };
+
+    if (token.usedAt) return this.spentAgain(session, token.usedAt, now, cap);
+
+    return this.issueSuccessor(session, token.id, now, cap);
+  }
+
+  /**
+   * A token that was already spent has come back.
+   *
+   * Two very different things look like this. Someone copied the credential
+   * and both are now using it — the case rotation exists to catch. Or the
+   * holder never received the replacement: a dropped response, or a machine
+   * that lost power before the browser wrote the new cookie to disk, which is
+   * ordinary and costs the person nothing they did wrong.
+   *
+   * What separates them is whether anybody got any further. If a later token
+   * in this session has been spent, two parties have been making progress and
+   * the session ends for both. If nothing after this one was ever used, the
+   * replacement went nowhere, and the honest reading is that it never arrived.
+   *
+   * Rescuing invalidates every unspent token in the session, including that
+   * undelivered replacement — so if it was taken, it dies here rather than
+   * waiting to be used.
+   */
+  private async spentAgain(
+    session: AuthSessionRow,
+    usedAt: Date,
+    now: number,
+    cap: number,
+  ): Promise<RotationOutcome> {
+    // Two tabs reaching for the same token within a moment of each other.
+    if (now - usedAt.getTime() <= REUSE_GRACE_MS) return { status: 'raced' };
+
+    const [progressed] = await this.database.db
+      .select({ id: authSessionTokens.id })
+      .from(authSessionTokens)
+      .where(and(eq(authSessionTokens.sessionId, session.id), gt(authSessionTokens.usedAt, usedAt)))
+      .limit(1);
+
+    // Rescued once already. A genuine undelivered response happens once; two
+    // parties passing a session back and forth would look like this every
+    // time, and each rescue would read exactly like the last.
+    if (progressed || session.recoveredAt) {
       this.logger.warn(
         `Refresh token reuse on session ${session.id}; revoking it for user ${session.userId}`,
       );
@@ -172,36 +220,74 @@ export class SessionService {
       return { status: 'reused' };
     }
 
-    const now = Date.now();
-    const cap = session.createdAt.getTime() + ABSOLUTE_SESSION_TTL_MS;
+    this.logger.warn(
+      `Session ${session.id} presented a spent token whose replacement was never used; ` +
+        `treating it as an undelivered rotation and reissuing once`,
+    );
+    return this.issueSuccessor(session, null, now, cap);
+  }
 
-    if (session.revokedAt) return { status: 'invalid' };
-    if (session.expiresAt.getTime() <= now) return { status: 'invalid' };
-    if (cap <= now) return { status: 'invalid' };
-
-    // Spend it. Conditional on it still being unspent, so that two requests
-    // arriving together cannot both be served: the database decides which one
-    // won, not the gap between the read above and this write.
-    const spent = await db
-      .update(authSessionTokens)
-      .set({ usedAt: new Date() })
-      .where(and(eq(authSessionTokens.id, token.id), isNull(authSessionTokens.usedAt)))
-      .returning({ id: authSessionTokens.id });
-
-    if (spent.length === 0) return { status: 'raced' };
-
+  /**
+   * Spend a token and put its replacement in its place.
+   *
+   * One transaction, because the three writes only mean anything together. A
+   * failure between them used to leave the token spent with no successor,
+   * which is the same dead end as a lost response and is entirely ours to
+   * avoid.
+   *
+   * `tokenId` names the token being spent. Null means a rescue: every unspent
+   * token in the session is retired instead, so exactly one live credential
+   * exists afterwards.
+   */
+  private async issueSuccessor(
+    session: AuthSessionRow,
+    tokenId: string | null,
+    now: number,
+    cap: number,
+  ): Promise<RotationOutcome> {
     const next = this.mint();
-    await db
-      .insert(authSessionTokens)
-      .values({ sessionId: session.id, tokenHash: this.hash(next) });
-
-    // Slide the window forward, but never past the absolute cap. Written in the
-    // same statement as the usage stamp so the two cannot disagree.
+    // Slide the window forward, but never past the absolute cap.
     const expiresAt = new Date(Math.min(now + REFRESH_TOKEN_TTL_MS, cap));
-    await db
-      .update(authSessions)
-      .set({ lastUsedAt: new Date(now), expiresAt })
-      .where(eq(authSessions.id, session.id));
+    const spentAt = new Date(now);
+
+    const rotated = await this.database.db.transaction(async (tx) => {
+      if (tokenId) {
+        // Conditional on it still being unspent, so two requests arriving
+        // together cannot both be served: the database decides which one won,
+        // not the gap between the read and this write.
+        const spent = await tx
+          .update(authSessionTokens)
+          .set({ usedAt: spentAt })
+          .where(and(eq(authSessionTokens.id, tokenId), isNull(authSessionTokens.usedAt)))
+          .returning({ id: authSessionTokens.id });
+
+        if (spent.length === 0) return false;
+      } else {
+        await tx
+          .update(authSessionTokens)
+          .set({ usedAt: spentAt })
+          .where(
+            and(eq(authSessionTokens.sessionId, session.id), isNull(authSessionTokens.usedAt)),
+          );
+      }
+
+      await tx
+        .insert(authSessionTokens)
+        .values({ sessionId: session.id, tokenHash: this.hash(next) });
+
+      await tx
+        .update(authSessions)
+        .set({
+          lastUsedAt: spentAt,
+          expiresAt,
+          ...(tokenId ? {} : { recoveredAt: spentAt }),
+        })
+        .where(eq(authSessions.id, session.id));
+
+      return true;
+    });
+
+    if (!rotated) return { status: 'raced' };
 
     return {
       status: 'rotated',

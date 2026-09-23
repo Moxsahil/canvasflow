@@ -6,6 +6,7 @@ import {
   decodeJwtExpiry,
   getAuthTokenFromHash,
   refreshAuthToken,
+  sessionResumeUrl,
   TokenRefreshError,
 } from './token';
 
@@ -17,6 +18,16 @@ const REFRESH_MARGIN_MS = 60_000;
 // the user's web session itself expired) — several BoardSync flushes
 // can all report a 401 in quick succession.
 const MIN_REFRESH_INTERVAL_MS = 5_000;
+
+/**
+ * How many refusals in a row before this session is treated as over.
+ *
+ * Not one: a single 401 can be a renewal that lost a race to another tab, and
+ * the next attempt succeeds. Not unbounded either — that was the bug. A board
+ * whose token cannot be reminted is not usable, and retrying it silently for
+ * ever left people looking at a dead canvas with nothing to act on.
+ */
+const MAX_UNAUTHORIZED = 3;
 
 interface AuthTokenState {
   token: string | null;
@@ -88,6 +99,7 @@ export function useAuthToken(boardId: string): {
   const [accessDenied, setAccessDenied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAttemptRef = useRef(0);
+  const unauthorizedRef = useRef(0);
 
   const refresh = useCallback(async () => {
     const now = Date.now();
@@ -98,6 +110,7 @@ export function useAuthToken(boardId: string): {
       // decides who can mint the next one. Read through a ref so a new token
       // does not rebuild this callback and restart every timer that uses it.
       const next = await refreshAuthToken(boardId, tokenRef.current);
+      unauthorizedRef.current = 0;
       window.sessionStorage.setItem(storageKeyFor(boardId), next.token);
       setState({ token: next.token, expiresAt: next.expiresAt });
     } catch (err) {
@@ -109,6 +122,19 @@ export function useAuthToken(boardId: string): {
         setAccessDenied(true);
         return;
       }
+
+      // No session behind this board any more. Hand the browser to the
+      // gateway, which renews if there is anything left to renew and otherwise
+      // lands on sign-in. Anything else — a network blip, a gateway restart —
+      // keeps the quiet retry it always had.
+      if (err instanceof TokenRefreshError && err.status === 401) {
+        unauthorizedRef.current += 1;
+        if (unauthorizedRef.current >= MAX_UNAUTHORIZED) {
+          window.location.href = sessionResumeUrl();
+          return;
+        }
+      }
+
       console.error('Failed to refresh editor auth token:', err);
     }
   }, [boardId]);

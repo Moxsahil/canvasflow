@@ -1,0 +1,1 @@
+ALTER TABLE "auth_sessions" ADD COLUMN "recovered_at" timestamp with time zone;

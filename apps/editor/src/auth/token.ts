@@ -238,6 +238,23 @@ export async function refreshAuthToken(
   }
 }
 
+/**
+ * Where to send the browser when this session is over.
+ *
+ * The gateway's resume route, not the sign-in page: if the session turns out
+ * to be alive after all — a renewal that lost a race, a blip — it renews and
+ * sends the browser straight back in. Only a session that is genuinely gone
+ * ends up at a sign-in form.
+ *
+ * `/open` rather than this board, because the destination is a path on the web
+ * app and board URLs belong to the editor. /open picks the board back up.
+ */
+export function sessionResumeUrl(): string {
+  const url = new URL('/auth/resume', env.VITE_API_URL);
+  url.searchParams.set('next', '/open');
+  return url.toString();
+}
+
 async function mintFrom(origin: string, path: string, boardId: string): Promise<RefreshedToken> {
   const url = new URL(path, origin);
   url.searchParams.set('boardId', boardId);
