@@ -2,11 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Resend } from 'resend';
 import { parseEnv } from '../../config/env.js';
 import {
+  accountClaimedEmail,
   passwordChangedEmail,
   passwordResetEmail,
   passwordSetupEmail,
   providerNoticeEmail,
   verificationEmail,
+  type AccountClaimedContent,
   type PasswordChangedContent,
   type PasswordResetContent,
   type PasswordSetupContent,
@@ -101,6 +103,18 @@ export class EmailService {
       recipient.to,
       passwordChangedEmail(content),
       `Password changed email for user ${recipient.userId}`,
+    );
+  }
+
+  /**
+   * When a provider sign-in took over an account whose address nobody had
+   * confirmed, to the address it has just confirmed.
+   */
+  async sendAccountClaimed(recipient: Recipient, content: AccountClaimedContent): Promise<boolean> {
+    return this.deliver(
+      recipient.to,
+      accountClaimedEmail(content),
+      `Account claimed email for user ${recipient.userId}`,
     );
   }
 
