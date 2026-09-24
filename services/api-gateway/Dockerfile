@@ -36,7 +36,12 @@ RUN pnpm build --filter=@canvasflow/api-gateway...
 # Collect the service and its workspace deps into one self-contained tree.
 # --legacy is required: from v10, pnpm refuses to deploy from a workspace that
 # does not set inject-workspace-packages, and this one does not.
-RUN pnpm --filter=@canvasflow/api-gateway deploy --prod --legacy /out
+#
+# A legacy deploy resolves every package again from the registry rather than
+# from the lockfile, and holding that metadata outgrew Node's default heap of
+# about 2 GB on the builder. 4 GB is for this build step only; the running
+# service never sees it.
+RUN NODE_OPTIONS=--max-old-space-size=4096 pnpm --filter=@canvasflow/api-gateway deploy --prod --legacy /out
 
 # ---------------------------------------------------------------------------
 # runtime: Node and the deployed tree, nothing else.
