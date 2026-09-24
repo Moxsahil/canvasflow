@@ -1,6 +1,11 @@
 import type { Request } from 'express';
 import { describe, expect, it } from 'vitest';
-import { countryName, describeDevice, requestOrigin } from './request-origin.js';
+import {
+  countryName,
+  describeDevice,
+  locationFromEdgeHeaders,
+  requestOrigin,
+} from './request-origin.js';
 
 const CHROME_WINDOWS =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
@@ -48,16 +53,54 @@ describe('countryName', () => {
   });
 });
 
-describe('requestOrigin', () => {
-  const request = {
-    headers: { 'user-agent': CHROME_WINDOWS, 'cf-ipcountry': 'IN' },
-  } as unknown as Request;
-
-  it('uses the edge country header when the edge is trusted', () => {
-    expect(requestOrigin(request, { trustEdgeHeaders: true }).country).toBe('India');
+describe('locationFromEdgeHeaders', () => {
+  it('names the city, region and country when the edge sends all three', () => {
+    expect(
+      locationFromEdgeHeaders({
+        'cf-ipcity': 'New Delhi',
+        'cf-region': 'Delhi',
+        'cf-ipcountry': 'IN',
+      }),
+    ).toBe('New Delhi, Delhi, India');
   });
 
-  it('ignores the edge country header when anybody could have sent it', () => {
-    expect(requestOrigin(request, { trustEdgeHeaders: false }).country).toBeNull();
+  it('falls back to the country alone', () => {
+    expect(locationFromEdgeHeaders({ 'cf-ipcountry': 'IN' })).toBe('India');
+  });
+
+  it('does not repeat itself', () => {
+    expect(
+      locationFromEdgeHeaders({
+        'cf-ipcity': 'Singapore',
+        'cf-region': 'Singapore',
+        'cf-ipcountry': 'SG',
+      }),
+    ).toBe('Singapore');
+  });
+
+  it('decodes a percent-encoded name and strips control characters', () => {
+    expect(locationFromEdgeHeaders({ 'cf-ipcity': 'S%C3%A3o%20Paulo', 'cf-ipcountry': 'BR' })).toBe(
+      'São Paulo, Brazil',
+    );
+    expect(locationFromEdgeHeaders({ 'cf-ipcity': 'Evil\u0007City' })).toBe('EvilCity');
+  });
+
+  it('says nothing when there is nothing to say', () => {
+    expect(locationFromEdgeHeaders({})).toBeNull();
+    expect(locationFromEdgeHeaders({ 'cf-ipcountry': 'XX' })).toBeNull();
+  });
+});
+
+describe('requestOrigin', () => {
+  const request = {
+    headers: { 'user-agent': CHROME_WINDOWS, 'cf-ipcountry': 'IN', 'cf-ipcity': 'Mumbai' },
+  } as unknown as Request;
+
+  it('uses the edge location headers when the edge is trusted', () => {
+    expect(requestOrigin(request, { trustEdgeHeaders: true }).location).toBe('Mumbai, India');
+  });
+
+  it('ignores the edge location headers when anybody could have sent them', () => {
+    expect(requestOrigin(request, { trustEdgeHeaders: false }).location).toBeNull();
   });
 });

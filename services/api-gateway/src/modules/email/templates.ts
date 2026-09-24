@@ -47,9 +47,9 @@ const TIME_FORMAT = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'UTC',
 });
 
-/** "23 September 2026 at 14:05 UTC, Chrome on Windows, India" — whatever is known. */
+/** "23 September 2026 at 14:05 UTC, Chrome on Windows, New Delhi, India" — whatever is known. */
 export function describeOrigin(origin: RequestOrigin): string {
-  return [`${TIME_FORMAT.format(origin.at)} UTC`, origin.device, origin.country]
+  return [`${TIME_FORMAT.format(origin.at)} UTC`, origin.device, origin.location]
     .filter((part): part is string => Boolean(part))
     .join(', ');
 }
@@ -202,7 +202,19 @@ export interface PasswordChangedContent {
   changedFrom: RequestOrigin;
   /** Where to start another reset if this was not them. */
   forgotPasswordUrl: string;
+  /**
+   * What happened to the devices that were signed in: all of them ended (a
+   * reset), every one but the device the change was made on, or none — the
+   * person chose to stay signed in elsewhere.
+   */
+  signedOut: 'everywhere' | 'other-devices' | 'nowhere';
 }
+
+const SIGNED_OUT: Record<PasswordChangedContent['signedOut'], string> = {
+  everywhere: "You've been signed out everywhere.",
+  'other-devices': 'Every other device has been signed out.',
+  nowhere: 'Devices that were already signed in stay signed in.',
+};
 
 /**
  * Sent every time the password changes, to the address on the account.
@@ -212,6 +224,7 @@ export interface PasswordChangedContent {
  */
 export function passwordChangedEmail(content: PasswordChangedContent): RenderedEmail {
   const origin = describeOrigin(content.changedFrom);
+  const signedOut = SIGNED_OUT[content.signedOut];
 
   return {
     subject: 'Your CanvasFlow password was changed',
@@ -220,7 +233,7 @@ export function passwordChangedEmail(content: PasswordChangedContent): RenderedE
       paragraph(
         `The password for your CanvasFlow account, <strong>${escapeHtml(
           content.accountName,
-        )}</strong>, was changed ${escapeHtml(origin)}. You've been signed out everywhere.`,
+        )}</strong>, was changed ${escapeHtml(origin)}. ${signedOut}`,
       ) +
         paragraph("Wasn't you? Reset your password now to take your account back.") +
         button(content.forgotPasswordUrl, 'Reset your password') +
@@ -229,12 +242,66 @@ export function passwordChangedEmail(content: PasswordChangedContent): RenderedE
     text: [
       'Your password was changed',
       '',
-      `The password for your CanvasFlow account, ${content.accountName}, was changed ${origin}. You've been signed out everywhere.`,
+      `The password for your CanvasFlow account, ${content.accountName}, was changed ${origin}. ${signedOut}`,
       '',
       "Wasn't you? Reset your password now to take your account back:",
       content.forgotPasswordUrl,
       '',
       'If this was you, there is nothing else to do.',
+    ].join('\n'),
+  };
+}
+
+export interface PasswordSetupContent {
+  setupUrl: string;
+  expiresAt: Date;
+  accountName: string;
+  /** How they sign in today, named so the mail says what stays the same. */
+  providers: OAuthProvider[];
+  requestedFrom: RequestOrigin;
+}
+
+/**
+ * For an account that signs in only with Google or GitHub and has asked, from
+ * Settings, to add a password.
+ *
+ * A link rather than a form in Settings on purpose: adding a password gives an
+ * account a new way in, and that should take proof of the inbox, not just a
+ * signed-in browser that somebody else might be sitting at.
+ */
+export function passwordSetupEmail(content: PasswordSetupContent): RenderedEmail {
+  const minutes = minutesUntil(content.expiresAt);
+  const origin = describeOrigin(content.requestedFrom);
+  const providers = content.providers.map((p) => PROVIDER_NAMES[p]).join(' or ') || 'your provider';
+
+  return {
+    subject: 'Set a password for your CanvasFlow account',
+    html: layout(
+      'Set a password',
+      paragraph(
+        `You asked to add a password to your CanvasFlow account, <strong>${escapeHtml(
+          content.accountName,
+        )}</strong>. Once it is set you can sign in with your email and password as well as with ${escapeHtml(
+          providers,
+        )}. This link expires in ${minutes} minutes and works once.`,
+      ) +
+        button(content.setupUrl, 'Set a password') +
+        paragraph(`Requested ${escapeHtml(origin)}.`) +
+        footnote(
+          "If you didn't ask for this, you can ignore this email. Nothing changes unless the link is used.",
+        ),
+    ),
+    text: [
+      'Set a password',
+      '',
+      `You asked to add a password to your CanvasFlow account, ${content.accountName}.`,
+      `Once it is set you can sign in with your email and password as well as with ${providers}.`,
+      `This link expires in ${minutes} minutes and works once:`,
+      content.setupUrl,
+      '',
+      `Requested ${origin}.`,
+      '',
+      "If you didn't ask for this, you can ignore this email. Nothing changes unless the link is used.",
     ].join('\n'),
   };
 }

@@ -59,6 +59,15 @@ export const authSessions = pgTable(
      * this header and can write anything in it.
      */
     userAgent: text('user_agent'),
+    /**
+     * Roughly where the session began — "New Delhi, Delhi, India" — from the
+     * edge's location headers at sign-in. For showing somebody their own
+     * sessions so they can spot one that is not theirs; never used to decide
+     * anything. Null when the edge said nothing: sessions from before this was
+     * recorded, local development, and any request that did not come through
+     * the edge.
+     */
+    location: text('location'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({

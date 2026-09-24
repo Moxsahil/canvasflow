@@ -80,7 +80,7 @@ export class OAuthService {
 
     await this.recordVerification(user, identity);
 
-    const session = await this.sessions.create(user.id, context.userAgent);
+    const session = await this.sessions.create(user.id, context.userAgent, context.location);
     const access = await this.tokens.issue({ userId: user.id, sessionId: session.sessionId });
 
     await this.audit.record({

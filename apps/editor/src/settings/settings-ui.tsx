@@ -1,4 +1,5 @@
 import { Children, Fragment, type ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 
 /**
  * The pieces every pane is built from.
@@ -233,15 +234,126 @@ export function GhostButton({ children, onClick, disabled = false }: RowButtonPr
   );
 }
 
-/** The one button in the design that sits under a heading reading "Danger zone". */
-export function DangerButton({ children }: { children: ReactNode }) {
+/** A button for something that cannot be undone. Inert without an `onClick`. */
+export function DangerButton({ children, onClick, disabled = false }: RowButtonProps) {
   return (
     <button
       type="button"
-      className="flex shrink-0 items-center rounded-[7px] border border-[var(--surface-danger-border)] px-[12px] py-[7px] text-[12px] font-medium text-[var(--surface-danger)] transition-colors hover:bg-[var(--surface-danger-wash)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-danger)]"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex shrink-0 items-center rounded-[7px] border border-[var(--surface-danger-border)] px-[12px] py-[7px] text-[12px] font-medium text-[var(--surface-danger)] transition-colors hover:bg-[var(--surface-danger-wash)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-danger)] disabled:opacity-60"
     >
       {children}
     </button>
+  );
+}
+
+/** The accent button, as the footer's Save uses it, for an overlay's main action. */
+export function PrimaryButton({
+  children,
+  onClick,
+  disabled = false,
+  type = 'button',
+}: RowButtonProps & { type?: 'button' | 'submit' }) {
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className="flex shrink-0 items-center rounded-[7px] bg-[var(--surface-accent)] px-[14px] py-[8px] text-[12px] font-medium text-[var(--surface-on-accent)] transition-colors hover:bg-[var(--surface-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-fg)] disabled:opacity-60"
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * The same pill ComingSoonTag uses, with a dot carrying the colour.
+ *
+ * The dot rather than coloured text on purpose: at ten pixels, green type on
+ * this surface does not clear the contrast a reader needs, and a dot beside
+ * ordinary text says the same thing without asking anyone to squint.
+ */
+export function StatusTag({
+  tone,
+  children,
+}: {
+  tone: 'positive' | 'caution' | 'neutral';
+  children: ReactNode;
+}) {
+  return (
+    <span className="flex shrink-0 items-center gap-[5px] rounded-full border border-[var(--surface-border)] px-[7px] py-[2px] text-[10px] font-medium text-[var(--surface-fg-faint)]">
+      {tone !== 'neutral' && (
+        <span
+          className={cn(
+            'size-[5px] shrink-0 rounded-full',
+            tone === 'positive' ? 'bg-emerald-500' : 'bg-amber-500',
+          )}
+        />
+      )}
+      {children}
+    </span>
+  );
+}
+
+/**
+ * A step drawn over the whole pane: a titled card with its actions at the foot.
+ *
+ * Over the pane rather than in a second window, as the photo cropper is: the
+ * settings dialog is already modal, and stacking another dialog on it would
+ * leave two things to dismiss. Pass it as the pane's `overlay`.
+ */
+export function SettingsOverlay({
+  title,
+  description,
+  children,
+  actions,
+  onSubmit,
+}: {
+  title: string;
+  description?: ReactNode;
+  children?: ReactNode;
+  actions: ReactNode;
+  /** When set, the card is a form, so Enter submits it. */
+  onSubmit?: () => void;
+}) {
+  const body = (
+    <>
+      <div className="flex flex-col gap-[6px]">
+        <h3 className="text-[15px] font-semibold text-[var(--surface-fg)]">{title}</h3>
+        {description && (
+          <p className="text-[12px] leading-[1.55] text-[var(--surface-fg-muted)]">{description}</p>
+        )}
+      </div>
+      {children}
+      <div className="flex items-center justify-end gap-[10px] pt-[4px]">{actions}</div>
+    </>
+  );
+
+  const card =
+    'flex max-h-full w-[400px] max-w-full flex-col gap-[16px] overflow-y-auto rounded-[14px] border border-[var(--surface-border)] bg-[var(--surface-panel)] p-[22px] shadow-[var(--surface-shadow)]';
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--surface-backdrop)] p-[24px]"
+    >
+      {onSubmit ? (
+        <form
+          className={card}
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmit();
+          }}
+        >
+          {body}
+        </form>
+      ) : (
+        <div className={card}>{body}</div>
+      )}
+    </div>
   );
 }
 

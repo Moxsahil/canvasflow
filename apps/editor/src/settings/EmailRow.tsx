@@ -1,8 +1,7 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { cn } from '@/lib/utils';
+import { useEffect, useState } from 'react';
 import { resendVerification } from '../profile/verification-status';
 import { useVerificationStatus } from '../profile/useVerificationStatus';
-import { Row, RowText, SecondaryButton } from './settings-ui';
+import { Row, RowText, SecondaryButton, StatusTag } from './settings-ui';
 
 /**
  * Matches the server's own per-minute rule.
@@ -85,7 +84,7 @@ export function EmailRow({ email, verified, token, onVerified }: EmailRowProps) 
         <RowText
           title="Email"
           hint={email ?? 'No address on this account'}
-          badge={<StatusTag tone="verified">Verified</StatusTag>}
+          badge={<StatusTag tone="positive">Verified</StatusTag>}
         />
       </Row>
     );
@@ -96,7 +95,7 @@ export function EmailRow({ email, verified, token, onVerified }: EmailRowProps) 
       <RowText
         title="Email"
         hint={hintFor(email, status, cooldown)}
-        badge={<StatusTag tone="unverified">Unverified</StatusTag>}
+        badge={<StatusTag tone="caution">Unverified</StatusTag>}
       />
       <SecondaryButton onClick={() => void send()} disabled={!token || cooldown > 0}>
         {buttonLabel(status, cooldown)}
@@ -117,25 +116,4 @@ function buttonLabel(status: Status, cooldown: number): string {
   if (status === 'sending') return 'Sending…';
   if (cooldown > 0) return `Wait ${cooldown}s`;
   return 'Send verification email';
-}
-
-/**
- * The same pill ComingSoonTag uses, with a dot carrying the colour.
- *
- * The dot rather than coloured text on purpose: at ten pixels, green type on
- * this surface does not clear the contrast a reader needs, and a dot beside
- * ordinary text says the same thing without asking anyone to squint.
- */
-function StatusTag({ tone, children }: { tone: 'verified' | 'unverified'; children: ReactNode }) {
-  return (
-    <span className="flex shrink-0 items-center gap-[5px] rounded-full border border-[var(--surface-border)] px-[7px] py-[2px] text-[10px] font-medium text-[var(--surface-fg-faint)]">
-      <span
-        className={cn(
-          'size-[5px] shrink-0 rounded-full',
-          tone === 'verified' ? 'bg-emerald-500' : 'bg-amber-500',
-        )}
-      />
-      {children}
-    </span>
-  );
 }

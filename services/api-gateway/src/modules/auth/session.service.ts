@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, ne } from 'drizzle-orm';
 import {
   authSessionTokens,
   authSessions,
@@ -81,8 +81,17 @@ export class SessionService {
     return randomBytes(REFRESH_TOKEN_BYTES).toString('base64url');
   }
 
-  /** Begin a session and hand back the credential that renews it. */
-  async create(userId: string, userAgent: string | null): Promise<IssuedSession> {
+  /**
+   * Begin a session and hand back the credential that renews it.
+   *
+   * `location` is where the edge says the sign-in came from, when it can be
+   * believed; it is kept only so the owner can recognise the session later.
+   */
+  async create(
+    userId: string,
+    userAgent: string | null,
+    location: string | null = null,
+  ): Promise<IssuedSession> {
     const refreshToken = this.mint();
     const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
 
@@ -94,6 +103,7 @@ export class SessionService {
         // Truncated because this is somebody else's string and only ever gets
         // shown back to them; there is no reason to store a kilobyte of it.
         userAgent: userAgent?.slice(0, 256) ?? null,
+        location: location?.slice(0, 128) ?? null,
       })
       .returning();
 
@@ -315,6 +325,48 @@ export class SessionService {
       .update(authSessions)
       .set({ revokedAt: new Date() })
       .where(and(eq(authSessions.id, sessionId), isNull(authSessions.revokedAt)));
+  }
+
+  /**
+   * The sessions an account can still use, newest first. For showing somebody
+   * where they are signed in; each row names its device and roughly where it
+   * began, and nothing that could be used as a credential.
+   */
+  async listLive(userId: string): Promise<AuthSessionRow[]> {
+    return this.database.db
+      .select()
+      .from(authSessions)
+      .where(
+        and(
+          eq(authSessions.userId, userId),
+          isNull(authSessions.revokedAt),
+          gt(authSessions.expiresAt, new Date()),
+        ),
+      )
+      .orderBy(desc(authSessions.createdAt));
+  }
+
+  /**
+   * End every live session an account has except one. For changing the
+   * password from a signed-in device, where that device stays signed in and
+   * everything else is shown the door. Passed the change's transaction, so
+   * the other sessions end if and only if the password actually changed.
+   */
+  async revokeAllExcept(
+    userId: string,
+    keepSessionId: string,
+    executor: DatabaseExecutor = this.database.db,
+  ): Promise<void> {
+    await executor
+      .update(authSessions)
+      .set({ revokedAt: new Date() })
+      .where(
+        and(
+          eq(authSessions.userId, userId),
+          isNull(authSessions.revokedAt),
+          ne(authSessions.id, keepSessionId),
+        ),
+      );
   }
 
   /**

@@ -163,7 +163,7 @@ export function SettingsDialog({
             onClose={onClose}
           />
         )}
-        {section === 'account' && <AccountPane onClose={onClose} />}
+        {section === 'account' && <AccountPane token={token} onClose={onClose} />}
         {section === 'workspace' && <WorkspacePane onClose={onClose} />}
         {section === 'notifications' && <NotificationsPane onClose={onClose} />}
         {section === 'billing' && <BillingPane onClose={onClose} />}

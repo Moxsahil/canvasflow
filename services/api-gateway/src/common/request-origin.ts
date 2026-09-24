@@ -1,40 +1,89 @@
+import type { IncomingHttpHeaders } from 'node:http';
 import type { Request } from 'express';
 
 /**
  * Where and when a request came from, in words a person would recognise.
  *
- * Used only in mail sent to the owner of an account ("requested 23 September
- * at 14:05 UTC, Chrome on Windows, India") so they can tell their own request
- * from somebody else's. Nothing is ever decided by it: the device comes from a
- * header the caller writes.
+ * Used only where the owner of an account reads it — the mail they are sent,
+ * and their own list of signed-in devices ("Chrome on Windows · New Delhi,
+ * India") — so they can tell their own activity from somebody else's. Nothing
+ * is ever decided by it: the device comes from a header the caller writes.
  */
 export interface RequestOrigin {
   at: Date;
   device: string | null;
-  country: string | null;
+  /** "New Delhi, Delhi, India", or as much of it as the edge said. */
+  location: string | null;
 }
 
-/**
- * The edge's country header, read only when it can be believed.
- *
- * Cloudflare sets `CF-IPCountry` on every request it forwards and overwrites
- * any a client sent. That only means something when every request is known to
- * have come through Cloudflare — which is what the origin lock guarantees. With
- * the lock off (development, or a deployment without the edge), anybody can
- * send the header, so it is ignored rather than repeated back as fact.
- */
+export interface EdgeTrust {
+  /** True only while the origin lock guarantees every request came through the edge. */
+  trustEdgeHeaders: boolean;
+}
+
 export function requestOrigin(
   request: Request,
-  options: { trustEdgeHeaders: boolean },
+  options: EdgeTrust,
   now = new Date(),
 ): RequestOrigin {
-  const country = options.trustEdgeHeaders ? request.headers['cf-ipcountry'] : undefined;
   return {
     at: now,
     device: describeDevice(request.headers['user-agent']),
-    country: typeof country === 'string' ? countryName(country) : null,
+    location: requestLocation(request, options),
   };
 }
+
+/**
+ * Roughly where a request came from, read from the edge's location headers
+ * only when they can be believed.
+ *
+ * Cloudflare sets these on every request it forwards and overwrites any a
+ * client sent: `CF-IPCountry` always, and `CF-IPCity` and `CF-Region` once the
+ * zone's "Add visitor location headers" managed transform is on. They only mean
+ * something when every request is known to have come through Cloudflare —
+ * which is what the origin lock guarantees. With the lock off (development, or
+ * a deployment without the edge), anybody can send them, so they are ignored
+ * rather than repeated back to somebody as fact.
+ */
+export function requestLocation(request: Request, options: EdgeTrust): string | null {
+  return options.trustEdgeHeaders ? locationFromEdgeHeaders(request.headers) : null;
+}
+
+export function locationFromEdgeHeaders(headers: IncomingHttpHeaders): string | null {
+  const city = headerText(headers['cf-ipcity']);
+  const region = headerText(headers['cf-region']);
+  const code = headers['cf-ipcountry'];
+  const country = typeof code === 'string' ? countryName(code) : null;
+
+  // "Singapore, Singapore, Singapore" says nothing the first word did not.
+  const parts = [city, region, country].filter(
+    (part, index, all): part is string => Boolean(part) && all.indexOf(part) === index,
+  );
+  return parts.length > 0 ? parts.join(', ') : null;
+}
+
+/**
+ * A header value made safe to store and show: decoded if the edge
+ * percent-encoded a non-ASCII name, stripped of control characters, trimmed and
+ * bounded. It is still somebody else's string; this only keeps it tidy.
+ */
+function headerText(value: string | string[] | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  let text = value;
+  if (/%[0-9A-F]{2}/i.test(text)) {
+    try {
+      text = decodeURIComponent(text);
+    } catch {
+      // Not really encoded; keep it as it arrived.
+    }
+  }
+  text = text.replace(CONTROL_CHARACTERS, '').trim().slice(0, 64);
+  return text.length > 0 ? text : null;
+}
+
+// Matching control characters is the point, so the rule against it is off here.
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/g;
 
 const REGION_NAMES = new Intl.DisplayNames(['en'], { type: 'region' });
 

@@ -65,7 +65,7 @@ function renderPane(id: string) {
         onClose={noop}
       />
     ),
-    account: <AccountPane onClose={noop} />,
+    account: <AccountPane token={null} onClose={noop} />,
     workspace: <WorkspacePane onClose={noop} />,
     notifications: <NotificationsPane onClose={noop} />,
     billing: <BillingPane onClose={noop} />,
