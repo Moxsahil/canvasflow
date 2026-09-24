@@ -40,5 +40,8 @@ import { EmailVerificationModule } from '../email-verification/email-verificatio
     GoogleStrategy,
     GitHubStrategy,
   ],
+  // What password recovery needs to replace a credential: hash it, end every
+  // session, clear the sign-in failure count, and write it down.
+  exports: [AuditService, PasswordService, SessionService, SignInRateLimiter],
 })
 export class AuthModule {}

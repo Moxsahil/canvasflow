@@ -47,10 +47,20 @@ export interface MintedBoardToken {
 export class EditorTokenService {
   private readonly secret = new TextEncoder().encode(parseEnv().AUTH_SECRET);
 
-  async mint(identity: BoardTokenIdentity, access: BoardAccess): Promise<MintedBoardToken> {
+  /**
+   * `sessionId` is the signed-in session the token is minted from. It goes in
+   * as `sid`, so the board token stops working — here and at the sync-server —
+   * the moment that session is ended, instead of living out its five minutes.
+   */
+  async mint(
+    identity: BoardTokenIdentity,
+    access: BoardAccess,
+    sessionId: string,
+  ): Promise<MintedBoardToken> {
     const expiresAt = Date.now() + BOARD_TOKEN_TTL_SECONDS * 1000;
 
     const token = await new SignJWT({
+      sid: sessionId,
       id: identity.id,
       email: identity.email,
       name: identity.name,

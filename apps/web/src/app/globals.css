@@ -7,6 +7,11 @@
    app used `dark:` before this, so nothing changes meaning by moving it. */
 @custom-variant dark (&:is(.dark *));
 
+/* A window short enough that the auth card has to tighten to fit without
+   scrolling — a laptop at 125% or 150% scaling is about 610–730px tall. Taller
+   screens keep the roomier spacing. */
+@custom-variant short (@media (max-height: 760px));
+
 /* Let Tailwind see the classes used in this app's own sources — the design
    system's stylesheet only points the scan at its own package. */
 @source '../**/*.{ts,tsx}';

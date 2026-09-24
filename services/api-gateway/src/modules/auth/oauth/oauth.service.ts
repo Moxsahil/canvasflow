@@ -94,6 +94,7 @@ export class OAuthService {
 
     return {
       account: { id: user.id, email: user.email, name: user.name, image: user.avatarUrl },
+      sessionId: session.sessionId,
       accessToken: access.token,
       accessTokenExpiresAt: access.expiresAt,
       refreshToken: session.refreshToken,

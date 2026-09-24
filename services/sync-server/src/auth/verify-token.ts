@@ -27,6 +27,12 @@ export interface EditorTokenPayload {
    * against the database on every connect — see index.ts.
    */
   role: BoardRole;
+  /**
+   * The signed-in session the token was minted from, or null for a guest,
+   * who has none. Checked against the database on connect and on every
+   * re-authorization sweep, so ending the session ends the connection.
+   */
+  sessionId: string | null;
 }
 
 /**
@@ -60,6 +66,9 @@ export async function verifyEditorToken(
   if (typeof payload.role !== 'string' || !BOARD_ROLES.includes(payload.role)) {
     throw new Error(`Invalid role claim in token: ${String(payload.role)}`);
   }
+  if (payload.sid !== undefined && typeof payload.sid !== 'string') {
+    throw new Error('Invalid sid claim in token');
+  }
 
   return {
     userId: payload.id,
@@ -68,5 +77,6 @@ export async function verifyEditorToken(
     boardId: payload.boardId,
     workspaceId: payload.workspaceId,
     role: payload.role as BoardRole,
+    sessionId: typeof payload.sid === 'string' ? payload.sid : null,
   };
 }

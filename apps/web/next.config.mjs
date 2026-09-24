@@ -28,6 +28,20 @@ const nextConfig = {
         source: '/verify-email',
         headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }],
       },
+      {
+        // The same, for the reset link. The page moves the token out of the
+        // address bar before it makes any request, but the header covers the
+        // moment before that, and anything that loads if the page breaks.
+        //
+        // no-store as well: this page is never worth caching, and a cached copy
+        // of a page someone reached through a credential is not something a
+        // shared computer should keep.
+        source: '/reset-password',
+        headers: [
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'Cache-Control', value: 'no-store' },
+        ],
+      },
     ];
   },
 };

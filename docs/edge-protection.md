@@ -40,11 +40,11 @@ The origin lock closes that path. Cloudflare adds a secret header to every
 request it forwards, and the gateway refuses anything without it
 (`services/api-gateway/src/common/origin-lock.ts`):
 
-| Where      | What                                                                                                                     |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Cloudflare | Rules → Transform Rules → Modify Request Header, hostname `api.canvasflowapp.com`, **Set** `X-Origin-Auth` to the secret |
-| Fly        | `fly secrets set ORIGIN_AUTH_SECRET=<same secret> -a canvasflow-api`                                                     |
-| Exempt     | `/health` and `/healthz`, which Fly's own checks call directly                                                           |
+| Where      | What                                                                                                                                                                 |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cloudflare | Rules → Overview → Create rule → Request Header Transform Rule. Custom filter: Hostname equals `api.canvasflowapp.com`. **Set static** `X-Origin-Auth` to the secret |
+| Fly        | `fly secrets set ORIGIN_AUTH_SECRET=<same secret> -a canvasflow-api`                                                                                                 |
+| Exempt     | `/health` and `/healthz`, which Fly's own checks call directly                                                                                                       |
 
 **Order matters.** The Cloudflare rule goes in first, the Fly secret second.
 The secret turns enforcement on the moment the machines restart, and without
@@ -68,20 +68,29 @@ secret, which is the state that leaves the direct path forgeable.
 
 ## Rules to configure
 
-Each is per client IP.
+Each is per client IP, under Security → WAF → Rate limiting rules.
 
-| Path                 | Method | Rule              |
-| -------------------- | ------ | ----------------- |
-| `/auth/signup`       | POST   | 20 per minute     |
-| `/auth/email/verify` | POST   | 60 per minute     |
-| `/auth/email/resend` | POST   | 30 per 10 minutes |
-| `/auth/*`            | any    | 300 per minute    |
+| Path                         | Method | Rule              |
+| ---------------------------- | ------ | ----------------- |
+| `/auth/signup`               | POST   | 20 per minute     |
+| `/auth/email/verify`         | POST   | 60 per minute     |
+| `/auth/email/resend`         | POST   | 30 per 10 minutes |
+| `/auth/password/forgot`      | POST   | 30 per 10 minutes |
+| `/auth/password/reset`       | POST   | 60 per minute     |
+| `/auth/password/reset/check` | POST   | 60 per minute     |
+| `/auth/*`                    | any    | 300 per minute    |
 
-The first three are deliberately looser than the application's own. The
+The named routes are deliberately looser than the application's own. The
 application should be the thing that answers a person who is simply clicking
 too fast, because it can say how long to wait; the edge should only catch
 traffic that is not a person at all. The last is a ceiling for anything under
 `/auth` that is not named above.
+
+**On the Free plan** Cloudflare allows a single rate-limiting rule with a short
+counting window, so the table above is the target for a paid plan rather than
+something to enter today. With one rule, spend it on the ceiling: requests
+whose path starts with `/auth/`, counted per IP, blocked for the rule's
+timeout once exceeded. Every limit in the next section still holds without it.
 
 Also enable the provider's managed bot and common-attack rulesets. Nothing
 under `/auth` is a browser-less integration point, so challenging obvious
@@ -89,22 +98,34 @@ automation costs real users nothing.
 
 ## What the application already enforces
 
-| Operation | Limit                    | Scope       |
-| --------- | ------------------------ | ----------- |
-| Signup    | 10 per minute            | per IP      |
-| Sign-in   | 30 per minute            | per IP      |
-| Sign-in   | 10 failures / 15 minutes | per address |
-| Verify    | 30 per minute            | per IP      |
-| Resend    | 10 per 10 minutes        | per IP      |
-| Resend    | 1/minute, 5/hour, 10/day | per account |
+| Operation        | Limit                    | Scope       |
+| ---------------- | ------------------------ | ----------- |
+| Signup           | 10 per minute            | per IP      |
+| Sign-in          | 30 per minute            | per IP      |
+| Sign-in          | 10 failures / 15 minutes | per address |
+| Verify           | 30 per minute            | per IP      |
+| Resend           | 10 per 10 minutes        | per IP      |
+| Resend           | 1/minute, 5/hour, 10/day | per account |
+| Forgot password  | 10 per 10 minutes        | per IP      |
+| Forgot password  | 1/minute, 5/hour         | per address |
+| Reset link check | 30 per minute            | per IP      |
+| Reset password   | 10 per minute            | per IP      |
 
-The per-account limits are counted from database rows, so they survive
-restarts and hold across instances. The per-IP limits are counted in the
+The per-account and per-address limits are counted from database rows, so they
+survive restarts and hold across instances. The per-IP limits are counted in the
 process's memory and reset on deploy, which is acceptable for abuse control and
 is the main reason an edge layer is worth having.
 
-The sign-in limit per address is keyed on the address as submitted, account or
-no account, so being refused for pace does not reveal which addresses exist.
+The sign-in and forgot-password limits per address are keyed on the address as
+submitted, account or no account, so being refused for pace does not reveal
+which addresses exist. The forgot-password limit has no daily cap on purpose:
+anyone can trip it for somebody else's address, and a day-long window would
+let them block that person's recovery for a whole day.
+
+A reset link is 256 random bits, so its routes need no limit of their own to
+stay unguessable; the per-IP limits there only bound the work a caller can
+cause. Spending a link runs bcrypt, and only for a link that is real, unused
+and unexpired.
 
 ## Sign-in
 

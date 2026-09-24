@@ -34,6 +34,7 @@
     "db:studio": "drizzle-kit studio",
     "verify:sharing": "tsx scripts/verify-sharing.mts",
     "prune:sign-in-failures": "tsx scripts/prune-sign-in-failures.ts",
+    "prune:password-resets": "tsx scripts/prune-password-resets.ts",
     "show:auth-events": "tsx scripts/show-auth-events.ts"
   },
   "dependencies": {

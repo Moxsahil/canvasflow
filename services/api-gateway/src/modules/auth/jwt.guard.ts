@@ -5,8 +5,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { jwtVerify } from 'jose';
+import { jwtVerify, type JWTPayload } from 'jose';
+import { isSessionLive } from '@canvasflow/db';
 import { parseEnv } from '../../config/env.js';
+import { DatabaseService } from '../../infra/database/database.service.js';
 import { ACCESS_COOKIE } from './auth-cookies.js';
 
 export interface AuthenticatedUser {
@@ -35,10 +37,19 @@ declare module 'express' {
  * where both are present. An invalid Bearer falls through to the cookie
  * rather than failing the request: the board token is short-lived, and a
  * signed-in person whose token has just expired is still signed in.
+ *
+ * A valid signature is not the whole answer. Any token that names a session
+ * (`sid`) is honoured only while that session still stands, so signing out,
+ * signing out everywhere or resetting a password takes effect on the very next
+ * request instead of whenever the token in somebody's browser expires. A
+ * guest's board token names no session and is judged on its signature alone,
+ * as before.
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   private readonly secret = new TextEncoder().encode(parseEnv().AUTH_SECRET);
+
+  constructor(private readonly database: DatabaseService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
@@ -70,26 +81,37 @@ export class JwtAuthGuard implements CanActivate {
    * to try and telling the failures apart would only invite reporting which.
    */
   private async read(token: string): Promise<AuthenticatedUser | null> {
+    let payload: JWTPayload;
     try {
-      const { payload } = await jwtVerify(token, this.secret);
-
-      // The session cookie names the account in `sub`, which is what the
-      // registered claim is for. The board token predates it and uses `id`.
-      // Both are read so neither credential has to be reissued.
-      const id = typeof payload.sub === 'string' ? payload.sub : payload.id;
-      if (typeof id !== 'string' || id.length === 0) return null;
-
-      return {
-        id,
-        // Absent from a session token on purpose: a token is a credential, not
-        // a profile, and a name baked into one goes stale the moment somebody
-        // changes it. Whatever needs the profile reads the row.
-        email: typeof payload.email === 'string' ? payload.email : '',
-        name: typeof payload.name === 'string' ? payload.name : undefined,
-      };
+      ({ payload } = await jwtVerify(token, this.secret));
     } catch {
       return null;
     }
+
+    // The session cookie names the account in `sub`, which is what the
+    // registered claim is for. The board token predates it and uses `id`.
+    // Both are read so neither credential has to be reissued.
+    const id = typeof payload.sub === 'string' ? payload.sub : payload.id;
+    if (typeof id !== 'string' || id.length === 0) return null;
+
+    // One primary-key read, after the signature, so a forged or expired token
+    // never costs a query. Deliberately outside the try above: a database that
+    // cannot answer is an outage and surfaces as a 500, not as "not signed in"
+    // — the editor treats repeated 401s as a session that has ended and sends
+    // the person to sign in, which a blip must not do.
+    if (payload.sid !== undefined) {
+      if (typeof payload.sid !== 'string') return null;
+      if (!(await isSessionLive(this.database.db, payload.sid))) return null;
+    }
+
+    return {
+      id,
+      // Absent from a session token on purpose: a token is a credential, not
+      // a profile, and a name baked into one goes stale the moment somebody
+      // changes it. Whatever needs the profile reads the row.
+      email: typeof payload.email === 'string' ? payload.email : '',
+      name: typeof payload.name === 'string' ? payload.name : undefined,
+    };
   }
 }
 

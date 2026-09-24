@@ -119,7 +119,7 @@ import {
   type VertexGrab,
 } from './machine/tool-machine.types';
 import { ShortcutsModal } from './help';
-import { decodeJwtUser, decodeJwtWorkspaceId } from './auth/token';
+import { decodeJwtUser, decodeJwtWorkspaceId, sessionResumeUrl } from './auth/token';
 import { useBoardSwitcher } from './workspace';
 import {
   CursorLayer,
@@ -574,6 +574,12 @@ export function Editor({ boardId }: EditorProps) {
     // next scheduled refresh up to five minutes away.
     onAccessChanged: refreshAuthToken,
     onAccessRevoked: () => setAccessRevoked(true),
+    // Signed out elsewhere, or the password was reset. The gateway's resume
+    // route renews if the session is somehow still alive and otherwise lands
+    // on sign-in, so this cannot strand anybody who is still signed in.
+    onSessionEnded: () => {
+      window.location.href = sessionResumeUrl();
+    },
   });
 
   // The same conclusion reached the slow way: the token route refuses to mint

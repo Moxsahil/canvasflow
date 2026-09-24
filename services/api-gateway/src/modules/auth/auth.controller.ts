@@ -17,6 +17,7 @@ import { AuthService, type AuthenticatedAccount, type SignupResult } from './aut
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { parseEnv } from '../../config/env.js';
 import { isAllowedOrigin } from '../../common/allowed-origins.js';
+import { passwordSchema } from './password-policy.js';
 import type { RequestContext } from './audit.service.js';
 import { CurrentUser } from './current-user.decorator.js';
 import { type AuthenticatedUser, JwtAuthGuard } from './jwt.guard.js';
@@ -42,15 +43,9 @@ interface SignInResponse {
 /**
  * The only gate that counts. A `minLength` on the form is a convenience the
  * browser enforces and anything posting straight at this route ignores, so the
- * rules live here, where a request cannot get past them.
+ * rules live on the server, where a request cannot get past them — in
+ * password-policy.ts, shared with every other place a password is chosen.
  */
-const passwordSchema = z
-  .string()
-  .min(8, 'Use at least 8 characters')
-  .regex(/[A-Z]/, 'Include a capital letter')
-  .regex(/[0-9]/, 'Include a number')
-  .regex(/[^A-Za-z0-9]/, 'Include a special character');
-
 const signupSchema = z.object({
   // Trimmed, validated, then lowered. Every major provider treats an address
   // case-insensitively, so storing one canonical form is what stops the same

@@ -6,7 +6,16 @@ import { ACCESS_COOKIE, accessTokenState, resumeUrl } from '@/lib/auth/gateway-s
 // middleware answers an unauthenticated request with a redirect to /login,
 // and a 307 on a POST re-posts into a page that only serves GET. The route
 // destroys session state and grants nothing, so there is nothing to guard.
-const PUBLIC_PATHS = ['/', '/login', '/logout', '/signup', '/verify-email'];
+const PUBLIC_PATHS = [
+  '/',
+  '/login',
+  '/logout',
+  '/signup',
+  '/verify-email',
+  // Reached by somebody who cannot sign in — that is the point of them.
+  '/forgot-password',
+  '/reset-password',
+];
 
 /**
  * Routes the editor calls cross-origin, which must answer for themselves.

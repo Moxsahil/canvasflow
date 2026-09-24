@@ -1,111 +1,148 @@
 # CanvasFlow — Authentication System Design
 
+The API gateway (`services/api-gateway`) owns every authentication decision:
+creating accounts, checking passwords, signing in with Google or GitHub,
+sessions, email verification and password recovery. The web app and the editor
+are clients of it. They collect input and show state; they never decide who
+somebody is.
+
 ```mermaid
 flowchart TD
-
-    subgraph CLIENT["🖥️ Client Layer (apps/web)"]
-        BROWSER["Browser"]
-        MW["middleware.ts\nRoute guard · redirects\nunauthenticated users to /login"]
-        LOGIN["/login\nCredentials form +\n'Continue with Google/GitHub'"]
-        SIGNUP["/signup\nName · Email · Password"]
-        VERIFY["/verify\n?token & email"]
+    subgraph EDGE["Cloudflare"]
+        CF["Proxy · rate-limit rules\nsets X-Origin-Auth"]
     end
 
-    subgraph AUTHCORE["🔐 Auth.js Core (lib/auth)"]
-        CONFIG["authConfig\nJWT session · 30d maxAge\ncallbacks: jwt / session"]
-        PROV_CRED["Credentials Provider\nbcrypt.compare(password, hash)"]
-        PROV_GOOGLE["Google OAuth Provider"]
-        PROV_GITHUB["GitHub OAuth Provider"]
-        ADAPTER["DrizzleAdapter\nauthAdapterUsers/Accounts/\nSessions/VerificationTokens"]
+    subgraph WEB["apps/web · canvasflowapp.com"]
+        PAGES["/login · /signup · /forgot-password\n/reset-password · /verify-email"]
+        OPEN["/open · /invite/:token\nmint board tokens (with sid)"]
+        WEBAPI["/api/* routes\ncurrentSession(): signature + live session"]
     end
 
-    subgraph ACTIONS["⚙️ Server Actions & Email"]
-        SIGNUP_ACTION["signup() server action\nzod validate · bcrypt.hash(12)\ninsert users + verification token"]
-        RESEND["Resend\nsendVerificationEmail()"]
+    subgraph EDITOR["apps/editor · app.canvasflowapp.com"]
+        CANVAS["Board canvas\nholds a 5-minute board token"]
     end
 
-    subgraph DB["🗄️ Postgres (Drizzle ORM)"]
-        T_USERS[("users\nid · email · passwordHash\nemailVerifiedAt · preferences")]
-        T_ACCOUNTS[("accounts\nOAuth provider links")]
-        T_SESSIONS[("sessions")]
-        T_VTOKENS[("verifications_token\nidentifier · token · expires")]
+    subgraph GATEWAY["services/api-gateway · api.canvasflowapp.com"]
+        LOCK["Origin lock"]
+        AUTH["/auth/signup · /auth/signin · /auth/refresh\n/auth/signout · /auth/signout-all · /auth/resume\n/auth/editor-token · /auth/oauth/*"]
+        EMAIL["/auth/email/verify · /auth/email/resend"]
+        RESET["/auth/password/forgot\n/auth/password/reset/check · /auth/password/reset"]
+        GUARD["JwtAuthGuard\nsignature + live session (sid)"]
     end
 
-    subgraph EDITORAPP["🎨 Editor (apps/editor, own origin)"]
-        EDITOR["/boards/:id#token\nboard switcher · canvas"]
+    subgraph SYNC["services/sync-server"]
+        WS["WebSocket connect\nboard token + live session + board access"]
+        SWEEP["5 s sweep\ncloses ended sessions and revoked access"]
     end
 
-    %% --- Browser entry points ---
-    BROWSER --> MW
-    MW -- "unauthenticated" --> LOGIN
-    MW -- "authenticated" --> OPEN["/open\nlast board (or a first one)\n+ editor token"]
-    BROWSER --> SIGNUP
-    BROWSER --> VERIFY
+    subgraph DB["Postgres (Neon)"]
+        T1[("users · accounts")]
+        T2[("auth_sessions · auth_session_tokens")]
+        T3[("email_verification_tokens\npassword_reset_tokens · password_reset_requests")]
+        T4[("sign_in_failures · audit_log")]
+    end
 
-    %% --- Signup flow ---
-    SIGNUP --> SIGNUP_ACTION
-    SIGNUP_ACTION --> T_USERS
-    SIGNUP_ACTION --> T_VTOKENS
-    SIGNUP_ACTION --> RESEND
-    RESEND -- "verification link" --> BROWSER
-    VERIFY --> T_VTOKENS
-    VERIFY -- "set emailVerifiedAt" --> T_USERS
+    RESEND["Resend\nverification · reset · password changed"]
 
-    %% --- Login flow ---
-    LOGIN -- "signIn('credentials')" --> PROV_CRED
-    LOGIN -- "signIn('google')" --> PROV_GOOGLE
-    LOGIN -- "signIn('github')" --> PROV_GITHUB
-
-    PROV_CRED --> T_USERS
-    PROV_GOOGLE --> ADAPTER
-    PROV_GITHUB --> ADAPTER
-    ADAPTER --> T_USERS
-    ADAPTER --> T_ACCOUNTS
-    ADAPTER --> T_SESSIONS
-
-    PROV_CRED --> CONFIG
-    PROV_GOOGLE --> CONFIG
-    PROV_GITHUB --> CONFIG
-    CONFIG -- "JWT cookie (session)" --> BROWSER
-
-    %% --- Into the editor ---
-    OPEN -- "auth() session" --> CONFIG
-    OPEN -- "mintEditorToken\n(AUTH_SECRET, 5 min, board-scoped)" --> EDITOR
-    OPEN -- "ensureBoardForUser" --> DB
-
-    %% --- Editor calling back, cross-origin with the session cookie ---
-    EDITOR -- "/api/editor-token · /api/workspaces\ncredentials: include" --> CONFIG
-    EDITOR -- "workspaces · boards · membership" --> DB
+    PAGES --> CF --> LOCK --> AUTH & EMAIL & RESET
+    CANVAS -- "re-mint board token" --> CF
+    CANVAS -- "Yjs over WebSocket" --> WS
+    AUTH --> T1 & T2 & T4
+    EMAIL --> T3
+    RESET --> T1 & T2 & T3
+    EMAIL & RESET --> RESEND
+    GUARD --> T2
+    OPEN --> WEBAPI --> T2
+    WS --> T2
+    SWEEP --> T2
 ```
 
-## Flow summary
+## Credentials
 
-- **Credentials signup** → `signup()` server action validates input, hashes the
-  password with bcrypt, inserts a `users` row (`emailVerifiedAt = null`), creates a
-  `verifications_token` row, and emails a verify link via Resend.
-- **Email verification** → `/verify` checks the token against `verifications_token`,
-  sets `users.emailVerifiedAt`, and deletes the token.
-- **Credentials login** → `Credentials` provider looks up the user by email and
-  compares the bcrypt hash directly against `users.passwordHash`.
-- **OAuth login (Google / GitHub)** → handled entirely by `DrizzleAdapter`, which maps
-  Auth.js's expected `user`/`account`/`session`/`verificationToken` shapes onto this
-  project's `users`/`accounts`/`sessions`/`verifications_token` tables via
-  `authAdapterUsers`, `authAdapterAccounts`, `authAdapterSessions`,
-  `authAdapterVerificationTokens`.
-- **Session strategy** → JWT (no DB session lookups on each request); `jwt`/`session`
-  callbacks copy `user.id` onto `token.id` / `session.user.id`.
-- **Route protection** → `middleware.ts` allows `/`, `/login`, `/signup`, `/verify`,
-  `/invite/*` and `/api/auth/*`; everything else requires `req.auth` or redirects to
-  `/login`. The editor's own routes (`/api/editor-token`, `/api/boards/*`,
-  `/api/workspaces*`) are let through so a cookieless CORS preflight is answered
-  rather than redirected — each of them authenticates in the handler instead.
-- **Landing after sign-in** → there is no board list page; `/open` resolves the user's
-  most recent board (creating a first board and personal workspace if they have none),
-  mints an editor token and redirects to the editor with it in the URL fragment.
-- **Editor session** → the editor runs on its own origin and holds no session. It calls
-  back to the web app credentialed (`credentials: 'include'`) for a board-scoped token
-  and for the workspaces and boards behind the board switcher; the cookie is what
-  authenticates, and membership is re-derived from the database on every call.
-- **Cross-service auth** → tokens are HS256 over `AUTH_SECRET`, which `api-gateway`'s
-  `JwtAuthGuard` and the sync-server both verify with the same secret before attaching
-  the caller.
+| Credential                   | Where it lives                                  | Lifetime                                                            |
+| ---------------------------- | ----------------------------------------------- | ------------------------------------------------------------------- |
+| Access token (`cf.access`)   | HttpOnly cookie, path `/`, shared parent domain | 15 minutes. JWT naming the account (`sub`) and session (`sid`)      |
+| Refresh token (`cf.refresh`) | HttpOnly cookie, path `/auth` only              | 30 days, sliding, capped at a year. Stored only as a SHA-256 digest |
+| Board token                  | Editor memory and sessionStorage, per board     | 5 minutes. Board-scoped JWT; names the session for accounts         |
+| Guest session (`cf.guest`)   | HttpOnly cookie on the web app                  | For people who joined a board by share link without an account      |
+
+All three JWTs are HS256 over `AUTH_SECRET`, shared by the gateway, the web app
+and the sync-server.
+
+## Flows
+
+- **Sign up** (`POST /auth/signup`): validates the password policy, hashes it
+  with bcrypt (cost 12), creates the account unconfirmed, and emails a
+  verification link. The browser then signs in straight away; an unconfirmed
+  account can use its own boards but cannot share them.
+- **Sign in** (`POST /auth/signin`): per-address failure limit first, then a
+  case-insensitive lookup and a bcrypt check. A missing account, a wrong
+  password, a provider-only account and a barred account all get the same
+  answer in the same time (a decoy hash is checked when there is no account).
+  Success creates an `auth_sessions` row and sets both cookies.
+- **Google / GitHub** (`GET /auth/oauth/:provider`): the provider's confirmed
+  address is linked to an existing account or creates one. An unconfirmed
+  provider address is refused rather than linked.
+- **Staying signed in**: the gateway renews the access token from the refresh
+  cookie when it is close to expiring (`/auth/refresh`, `/auth/resume`,
+  `/auth/editor-token`). Every renewal rotates the refresh token; presenting a
+  spent one twice ends the session.
+- **Email verification**: `POST /auth/email/verify` spends a single-use,
+  30-minute link. `POST /auth/email/resend` sends a new one to the address on
+  the account, never one from the request.
+- **Forgot password** (`POST /auth/password/forgot`): answers `202` for every
+  well-formed address, at the same speed. Looking the account up, issuing the
+  link and sending the mail all happen after the reply. Password accounts get a
+  link to `/reset-password#token=…` (the token is in the fragment, so it never
+  reaches a server log); Google/GitHub-only accounts get a note saying how they
+  sign in; guests, barred and unknown addresses get nothing.
+- **Reset password** (`POST /auth/password/reset/check`, then
+  `POST /auth/password/reset`): checking a link never spends it. Spending it
+  checks the link before any bcrypt work, then one transaction sets the new
+  password, confirms the address, cancels every other link and revokes every
+  session. The owner is emailed that the password changed. There is no
+  automatic sign-in afterwards.
+- **Sign out** (`POST /auth/signout`, `POST /auth/signout-all`): revokes the
+  session row (or every row) and clears the cookies.
+
+## Ending a session takes effect immediately
+
+A revoked session stops working on its very next request everywhere, not when
+its token happens to expire:
+
+- The gateway's `JwtAuthGuard` and session renewal check that the session named
+  in the token (`sid`) is still live: one primary-key read.
+- The web app's `currentSession()` and `currentUser()` do the same. The
+  middleware only checks signatures, which is enough to decide whether to
+  render a page.
+- The sync-server refuses a connect whose session has ended, and its 5-second
+  sweep closes any open connection whose session has ended, telling the editor
+  `session-ended`. The editor then sends the person to sign in.
+
+This covers every way a session ends: signing out, signing out everywhere, a
+password reset, and a stolen refresh token being caught.
+
+## Protections
+
+- **Edge**: Cloudflare proxies the gateway, and the gateway refuses anything
+  without the secret `X-Origin-Auth` header, so per-IP limits cannot be skipped
+  by calling the origin directly. See [edge-protection.md](edge-protection.md).
+- **Rate limits**: per IP in the gateway, and per address or per account in the
+  database for sign-in failures, verification resends and reset requests.
+- **Enumeration**: sign-in, forgot password and their rate limits answer the
+  same for addresses with and without accounts.
+- **Tokens at rest**: refresh tokens, verification links and reset links are
+  256 random bits, stored only as SHA-256 digests, and spent by a conditional
+  update so two requests cannot both use one.
+- **Audit**: sign-ins, sign-outs, resets and revocations are written to
+  `audit_log` without tokens, digests or addresses.
+
+## Checking it
+
+- `pnpm --filter @canvasflow/api-gateway verify:auth`: sign-in, rotation and
+  rate limits against a running gateway.
+- `pnpm --filter @canvasflow/api-gateway verify:password-reset`: forgot and
+  reset, sessions and limits. Uses the forgot route's whole per-IP budget, so
+  run it at most once every ten minutes.
+- `pnpm --filter @canvasflow/e2e test:e2e --project=recovery`: the same flow
+  through the real pages in a browser.

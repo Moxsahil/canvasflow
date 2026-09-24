@@ -34,6 +34,16 @@ export const users = pgTable('users', {
   /** Pinned into the signature of every URL issued for that object. */
   avatarMimeType: text('avatar_mime_type'),
   passwordHash: text('password_hash'),
+  /**
+   * When the password was last replaced, by a reset link or from Settings.
+   * Null for a password set at signup and never changed, and for accounts
+   * that have no password at all.
+   *
+   * Drives "Last changed" in Settings, and lets a reset link be refused if it
+   * was issued before the most recent change — a link sent before somebody
+   * took their account back must not work afterwards.
+   */
+  passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }),
   emailVerifiedAt: timestamp('email_verified_at', {
     withTimezone: true,
   }),

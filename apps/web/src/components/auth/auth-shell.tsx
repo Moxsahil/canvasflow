@@ -25,28 +25,35 @@ export function AuthShell({
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) {
+  // Sized so the longest of these screens — signup, with its checklist open —
+  // fits a laptop at 125% scaling (about 1536×728) without scrolling. On wider
+  // screens the wordmark moves to the corner, where there is room to spare, so
+  // it stops costing the form vertical space; on a phone it stays on top. The
+  // `short:` spacing (globals.css) tightens things further on low windows.
   return (
-    <main className="cf-auth font-sans min-h-screen bg-[#020204] text-[#F5F4F0] flex flex-col items-center justify-center px-6 py-12">
+    <main className="cf-auth relative font-sans min-h-dvh bg-[#020204] text-[#F5F4F0] flex flex-col items-center justify-center px-6 py-4 sm:py-6 short:py-3">
       <Link
         href="/"
-        className="mb-10 text-xl tracking-tight text-[#F5F4F0]/90 transition-colors hover:text-[#F5F4F0]"
+        className="mb-4 text-xl tracking-tight text-[#F5F4F0]/90 transition-colors hover:text-[#F5F4F0] sm:mb-6 md:absolute md:left-8 md:top-6 md:mb-0"
       >
         CanvasFlow
       </Link>
 
-      <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-white/[0.02] p-8">
+      <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-white/[0.02] px-7 py-6 sm:px-8 sm:py-7 short:py-5">
         <span className="cf-eyebrow font-mono inline-flex items-center gap-3 text-sm text-white/45">
           <span className="h-px w-12 bg-white/30" />
           {label}
         </span>
 
-        <h1 className="mt-5 text-3xl font-light leading-[1.1] tracking-tight">{heading}</h1>
-        {sub && <p className="mt-3 text-sm leading-relaxed text-white/45">{sub}</p>}
+        <h1 className="mt-4 short:mt-3 text-[1.75rem] font-light leading-[1.1] tracking-tight">
+          {heading}
+        </h1>
+        {sub && <p className="mt-2 text-sm leading-relaxed text-white/45">{sub}</p>}
 
-        <div className="mt-8">{children}</div>
+        <div className="mt-6 short:mt-5">{children}</div>
       </div>
 
-      {footer && <div className="mt-8 text-sm text-white/40">{footer}</div>}
+      {footer && <div className="mt-5 short:mt-3 text-sm text-white/40">{footer}</div>}
     </main>
   );
 }
@@ -67,11 +74,13 @@ export function AuthShell({
  */
 export const authStyles = {
   field:
-    'w-full rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm text-[#F5F4F0] placeholder:text-white/25 transition-colors focus:border-white/35 focus:outline-none',
+    'w-full rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2.5 text-sm text-[#F5F4F0] placeholder:text-white/25 transition-colors focus:border-white/35 focus:outline-none',
   provider:
-    'flex w-full items-center justify-center gap-3 rounded-xl border border-white/15 px-4 py-3 text-sm text-white/70 transition-all duration-200 hover:border-white/30 hover:bg-white/[0.06] hover:text-white',
+    'flex w-full items-center justify-center gap-2.5 rounded-xl border border-white/15 px-4 py-2.5 text-sm text-white/70 transition-all duration-200 hover:border-white/30 hover:bg-white/[0.06] hover:text-white',
+  /** The two provider buttons, side by side, so they cost one row rather than two. */
+  providerRow: 'grid grid-cols-2 gap-3',
   submit:
-    'flex h-[46px] w-full items-center justify-center rounded-xl bg-[#F5F4F0] px-4 text-sm font-medium text-[#020204] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50',
+    'flex h-11 w-full items-center justify-center rounded-xl bg-[#F5F4F0] px-4 text-sm font-medium text-[#020204] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50',
   link: 'text-[#F5F4F0]/80 underline underline-offset-4 transition-colors hover:text-[#F5F4F0]',
 } as const;
 
@@ -126,7 +135,7 @@ export function GitHubMark({ className = 'h-4 w-4' }: { className?: string }) {
 /** The "or" rule between the providers and the credentials form. */
 export function AuthDivider() {
   return (
-    <div className="my-6 flex items-center gap-4">
+    <div className="my-4 short:my-3 flex items-center gap-4">
       <span className="h-px flex-1 bg-white/[0.08]" />
       <span className="cf-eyebrow font-mono text-[11px] uppercase tracking-widest text-white/30">
         or

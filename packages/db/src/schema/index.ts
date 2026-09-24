@@ -10,3 +10,4 @@ export * from './board-access.js';
 export * from './sharing.js';
 export * from './email-verification.js';
 export * from './sign-in-failures.js';
+export * from './password-reset.js';

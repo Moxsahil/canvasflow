@@ -39,15 +39,22 @@ export interface EditorIdentity {
  * re-derived from the database on every mint and re-checked on every socket
  * connect, so a token is never the source of truth for permission — only a
  * short-lived assertion of what was true a moment ago.
+ *
+ * `sessionId` is the signed-in session the token is minted from, and goes in as
+ * `sid` so the token dies with that session everywhere it is checked. Null for
+ * a guest, who has no gateway session: a guest token is bounded by its own five
+ * minutes and by the board grant the sync-server re-checks.
  */
 export async function mintEditorToken(
   identity: EditorIdentity,
   access: BoardAccess,
+  sessionId: string | null,
 ): Promise<MintedToken> {
   const secret = new TextEncoder().encode(env.AUTH_SECRET);
   const expiresAt = Date.now() + TOKEN_TTL_SECONDS * 1000;
 
   const token = await new SignJWT({
+    ...(sessionId ? { sid: sessionId } : {}),
     id: identity.id,
     email: identity.email,
     name: identity.name,

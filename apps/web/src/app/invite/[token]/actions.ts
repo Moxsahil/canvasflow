@@ -49,6 +49,7 @@ export async function joinAsGuest(token: string, formData: FormData): Promise<Jo
   const minted = await mintEditorToken(
     { id: outcome.userId, email: null, name: displayName.trim() || 'Guest', isGuest: true },
     access,
+    null,
   );
 
   redirect(editorUrlFor(outcome.boardId, minted.token));
@@ -83,6 +84,7 @@ export async function joinAsUser(token: string): Promise<JoinResult> {
       isGuest: false,
     },
     access,
+    user.sessionId,
   );
 
   redirect(editorUrlFor(outcome.boardId, minted.token));

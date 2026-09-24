@@ -51,6 +51,12 @@ export interface AuthenticatedAccount {
  */
 export interface SignInResult {
   account: AuthenticatedAccount;
+  /**
+   * The `auth_sessions` row these credentials belong to. Never sent to the
+   * browser; it is what a board token names so that ending the session ends
+   * the board token too.
+   */
+  sessionId: string;
   accessToken: string;
   accessTokenExpiresAt: Date;
   refreshToken: string;
@@ -212,6 +218,7 @@ export class AuthService {
         name: matched.name,
         image: matched.avatarUrl,
       },
+      sessionId: session.sessionId,
       accessToken: access.token,
       accessTokenExpiresAt: access.expiresAt,
       refreshToken: session.refreshToken,
@@ -263,6 +270,7 @@ export class AuthService {
         name: account.name,
         image: account.avatarUrl,
       },
+      sessionId: outcome.sessionId,
       accessToken: access.token,
       accessTokenExpiresAt: access.expiresAt,
       refreshToken: outcome.refreshToken,

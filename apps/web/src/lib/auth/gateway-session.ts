@@ -25,9 +25,10 @@ const secret = new TextEncoder().encode(env.AUTH_SECRET);
  * middleware use this, and it is the point of a signed token: the signature is
  * the proof, so a page load does not have to ask anybody whether it is real.
  *
- * The trade is that a revoked session keeps working until the token expires,
- * which is why that window is fifteen minutes and why revocation lives on the
- * refresh side, where there is a row to mark.
+ * The trade is that a signature cannot tell a revoked session from a live one.
+ * That is acceptable in the middleware, which only decides whether to render a
+ * page; everything that acts on an account goes through `currentSession` or
+ * `currentUser`, which also ask the database whether the session still stands.
  *
  * Null for every failure — expired, tampered with, signed by something else.
  * A caller has the same thing to do in each case.

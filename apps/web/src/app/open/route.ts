@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
   const minted = await mintEditorToken(
     { id: user.id, email: user.email ?? null, name: user.name ?? null, isGuest: false },
     access,
+    user.sessionId,
   );
 
   return NextResponse.redirect(editorUrlFor(board.id, minted.token));
