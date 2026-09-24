@@ -196,7 +196,7 @@ export class AuthService {
     // Identity is settled; now the session. A new row every time, so two
     // devices hold two credentials and either can be taken away without
     // touching the other.
-    const session = await this.sessions.create(matched.id, context.userAgent);
+    const session = await this.sessions.create(matched.id, context.userAgent, context.location);
     const access = await this.tokens.issue({
       userId: matched.id,
       sessionId: session.sessionId,

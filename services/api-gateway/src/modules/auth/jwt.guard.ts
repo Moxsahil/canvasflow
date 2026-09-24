@@ -15,6 +15,12 @@ export interface AuthenticatedUser {
   id: string;
   email: string;
   name?: string;
+  /**
+   * The signed-in session the credential came from, when it names one. Absent
+   * for a guest's board token. What lets a route act on "this device" — keep
+   * it signed in, or mark it in a list — without a second credential.
+   */
+  sessionId?: string;
 }
 
 declare module 'express' {
@@ -111,6 +117,7 @@ export class JwtAuthGuard implements CanActivate {
       // changes it. Whatever needs the profile reads the row.
       email: typeof payload.email === 'string' ? payload.email : '',
       name: typeof payload.name === 'string' ? payload.name : undefined,
+      sessionId: typeof payload.sid === 'string' ? payload.sid : undefined,
     };
   }
 }

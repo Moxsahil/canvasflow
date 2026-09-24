@@ -17,6 +17,7 @@ import { AuthService, type AuthenticatedAccount, type SignupResult } from './aut
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { parseEnv } from '../../config/env.js';
 import { isAllowedOrigin } from '../../common/allowed-origins.js';
+import { requestLocation } from '../../common/request-origin.js';
 import { passwordSchema } from './password-policy.js';
 import type { RequestContext } from './audit.service.js';
 import { CurrentUser } from './current-user.decorator.js';
@@ -259,5 +260,11 @@ export class AuthController {
  * audit trail, never used to decide anything.
  */
 function contextOf(request: Request, userAgent: string | undefined): RequestContext {
-  return { ip: request.ip ?? null, userAgent: userAgent ?? null };
+  return {
+    ip: request.ip ?? null,
+    userAgent: userAgent ?? null,
+    location: requestLocation(request, {
+      trustEdgeHeaders: Boolean(parseEnv().ORIGIN_AUTH_SECRET),
+    }),
+  };
 }

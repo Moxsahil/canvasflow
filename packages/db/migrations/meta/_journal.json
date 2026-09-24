@@ -148,6 +148,13 @@
       "when": 1790226627300,
       "tag": "0020_password_reset",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790246272671,
+      "tag": "0021_session_location",
+      "breakpoints": true
     }
   ]
 }

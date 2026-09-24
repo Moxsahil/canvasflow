@@ -17,5 +17,8 @@ import { ResetTokenService } from './reset-token.service.js';
   imports: [AuthModule, EmailModule],
   controllers: [PasswordResetController],
   providers: [PasswordResetService, ResetTokenService, ResetRequestLimiter],
+  // Adding a password from Settings sends the same kind of link, under the
+  // same per-address limit, as forgetting one.
+  exports: [ResetTokenService, ResetRequestLimiter],
 })
 export class PasswordResetModule {}

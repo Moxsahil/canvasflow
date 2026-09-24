@@ -13,6 +13,13 @@ import { DatabaseService } from '../../infra/database/database.service.js';
 export interface RequestContext {
   ip: string | null;
   userAgent: string | null;
+  /**
+   * Roughly where the request came from, from the edge's location headers —
+   * only ever set where the origin lock makes them trustworthy. Kept on the
+   * session a sign-in starts, for the owner's device list; not written to the
+   * audit trail, which already holds the address it came from.
+   */
+  location?: string | null;
 }
 
 export interface AuthEvent {

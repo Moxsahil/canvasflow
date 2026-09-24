@@ -318,6 +318,7 @@ export class PasswordResetService {
         accountName: account.name,
         changedFrom: origin,
         forgotPasswordUrl: this.webUrl('/forgot-password'),
+        signedOut: 'everywhere',
       },
     );
   }

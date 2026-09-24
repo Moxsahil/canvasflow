@@ -4,13 +4,14 @@ import {
   minutesUntil,
   passwordChangedEmail,
   passwordResetEmail,
+  passwordSetupEmail,
   providerNoticeEmail,
 } from './templates.js';
 
 const origin = {
   at: new Date('2026-09-24T14:05:00Z'),
   device: '<img src=x onerror=alert(1)> on Windows',
-  country: 'India',
+  location: 'New Delhi, Delhi, India',
 };
 
 describe('escapeHtml', () => {
@@ -75,9 +76,45 @@ describe('passwordChangedEmail', () => {
       accountName: 'Ada',
       changedFrom: origin,
       forgotPasswordUrl: 'https://canvasflowapp.com/forgot-password',
+      signedOut: 'everywhere',
     });
     expect(email.text).toContain('signed out everywhere');
     expect(email.html).toContain('https://canvasflowapp.com/forgot-password');
     expect(email.html).not.toContain('<img');
+  });
+});
+
+describe('passwordChangedEmail, from Settings', () => {
+  const base = {
+    accountName: 'Ada',
+    changedFrom: origin,
+    forgotPasswordUrl: 'https://canvasflowapp.com/forgot-password',
+  };
+
+  it('says other devices were signed out when they were', () => {
+    const email = passwordChangedEmail({ ...base, signedOut: 'other-devices' });
+    expect(email.text).toContain('Every other device has been signed out.');
+  });
+
+  it('does not claim a sign-out that did not happen', () => {
+    const email = passwordChangedEmail({ ...base, signedOut: 'nowhere' });
+    expect(email.text).not.toContain('signed out');
+    expect(email.text).toContain('stay signed in');
+  });
+});
+
+describe('passwordSetupEmail', () => {
+  it('carries the link, names the provider and escapes the account name', () => {
+    const email = passwordSetupEmail({
+      setupUrl: 'https://canvasflowapp.com/reset-password#token=abc',
+      expiresAt: new Date(Date.now() + 30 * 60_000),
+      accountName: 'Mallory <b>',
+      providers: ['github'],
+      requestedFrom: origin,
+    });
+    expect(email.html).toContain('reset-password#token=abc');
+    expect(email.text).toContain('GitHub');
+    expect(email.html).toContain('Mallory &lt;b&gt;');
+    expect(email.text).toContain('expires in 30 minutes');
   });
 });

@@ -1,6 +1,8 @@
 import { Controller, Get, Headers, Req, Res, UseFilters, UseGuards } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
+import { parseEnv } from '../../../config/env.js';
+import { requestLocation } from '../../../common/request-origin.js';
 import { setSessionCookies } from '../auth-cookies.js';
 import { OAuthFailureFilter } from './oauth-failure.filter.js';
 import { GitHubOAuthGuard, GoogleOAuthGuard } from './oauth.guards.js';
@@ -89,6 +91,9 @@ export class OAuthController {
     const result = await this.oauth.signIn(identity, {
       ip: request.ip ?? null,
       userAgent: userAgent ?? null,
+      location: requestLocation(request, {
+        trustEdgeHeaders: Boolean(parseEnv().ORIGIN_AUTH_SECRET),
+      }),
     });
 
     setSessionCookies(response, result);

@@ -4,10 +4,12 @@ import { parseEnv } from '../../config/env.js';
 import {
   passwordChangedEmail,
   passwordResetEmail,
+  passwordSetupEmail,
   providerNoticeEmail,
   verificationEmail,
   type PasswordChangedContent,
   type PasswordResetContent,
+  type PasswordSetupContent,
   type ProviderNoticeContent,
   type RenderedEmail,
 } from './templates.js';
@@ -69,6 +71,15 @@ export class EmailService {
       recipient.to,
       passwordResetEmail(content),
       `Password reset email for user ${recipient.userId}`,
+    );
+  }
+
+  /** A link to add a password, for an account that signs in only with a provider. */
+  async sendPasswordSetup(recipient: Recipient, content: PasswordSetupContent): Promise<boolean> {
+    return this.deliver(
+      recipient.to,
+      passwordSetupEmail(content),
+      `Password setup email for user ${recipient.userId}`,
     );
   }
 

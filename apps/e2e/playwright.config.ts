@@ -20,8 +20,8 @@ export default defineConfig({
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'chromium',
-      // Password recovery runs in its own project, below.
-      testIgnore: /password-reset\.spec\.ts/,
+      // Password recovery and account security run in their own projects, below.
+      testIgnore: /(password-reset|account-security)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         // Every test in this project starts already signed in, from the file
@@ -37,6 +37,13 @@ export default defineConfig({
     {
       name: 'recovery',
       testMatch: /password-reset\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // Settings → Account & Security, with its own throwaway account for the
+    // same reason. Run on its own with `--project=account`.
+    {
+      name: 'account',
+      testMatch: /account-security\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
   ],
