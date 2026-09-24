@@ -80,9 +80,17 @@ and the sync-server.
   password, a provider-only account and a barred account all get the same
   answer in the same time (a decoy hash is checked when there is no account).
   Success creates an `auth_sessions` row and sets both cookies.
-- **Google / GitHub** (`GET /auth/oauth/:provider`): the provider's confirmed
-  address is linked to an existing account or creates one. An unconfirmed
-  provider address is refused rather than linked.
+- **Google / GitHub** (`GET /auth/oauth/:provider`): signs in to the account
+  the provider account is already linked to, or finds one by address, or
+  creates one. An address the provider has not confirmed is never linked to an
+  existing account. A confirmed one is linked to an account whose own address
+  is confirmed. If nobody has confirmed the account's address, the provider's
+  confirmation is the first proof of who owns it, so the sign-in takes the
+  account over: in one transaction its password and provider links are
+  removed, the address is confirmed and every session ends. The owner is
+  emailed what was removed, and can add a password again from Settings. This
+  stops someone who signed up first with another person's address from
+  keeping a way in.
 - **Staying signed in**: the gateway renews the access token from the refresh
   cookie when it is close to expiring (`/auth/refresh`, `/auth/resume`,
   `/auth/editor-token`). Every renewal rotates the refresh token; presenting a
@@ -120,7 +128,8 @@ its token happens to expire:
   `session-ended`. The editor then sends the person to sign in.
 
 This covers every way a session ends: signing out, signing out everywhere, a
-password reset, and a stolen refresh token being caught.
+password reset or change, a provider sign-in taking over an unconfirmed
+account, and a stolen refresh token being caught.
 
 ## Protections
 

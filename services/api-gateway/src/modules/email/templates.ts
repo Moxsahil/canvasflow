@@ -252,6 +252,74 @@ export function passwordChangedEmail(content: PasswordChangedContent): RenderedE
   };
 }
 
+export interface AccountClaimedContent {
+  accountName: string;
+  /** The provider that has just confirmed the address. */
+  provider: OAuthProvider;
+  passwordRemoved: boolean;
+  /** Provider links added before anybody confirmed the address, now removed. */
+  providersRemoved: OAuthProvider[];
+  /** Settings lives inside the app, so this is where adding a password starts. */
+  appUrl: string;
+  claimedFrom: RequestOrigin;
+}
+
+/**
+ * Sent when a provider sign-in takes over an account whose address nobody had
+ * confirmed.
+ *
+ * It goes to the address the provider has just confirmed, so it reaches the
+ * real owner. It is worded for both people that can be: somebody whose address
+ * a stranger signed up with, and somebody who set the account up themselves,
+ * never confirmed it, and now needs to know their password is gone.
+ */
+export function accountClaimedEmail(content: AccountClaimedContent): RenderedEmail {
+  const provider = PROVIDER_NAMES[content.provider];
+  const origin = describeOrigin(content.claimedFrom);
+  const changes = [
+    ...(content.passwordRemoved ? ['removed the password that had been set on it'] : []),
+    ...content.providersRemoved.map(
+      // "A GitHub account", not "GitHub": it can be the same provider the owner
+      // has just signed in with, only somebody else's account there.
+      (removed) =>
+        `disconnected a ${PROVIDER_NAMES[removed]} account that had never confirmed the address`,
+    ),
+    'signed out every other device',
+  ];
+  const intro = (accountName: string) =>
+    `You signed in with ${provider}, which confirmed that this address is yours. Your CanvasFlow account, ${accountName}, had been set up with it before anyone confirmed it, so to make sure nobody else can still get in, we:`;
+  const addPassword =
+    'If you set that password yourself, add a password again in Settings, under Account & Security.';
+
+  return {
+    subject: 'We secured your CanvasFlow account',
+    html: layout(
+      'We secured your account',
+      paragraph(intro(`<strong>${escapeHtml(content.accountName)}</strong>`)) +
+        `<ul style="color: #475569; line-height: 1.6;">${changes
+          .map((change) => `<li>${escapeHtml(change)}</li>`)
+          .join('')}</ul>` +
+        (content.passwordRemoved ? paragraph(escapeHtml(addPassword)) : '') +
+        button(content.appUrl, 'Open CanvasFlow') +
+        paragraph(`Signed in ${escapeHtml(origin)}.`) +
+        footnote(`You can keep signing in with ${escapeHtml(provider)}.`),
+    ),
+    text: [
+      'We secured your account',
+      '',
+      intro(content.accountName),
+      ...changes.map((change) => `- ${change}`),
+      '',
+      ...(content.passwordRemoved ? [addPassword, ''] : []),
+      `Open CanvasFlow: ${content.appUrl}`,
+      '',
+      `Signed in ${origin}.`,
+      '',
+      `You can keep signing in with ${provider}.`,
+    ].join('\n'),
+  };
+}
+
 export interface PasswordSetupContent {
   setupUrl: string;
   expiresAt: Date;

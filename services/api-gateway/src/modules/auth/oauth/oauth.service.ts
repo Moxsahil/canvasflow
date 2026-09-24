@@ -1,11 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { accounts, users, type UserRow } from '@canvasflow/db';
+import { accounts, users, type DatabaseExecutor, type UserRow } from '@canvasflow/db';
+import { parseEnv } from '../../../config/env.js';
+import { describeDevice } from '../../../common/request-origin.js';
 import { DatabaseService } from '../../../infra/database/database.service.js';
+import { EmailService } from '../../email/email.service.js';
 import { AuditService, type RequestContext } from '../audit.service.js';
 import { SessionService } from '../session.service.js';
 import { TokenService } from '../token.service.js';
 import type { SignInResult } from '../auth.service.js';
+import { matchOnAddress } from './address-match.js';
 
 export type OAuthProvider = 'google' | 'github';
 
@@ -51,6 +55,20 @@ const ACCOUNT_TYPE: Record<OAuthProvider, string> = {
   github: 'oauth',
 };
 
+const PROVIDERS = Object.keys(ACCOUNT_TYPE) as OAuthProvider[];
+
+/** What taking over an unconfirmed account removed, for the audit trail and the owner's mail. */
+interface AccountClaim {
+  passwordRemoved: boolean;
+  providersRemoved: OAuthProvider[];
+}
+
+interface ResolvedUser {
+  user: UserRow;
+  /** Set when this sign-in took over an account whose address nobody had confirmed. */
+  claim: AccountClaim | null;
+}
+
 /**
  * Turns "this provider vouched for this person" into a CanvasFlow session.
  *
@@ -61,16 +79,18 @@ const ACCOUNT_TYPE: Record<OAuthProvider, string> = {
 @Injectable()
 export class OAuthService {
   private readonly logger = new Logger(OAuthService.name);
+  private readonly env = parseEnv();
 
   constructor(
     private readonly database: DatabaseService,
     private readonly sessions: SessionService,
     private readonly tokens: TokenService,
     private readonly audit: AuditService,
+    private readonly email: EmailService,
   ) {}
 
   async signIn(identity: OAuthIdentity, context: RequestContext): Promise<SignInResult> {
-    const user = await this.resolveUser(identity);
+    const { user, claim } = await this.resolveUser(identity);
 
     // Same refusal the password path gives a barred account. Arriving through
     // a provider is a different door, not a different rule.
@@ -78,8 +98,12 @@ export class OAuthService {
       throw new OAuthSignInError('account_disabled');
     }
 
-    await this.recordVerification(user, identity);
+    // A claim has already confirmed the address, in its own transaction.
+    if (claim) await this.reportClaim(user, identity, claim, context);
+    else await this.recordVerification(user, identity);
 
+    // Only now, after a claim has ended every session the account had, so the
+    // one this sign-in gets is the only one left standing.
     const session = await this.sessions.create(user.id, context.userAgent, context.location);
     const access = await this.tokens.issue({ userId: user.id, sessionId: session.sessionId });
 
@@ -109,10 +133,11 @@ export class OAuthService {
    * Three cases in order of certainty: a provider account we have seen before,
    * an existing account on the same address, and somebody entirely new.
    *
-   * Linking on a matching address is the behaviour the current sign-in already
-   * has, and it is safe only while the provider has confirmed that address —
-   * the check that enforces it is in the second case below, and deleting it
-   * turns this method into an account takeover.
+   * Linking on a matching address is safe only when both sides have confirmed
+   * it: the provider (otherwise the provider account may be somebody else's)
+   * and this account (otherwise somebody else may have set it up).
+   * `matchOnAddress` decides, and weakening it turns this method into an
+   * account takeover.
    *
    * Note what is deliberately absent: no branch here reads an existing
    * session. Signing in through a provider says which account you are, never
@@ -120,7 +145,7 @@ export class OAuthService {
    * behaviour is how a provider account ends up as a permanent key into
    * somebody else's account.
    */
-  private async resolveUser(identity: OAuthIdentity): Promise<UserRow> {
+  private async resolveUser(identity: OAuthIdentity): Promise<ResolvedUser> {
     const db = this.database.db;
 
     const [linked] = await db
@@ -140,7 +165,7 @@ export class OAuthService {
       // have prevented. Refusing is the only honest answer; creating a second
       // account here would silently hand somebody a blank one.
       if (!user) throw new OAuthSignInError('provider_error');
-      return user;
+      return { user, claim: null };
     }
 
     // Everything below needs an address, and a provider is entitled to release
@@ -158,25 +183,140 @@ export class OAuthService {
       .limit(1);
 
     if (existing) {
-      // The address alone is not proof. GitHub lets anybody add any address to
-      // their account and only marks it confirmed once they follow a link, so
-      // without this an attacker adds the victim's address to a throwaway
-      // account, signs in here, and is handed the account that owns it.
-      //
-      // Refusing is the only option left: the address is taken, and a second
-      // row could not be created for it even if that were the right answer.
-      if (!identity.emailVerified) throw new OAuthSignInError('email_unverified');
-
-      if (!existing.isGuest) await this.link(existing.id, identity);
-      return existing;
+      switch (matchOnAddress(existing, identity.emailVerified)) {
+        case 'refuse':
+          // Refusing is the only option left: the address is taken, and a
+          // second row could not be created for it even if that were right.
+          throw new OAuthSignInError('email_unverified');
+        case 'barred':
+          return { user: existing, claim: null };
+        case 'link':
+          await this.link(existing.id, identity);
+          return { user: existing, claim: null };
+        case 'claim':
+          return { user: existing, claim: await this.claim(existing.id, identity) };
+      }
     }
 
-    return this.create(email, identity);
+    return { user: await this.create(email, identity), claim: null };
+  }
+
+  /**
+   * Take over an account whose address nobody had confirmed, for the person a
+   * provider has just confirmed it for.
+   *
+   * Everything added before that proof is removed: the password, any provider
+   * link (on an account like this, one can only have been made with an address
+   * its provider had not confirmed either), and every signed-in device, whose
+   * open editors the sync-server closes within seconds. All in one
+   * transaction, so there is no moment where this provider is linked and a
+   * password somebody else chose still works.
+   *
+   * The boards stay. They belong to the account, and the owner can see what is
+   * there and delete it; wiping them would cost somebody who set the account up
+   * themselves everything they made before confirming.
+   *
+   * Null when, by the time the row is locked, the address has been confirmed
+   * after all — a verification link followed a moment earlier, or a second tab
+   * finishing this same claim. Then this is an ordinary link.
+   */
+  private async claim(userId: string, identity: OAuthIdentity): Promise<AccountClaim | null> {
+    return this.database.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ passwordHash: users.passwordHash, emailVerifiedAt: users.emailVerifiedAt })
+        .from(users)
+        .where(eq(users.id, userId))
+        .for('update');
+      if (!current) throw new OAuthSignInError('provider_error');
+
+      if (current.emailVerifiedAt) {
+        await this.link(userId, identity, tx);
+        return null;
+      }
+
+      const now = new Date();
+      await tx
+        .update(users)
+        .set({
+          passwordHash: null,
+          // Only when there was one to remove. Dating it also retires every
+          // reset link issued before now, which the reset check compares
+          // against this column.
+          ...(current.passwordHash ? { passwordChangedAt: now } : {}),
+          emailVerifiedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(users.id, userId));
+
+      const unlinked = await tx
+        .delete(accounts)
+        .where(eq(accounts.userId, userId))
+        .returning({ provider: accounts.provider });
+      await this.link(userId, identity, tx);
+
+      await this.sessions.revokeAllFor(userId, tx);
+
+      return {
+        passwordRemoved: current.passwordHash !== null,
+        providersRemoved: PROVIDERS.filter((provider) =>
+          unlinked.some((row) => row.provider === provider),
+        ),
+      };
+    });
+  }
+
+  /**
+   * Write a claim down, and tell the owner — the only person the address now
+   * reaches — what was removed and how to add a password back.
+   */
+  private async reportClaim(
+    user: UserRow,
+    identity: OAuthIdentity,
+    claim: AccountClaim,
+    context: RequestContext,
+  ): Promise<void> {
+    await this.audit.record({
+      action: 'auth.account.claimed',
+      actorId: user.id,
+      targetType: 'user',
+      targetId: user.id,
+      metadata: { provider: identity.provider, ...claim },
+      context,
+    });
+    await this.audit.record({
+      action: 'auth.session.revoked',
+      actorId: user.id,
+      targetType: 'user',
+      targetId: user.id,
+      metadata: { scope: 'all', reason: 'account_claimed' },
+      context,
+    });
+
+    // Not awaited: the redirect should not wait on the mail provider, and the
+    // send never throws.
+    void this.email.sendAccountClaimed(
+      { to: user.email, userId: user.id },
+      {
+        accountName: user.name,
+        provider: identity.provider,
+        ...claim,
+        appUrl: new URL('/open', this.env.WEB_URL).toString(),
+        claimedFrom: {
+          at: new Date(),
+          device: describeDevice(context.userAgent ?? undefined),
+          location: context.location ?? null,
+        },
+      },
+    );
   }
 
   /** Attach a provider account to a user that already exists. */
-  private async link(userId: string, identity: OAuthIdentity): Promise<void> {
-    await this.database.db
+  private async link(
+    userId: string,
+    identity: OAuthIdentity,
+    executor: DatabaseExecutor = this.database.db,
+  ): Promise<void> {
+    await executor
       .insert(accounts)
       .values({
         userId,

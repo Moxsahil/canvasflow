@@ -14,6 +14,7 @@ import { GitHubStrategy } from './oauth/github.strategy.js';
 import { GoogleStrategy } from './oauth/google.strategy.js';
 import { OAuthController } from './oauth/oauth.controller.js';
 import { OAuthService } from './oauth/oauth.service.js';
+import { EmailModule } from '../email/email.module.js';
 import { EmailVerificationModule } from '../email-verification/email-verification.module.js';
 
 @Module({
@@ -22,7 +23,7 @@ import { EmailVerificationModule } from '../email-verification/email-verificatio
   // want: being signed in here is a token and a row, not server memory. The
   // one thing a session would normally hold — the OAuth state — has its own
   // cookie store instead.
-  imports: [PassportModule.register({ session: false }), EmailVerificationModule],
+  imports: [PassportModule.register({ session: false }), EmailModule, EmailVerificationModule],
   controllers: [AuthController, OAuthController, SessionController],
   providers: [
     AuthService,

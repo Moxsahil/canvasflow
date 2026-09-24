@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  accountClaimedEmail,
   escapeHtml,
   minutesUntil,
   passwordChangedEmail,
@@ -116,5 +117,38 @@ describe('passwordSetupEmail', () => {
     expect(email.text).toContain('GitHub');
     expect(email.html).toContain('Mallory &lt;b&gt;');
     expect(email.text).toContain('expires in 30 minutes');
+  });
+});
+
+describe('accountClaimedEmail', () => {
+  const base = {
+    accountName: 'Mallory <b>',
+    provider: 'google' as const,
+    appUrl: 'https://canvasflowapp.com/open',
+    claimedFrom: origin,
+  };
+
+  it('lists what was removed, and says how to add a password back', () => {
+    const email = accountClaimedEmail({ ...base, passwordRemoved: true, providersRemoved: [] });
+    expect(email.text).toContain('- removed the password that had been set on it');
+    expect(email.text).toContain('- signed out every other device');
+    expect(email.text).toContain('add a password again in Settings');
+    expect(email.html).toContain('https://canvasflowapp.com/open');
+  });
+
+  it('names a provider link it removed, and does not mention a password there was not', () => {
+    const email = accountClaimedEmail({
+      ...base,
+      passwordRemoved: false,
+      providersRemoved: ['github'],
+    });
+    expect(email.text).toContain('- disconnected a GitHub account that had never confirmed');
+    expect(email.text).not.toContain('password');
+  });
+
+  it('escapes every value that came from somebody else', () => {
+    const email = accountClaimedEmail({ ...base, passwordRemoved: true, providersRemoved: [] });
+    expect(email.html).toContain('Mallory &lt;b&gt;');
+    expect(email.html).not.toContain('<img');
   });
 });

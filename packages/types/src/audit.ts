@@ -20,6 +20,12 @@ export type AuditAction =
   | 'auth.password.reset_requested'
   /** A password was replaced by following a reset link. */
   | 'auth.password.reset'
+  /**
+   * A provider confirmed the address of an account nobody had confirmed. Its
+   * password and unconfirmed provider links were removed and every session
+   * ended, so whoever registered the address first cannot still get in.
+   */
+  | 'auth.account.claimed'
   /** Every session an account had, ended at once. */
   | 'auth.session.revoked'
   /** A refresh token was presented after it had already been spent. */
