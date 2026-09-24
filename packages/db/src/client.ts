@@ -1,10 +1,26 @@
-import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { drizzle, type NodePgDatabase, type NodePgQueryResultHKT } from 'drizzle-orm/node-postgres';
+import type { ExtractTablesWithRelations } from 'drizzle-orm';
+import type { PgDatabase } from 'drizzle-orm/pg-core';
 import * as schema from './schema/index.js';
 import pg from 'pg';
 
 const { Pool } = pg;
 
 export type Database = NodePgDatabase<typeof schema>;
+
+/**
+ * Either the database or a transaction open on it.
+ *
+ * For helpers that sometimes run on their own and sometimes as one step of a
+ * larger transaction — revoking every session is both a sign-out-everywhere on
+ * its own and part of resetting a password, where it must commit or roll back
+ * with the password change.
+ */
+export type DatabaseExecutor = PgDatabase<
+  NodePgQueryResultHKT,
+  typeof schema,
+  ExtractTablesWithRelations<typeof schema>
+>;
 
 /**
  * One client per database per process, however many modules ask.

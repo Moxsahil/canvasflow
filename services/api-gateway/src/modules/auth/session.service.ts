@@ -1,7 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, gt, isNull } from 'drizzle-orm';
-import { authSessionTokens, authSessions, type AuthSessionRow } from '@canvasflow/db';
+import {
+  authSessionTokens,
+  authSessions,
+  type AuthSessionRow,
+  type DatabaseExecutor,
+} from '@canvasflow/db';
 import { DatabaseService } from '../../infra/database/database.service.js';
 import { AuditService } from './audit.service.js';
 import {
@@ -312,9 +317,13 @@ export class SessionService {
       .where(and(eq(authSessions.id, sessionId), isNull(authSessions.revokedAt)));
   }
 
-  /** End every live session an account has. For signing out everywhere. */
-  async revokeAllFor(userId: string): Promise<void> {
-    await this.database.db
+  /**
+   * End every live session an account has. For signing out everywhere, and
+   * for resetting a password — where it is passed the reset's transaction, so
+   * the sessions end if and only if the password actually changed.
+   */
+  async revokeAllFor(userId: string, executor: DatabaseExecutor = this.database.db): Promise<void> {
+    await executor
       .update(authSessions)
       .set({ revokedAt: new Date() })
       .where(and(eq(authSessions.userId, userId), isNull(authSessions.revokedAt)));

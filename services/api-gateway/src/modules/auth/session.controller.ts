@@ -84,6 +84,7 @@ export class SessionController {
     return this.editorTokens.mint(
       { id: profile.id, email: profile.email, name: profile.name, isGuest: false },
       access,
+      session.sessionId,
     );
   }
 

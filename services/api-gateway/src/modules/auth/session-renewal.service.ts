@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { isSessionLive } from '@canvasflow/db';
+import { DatabaseService } from '../../infra/database/database.service.js';
 import { ACCESS_COOKIE, REFRESH_COOKIE, setSessionCookies } from './auth-cookies.js';
 import { AuthService } from './auth.service.js';
 import { TokenService } from './token.service.js';
@@ -16,6 +18,8 @@ const RENEW_WITHIN_MS = 5 * 60 * 1000;
 
 export interface ResolvedSession {
   userId: string;
+  /** The session row, so a board token minted from this can name it. */
+  sessionId: string;
 }
 
 /**
@@ -29,32 +33,44 @@ export interface ResolvedSession {
  *
  * Only reachable under `/auth`, because that is the only path the refresh
  * cookie is sent to. Every route that renews has to live there.
+ *
+ * An access token is only ever trusted while its session still stands. A
+ * signature proves the token was issued, not that the session behind it has
+ * not been ended since — by signing out, signing out everywhere, or resetting
+ * the password — and serving on it anyway is how a revoked session used to
+ * keep minting board tokens until its access token ran out.
  */
 @Injectable()
 export class SessionRenewalService {
   constructor(
     private readonly auth: AuthService,
     private readonly tokens: TokenService,
+    private readonly database: DatabaseService,
   ) {}
 
   async resolve(request: Request, response: Response): Promise<ResolvedSession | null> {
     const cookies = request.cookies as Record<string, string> | undefined;
     const access = await this.tokens.inspect(cookies?.[ACCESS_COOKIE]);
 
-    // Plenty of time left: nothing to do.
-    if (access && access.expiresAt.getTime() - Date.now() > RENEW_WITHIN_MS) {
-      return { userId: access.claims.userId };
+    // Plenty of time left, and the session still stands: nothing to do.
+    if (
+      access &&
+      access.expiresAt.getTime() - Date.now() > RENEW_WITHIN_MS &&
+      (await this.stillStands(access.claims.sessionId))
+    ) {
+      return { userId: access.claims.userId, sessionId: access.claims.sessionId };
     }
 
-    // Expired, missing or about to be. Renew if there is anything to renew
-    // with; the refresh path already rotates the token, slides the session,
-    // catches reuse and refuses barred accounts.
+    // Expired, missing, about to be, or its session has ended. Renew if there
+    // is anything to renew with; the refresh path already rotates the token,
+    // slides the session, catches reuse and refuses revoked sessions and
+    // barred accounts.
     const refreshToken = cookies?.[REFRESH_COOKIE];
     if (refreshToken) {
       const renewed = await this.auth.refresh(refreshToken);
       if (renewed) {
         setSessionCookies(response, renewed);
-        return { userId: renewed.account.id };
+        return { userId: renewed.account.id, sessionId: renewed.sessionId };
       }
     }
 
@@ -62,7 +78,16 @@ export class SessionRenewalService {
     // usual reason is a second tab that renewed a moment earlier with the same
     // refresh token: this request lost the race, the cookie jar already holds
     // the winner's fresh pair, and failing here would sign a tab out for
-    // having a sibling. Serve it on the token that is still valid.
-    return access ? { userId: access.claims.userId } : null;
+    // having a sibling. Serve it on the token that is still valid — but only
+    // while its session stands. A session that was ended has no sibling to
+    // defer to, and serving it is exactly what revocation has to stop.
+    if (access && (await this.stillStands(access.claims.sessionId))) {
+      return { userId: access.claims.userId, sessionId: access.claims.sessionId };
+    }
+    return null;
+  }
+
+  private stillStands(sessionId: string): Promise<boolean> {
+    return isSessionLive(this.database.db, sessionId);
   }
 }

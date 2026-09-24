@@ -15,6 +15,8 @@ interface UseBoardSyncOptions {
   onAccessChanged?: () => void;
   /** Access to this board is gone. The connection is down and stays down. */
   onAccessRevoked?: () => void;
+  /** The signed-in session has ended. The connection is down and stays down. */
+  onSessionEnded?: () => void;
 }
 
 interface UseBoardSyncResult {
@@ -64,6 +66,7 @@ export function useBoardSync(
     onAuthError,
     onAccessChanged,
     onAccessRevoked,
+    onSessionEnded,
   }: UseBoardSyncOptions,
 ): UseBoardSyncResult {
   const [status, setStatus] = useState<SyncStatus>('idle');
@@ -84,6 +87,7 @@ export function useBoardSync(
   const onAuthErrorRef = useRef(onAuthError);
   const onAccessChangedRef = useRef(onAccessChanged);
   const onAccessRevokedRef = useRef(onAccessRevoked);
+  const onSessionEndedRef = useRef(onSessionEnded);
 
   const { hydrated: cacheHydrated, purge: purgeCache } = useOfflineCache(doc, boardId, userId);
 
@@ -102,6 +106,10 @@ export function useBoardSync(
   useEffect(() => {
     onAccessRevokedRef.current = onAccessRevoked;
   }, [onAccessRevoked]);
+
+  useEffect(() => {
+    onSessionEndedRef.current = onSessionEnded;
+  }, [onSessionEnded]);
 
   const hasToken = authToken !== null;
 
@@ -134,6 +142,8 @@ export function useBoardSync(
       // even as the effect is tearing the connection down, because the
       // teardown is the very thing it is reporting.
       onAccessRevoked: () => onAccessRevokedRef.current?.(),
+      // Likewise ungated: the teardown is what it is reporting.
+      onSessionEnded: () => onSessionEndedRef.current?.(),
       onStatusChange: (next) => {
         if (cancelled) return;
         setStatus(next);

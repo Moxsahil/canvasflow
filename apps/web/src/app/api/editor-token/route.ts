@@ -62,7 +62,10 @@ export async function GET(request: NextRequest) {
     return corsJson({ error: 'Board not found' }, { status: 404 });
   }
 
-  return corsJson(await mintEditorToken(identity, access));
+  // A signed-in account's token names its session; a guest's names none.
+  return corsJson(
+    await mintEditorToken(identity, access, identity.isGuest ? null : (session?.sessionId ?? null)),
+  );
 }
 
 async function loadAccountIdentity(userId: string): Promise<EditorIdentity | null> {

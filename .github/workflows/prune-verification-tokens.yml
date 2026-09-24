@@ -1,8 +1,9 @@
 name: Prune expired rows
 
-# Spent and expired email-verification challenges are dead rows: nothing reads
-# one after its link has been used or its expiry has passed. Left alone they
-# accumulate for the life of the product.
+# Spent and expired email-verification challenges, old sign-in failures, and
+# spent or expired password-reset links and requests are dead rows: nothing
+# reads one once it has stopped counting. Left alone they accumulate for the
+# life of the product.
 #
 # The script keeps seven days of them on purpose — those same rows are what the
 # resend limiter counts, and its longest window is a day. See the script for
@@ -24,6 +25,12 @@ jobs:
     name: Prune spent and expired rows
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Set once for the whole job rather than per step. It used to be given to
+    # the sign-in step alone, which left the verification step before it with
+    # no database — so that step failed every night and, failing first, stopped
+    # the sign-in step from ever running either.
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,5 +64,6 @@ jobs:
 
       - name: Prune sign-in failures
         run: pnpm --filter @canvasflow/db prune:sign-in-failures
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Prune password-reset requests and links
+        run: pnpm --filter @canvasflow/db prune:password-resets

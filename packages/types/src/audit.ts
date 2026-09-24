@@ -16,6 +16,10 @@ export type AuditAction =
   | 'auth.login'
   | 'auth.logout'
   | 'auth.password.changed'
+  /** A reset link was sent to an account that can use one. */
+  | 'auth.password.reset_requested'
+  /** A password was replaced by following a reset link. */
+  | 'auth.password.reset'
   /** Every session an account had, ended at once. */
   | 'auth.session.revoked'
   /** A refresh token was presented after it had already been spent. */

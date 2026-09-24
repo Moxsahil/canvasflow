@@ -1,4 +1,10 @@
-import { canEdit, resolveBoardAccess, type BoardRole, type Database } from '@canvasflow/db';
+import {
+  canEdit,
+  liveSessionIds,
+  resolveBoardAccess,
+  type BoardRole,
+  type Database,
+} from '@canvasflow/db';
 import type { Connection, Hocuspocus } from '@hocuspocus/server';
 import type { Logger } from '../logging/logger.js';
 
@@ -32,11 +38,33 @@ export interface AccessRevokedMessage {
 /** The reason written into the permission-denied frame when a connect is refused. */
 export const ACCESS_REVOKED_REASON = 'access-revoked';
 
+/**
+ * Sent to a client whose signed-in session has been ended — signed out,
+ * signed out everywhere, or swept away by a password reset — immediately
+ * before its socket is closed.
+ *
+ * Kept apart from `access-revoked` because the right response is different:
+ * the person has not lost the board, they have lost their session, and the
+ * editor should send them to sign in rather than tell them the board is gone.
+ */
+export interface SessionEndedMessage {
+  type: 'session-ended';
+}
+
+/**
+ * The reason written into the permission-denied frame when a connect is
+ * refused because the token's session has ended. Kept in step with
+ * SESSION_ENDED_REASON in the editor's WebSocketSync.
+ */
+export const SESSION_ENDED_REASON = 'session-ended';
+
 interface ConnectionContext {
   userId?: string;
   boardId?: string;
   role?: BoardRole;
   requestId?: string;
+  /** The signed-in session behind the token; absent for a guest. */
+  sessionId?: string | null;
 }
 
 export interface ReauthorizeDeps {
@@ -46,7 +74,13 @@ export interface ReauthorizeDeps {
 }
 
 /** What a single re-check did, mostly so the internal route can report it. */
-export type ReauthorizeOutcome = 'revoked' | 'changed' | 'unchanged' | 'skipped' | 'failed';
+export type ReauthorizeOutcome =
+  | 'revoked'
+  | 'ended'
+  | 'changed'
+  | 'unchanged'
+  | 'skipped'
+  | 'failed';
 
 /**
  * Re-check one live connection and bring it in line with the database.
@@ -59,6 +93,12 @@ export type ReauthorizeOutcome = 'revoked' | 'changed' | 'unchanged' | 'skipped'
 export async function reauthorizeConnection(
   connection: Connection,
   { db, log }: Omit<ReauthorizeDeps, 'server'>,
+  /**
+   * The sessions known to still stand, read once for the whole sweep. Omitted
+   * by callers that are only asking about board access; undefined means "not
+   * checked", never "none live".
+   */
+  liveSessions?: Set<string>,
 ): Promise<ReauthorizeOutcome> {
   const context = connection.context as ConnectionContext;
   const { userId, boardId } = context;
@@ -67,23 +107,21 @@ export async function reauthorizeConnection(
   // hand those to hooks before onAuthenticate has resolved.
   if (!userId || !boardId) return 'skipped';
 
+  // A session that has ended takes its connections with it, whatever the
+  // board says: the person may still have access to this board, but not
+  // through a session that has been signed out or reset away.
+  if (context.sessionId && liveSessions && !liveSessions.has(context.sessionId)) {
+    log.info('session ended, closing connection', { userId, boardId });
+    close(connection, { type: 'session-ended' } satisfies SessionEndedMessage);
+    return 'ended';
+  }
+
   try {
     const access = await resolveBoardAccess(db, userId, boardId);
 
     if (!access) {
       log.info('access revoked, closing connection', { userId, boardId });
-
-      // Sealed before anything else, so nothing can land in the window
-      // between telling them and the socket actually going away.
-      connection.readOnly = true;
-
-      const message: AccessRevokedMessage = { type: 'access-revoked' };
-      connection.sendStateless(JSON.stringify(message));
-
-      // Ordering holds: the WebSocket close frame queues behind data already
-      // handed to the socket, so the message above is delivered rather than
-      // discarded with the connection.
-      connection.close();
+      close(connection, { type: 'access-revoked' } satisfies AccessRevokedMessage);
       return 'revoked';
     }
 
@@ -125,16 +163,53 @@ export async function reauthorizeConnection(
 }
 
 /**
+ * Tell a client why, then close its socket.
+ *
+ * Sealed read-only before anything else, so nothing can land in the window
+ * between telling them and the socket actually going away. Ordering holds: the
+ * WebSocket close frame queues behind data already handed to the socket, so the
+ * message is delivered rather than discarded with the connection.
+ */
+function close(connection: Connection, message: AccessRevokedMessage | SessionEndedMessage): void {
+  connection.readOnly = true;
+  connection.sendStateless(JSON.stringify(message));
+  connection.close();
+}
+
+/**
  * Run one pass over every open connection.
  *
  * Exported separately from the scheduler so it can be driven directly in a
  * test, and so a caller can force a pass without waiting for the next tick.
+ *
+ * Sessions are read once for the whole pass — one indexed query however many
+ * connections are open — rather than once per connection. This is what ends
+ * an editor within seconds of its session being ended anywhere: a password
+ * reset, a sign-out, signing out everywhere, or a stolen refresh token being
+ * caught. If that read fails, the pass carries on without it: a database blip
+ * must not close anybody's board.
  */
 export async function reauthorizeOnce({ server, db, log }: ReauthorizeDeps): Promise<void> {
-  for (const document of server.documents.values()) {
-    for (const connection of document.getConnections()) {
-      await reauthorizeConnection(connection, { db, log });
-    }
+  const connections = [...server.documents.values()].flatMap((document) =>
+    document.getConnections(),
+  );
+  if (connections.length === 0) return;
+
+  const sessionIds = connections
+    .map((connection) => (connection.context as ConnectionContext).sessionId)
+    .filter((id): id is string => typeof id === 'string');
+
+  let liveSessions: Set<string> | undefined;
+  try {
+    liveSessions = await liveSessionIds(db, sessionIds);
+  } catch (error) {
+    log.warn('session check failed, leaving sessions as-is this pass', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  for (const connection of connections) {
+    await reauthorizeConnection(connection, { db, log }, liveSessions);
   }
 }
 

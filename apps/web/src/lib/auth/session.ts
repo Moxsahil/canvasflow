@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { eq } from 'drizzle-orm';
-import { createClient, users } from '@canvasflow/db';
+import { createClient, isSessionLive, users } from '@canvasflow/db';
 import { env } from '@/lib/env';
 import { ACCESS_COOKIE, readAccessToken } from './gateway-session';
 
@@ -10,6 +10,8 @@ export interface SessionUser {
   id: string;
   email: string | null;
   name: string | null;
+  /** The gateway session this came from, for a board token to name. */
+  sessionId: string;
 }
 
 /**
@@ -19,14 +21,19 @@ export interface SessionUser {
  */
 export interface CurrentSession {
   user: { id: string };
+  sessionId: string;
 }
 
 /**
  * Who is signed in, according to the API gateway's session cookie.
  *
  * The gateway is the only thing in CanvasFlow that signs anybody in; this app
- * verifies the short-lived access token it issued and nothing else. No
- * database call and no network: the signature is the proof.
+ * verifies the short-lived access token it issued, then asks whether the
+ * session behind it still stands. The signature alone is not enough: a session
+ * that has been signed out, signed out everywhere or ended by a password reset
+ * still has a token that verifies for up to fifteen minutes, and honouring it
+ * would let whoever holds it carry on. One primary-key read, in the same
+ * region as the database.
  *
  * A missing or expired token answers null here. Renewing it is the gateway's
  * job, and this app cannot do it — the refresh cookie never reaches it — so a
@@ -36,7 +43,9 @@ export interface CurrentSession {
 export async function currentSession(): Promise<CurrentSession | null> {
   const jar = await cookies();
   const session = await readAccessToken(jar.get(ACCESS_COOKIE)?.value);
-  return session ? { user: { id: session.userId } } : null;
+  if (!session) return null;
+  if (!(await isSessionLive(db, session.sessionId))) return null;
+  return { user: { id: session.userId }, sessionId: session.sessionId };
 }
 
 /**
@@ -53,6 +62,7 @@ export async function currentUser(): Promise<SessionUser | null> {
   const jar = await cookies();
   const session = await readAccessToken(jar.get(ACCESS_COOKIE)?.value);
   if (!session) return null;
+  if (!(await isSessionLive(db, session.sessionId))) return null;
 
   const [row] = await db
     .select({ id: users.id, email: users.email, name: users.name })
@@ -63,5 +73,5 @@ export async function currentUser(): Promise<SessionUser | null> {
   // A token signed for an account that no longer exists. Deleting somebody
   // does not reach into their browser, so this is ordinary rather than
   // suspicious, and it means the same thing as not being signed in.
-  return row ?? null;
+  return row ? { ...row, sessionId: session.sessionId } : null;
 }

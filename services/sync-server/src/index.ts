@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Server } from '@hocuspocus/server';
 import express from 'express';
-import { createClient, canEdit } from '@canvasflow/db';
+import { createClient, canEdit, isSessionLive } from '@canvasflow/db';
 import { parseEnv } from './config/env.js';
 import { createLogger } from './logging/logger.js';
 import { verifyEditorToken } from './auth/verify-token.js';
@@ -10,6 +10,7 @@ import {
   startReauthorizeLoop,
   reauthorizeUser,
   ACCESS_REVOKED_REASON,
+  SESSION_ENDED_REASON,
   REAUTHORIZE_INTERVAL_MS,
 } from './auth/reauthorize.js';
 import { getAllowedOrigins, isOriginAllowed } from './security/allowed-origins.js';
@@ -122,6 +123,20 @@ const hocuspocus = Server.configure({
       throw new Error('Token does not match requested board');
     }
 
+    // A token minted from a signed-in session is only good while that session
+    // stands. Without this a board token from a session that was just signed
+    // out, or ended by a password reset, could reconnect for the rest of its
+    // five minutes. Named so the editor sends the person to sign in rather
+    // than retrying, or telling them the board is gone. Guests carry no
+    // session and are judged on the board grant below, as before.
+    if (payload.sessionId && !(await isSessionLive(db, payload.sessionId))) {
+      connLog.warn('rejected: session has ended', {
+        userId: payload.userId,
+        boardId: payload.boardId,
+      });
+      throw Object.assign(new Error('Session ended'), { reason: SESSION_ENDED_REASON });
+    }
+
     // Live DB check — the token could have been minted 5 minutes ago and
     // access revoked since. Defense in depth: we re-verify on every connect.
     const access = await checkBoardAccess(db, payload.userId, payload.boardId);
@@ -174,6 +189,9 @@ const hocuspocus = Server.configure({
 
     return {
       requestId,
+      // Re-checked by the re-authorization sweep, so ending the session closes
+      // this connection within seconds rather than when it next reconnects.
+      sessionId: payload.sessionId,
       userId: payload.userId,
       email: payload.email,
       name: payload.name,

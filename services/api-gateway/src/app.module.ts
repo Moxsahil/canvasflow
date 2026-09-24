@@ -8,6 +8,7 @@ import { AvatarsModule } from './modules/avatars/avatars.module.js';
 import { EmailVerificationModule } from './modules/email-verification/email-verification.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { UsersModule } from './modules/users/users.module.js';
+import { PasswordResetModule } from './modules/password-reset/password-reset.module.js';
 import { AppController } from './app.controller.js';
 import { ThrottlerModule } from '@nestjs/throttler';
 
@@ -34,6 +35,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     AvatarsModule,
     EmailVerificationModule,
     AuthModule,
+    PasswordResetModule,
     UsersModule,
   ],
   controllers: [AppController],

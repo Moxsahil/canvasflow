@@ -32,6 +32,13 @@ export interface WebSocketSyncConfig {
    * every reconnect would be refused the same way.
    */
   onAccessRevoked?: () => void;
+  /**
+   * The signed-in session behind this connection has ended — signed out,
+   * signed out everywhere, or ended by a password reset. Fires once, and the
+   * connection is torn down: the board may still be theirs, but not through
+   * this session, so the caller sends the person to sign in.
+   */
+  onSessionEnded?: () => void;
 }
 
 /**
@@ -42,6 +49,13 @@ export interface WebSocketSyncConfig {
  * `services/sync-server/src/auth/reauthorize.ts`.
  */
 const ACCESS_REVOKED_REASON = 'access-revoked';
+
+/**
+ * The `reason` the sync-server writes into a refused connect when the token's
+ * session has ended. Kept in step with SESSION_ENDED_REASON in
+ * `services/sync-server/src/auth/reauthorize.ts`.
+ */
+const SESSION_ENDED_REASON = 'session-ended';
 
 /**
  * WebSocket sync layer, wrapping Hocuspocus provider with our resilience:
@@ -69,7 +83,11 @@ export class WebSocketSync {
   private wsStatus: WebSocketStatus = WebSocketStatus.Connecting;
   private lastActivityAt = Date.now();
   private visibilityHandler: (() => void) | null = null;
-  /** Latched, so a revocation is reported once however many ways it arrives. */
+  /**
+   * Latched, so a revocation or an ended session is reported once however many
+   * ways it arrives, and the socket closing afterwards is not reported as a
+   * reconnect.
+   */
   private accessRevoked = false;
 
   /** Threshold for "long idle" before firing a warm-up ping. */
@@ -126,6 +144,10 @@ export class WebSocketSync {
           this.handleAccessRevoked();
           return;
         }
+        if (reason === SESSION_ENDED_REASON) {
+          this.handleSessionEnded();
+          return;
+        }
         // Editor's useBoardSync handles this by calling refresh on useAuthToken
         this.config.onError?.(new Error('Sync authentication failed (401)'));
         this.config.onAuthError?.();
@@ -142,11 +164,26 @@ export class WebSocketSync {
    * layer can retry into.
    */
   private handleAccessRevoked(): void {
+    this.stop(() => this.config.onAccessRevoked?.());
+  }
+
+  /**
+   * The session is over, though the board may not be.
+   *
+   * Torn down for the same reason as a revocation — every reconnect would be
+   * refused — but reported separately, because the person needs to sign in
+   * again rather than be told the board is gone.
+   */
+  private handleSessionEnded(): void {
+    this.stop(() => this.config.onSessionEnded?.());
+  }
+
+  private stop(report: () => void): void {
     if (this.disposed || this.accessRevoked) return;
     this.accessRevoked = true;
 
     this.config.onStatusChange?.('error');
-    this.config.onAccessRevoked?.();
+    report();
 
     // Deferred rather than torn down inline: this runs inside the provider's
     // own message handling, and destroying it from there unwinds the listener
@@ -173,6 +210,9 @@ export class WebSocketSync {
       // only thing that distinguishes a revocation from a dropped connection.
       if (message.type === 'access-revoked') {
         this.handleAccessRevoked();
+      }
+      if (message.type === 'session-ended') {
+        this.handleSessionEnded();
       }
     } catch {
       // A malformed stateless payload is not worth breaking the session over.

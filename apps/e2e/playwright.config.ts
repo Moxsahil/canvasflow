@@ -20,6 +20,8 @@ export default defineConfig({
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'chromium',
+      // Password recovery runs in its own project, below.
+      testIgnore: /password-reset\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         // Every test in this project starts already signed in, from the file
@@ -28,6 +30,14 @@ export default defineConfig({
       },
       // Nothing here starts until setup has passed.
       dependencies: ['setup'],
+    },
+    // Password recovery makes its own throwaway account and signs in and out
+    // of it, so it starts signed out and does not wait on the shared session
+    // above. Run on its own with `--project=recovery`.
+    {
+      name: 'recovery',
+      testMatch: /password-reset\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
     },
   ],
 });

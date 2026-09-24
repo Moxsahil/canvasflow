@@ -4,7 +4,7 @@ import { emailVerificationTokens, users, getProfile } from '@canvasflow/db';
 import { parseEnv } from '../../config/env.js';
 import { DatabaseService } from '../../infra/database/database.service.js';
 import { TokenService } from './token.service.js';
-import { EmailService } from './email.service.js';
+import { EmailService } from '../email/email.service.js';
 import { ResendRateLimiter } from './resend-rate-limit.service.js';
 
 export type VerificationRejection = 'not-found' | 'expired';

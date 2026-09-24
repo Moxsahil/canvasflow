@@ -1,7 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Suspense, useState, useSyncExternalStore } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -11,10 +10,11 @@ import {
   GoogleMark,
   GitHubMark,
 } from '@/components/auth/auth-shell';
+import { PasswordInput } from '@/components/auth/new-password-field';
 import { Component as PencilLoader } from '@/components/ui/loader-1';
-import { cn } from '@/lib/utils';
 import { safeRedirect } from '@/lib/safe-redirect';
 import { oauthStartUrl, signInWithPassword } from '@/features/auth/api/signin';
+import { rememberEmail, rememberedEmail, subscribeToNothing } from '@/features/auth/reset-handoff';
 
 /**
  * What the gateway's `?error=` codes mean to a person.
@@ -36,9 +36,15 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const next = safeRedirect(searchParams.get('next'), '/open');
 
-  const [email, setEmail] = useState('');
+  // Offered from the password-reset pages when the person arrives from one, so
+  // the new password goes straight in. Read through an external store so the
+  // server renders an empty field and the browser fills it in without a
+  // hydration mismatch.
+  const offered = useSyncExternalStore(subscribeToNothing, rememberedEmail, () => '');
+  const [typed, setTyped] = useState<string | null>(null);
+  const email = typed ?? offered;
+  const justReset = searchParams.get('reset') === '1';
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   // The OAuth callback cannot render a message, so it says what happened in
   // the URL and this is where it gets read.
   const [error, setError] = useState<string | null>(
@@ -81,26 +87,30 @@ function LoginForm() {
         </>
       }
     >
-      <div className="space-y-3">
+      {/* Side by side, named in full for screen readers; the marks and the
+          short labels are enough to scan. */}
+      <div className={authStyles.providerRow}>
         <button
           type="button"
+          aria-label="Continue with Google"
           className={authStyles.provider}
           onClick={() => {
             window.location.href = oauthStartUrl('google', next);
           }}
         >
           <GoogleMark />
-          Continue with Google
+          Google
         </button>
         <button
           type="button"
+          aria-label="Continue with GitHub"
           className={authStyles.provider}
           onClick={() => {
             window.location.href = oauthStartUrl('github', next);
           }}
         >
           <GitHubMark />
-          Continue with GitHub
+          GitHub
         </button>
       </div>
 
@@ -111,44 +121,39 @@ function LoginForm() {
           type="email"
           placeholder="you@example.com"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => setTyped(e.target.value)}
+          autoComplete="username"
           required
           className={authStyles.field}
         />
-        <div className="relative">
-          <input
-            type={showPassword ? 'text' : 'password'}
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-            // `pr-12` through cn so it replaces the field's own right padding
-            // rather than racing it; the value then runs under the button
-            // instead of behind it.
-            className={cn(authStyles.field, 'pr-12')}
-          />
-          <button
-            // Not a submit: a bare button inside a form posts it, so revealing
-            // the password would send the form.
-            type="button"
-            onClick={() => setShowPassword((v) => !v)}
-            aria-label={showPassword ? 'Hide password' : 'Show password'}
-            aria-pressed={showPassword}
-            className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-white/35 transition-colors hover:text-white/80 focus:outline-none focus-visible:text-[#F5F4F0]"
+        <PasswordInput
+          label="Password"
+          value={password}
+          onChange={setPassword}
+          autoComplete="current-password"
+        />
+
+        <div className="flex justify-end">
+          <Link
+            href="/forgot-password"
+            // Carried to the next page so it does not have to be typed twice.
+            onClick={() => rememberEmail(email)}
+            className="text-xs text-white/45 transition-colors hover:text-white/80"
           >
-            {showPassword ? (
-              <EyeOff className="size-4" aria-hidden="true" />
-            ) : (
-              <Eye className="size-4" aria-hidden="true" />
-            )}
-          </button>
+            Forgot password?
+          </Link>
         </div>
 
-        {error && (
+        {error ? (
           <p role="alert" className="text-sm text-red-400">
             {error}
           </p>
+        ) : (
+          justReset && (
+            <p role="status" className="text-sm text-emerald-400">
+              Password updated. Sign in with your new password.
+            </p>
+          )
         )}
 
         <button type="submit" disabled={loading} className={authStyles.submit}>
