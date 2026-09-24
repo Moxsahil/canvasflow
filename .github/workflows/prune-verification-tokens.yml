@@ -31,6 +31,12 @@ jobs:
     # the sign-in step from ever running either.
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # The runner is in the US and the database in Singapore. Node gives each
+      # of the database's addresses 250 ms to connect before trying the next,
+      # which that distance does not always make, so a step failed now and
+      # then with ETIMEDOUT on every address — whichever step drew the short
+      # straw. Two seconds per address, as the local dev scripts already use.
+      NODE_OPTIONS: --network-family-autoselection-attempt-timeout=2000
     steps:
       - name: Checkout
         uses: actions/checkout@v4
