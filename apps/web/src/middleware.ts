@@ -86,7 +86,5 @@ export const config = {
   // to people who are not signed in — that is who the page is for. Without them
   // here the matcher redirects every one of them to /login and the page renders
   // with nothing in it.
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|images/|videos/|icon.svg|icon-light-32x32.png|icon-dark-32x32.png|apple-icon.png).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|images/|videos/).*)'],
 };

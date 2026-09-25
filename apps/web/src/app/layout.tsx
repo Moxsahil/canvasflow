@@ -71,13 +71,15 @@ const fontVariables = [
 export const metadata: Metadata = {
   title: 'CanvasFlow — Collaborative Whiteboard',
   description: 'Enterprise collaborative whiteboard platform',
+  // One icon for every tab in every theme: the logo sits on its own white
+  // square, so it reads on light and dark tab strips alike. The editor serves
+  // the same file for its own tabs.
+  //
+  // Versioned, because browsers hold on to the icon a page last had: a new
+  // address is the one thing certain to make them fetch this one. Bump it
+  // whenever the icon changes.
   icons: {
-    icon: [
-      { url: '/icon-light-32x32.png', media: '(prefers-color-scheme: light)' },
-      { url: '/icon-dark-32x32.png', media: '(prefers-color-scheme: dark)' },
-      { url: '/icon.svg', type: 'image/svg+xml' },
-    ],
-    apple: '/apple-icon.png',
+    icon: [{ url: '/favicon.ico?v=2', sizes: 'any' }],
   },
 };
 
