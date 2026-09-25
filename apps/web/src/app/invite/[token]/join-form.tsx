@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { TERMS_VERSION } from '@canvasflow/types';
 import { TermsAgreement } from '@/components/legal/terms-agreement';
 import { joinAsGuest, joinAsUser } from './actions';
 
@@ -112,7 +113,9 @@ export function JoinForm({
       </Button>
 
       {/* Only on the guest path: a signed-in visitor agreed when their account
-          was made, and one who must sign in agrees on the sign-in page. */}
+          was made, and one who must sign in agrees on the sign-in page. The
+          hidden field tells the join which version this form showed. */}
+      <input type="hidden" name="termsVersion" value={TERMS_VERSION} />
       <TermsAgreement
         className="text-center text-xs text-muted-foreground"
         linkClassName="text-foreground underline underline-offset-4"

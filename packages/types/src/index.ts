@@ -5,3 +5,4 @@ export * from './workspace.js';
 export * from './board.js';
 export * from './audit.js';
 export * from './password.js';
+export * from './legal.js';

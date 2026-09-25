@@ -12,18 +12,22 @@ export const DEFAULT_NEXT = '/open';
 
 const NEXT_COOKIE = 'cf.oauth.next';
 
-/** Long enough for a consent screen, matching the state it travels beside. */
-const NEXT_TTL_MS = 10 * 60 * 1000;
+/**
+ * Long enough for a consent screen, matching the state it travels beside.
+ * Shared by every cookie that rides along with a provider sign-in.
+ */
+export const OAUTH_COOKIE_TTL_MS = 10 * 60 * 1000;
 
 /** Scoped to the OAuth routes, like the state cookie. It is no use elsewhere. */
-const NEXT_COOKIE_PATH = '/auth/oauth';
+const OAUTH_COOKIE_PATH = '/auth/oauth';
 
-function options(): CookieOptions {
+/** The flags every cookie riding along with a provider sign-in is set with. */
+export function oauthCookieOptions(): CookieOptions {
   return {
     httpOnly: true,
     secure: parseEnv().NODE_ENV === 'production',
     sameSite: 'lax',
-    path: NEXT_COOKIE_PATH,
+    path: OAUTH_COOKIE_PATH,
   };
 }
 
@@ -46,11 +50,11 @@ export function rememberNext(request: Request, response: Response): void {
   if (!next) {
     // Clear rather than leave alone, or an abandoned sign-in would hand its
     // destination to the next one started in the same browser.
-    response.clearCookie(NEXT_COOKIE, options());
+    response.clearCookie(NEXT_COOKIE, oauthCookieOptions());
     return;
   }
 
-  response.cookie(NEXT_COOKIE, next, { ...options(), maxAge: NEXT_TTL_MS });
+  response.cookie(NEXT_COOKIE, next, { ...oauthCookieOptions(), maxAge: OAUTH_COOKIE_TTL_MS });
 }
 
 /**
@@ -63,7 +67,7 @@ export function takeNext(request: Request, response: Response): string {
   const cookies = request.cookies as Record<string, string> | undefined;
   const remembered = cookies?.[NEXT_COOKIE];
 
-  response.clearCookie(NEXT_COOKIE, options());
+  response.clearCookie(NEXT_COOKIE, oauthCookieOptions());
 
   return safeRedirect(remembered, DEFAULT_NEXT);
 }

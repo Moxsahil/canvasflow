@@ -5,6 +5,7 @@ import { boards } from '../schema/boards.js';
 import { users } from '../schema/users.js';
 import { boardMembers, type BoardRole } from '../schema/board-access.js';
 import { boardShareLinks, type BoardShareLinkRow } from '../schema/sharing.js';
+import { termsAcceptance } from './users.js';
 
 /**
  * Bytes of entropy in a share token.
@@ -213,11 +214,15 @@ function rank(role: BoardRole): number {
  *
  * The synthetic email is never delivered to; it exists because the column is
  * unique and not null.
+ *
+ * `shownTerms` is the terms version the guest form showed. Joining is agreeing
+ * to it, so it is recorded on the row the same way a signup records it.
  */
 export async function redeemShareLinkAsGuest(
   db: Database,
   token: string,
   displayName?: string,
+  shownTerms?: unknown,
 ): Promise<RedeemOutcome> {
   const found = await lookupShareLink(db, token);
   if (!found.ok) return { ok: false, reason: found.reason };
@@ -234,6 +239,7 @@ export async function redeemShareLinkAsGuest(
         email: `guest-${guestId}@guests.invalid`,
         name: sanitizeGuestName(displayName),
         isGuest: true,
+        ...termsAcceptance(shownTerms),
       })
       .returning({ id: users.id });
 

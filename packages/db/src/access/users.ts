@@ -1,5 +1,5 @@
-import { isCursorColor, type CursorColor } from '@canvasflow/types';
-import { users, type UserRow } from '../schema/users.js';
+import { isCursorColor, TERMS_VERSION, type CursorColor } from '@canvasflow/types';
+import { users, type NewUserRow, type UserRow } from '../schema/users.js';
 import { eq, sql } from 'drizzle-orm';
 import type { Database } from '../client.js';
 
@@ -198,4 +198,23 @@ export async function clearAvatar(db: Database, userId: string): Promise<string 
     .where(eq(users.id, userId));
 
   return previous?.fileId ?? null;
+}
+
+/**
+ * The agreement columns for a user row about to be written.
+ *
+ * `shown` is the terms version the page someone continued from put in front of
+ * them. Only the current one counts. An old page, a request that says nothing,
+ * or a value nobody issued all record nothing, which leaves that person with no
+ * agreement on file rather than one they never gave.
+ */
+export function termsAcceptance(
+  shown: unknown,
+  at: Date = new Date(),
+): Pick<NewUserRow, 'termsAcceptedAt' | 'termsVersion'> {
+  const accepted = shown === TERMS_VERSION;
+  return {
+    termsAcceptedAt: accepted ? at : null,
+    termsVersion: accepted ? TERMS_VERSION : null,
+  };
 }

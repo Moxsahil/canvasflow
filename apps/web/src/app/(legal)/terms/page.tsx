@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { TERMS_VERSION } from '@canvasflow/types';
 import { LegalDocument, type LegalSection } from '@/components/legal/legal-document';
 import { CONTACT, OPERATOR } from '@/lib/legal';
 
@@ -7,8 +8,8 @@ export const metadata: Metadata = {
   description: 'The rules for using CanvasFlow, in plain language.',
 };
 
-/** Move this whenever the text below changes: the page tells readers it did. */
-const LAST_UPDATED = '2026-09-25';
+// "Last updated" is TERMS_VERSION, the version every agreement is recorded
+// against. Whenever the text below changes, move it — in @canvasflow/types.
 
 /**
  * Indian law counts anyone younger as a child, whose data needs a parent's
@@ -320,7 +321,7 @@ export default function TermsPage() {
   return (
     <LegalDocument
       title="Terms of Service"
-      updated={LAST_UPDATED}
+      updated={TERMS_VERSION}
       intro={
         <>
           <p>

@@ -1,3 +1,4 @@
+import { TERMS_VERSION } from '@canvasflow/types';
 import { clientEnv } from '@/lib/env.client';
 
 export interface SignInInput {
@@ -47,9 +48,16 @@ export async function signInWithPassword(input: SignInInput): Promise<SignInResu
   return { ok: false, error: body?.message ?? 'Invalid email or password' };
 }
 
-/** Where the browser goes to hand a provider sign-in to the gateway. */
+/**
+ * Where the browser goes to hand a provider sign-in to the gateway.
+ *
+ * Carries the terms version, because only the pages showing the terms line
+ * start one: an account the gateway creates on the way back records that its
+ * owner agreed to it.
+ */
 export function oauthStartUrl(provider: 'google' | 'github', next: string): string {
   const url = new URL(`/auth/oauth/${provider}`, clientEnv.NEXT_PUBLIC_API_URL);
   url.searchParams.set('next', next);
+  url.searchParams.set('terms', TERMS_VERSION);
   return url.toString();
 }

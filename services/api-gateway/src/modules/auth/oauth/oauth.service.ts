@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { accounts, users, type DatabaseExecutor, type UserRow } from '@canvasflow/db';
+import {
+  accounts,
+  termsAcceptance,
+  users,
+  type DatabaseExecutor,
+  type UserRow,
+} from '@canvasflow/db';
 import { parseEnv } from '../../../config/env.js';
 import { describeDevice } from '../../../common/request-origin.js';
 import { DatabaseService } from '../../../infra/database/database.service.js';
@@ -89,8 +95,17 @@ export class OAuthService {
     private readonly email: EmailService,
   ) {}
 
-  async signIn(identity: OAuthIdentity, context: RequestContext): Promise<SignInResult> {
-    const { user, claim } = await this.resolveUser(identity);
+  /**
+   * `shownTerms` is the terms version the page this sign-in started from was
+   * showing, or null when nothing says it showed any. It is recorded only on an
+   * account this sign-in makes someone's — see `create` and `claim`.
+   */
+  async signIn(
+    identity: OAuthIdentity,
+    context: RequestContext,
+    shownTerms: string | null = null,
+  ): Promise<SignInResult> {
+    const { user, claim } = await this.resolveUser(identity, shownTerms);
 
     // Same refusal the password path gives a barred account. Arriving through
     // a provider is a different door, not a different rule.
@@ -145,7 +160,10 @@ export class OAuthService {
    * behaviour is how a provider account ends up as a permanent key into
    * somebody else's account.
    */
-  private async resolveUser(identity: OAuthIdentity): Promise<ResolvedUser> {
+  private async resolveUser(
+    identity: OAuthIdentity,
+    shownTerms: string | null,
+  ): Promise<ResolvedUser> {
     const db = this.database.db;
 
     const [linked] = await db
@@ -194,11 +212,11 @@ export class OAuthService {
           await this.link(existing.id, identity);
           return { user: existing, claim: null };
         case 'claim':
-          return { user: existing, claim: await this.claim(existing.id, identity) };
+          return { user: existing, claim: await this.claim(existing.id, identity, shownTerms) };
       }
     }
 
-    return { user: await this.create(email, identity), claim: null };
+    return { user: await this.create(email, identity, shownTerms), claim: null };
   }
 
   /**
@@ -220,7 +238,11 @@ export class OAuthService {
    * after all — a verification link followed a moment earlier, or a second tab
    * finishing this same claim. Then this is an ordinary link.
    */
-  private async claim(userId: string, identity: OAuthIdentity): Promise<AccountClaim | null> {
+  private async claim(
+    userId: string,
+    identity: OAuthIdentity,
+    shownTerms: string | null,
+  ): Promise<AccountClaim | null> {
     return this.database.db.transaction(async (tx) => {
       const [current] = await tx
         .select({ passwordHash: users.passwordHash, emailVerifiedAt: users.emailVerifiedAt })
@@ -244,6 +266,10 @@ export class OAuthService {
           // against this column.
           ...(current.passwordHash ? { passwordChangedAt: now } : {}),
           emailVerifiedAt: now,
+          // The account changes hands here, so the agreement on file becomes this
+          // person's, or none if their page showed none. Never the previous
+          // holder's, who is not the one signing in.
+          ...termsAcceptance(shownTerms, now),
           updatedAt: now,
         })
         .where(eq(users.id, userId));
@@ -331,7 +357,11 @@ export class OAuthService {
       .onConflictDoNothing();
   }
 
-  private async create(email: string, identity: OAuthIdentity): Promise<UserRow> {
+  private async create(
+    email: string,
+    identity: OAuthIdentity,
+    shownTerms: string | null,
+  ): Promise<UserRow> {
     const [created] = await this.database.db
       .insert(users)
       .values({
@@ -345,6 +375,8 @@ export class OAuthService {
         // somebody who has only ever signed in this way is never asked to
         // confirm an address to an account that has no password to return to.
         emailVerifiedAt: identity.emailVerified ? new Date() : null,
+        // They started from a page saying that continuing means agreeing.
+        ...termsAcceptance(shownTerms),
       })
       .returning();
 

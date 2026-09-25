@@ -155,6 +155,13 @@
       "when": 1790246272671,
       "tag": "0021_session_location",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1790333776118,
+      "tag": "0022_terms_acceptance",
+      "breakpoints": true
     }
   ]
 }

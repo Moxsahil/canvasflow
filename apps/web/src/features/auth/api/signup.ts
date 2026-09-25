@@ -1,3 +1,4 @@
+import { TERMS_VERSION } from '@canvasflow/types';
 import { clientEnv } from '@/lib/env.client';
 
 export interface SignupInput {
@@ -28,7 +29,9 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
     response = await fetch(`${clientEnv.NEXT_PUBLIC_API_URL}/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+      // The signup page shows the terms line beside the button that calls this,
+      // so the account records agreement to the version it showed.
+      body: JSON.stringify({ ...input, termsVersion: TERMS_VERSION }),
     });
   } catch {
     // A refused connection or a blocked request. Nothing was created, so this

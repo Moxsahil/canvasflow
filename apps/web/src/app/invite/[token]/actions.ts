@@ -29,8 +29,11 @@ export interface JoinResult {
  */
 export async function joinAsGuest(token: string, formData: FormData): Promise<JoinResult> {
   const displayName = String(formData.get('name') ?? '');
+  // The version the guest form showed under its button; recorded on the guest
+  // row only while it is the terms in force.
+  const shownTerms = formData.get('termsVersion');
 
-  const outcome = await redeemShareLinkAsGuest(db, token, displayName);
+  const outcome = await redeemShareLinkAsGuest(db, token, displayName, shownTerms);
   if (!outcome.ok) {
     return { error: describeRejection(outcome.reason) };
   }
