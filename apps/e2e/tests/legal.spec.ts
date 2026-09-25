@@ -7,6 +7,7 @@ import {
   boardShareLinks,
   boards,
   createClient,
+  memberships,
   users,
   workspaces,
 } from '@canvasflow/db';
@@ -19,9 +20,10 @@ import {
  * The terms have to open without an account — they are read before one exists
  * — and each way into CanvasFlow has to point at them and then record the
  * agreement: signup, sign-in (whose Google and GitHub buttons create an account
- * for anybody new) and a share link's guest form.
+ * for anybody new) and a share link's guest form. An account made before any
+ * of that is asked once, in the editor, the next time it signs in.
  *
- * Needs the local web app and gateway running. The cases that read or write
+ * Needs the local web app, editor and gateway running. The cases that read or write
  * accounts also need the development database in DATABASE_URL — read from the
  * repository's .env when it is not already set. They make a throwaway account,
  * guest, board and share link, the same shapes the app writes, and remove them
@@ -53,6 +55,20 @@ async function termsVersionOnThePage(page: Page): Promise<string> {
   const version = await page.locator('time').getAttribute('datetime');
   expect(version).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   return version!;
+}
+
+/** The editor reading the signed-in account's profile, which decides the notice. */
+const isProfileRead = (response: { url(): string; request(): { method(): string } }) =>
+  response.url() === `${WEB}/api/me` && response.request().method() === 'GET';
+
+/** Two frames, so a render that a response set off has reached the page. */
+async function settle(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
 }
 
 test('the terms open for someone who is not signed in', async ({ page }) => {
@@ -262,5 +278,105 @@ test.describe('a guest opening a share link', () => {
     const [guest] = await guestsOnTheBoard();
     expect(guest?.termsVersion).toBe(version);
     expect(guest?.termsAcceptedAt).toBeInstanceOf(Date);
+  });
+});
+
+test.describe('an account with no agreement on record', () => {
+  test.skip(!db, 'DATABASE_URL is not set');
+  test.skip(process.env.NODE_ENV === 'production', 'refusing to run against production');
+  test.describe.configure({ mode: 'serial' });
+
+  const email = `delivered+e2e-notice-${randomUUID().slice(0, 8)}@resend.dev`;
+
+  /** The agreement on file for the throwaway account. */
+  async function record() {
+    const [row] = await db!
+      .select({ termsVersion: users.termsVersion, termsAcceptedAt: users.termsAcceptedAt })
+      .from(users)
+      .where(eq(users.email, email));
+    return row;
+  }
+
+  /** Into the editor through the real sign-in form, as its owner would come back. */
+  async function signIn(page: Page) {
+    await page.goto(`${WEB}/login`);
+    await page.getByPlaceholder('you@example.com').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+    await page.getByRole('button', { name: /^sign in$/i }).click();
+    await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+  }
+
+  test.beforeAll(async () => {
+    // Made the way every account was before agreement was recorded: a signup
+    // that names no terms, which leaves nothing on file.
+    const response = await fetch(`${GATEWAY}/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: WEB },
+      body: JSON.stringify({ email, password: PASSWORD, name: 'E2E Notice' }),
+    });
+    expect(response.status, 'signup through the gateway').toBe(201);
+    expect((await record())?.termsVersion).toBeNull();
+  });
+
+  test.afterAll(async () => {
+    const [row] = await db!.select({ id: users.id }).from(users).where(eq(users.email, email));
+    if (!row) return;
+    // Boards name their owner without a cascade, so the workspaces go first.
+    const owned = await db!
+      .select({ workspaceId: memberships.workspaceId })
+      .from(memberships)
+      .where(eq(memberships.userId, row.id));
+    if (owned.length > 0) {
+      await db!.delete(workspaces).where(
+        inArray(
+          workspaces.id,
+          owned.map((membership) => membership.workspaceId),
+        ),
+      );
+    }
+    await db!.delete(auditLog).where(eq(auditLog.actorId, row.id));
+    await db!.delete(users).where(eq(users.id, row.id));
+  });
+
+  test('is asked once, cannot wave it away, and Continue records the agreement', async ({
+    page,
+  }) => {
+    const version = await termsVersionOnThePage(page);
+    await signIn(page);
+
+    const notice = page.getByTestId('terms-notice');
+    await expect(notice).toBeVisible({ timeout: 15_000 });
+    await expect(notice).toContainText('published our Terms of Service');
+
+    // Carrying on without an answer is not one of the choices.
+    await page.keyboard.press('Escape');
+    await expect(notice).toBeVisible();
+
+    await notice.getByRole('button', { name: 'Continue' }).click();
+    await expect(notice).toBeHidden();
+
+    const row = await record();
+    expect(row?.termsVersion).toBe(version);
+    expect(row?.termsAcceptedAt).toBeInstanceOf(Date);
+
+    // Once: back on the board, the profile loads and there is nothing to ask.
+    const profileRead = page.waitForResponse(isProfileRead);
+    await page.reload();
+    await profileRead;
+    await settle(page);
+    await expect(notice).toHaveCount(0);
+  });
+
+  test('is asked again once the terms it agreed to have been replaced', async ({ page }) => {
+    const version = await termsVersionOnThePage(page);
+    await db!.update(users).set({ termsVersion: '2020-01-01' }).where(eq(users.email, email));
+    await signIn(page);
+
+    const notice = page.getByTestId('terms-notice');
+    await expect(notice).toContainText('Our Terms of Service have changed', { timeout: 15_000 });
+    await notice.getByRole('button', { name: 'Continue' }).click();
+    await expect(notice).toBeHidden();
+
+    expect((await record())?.termsVersion).toBe(version);
   });
 });

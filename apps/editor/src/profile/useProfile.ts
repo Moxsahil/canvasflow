@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { fetchProfile, saveProfile, type Profile, type ProfileChanges } from './profile-api';
+import {
+  acceptTerms,
+  fetchProfile,
+  saveProfile,
+  type Profile,
+  type ProfileChanges,
+} from './profile-api';
 
 /**
  * The signed-in account's own profile, held for the life of the board.
@@ -26,6 +32,13 @@ export interface ProfileState {
    * what version it landed as.
    */
   readonly reload: () => Promise<void>;
+  /**
+   * Record agreement to the terms in force, then apply and share the profile
+   * that comes back, so the notice asking for it closes in every window this
+   * account has open. Throws when it could not; the notice says so itself,
+   * rather than through `error`, which belongs to the settings dialog.
+   */
+  readonly acceptTerms: () => Promise<void>;
 }
 
 /**
@@ -184,8 +197,14 @@ export function useProfile(enabled: boolean, options: UseProfileOptions = {}): P
     }
   }, [apply]);
 
+  const agreeToTerms = useCallback(async () => {
+    const next = await acceptTerms();
+    apply(next);
+    channelRef.current?.postMessage(next);
+  }, [apply]);
+
   return useMemo(
-    () => ({ profile, loading, saving, error, save, reload }),
-    [profile, loading, saving, error, save, reload],
+    () => ({ profile, loading, saving, error, save, reload, acceptTerms: agreeToTerms }),
+    [profile, loading, saving, error, save, reload, agreeToTerms],
   );
 }

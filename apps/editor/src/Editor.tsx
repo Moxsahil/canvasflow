@@ -140,6 +140,7 @@ import { SettingsDialog } from './settings';
 import { usePreferences } from './preferences';
 import { useAvatar, useProfile } from './profile';
 import { VerificationNotice } from './profile/VerificationNotice';
+import { TermsNotice } from './profile/TermsNotice';
 
 import { ConfirmDialog } from './ui';
 
@@ -2882,6 +2883,14 @@ export function Editor({ boardId }: EditorProps) {
               portalContainer={editorRoot}
             />
 
+            {/* Asks an account with no agreement on record to agree to the
+                terms. Ahead of the access dialog, which paints over it: losing
+                the board outranks being asked about the terms. */}
+            <TermsNotice
+              profile={account.profile}
+              onAccept={account.acceptTerms}
+              theme={presenceTheme}
+            />
             {/* Last, so it paints over every other dialog. Losing the board
                 outranks whatever was being confirmed when it happened. */}
             <AccessRevokedDialog

@@ -35,6 +35,12 @@ export interface Profile {
    * downstream can tell is if we say so here.
    */
   emailVerified: boolean;
+  /**
+   * The Terms of Service version this person agreed to, or null when there is
+   * no agreement on record. Something other than the current `TERMS_VERSION`
+   * means they have not agreed to the terms in force.
+   */
+  termsVersion: string | null;
 }
 
 /** The stored photo itself, for the one caller that turns it into a URL. */
@@ -59,6 +65,7 @@ const PROFILE_COLUMNS = {
   isGuest: users.isGuest,
   preferences: users.preferences,
   emailVerifiedAt: users.emailVerifiedAt,
+  termsVersion: users.termsVersion,
 };
 
 type ProfileRow = Pick<UserRow, keyof typeof PROFILE_COLUMNS>;
@@ -93,6 +100,7 @@ function toProfile(row: ProfileRow): Profile {
     // A guest has no real address, so there is nothing for them to confirm and
     // nothing to nag them about.
     emailVerified: row.isGuest || row.emailVerifiedAt !== null,
+    termsVersion: row.termsVersion,
   };
 }
 
@@ -198,6 +206,32 @@ export async function clearAvatar(db: Database, userId: string): Promise<string 
     .where(eq(users.id, userId));
 
   return previous?.fileId ?? null;
+}
+
+/**
+ * Record that someone agreed to the terms, from a notice that asked them.
+ *
+ * For accounts made before agreement was recorded, or since the terms changed.
+ * `shown` is the version the notice put in front of them, held to the same rule
+ * as everywhere else: only the terms in force are recorded. Null when there is
+ * nothing to record — terms that changed while the notice was open — or no
+ * such account; otherwise the profile as it now stands.
+ */
+export async function acceptTerms(
+  db: Database,
+  userId: string,
+  shown: unknown,
+): Promise<Profile | null> {
+  const acceptance = termsAcceptance(shown);
+  if (!acceptance.termsVersion) return null;
+
+  const [row] = await db
+    .update(users)
+    .set({ ...acceptance, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+    .returning(PROFILE_COLUMNS);
+
+  return row ? toProfile(row) : null;
 }
 
 /**
