@@ -1,36 +1,39 @@
 'use client';
 
+import { useState } from 'react';
 import { ArrowRight, Check, Zap } from 'lucide-react';
 import { SectionLabel } from '@/components/marketing/section-label';
 import { useInView } from '@/components/marketing/use-in-view';
 
+type Billing = 'monthly' | 'yearly';
+
 type Plan = {
   name: string;
-  price: string;
-  period?: string;
+  /** Rupees per month for each billing period; absent on the free plan. */
+  price?: Record<Billing, number>;
   sub: string;
   features: string[];
   highlight?: boolean;
-  /** No figure to quote, so it takes the smaller treatment the layout gives
-      an unpriced plan — the same split the reference makes. */
-  custom?: boolean;
 };
 
 /**
- * The plans are the ones this page already quoted — the layout around them
- * changed, the numbers did not.
+ * Quoted in rupees. None of these can be bought yet — the header's badge says
+ * so — so the figures are what the plans are meant to cost, not a checkout.
+ *
+ * Paying yearly takes 30% off the monthly figure, rounded down to the 99.
+ *
+ * Neither face this block is set in draws `₹`, so the symbol comes from the
+ * system font; every current OS has one.
  */
 const PLANS: Plan[] = [
   {
     name: 'Starter',
-    price: 'Free',
     sub: 'For your first few boards',
     features: ['3 boards', '2 editors per board', 'Guest viewer links', 'PNG export'],
   },
   {
     name: 'Team',
-    price: '$49',
-    period: '/mo',
+    price: { monthly: 999, yearly: 699 },
     sub: 'For teams working side by side',
     features: [
       'Unlimited boards',
@@ -43,9 +46,8 @@ const PLANS: Plan[] = [
     highlight: true,
   },
   {
-    name: 'Enterprise',
-    price: 'Custom',
-    custom: true,
+    name: 'Pro',
+    price: { monthly: 1999, yearly: 1399 },
     sub: 'For orgs at scale',
     features: [
       'Unlimited workspaces',
@@ -58,6 +60,9 @@ const PLANS: Plan[] = [
   },
 ];
 
+/** `en-IN` groups by lakh, which only shows once a figure passes 99,999. */
+const rupees = (amount: number) => `₹${amount.toLocaleString('en-IN')}`;
+
 /**
  * `cf-pricing` on the section is what makes the rest of this read correctly:
  * the layout is written against `bg-background`, `text-foreground` and
@@ -67,6 +72,10 @@ const PLANS: Plan[] = [
  */
 export function PricingSection() {
   const { ref, inView } = useInView(0.1);
+  // Opens on yearly, so the lower monthly figure is the one read first. The
+  // "billed yearly" line under each price is what keeps that honest: the total
+  // and the commitment are on the card, not first seen at checkout.
+  const [billing, setBilling] = useState<Billing>('yearly');
 
   return (
     <section
@@ -78,9 +87,12 @@ export function PricingSection() {
         {/* Header - Dramatic offset */}
         <div className="grid lg:grid-cols-12 gap-8 mb-20">
           <div className="lg:col-span-7">
-            <SectionLabel dark className="mb-8">
-              Pricing
-            </SectionLabel>
+            <div className="flex flex-wrap items-center gap-4 mb-8">
+              <SectionLabel dark>Pricing</SectionLabel>
+              <span className="inline-flex items-center px-3 py-1 border border-[#eca8d6]/40 text-[#eca8d6] text-xs font-mono uppercase tracking-widest">
+                Coming soon
+              </span>
+            </div>
             <h2
               className={`text-6xl md:text-7xl lg:text-[128px] tracking-tight leading-[0.9] transition-all duration-1000 ${
                 inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
@@ -90,6 +102,13 @@ export function PricingSection() {
               <br />
               <span className="text-stroke">results.</span>
             </h2>
+          </div>
+          <div
+            className={`lg:col-span-5 flex lg:items-end lg:justify-end transition-all duration-1000 delay-300 ${
+              inView ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            <BillingToggle value={billing} onChange={setBilling} />
           </div>
         </div>
 
@@ -128,16 +147,19 @@ export function PricingSection() {
 
                   {/* Price */}
                   <div className="mb-8">
-                    {plan.custom ? (
-                      <span className="text-4xl">{plan.price}</span>
-                    ) : (
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-5xl lg:text-6xl">{plan.price}</span>
-                        {plan.period && (
-                          <span className="text-muted-foreground text-sm">{plan.period}</span>
-                        )}
-                      </div>
-                    )}
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-5xl lg:text-6xl">
+                        {plan.price ? rupees(plan.price[billing]) : 'Free'}
+                      </span>
+                      {plan.price && <span className="text-muted-foreground text-sm">/mo</span>}
+                    </div>
+                    {/* Kept on the free plan too, empty, so the cards stay level. */}
+                    <p className="mt-3 min-h-4 text-xs text-muted-foreground">
+                      {plan.price &&
+                        (billing === 'yearly'
+                          ? `${rupees(plan.price.yearly * 12)} billed yearly`
+                          : 'Billed monthly')}
+                    </p>
                   </div>
 
                   {/* Features */}
@@ -158,7 +180,7 @@ export function PricingSection() {
                         : 'border border-foreground/20 text-foreground hover:border-foreground hover:bg-foreground/5'
                     }`}
                   >
-                    {plan.name === 'Enterprise' ? 'CONTACT SALES' : 'GET STARTED'}
+                    GET STARTED
                     <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                   </button>
                 </div>
@@ -196,5 +218,47 @@ export function PricingSection() {
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * Two pressed-state buttons rather than a switch, so each side names the period
+ * it picks and the saving sits on the side that earns it.
+ */
+function BillingToggle({
+  value,
+  onChange,
+}: {
+  value: Billing;
+  onChange: (billing: Billing) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Billing period"
+      className="inline-flex p-1 border border-foreground/20 font-mono text-xs uppercase tracking-widest"
+    >
+      {(['monthly', 'yearly'] as const).map((option) => {
+        const selected = value === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(option)}
+            className={`inline-flex items-center gap-2 px-4 py-2 transition-colors ${
+              selected
+                ? 'bg-foreground text-background'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {option === 'monthly' ? 'Monthly' : 'Yearly'}
+            {option === 'yearly' && (
+              <span className={selected ? 'text-background/60' : 'text-[#eca8d6]'}>Save 30%</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
   );
 }
