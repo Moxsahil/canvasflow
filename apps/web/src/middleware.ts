@@ -15,6 +15,8 @@ const PUBLIC_PATHS = [
   // Reached by somebody who cannot sign in — that is the point of them.
   '/forgot-password',
   '/reset-password',
+  // Read before anyone has an account: agreeing to them is part of signing up.
+  '/terms',
 ];
 
 /**

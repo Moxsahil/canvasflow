@@ -4,14 +4,18 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
 
-// Every target is a section this page actually renders, listed in the order it
-// renders them — see page.tsx. The sections commented out there get no entry,
-// so the bar never offers a link that scrolls nowhere.
+// Every target is a section the home page actually renders, listed in the order
+// it renders them — see page.tsx. The sections commented out there get no
+// entry, so the bar never offers a link that scrolls nowhere.
+//
+// Rooted at `/` because the legal pages wear this bar too. On the home page a
+// link that differs only in its fragment is still an in-page jump, so nothing
+// there reloads.
 const navLinks = [
-  { name: 'Product', href: '#platform' },
-  { name: 'Use cases', href: '#use-cases' },
-  { name: 'How it works', href: '#workflow' },
-  { name: 'Pricing', href: '#pricing' },
+  { name: 'Product', href: '/#platform' },
+  { name: 'Use cases', href: '/#use-cases' },
+  { name: 'How it works', href: '/#workflow' },
+  { name: 'Pricing', href: '/#pricing' },
 ];
 
 /**
@@ -115,7 +119,7 @@ export function Navigation() {
           {/* Logo. `invisible` rather than unmounted so the close button keeps
               its place at the end of the row instead of sliding left, and so
               the hidden link leaves the tab order and the accessibility tree. */}
-          <a href="#" className={`flex items-center group ${isMobileMenuOpen ? 'invisible' : ''}`}>
+          <a href="/#" className={`flex items-center group ${isMobileMenuOpen ? 'invisible' : ''}`}>
             <span
               className={`tracking-tight transition-all duration-500 ${
                 barChrome ? 'text-xl text-foreground' : 'text-2xl text-[#111]'
