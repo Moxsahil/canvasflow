@@ -24,6 +24,7 @@ const SAVED: Profile = {
   avatarVersion: null,
   avatarUploaded: false,
   emailVerified: true,
+  termsVersion: null,
 };
 
 function accountStub(profile: Profile | null = null): ProfileState {
@@ -34,6 +35,7 @@ function accountStub(profile: Profile | null = null): ProfileState {
     error: null,
     save: async () => true,
     reload: async () => {},
+    acceptTerms: async () => {},
   };
 }
 

@@ -1,4 +1,4 @@
-import type { CursorColor } from '@canvasflow/types';
+import { TERMS_VERSION, type CursorColor } from '@canvasflow/types';
 import { env } from '@/lib/env';
 
 /**
@@ -40,6 +40,14 @@ export interface Profile {
    * no real address, so there is nothing to confirm.
    */
   emailVerified: boolean;
+  /**
+   * The terms version this account agreed to, or null when there is no
+   * agreement on record. Anything but `TERMS_VERSION` is an account to ask.
+   *
+   * Absent only when the web app answering is older than this editor. The two
+   * deploy separately, so for a few minutes after a release that can happen.
+   */
+  termsVersion?: string | null;
 }
 
 export interface ProfileChanges {
@@ -83,6 +91,23 @@ export async function fetchProfile(): Promise<Profile> {
  * version of a name — trimmed, and length-checked — rather than the text that
  * was typed.
  */
+/**
+ * Record agreement to the terms in force, and take back the profile as it now
+ * stands. Sends the version this build was made with, which the route records
+ * only while it is still the one in force.
+ */
+export async function acceptTerms(): Promise<Profile> {
+  const res = await fetch(`${profileUrl()}/terms`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ termsVersion: TERMS_VERSION }),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res));
+  const body = (await res.json()) as { data: Profile };
+  return body.data;
+}
+
 export async function saveProfile(changes: ProfileChanges): Promise<Profile> {
   const res = await fetch(profileUrl(), {
     method: 'PATCH',
