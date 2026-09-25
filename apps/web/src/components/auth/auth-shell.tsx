@@ -82,6 +82,8 @@ export const authStyles = {
   submit:
     'flex h-11 w-full items-center justify-center rounded-xl bg-[#F5F4F0] px-4 text-sm font-medium text-[#020204] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50',
   link: 'text-[#F5F4F0]/80 underline underline-offset-4 transition-colors hover:text-[#F5F4F0]',
+  /** The terms line under a form: small, but still legible on the dark card. */
+  agreement: 'mt-4 short:mt-3 text-center text-xs leading-relaxed text-white/50',
 } as const;
 
 /**

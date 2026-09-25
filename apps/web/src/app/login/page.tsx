@@ -11,6 +11,7 @@ import {
   GitHubMark,
 } from '@/components/auth/auth-shell';
 import { PasswordInput } from '@/components/auth/new-password-field';
+import { TermsAgreement } from '@/components/legal/terms-agreement';
 import { Component as PencilLoader } from '@/components/ui/loader-1';
 import { safeRedirect } from '@/lib/safe-redirect';
 import { oauthStartUrl, signInWithPassword } from '@/features/auth/api/signin';
@@ -167,6 +168,10 @@ function LoginForm() {
           )}
         </button>
       </form>
+
+      {/* Here as well as on signup: the provider buttons above create an account
+          for anybody who does not have one yet. */}
+      <TermsAgreement className={authStyles.agreement} linkClassName={authStyles.link} />
     </AuthShell>
   );
 }

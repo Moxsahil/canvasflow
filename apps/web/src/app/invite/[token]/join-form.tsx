@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { TermsAgreement } from '@/components/legal/terms-agreement';
 import { joinAsGuest, joinAsUser } from './actions';
 
 interface JoinFormProps {
@@ -109,6 +110,13 @@ export function JoinForm({
       <Button type="submit" className="w-full" loading={pending}>
         Join board
       </Button>
+
+      {/* Only on the guest path: a signed-in visitor agreed when their account
+          was made, and one who must sign in agrees on the sign-in page. */}
+      <TermsAgreement
+        className="text-center text-xs text-muted-foreground"
+        linkClassName="text-foreground underline underline-offset-4"
+      />
 
       <p className="text-center text-xs text-muted-foreground">
         Have an account?{' '}

@@ -11,6 +11,7 @@ import {
 } from '@/components/auth/auth-shell';
 import { Component as PencilLoader } from '@/components/ui/loader-1';
 import { NewPasswordField } from '@/components/auth/new-password-field';
+import { TermsAgreement } from '@/components/legal/terms-agreement';
 import { signup } from '@/features/auth/api/signup';
 import { oauthStartUrl, signInWithPassword } from '@/features/auth/api/signin';
 
@@ -147,6 +148,9 @@ export default function SignupPage() {
           )}
         </button>
       </form>
+
+      {/* Below the form rather than inside it: it covers the provider buttons too. */}
+      <TermsAgreement className={authStyles.agreement} linkClassName={authStyles.link} />
     </AuthShell>
   );
 }

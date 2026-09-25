@@ -20,8 +20,9 @@ export default defineConfig({
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'chromium',
-      // Password recovery and account security run in their own projects, below.
-      testIgnore: /(password-reset|account-security)\.spec\.ts/,
+      // Password recovery, account security and the legal pages run in their
+      // own projects, below.
+      testIgnore: /(password-reset|account-security|legal)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         // Every test in this project starts already signed in, from the file
@@ -44,6 +45,13 @@ export default defineConfig({
     {
       name: 'account',
       testMatch: /account-security\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // The terms and the lines pointing at them, as someone who has never signed
+    // in sees them — so no shared session. Run on its own with `--project=legal`.
+    {
+      name: 'legal',
+      testMatch: /legal\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
   ],
