@@ -1,4 +1,5 @@
 import { Children, Fragment, type ReactNode } from 'react';
+import { ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -208,16 +209,46 @@ interface RowButtonProps {
   disabled?: boolean;
 }
 
+/** Shared by the secondary button and the link dressed as one, so they cannot drift. */
+const SECONDARY_BUTTON =
+  'flex shrink-0 items-center rounded-[7px] border border-[var(--surface-border)] bg-[var(--surface-raised)] px-[12px] py-[7px] text-[12px] font-medium text-[var(--surface-fg)] transition-colors hover:bg-[var(--surface-raised-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] disabled:opacity-60';
+
 export function SecondaryButton({ children, onClick, disabled = false }: RowButtonProps) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="flex shrink-0 items-center rounded-[7px] border border-[var(--surface-border)] bg-[var(--surface-raised)] px-[12px] py-[7px] text-[12px] font-medium text-[var(--surface-fg)] transition-colors hover:bg-[var(--surface-raised-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] disabled:opacity-60"
-    >
+    <button type="button" onClick={onClick} disabled={disabled} className={SECONDARY_BUTTON}>
       {children}
     </button>
+  );
+}
+
+/**
+ * A row's way out to a page somewhere else, dressed as its secondary button.
+ *
+ * A real link rather than a button that navigates, so it can be opened,
+ * copied or middle-clicked like any other. It opens a new tab, so the board
+ * and this dialog are still here afterwards.
+ */
+export function ExternalLinkButton({
+  href,
+  label,
+  children,
+}: {
+  href: string;
+  /** Where it goes, for screen readers, when the visible text alone would not say. */
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`${label} (opens in a new tab)`}
+      className={cn(SECONDARY_BUTTON, 'gap-[6px]')}
+    >
+      {children}
+      <ExternalLink size={12} aria-hidden="true" />
+    </a>
   );
 }
 

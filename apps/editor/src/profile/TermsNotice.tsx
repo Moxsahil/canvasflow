@@ -1,19 +1,11 @@
 import { useState } from 'react';
 import { ExternalLink, ScrollText } from 'lucide-react';
 import { TERMS_VERSION } from '@canvasflow/types';
-import { env } from '@/lib/env';
+import { formatTermsVersion, termsUrl } from '@/lib/legal-links';
 import { SurfaceDialog } from '../ui/SurfaceDialog';
 import { SurfaceButton } from '../ui/surface-ui';
 import type { SurfaceTheme } from '../ui/surface-palette';
 import type { Profile } from './profile-api';
-
-/** Printed and parsed in UTC, so the date never slips a day for the reader's zone. */
-const UPDATED_FORMAT = new Intl.DateTimeFormat('en-IN', {
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-  timeZone: 'UTC',
-});
 
 /**
  * Whether this account has to be asked about the terms: one signed in, whose
@@ -62,7 +54,6 @@ export function TermsNotice({ profile, onAccept, theme }: TermsNoticeProps) {
   const open = needsTermsNotice(profile);
   // Agreed before, to terms that have since been replaced.
   const changed = profile?.termsVersion != null;
-  const termsUrl = new URL('/terms', env.VITE_WEB_URL).toString();
 
   const accept = async () => {
     setBusy(true);
@@ -84,7 +75,7 @@ export function TermsNotice({ profile, onAccept, theme }: TermsNoticeProps) {
       // Escape, the backdrop and the close button all go with this.
       dismissable={false}
       title={changed ? 'Our Terms of Service have changed' : 'We’ve published our Terms of Service'}
-      subtitle={`Last updated ${UPDATED_FORMAT.format(new Date(TERMS_VERSION))}`}
+      subtitle={`Last updated ${formatTermsVersion(TERMS_VERSION)}`}
       leading={
         <span className="flex size-[42px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-raised)] text-[var(--surface-accent)]">
           <ScrollText className="size-[18px]" aria-hidden="true" />
@@ -100,7 +91,7 @@ export function TermsNotice({ profile, onAccept, theme }: TermsNoticeProps) {
           <div className="flex-1" />
           <SurfaceButton
             variant="ghost"
-            onClick={() => window.open(termsUrl, '_blank', 'noopener,noreferrer')}
+            onClick={() => window.open(termsUrl(), '_blank', 'noopener,noreferrer')}
           >
             Read the terms
             <ExternalLink size={13} aria-hidden="true" />

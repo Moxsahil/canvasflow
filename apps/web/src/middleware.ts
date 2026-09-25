@@ -17,6 +17,7 @@ const PUBLIC_PATHS = [
   '/reset-password',
   // Read before anyone has an account: agreeing to them is part of signing up.
   '/terms',
+  '/privacy',
 ];
 
 /**
