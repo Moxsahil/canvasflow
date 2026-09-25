@@ -54,6 +54,10 @@ const signupSchema = z.object({
   email: z.string().trim().email('Invalid email').toLowerCase(),
   password: passwordSchema,
   name: z.string().trim().min(1, 'Name is required'),
+  // Which terms the page showed. Never a reason to refuse: a signup from a page
+  // left open across a change to the terms still makes an account, and only
+  // the version in force is recorded against it.
+  termsVersion: z.string().max(40).optional(),
 });
 
 /**

@@ -58,6 +58,16 @@ export const users = pgTable('users', {
    * update to this column and takes effect on the next attempt.
    */
   disabledAt: timestamp('disabled_at', { withTimezone: true }),
+  /**
+   * When this person agreed to the Terms of Service, and which version they
+   * agreed to — the `TERMS_VERSION` the page they continued from was showing.
+   *
+   * Written where an account begins: signup, a first sign-in through Google or
+   * GitHub, and a guest joining by link. Both null when there is no agreement
+   * on record, which includes every account made before these columns were.
+   */
+  termsAcceptedAt: timestamp('terms_accepted_at', { withTimezone: true }),
+  termsVersion: text('terms_version'),
   preferences: jsonb('preferences')
     .$type<UserPreferences>()
     .notNull()

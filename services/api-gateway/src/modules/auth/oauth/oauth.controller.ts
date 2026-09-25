@@ -7,6 +7,7 @@ import { setSessionCookies } from '../auth-cookies.js';
 import { OAuthFailureFilter } from './oauth-failure.filter.js';
 import { GitHubOAuthGuard, GoogleOAuthGuard } from './oauth.guards.js';
 import { takeNext } from './oauth-next.js';
+import { takeTerms } from './oauth-terms.js';
 import { oauthSuccessUrl } from './oauth.redirects.js';
 import { OAuthService, type OAuthIdentity } from './oauth.service.js';
 
@@ -88,13 +89,20 @@ export class OAuthController {
     // exception, and widening the shared declaration for them would force
     // every other controller to narrow.
     const identity = request.user as unknown as OAuthIdentity;
-    const result = await this.oauth.signIn(identity, {
-      ip: request.ip ?? null,
-      userAgent: userAgent ?? null,
-      location: requestLocation(request, {
-        trustEdgeHeaders: Boolean(parseEnv().ORIGIN_AUTH_SECRET),
-      }),
-    });
+    // Spent before signing in rather than after, so a sign-in that is refused
+    // cannot leave its agreement behind for whichever one comes next.
+    const shownTerms = takeTerms(request, response);
+    const result = await this.oauth.signIn(
+      identity,
+      {
+        ip: request.ip ?? null,
+        userAgent: userAgent ?? null,
+        location: requestLocation(request, {
+          trustEdgeHeaders: Boolean(parseEnv().ORIGIN_AUTH_SECRET),
+        }),
+      },
+      shownTerms,
+    );
 
     setSessionCookies(response, result);
 

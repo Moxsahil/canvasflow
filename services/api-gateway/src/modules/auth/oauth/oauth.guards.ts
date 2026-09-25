@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import type { Request } from 'express';
 import { parseEnv } from '../../../config/env.js';
 import { rememberNext } from './oauth-next.js';
+import { rememberTerms } from './oauth-terms.js';
 import { GITHUB_STRATEGY } from './github.strategy.js';
 import { GOOGLE_STRATEGY } from './google.strategy.js';
 
@@ -18,9 +19,10 @@ import { GOOGLE_STRATEGY } from './google.strategy.js';
  * Read per request rather than once at construction, so setting the secrets
  * and restarting is all it takes.
  *
- * Also the last point at which `?next=` can be seen. Passport takes over from
- * here and redirects, so the route handler never runs on the way out — this is
- * where the destination has to be put somewhere the callback can find it.
+ * Also the last point at which `?next=` and `?terms=` can be seen. Passport
+ * takes over from here and redirects, so the route handler never runs on the
+ * way out — this is where both have to be put somewhere the callback can find
+ * them.
  */
 @Injectable()
 export class GoogleOAuthGuard extends AuthGuard(GOOGLE_STRATEGY) {
@@ -32,6 +34,7 @@ export class GoogleOAuthGuard extends AuthGuard(GOOGLE_STRATEGY) {
 
     const http = context.switchToHttp();
     rememberNext(http.getRequest<Request>(), http.getResponse());
+    rememberTerms(http.getRequest<Request>(), http.getResponse());
 
     return super.canActivate(context);
   }
@@ -47,6 +50,7 @@ export class GitHubOAuthGuard extends AuthGuard(GITHUB_STRATEGY) {
 
     const http = context.switchToHttp();
     rememberNext(http.getRequest<Request>(), http.getResponse());
+    rememberTerms(http.getRequest<Request>(), http.getResponse());
 
     return super.canActivate(context);
   }

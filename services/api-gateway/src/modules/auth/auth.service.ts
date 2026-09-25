@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { eq, sql } from 'drizzle-orm';
-import { users } from '@canvasflow/db';
+import { termsAcceptance, users } from '@canvasflow/db';
 import { DatabaseService } from '../../infra/database/database.service.js';
 import { VerificationService } from '../email-verification/verification.service.js';
 import { AuditService, type RequestContext } from './audit.service.js';
@@ -23,6 +23,8 @@ export interface SignupInput {
   email: string;
   password: string;
   name: string;
+  /** The terms version the signup page showed; recorded only while it is the one in force. */
+  termsVersion?: string;
 }
 
 export interface SignInInput {
@@ -112,7 +114,12 @@ export class AuthService {
     try {
       const [created] = await db
         .insert(users)
-        .values({ email: input.email, name: input.name, passwordHash })
+        .values({
+          email: input.email,
+          name: input.name,
+          passwordHash,
+          ...termsAcceptance(input.termsVersion),
+        })
         .returning({ id: users.id });
 
       if (!created) throw new Error('User row was not returned after insert');
