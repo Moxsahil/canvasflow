@@ -10,7 +10,7 @@ const SECTION_LINKS = [
 ];
 
 const LEGAL_LINKS = [
-  { label: 'Privacy', href: '#' },
+  { label: 'Privacy', href: '/privacy' },
   { label: 'Terms', href: '/terms' },
   { label: 'Docs', href: '#' },
   { label: 'GitHub', href: '#' },

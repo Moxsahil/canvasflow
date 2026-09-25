@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { TERMS_VERSION } from '@canvasflow/types';
 import { LegalDocument, type LegalSection } from '@/components/legal/legal-document';
-import { CONTACT, OPERATOR } from '@/lib/legal';
+import { CONTACT, MINIMUM_AGE, OPERATOR } from '@/lib/legal';
 
 export const metadata: Metadata = {
   title: 'Terms of Service — CanvasFlow',
@@ -10,13 +10,6 @@ export const metadata: Metadata = {
 
 // "Last updated" is TERMS_VERSION, the version every agreement is recorded
 // against. Whenever the text below changes, move it — in @canvasflow/types.
-
-/**
- * Indian law counts anyone younger as a child, whose data needs a parent's
- * verified consent before an account exists, and signup has no step for that
- * yet. Lower this only once it does.
- */
-const MINIMUM_AGE = 18;
 
 const supportEmail = <a href={`mailto:${CONTACT.support}`}>{CONTACT.support}</a>;
 const legalEmail = <a href={`mailto:${CONTACT.legal}`}>{CONTACT.legal}</a>;

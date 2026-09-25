@@ -87,6 +87,31 @@ test('the home page footer leads to the terms', async ({ page }) => {
   await expect(page).toHaveURL(`${WEB}/terms`);
 });
 
+test('the privacy policy opens for someone who is not signed in, from the footer too', async ({
+  page,
+}) => {
+  const response = await page.goto(`${WEB}/privacy`);
+  expect(response?.status()).toBe(200);
+  await expect(page).toHaveURL(`${WEB}/privacy`);
+  await expect(page.getByRole('heading', { level: 1, name: 'Privacy Policy' })).toBeVisible();
+
+  await page.goto(`${WEB}/`);
+  await page.getByRole('contentinfo').getByRole('link', { name: 'Privacy', exact: true }).click();
+  await expect(page).toHaveURL(`${WEB}/privacy`);
+});
+
+/** Both documents the agreement line names, each opening in a new tab. */
+async function expectAgreementLinks(page: Page) {
+  for (const [name, href] of [
+    [/terms of service/i, '/terms'],
+    [/privacy policy/i, '/privacy'],
+  ] as const) {
+    const link = page.getByRole('link', { name });
+    await expect(link).toHaveAttribute('href', href);
+    await expect(link).toHaveAttribute('target', '_blank');
+  }
+}
+
 test('signing up means agreeing, and the terms open beside the form', async ({ page }) => {
   await page.goto(`${WEB}/signup`);
   await expect(page.getByText(/by continuing, you agree to our/i)).toBeVisible();
@@ -98,15 +123,13 @@ test('signing up means agreeing, and the terms open beside the form', async ({ p
   ]);
   await expect(terms).toHaveURL(`${WEB}/terms`);
   await expect(terms.getByRole('heading', { level: 1, name: 'Terms of Service' })).toBeVisible();
+  await expectAgreementLinks(page);
 });
 
 test('signing in means agreeing too', async ({ page }) => {
   await page.goto(`${WEB}/login`);
   await expect(page.getByText(/by continuing, you agree to our/i)).toBeVisible();
-
-  const link = page.getByRole('link', { name: /terms of service/i });
-  await expect(link).toHaveAttribute('href', '/terms');
-  await expect(link).toHaveAttribute('target', '_blank');
+  await expectAgreementLinks(page);
 });
 
 test('the Google and GitHub buttons tell the gateway which terms the page showed', async ({
@@ -259,10 +282,7 @@ test.describe('a guest opening a share link', () => {
     await page.goto(`${WEB}/invite/${token}`);
     await expect(page.getByRole('button', { name: 'Join board' })).toBeVisible();
     await expect(page.getByText(/by continuing, you agree to our/i)).toBeVisible();
-
-    const link = page.getByRole('link', { name: /terms of service/i });
-    await expect(link).toHaveAttribute('href', '/terms');
-    await expect(link).toHaveAttribute('target', '_blank');
+    await expectAgreementLinks(page);
   });
 
   test('records agreement when they join', async ({ page }) => {

@@ -167,7 +167,7 @@ export function SettingsDialog({
         {section === 'workspace' && <WorkspacePane onClose={onClose} />}
         {section === 'notifications' && <NotificationsPane onClose={onClose} />}
         {section === 'billing' && <BillingPane onClose={onClose} />}
-        {section === 'privacy' && <PrivacyPane onClose={onClose} />}
+        {section === 'privacy' && <PrivacyPane profile={account.profile} onClose={onClose} />}
       </div>
     </div>
   );

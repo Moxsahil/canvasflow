@@ -1,4 +1,5 @@
 import { renderToString } from 'react-dom/server';
+import { TERMS_VERSION } from '@canvasflow/types';
 import { describe, expect, it } from 'vitest';
 import { AccountPane } from './AccountPane';
 import { BillingPane } from './BillingPane';
@@ -128,6 +129,23 @@ describe('SettingsDialog', () => {
       expect(pane, id).toContain(marker);
       expect(pane, id).not.toContain('not built yet');
     }
+  });
+
+  it('links to both legal pages from Data & Privacy, and says which terms were agreed to', () => {
+    const agreed = renderToString(
+      <PrivacyPane profile={{ ...SAVED, termsVersion: TERMS_VERSION }} onClose={noop} />,
+    );
+    expect(agreed).toContain('Legal');
+    expect(agreed).toContain('href="http://localhost:3000/terms"');
+    expect(agreed).toContain('href="http://localhost:3000/privacy"');
+    expect(agreed.match(/target="_blank"/g)).toHaveLength(2);
+    expect(agreed).toContain('You agreed to the version of');
+
+    // Nothing on record: the terms notice does the asking, so this only says
+    // when they last changed.
+    const unrecorded = renderPane('privacy');
+    expect(unrecorded).toContain('Last updated');
+    expect(unrecorded).not.toContain('You agreed');
   });
 
   it('carries the same footer on every pane', () => {

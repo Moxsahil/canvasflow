@@ -20,6 +20,15 @@ export const OPERATOR = {
 } as const;
 
 /**
+ * The youngest anyone may be to use CanvasFlow, as both legal pages state it.
+ *
+ * Indian law counts anyone younger as a child, whose data needs a parent's
+ * verified consent before an account exists, and signup has no step for that
+ * yet. Lower this only once it does.
+ */
+export const MINIMUM_AGE = 18;
+
+/**
  * Split by what the reader is after, so each sentence on a page can send them
  * to the address that fits it.
  */
@@ -28,4 +37,6 @@ export const CONTACT = {
   support: 'support@canvasflowapp.com',
   /** These terms, and reports of anything on CanvasFlow that breaks them. */
   legal: 'legal@canvasflowapp.com',
+  /** The privacy policy, requests about personal data, and privacy complaints. */
+  privacy: 'privacy@canvasflowapp.com',
 } as const;
