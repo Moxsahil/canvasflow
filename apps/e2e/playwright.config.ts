@@ -20,9 +20,9 @@ export default defineConfig({
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'chromium',
-      // Password recovery, account security and the legal pages run in their
-      // own projects, below.
-      testIgnore: /(password-reset|account-security|legal)\.spec\.ts/,
+      // Password recovery, account security, the legal pages and account
+      // deletion run in their own projects, below.
+      testIgnore: /(password-reset|account-security|legal|account-deletion)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         // Every test in this project starts already signed in, from the file
@@ -52,6 +52,13 @@ export default defineConfig({
     {
       name: 'legal',
       testMatch: /legal\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // Deleting an account, straight against the development database, with
+    // two throwaway people of its own. Run on its own with `--project=deletion`.
+    {
+      name: 'deletion',
+      testMatch: /account-deletion\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
   ],
