@@ -373,3 +373,63 @@ export function passwordSetupEmail(content: PasswordSetupContent): RenderedEmail
     ].join('\n'),
   };
 }
+
+export interface AccountDeletionContent {
+  accountName: string;
+  /** The earliest the erasure runs; it can be stopped until then. */
+  purgeAfter: Date;
+  /** Boards the account owned that were hidden by the request. */
+  ownedBoards: number;
+  /** Where to write to stop it. */
+  supportEmail: string;
+  requestedFrom: RequestOrigin;
+}
+
+/**
+ * Sent when somebody asks for their account to be deleted, to the address on it.
+ *
+ * Worded for two people: the owner, who needs to know when it becomes final and
+ * how to change their mind, and an owner who did not ask — somebody else was
+ * signed in as them — who needs to know how to stop it. The account is already
+ * locked, so there is nothing in here that could undo anything; the way back
+ * is a person, by email.
+ */
+export function accountDeletionEmail(content: AccountDeletionContent): RenderedEmail {
+  const origin = describeOrigin(content.requestedFrom);
+  const when = `${TIME_FORMAT.format(content.purgeAfter)} UTC`;
+  const boards =
+    content.ownedBoards === 0
+      ? null
+      : content.ownedBoards === 1
+        ? 'The board you own is no longer available to anyone, including people it was shared with.'
+        : `The ${content.ownedBoards} boards you own are no longer available to anyone, including people they were shared with.`;
+  const intro = (accountName: string, from: string) =>
+    `You asked to delete your CanvasFlow account, ${accountName}, ${from}. You've been signed out everywhere.`;
+  const final = `We'll permanently erase your account and everything in it after ${when}. Until then, it can still be restored.`;
+  const stop = `Changed your mind, or didn't ask for this? Write to ${content.supportEmail} before then and we'll stop it.`;
+
+  return {
+    subject: 'Your CanvasFlow account will be deleted',
+    html: layout(
+      'Your account will be deleted',
+      paragraph(intro(`<strong>${escapeHtml(content.accountName)}</strong>`, escapeHtml(origin))) +
+        (boards ? paragraph(escapeHtml(boards)) : '') +
+        paragraph(escapeHtml(final)) +
+        paragraph(escapeHtml(stop)) +
+        button(`mailto:${content.supportEmail}`, 'Email support') +
+        footnote('If you meant to do this, there is nothing else to do.'),
+    ),
+    text: [
+      'Your account will be deleted',
+      '',
+      intro(content.accountName, origin),
+      ...(boards ? [boards] : []),
+      '',
+      final,
+      '',
+      stop,
+      '',
+      'If you meant to do this, there is nothing else to do.',
+    ].join('\n'),
+  };
+}

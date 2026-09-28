@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { PasswordResetModule } from './modules/password-reset/password-reset.module.js';
 import { AccountSecurityModule } from './modules/account-security/account-security.module.js';
+import { AccountDeletionModule } from './modules/account-deletion/account-deletion.module.js';
 import { AppController } from './app.controller.js';
 import { ThrottlerModule } from '@nestjs/throttler';
 
@@ -38,6 +39,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     AuthModule,
     PasswordResetModule,
     AccountSecurityModule,
+    AccountDeletionModule,
     UsersModule,
   ],
   controllers: [AppController],

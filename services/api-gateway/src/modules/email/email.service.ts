@@ -3,12 +3,14 @@ import { Resend } from 'resend';
 import { parseEnv } from '../../config/env.js';
 import {
   accountClaimedEmail,
+  accountDeletionEmail,
   passwordChangedEmail,
   passwordResetEmail,
   passwordSetupEmail,
   providerNoticeEmail,
   verificationEmail,
   type AccountClaimedContent,
+  type AccountDeletionContent,
   type PasswordChangedContent,
   type PasswordResetContent,
   type PasswordSetupContent,
@@ -115,6 +117,18 @@ export class EmailService {
       recipient.to,
       accountClaimedEmail(content),
       `Account claimed email for user ${recipient.userId}`,
+    );
+  }
+
+  /** When somebody asks for their account to be deleted: when it is final, and how to stop it. */
+  async sendAccountDeletion(
+    recipient: Recipient,
+    content: AccountDeletionContent,
+  ): Promise<boolean> {
+    return this.deliver(
+      recipient.to,
+      accountDeletionEmail(content),
+      `Account deletion email for user ${recipient.userId}`,
     );
   }
 

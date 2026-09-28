@@ -24,6 +24,12 @@ interface ErrorResponse {
    * header that CORS has not been told to expose.
    */
   retryAfterSeconds?: number;
+  /**
+   * A fixed name for the refusal, when the caller has something to do about it
+   * other than show the message — send the person to sign in again, say. The
+   * message is wording and may change; this may not.
+   */
+  code?: string;
 }
 
 @Catch()
@@ -36,6 +42,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     let retryAfterSeconds: number | undefined;
+    let code: string | undefined;
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
     let error = 'InternalServerError';
@@ -58,10 +65,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
       if (typeof res === 'string') {
         message = res;
       } else if (typeof res === 'object' && res !== null) {
-        const obj = res as { message?: string; error?: string; retryAfterSeconds?: number };
+        const obj = res as {
+          message?: string;
+          error?: string;
+          retryAfterSeconds?: number;
+          code?: unknown;
+        };
         message = obj.message ?? message;
         error = obj.error ?? error;
         if (typeof obj.retryAfterSeconds === 'number') retryAfterSeconds = obj.retryAfterSeconds;
+        if (typeof obj.code === 'string') code = obj.code;
       }
     } else {
       // Not a Nest exception, but the ecosystem's own convention for one:
@@ -96,6 +109,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       path: safeUrl,
       timestamp: new Date().toISOString(),
       ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
+      ...(code === undefined ? {} : { code }),
     };
 
     // The header as well, for anything reading this that is not a browser on
