@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
-import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, or } from 'drizzle-orm';
 import {
   accountDeletionPreview,
   accountDeletions,
@@ -216,8 +216,15 @@ test.afterAll(async () => {
     .delete(workspaces)
     .where(inArray(workspaces.id, [made.aWorkspace, made.bWorkspace].filter(Boolean)));
   await db.delete(accountDeletions).where(inArray(accountDeletions.userId, people));
-  if (made.auditIds.length > 0)
-    await db.delete(auditLog).where(inArray(auditLog.id, made.auditIds));
+  // The entries made here, and the one the purge writes about A.
+  await db
+    .delete(auditLog)
+    .where(
+      or(
+        inArray(auditLog.targetId, people),
+        made.auditIds.length > 0 ? inArray(auditLog.id, made.auditIds) : undefined,
+      ),
+    );
   await db.delete(users).where(inArray(users.id, people));
 });
 
@@ -297,6 +304,13 @@ test('the purge waits out the grace period, then erases the account', async () =
   expect(await purgeAccount(db!, request.id, new Date())).toEqual({
     ok: false,
     reason: 'not-due',
+  });
+
+  // Once the grace period is over the purge may already have deleted files,
+  // so a restore is refused even before it runs.
+  expect(await cancelAccountDeletion(db!, made.a, request.purgeAfter)).toEqual({
+    ok: false,
+    reason: 'too-late',
   });
 
   // Worked out before the rows it reads are deleted — the order the job runs in.
@@ -382,6 +396,14 @@ test('the purge waits out the grace period, then erases the account', async () =
   expect(logged).toHaveLength(2);
   expect(logged.every((row) => row.actorId === null && row.workspaceId === null)).toBe(true);
   expect(logged.some((row) => row.ipAddress === '203.0.113.7')).toBe(true);
+
+  // And records the erasure itself, naming nobody.
+  const [erased] = await db!
+    .select()
+    .from(auditLog)
+    .where(and(eq(auditLog.targetId, made.a), eq(auditLog.action, 'auth.account.deleted')));
+  expect(erased?.actorId).toBeNull();
+  expect(erased?.metadata).toEqual({ requestId: request.id, boards: 2 });
 
   // The request is now the receipt.
   const [receipt] = await db!

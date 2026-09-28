@@ -276,7 +276,7 @@ export async function requestAccountDeletion(
 
 export type AccountDeletionCancelOutcome =
   | { ok: true; restoredBoardIds: string[] }
-  | { ok: false; reason: 'not-scheduled' };
+  | { ok: false; reason: 'not-scheduled' | 'too-late' };
 
 /**
  * Undo a request inside its grace period — the restore support runs when
@@ -286,6 +286,11 @@ export type AccountDeletionCancelOutcome =
  * it, and a lock it placed. Boards the person had already put in the trash,
  * and a lock placed for another reason, stay as they were. Sessions are not
  * restored; the person signs in again.
+ *
+ * Refused once the grace period is over, even if the purge has not run yet.
+ * The purge deletes files before rows, so from that moment an account's
+ * images may already be gone, and restoring it would hand back boards with
+ * holes in them. The end of the grace period is when deletion becomes final.
  */
 export async function cancelAccountDeletion(
   db: Database,
@@ -299,6 +304,7 @@ export async function cancelAccountDeletion(
       .where(and(eq(accountDeletions.userId, userId), eq(accountDeletions.status, 'scheduled')))
       .for('update');
     if (!request) return { ok: false, reason: 'not-scheduled' } as const;
+    if (request.purgeAfter <= now) return { ok: false, reason: 'too-late' } as const;
 
     const restored = await tx
       .update(boards)
@@ -354,6 +360,46 @@ export async function accountDeletionStorage(
   );
 }
 
+/** Workspaces the account owns, whoever else is in them. */
+async function ownedWorkspaceIds(executor: DatabaseExecutor, userId: string): Promise<string[]> {
+  const rows = await executor
+    .select({ id: memberships.workspaceId })
+    .from(memberships)
+    .where(and(eq(memberships.userId, userId), eq(memberships.role, 'owner')));
+  return rows.map((row) => row.id);
+}
+
+/**
+ * Why an account cannot be erased, or null when nothing stands in the way.
+ *
+ * Erasing an account deletes the workspaces it owns, and a workspace takes
+ * everything in it along — so it must not own one that somebody else belongs
+ * to, or one holding a board somebody else owns. Neither can happen today,
+ * since nothing lets a second member join a workspace, which is exactly why it
+ * is checked rather than assumed.
+ *
+ * The purge job asks this before it deletes any files, and `purgeAccount` asks
+ * again under its lock, so nothing irreversible starts on an account that
+ * would then be refused halfway through.
+ */
+export async function purgeBlocker(
+  executor: DatabaseExecutor,
+  userId: string,
+): Promise<string | null> {
+  if ((await sharedWorkspacesOf(executor, userId)).length > 0) {
+    return 'owns a workspace other people belong to';
+  }
+  const owned = await ownedWorkspaceIds(executor, userId);
+  if (owned.length > 0) {
+    const [others] = await executor
+      .select({ n: count() })
+      .from(boards)
+      .where(and(inArray(boards.workspaceId, owned), ne(boards.ownerId, userId)));
+    if ((others?.n ?? 0) > 0) return "owns a workspace holding other people's boards";
+  }
+  return null;
+}
+
 export type AccountPurgeOutcome =
   | { ok: true; deletedBoardIds: string[] }
   | { ok: false; reason: 'not-scheduled' | 'not-due' };
@@ -365,8 +411,9 @@ export type AccountPurgeOutcome =
  * One transaction: the boards it owns (and everything hanging off them), the
  * workspaces it owns, its access to other people's boards, its sign-in and
  * recovery data; its security log entries lose its name; the account row is
- * anonymized; the request becomes the receipt. Re-checks everything, so it is
- * safe to run twice or on a request that was cancelled a moment ago.
+ * anonymized; the security log records the erasure; the request becomes the
+ * receipt. Re-checks everything, so it is safe to run twice or on a request
+ * that was cancelled a moment ago.
  */
 export async function purgeAccount(
   db: Database,
@@ -386,23 +433,17 @@ export async function purgeAccount(
 
     const { userId } = request;
 
-    // Refused at request time; checked again because a workspace could have
-    // gained a member since, and deleting it would take their boards too.
-    if ((await sharedWorkspacesOf(tx, userId)).length > 0) {
-      throw new Error(`Account ${userId} owns a workspace other people belong to`);
-    }
+    // Refused at request time and checked by the job before any files went;
+    // checked once more here, under the lock, in case something changed since.
+    const blocker = await purgeBlocker(tx, userId);
+    if (blocker) throw new Error(`Refusing to purge ${request.id}: the account ${blocker}`);
 
     const deleted = await tx
       .delete(boards)
       .where(eq(boards.ownerId, userId))
       .returning({ id: boards.id });
 
-    const ownedWorkspaces = (
-      await tx
-        .select({ id: memberships.workspaceId })
-        .from(memberships)
-        .where(and(eq(memberships.userId, userId), eq(memberships.role, 'owner')))
-    ).map((row) => row.id);
+    const ownedWorkspaces = await ownedWorkspaceIds(tx, userId);
 
     if (ownedWorkspaces.length > 0) {
       // A workspace takes its boards with it, so anything still in one now
@@ -412,7 +453,9 @@ export async function purgeAccount(
         .from(boards)
         .where(inArray(boards.workspaceId, ownedWorkspaces));
       if ((remaining?.n ?? 0) > 0) {
-        throw new Error(`Account ${userId} owns a workspace holding other people's boards`);
+        throw new Error(
+          `Refusing to purge ${request.id}: the account owns a workspace holding other people's boards`,
+        );
       }
 
       // The security log is kept for a year whatever happens to the account,
@@ -437,6 +480,17 @@ export async function purgeAccount(
     await tx.update(auditLog).set({ actorId: null }).where(eq(auditLog.actorId, userId));
 
     await tx.update(users).set(anonymizedAccount(userId, now)).where(eq(users.id, userId));
+
+    // No actor: nobody acted, the grace period ran out. The target is the row
+    // that now reads "Deleted user", so this says nothing about who it was.
+    await tx.insert(auditLog).values({
+      workspaceId: null,
+      actorId: null,
+      action: 'auth.account.deleted',
+      targetType: 'user',
+      targetId: userId,
+      metadata: { requestId: request.id, boards: deleted.length },
+    });
 
     await tx
       .update(accountDeletions)

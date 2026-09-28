@@ -32,6 +32,12 @@ export type AuditAction =
    * the grace period is over.
    */
   | 'auth.account.deletion_requested'
+  /**
+   * The grace period ran out and the account was erased: its files, its boards
+   * and everything that said who it was. Written by the scheduled purge, so it
+   * names no actor; the target is the anonymized account row.
+   */
+  | 'auth.account.deleted'
   /** Every session an account had, ended at once. */
   | 'auth.session.revoked'
   /** A refresh token was presented after it had already been spent. */
