@@ -149,7 +149,7 @@ export class AccountSecurityService {
 
     if (!(await this.passwords.verify(input.currentPassword, account.passwordHash))) {
       await this.signInLimits.record(account.email);
-      throw new BadRequestException('Your current password is not right.');
+      throw new BadRequestException('Incorrect password, please try again.');
     }
     if (await this.passwords.verify(input.newPassword, account.passwordHash)) {
       throw new BadRequestException('Choose a password different from your current one.');

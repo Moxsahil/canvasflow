@@ -9,6 +9,7 @@ import {
   users,
   workspaces,
 } from '@canvasflow/db';
+import { TERMS_VERSION } from '@canvasflow/types';
 
 /**
  * Settings → Account & Security, end to end, through the real editor.
@@ -85,7 +86,14 @@ test.beforeAll(async () => {
   const response = await fetch(`${GATEWAY}/auth/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Origin: WEB },
-    body: JSON.stringify({ email: EMAIL, password: FIRST_PASSWORD, name: 'E2E Account' }),
+    // Agreed at signup, as the real form does, so the terms notice for accounts
+    // with no agreement on record does not cover the Settings dialog.
+    body: JSON.stringify({
+      email: EMAIL,
+      password: FIRST_PASSWORD,
+      name: 'E2E Account',
+      termsVersion: TERMS_VERSION,
+    }),
   });
   expect(response.status, 'signup through the gateway').toBe(201);
 });

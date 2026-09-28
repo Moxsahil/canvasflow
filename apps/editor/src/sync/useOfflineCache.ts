@@ -2,6 +2,57 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { IndexeddbPersistence } from 'y-indexeddb';
 import type { BoardDocument } from '@canvasflow/canvas-engine';
 
+/**
+ * The IndexedDB database one account's copy of one board lives in.
+ *
+ * Namespaced per user so a shared machine never leaks one account's cached
+ * board content to the next person who signs in.
+ */
+export function offlineCacheKey(userId: string, boardId: string): string {
+  return `canvasflow:${userId}:${boardId}`;
+}
+
+/** Leaving is never held up longer than this for copies that will not go quietly. */
+const FORGET_TIMEOUT_MS = 2_000;
+
+/**
+ * Delete every board copy this browser holds for an account — for when the
+ * account itself is going, not only the board on screen, which `purge` in the
+ * hook handles through its open connection.
+ *
+ * Best effort, and never throws. `indexedDB.databases()` is missing from older
+ * browsers, and a copy open in another tab goes only once that tab lets go of
+ * it; neither is a reason to keep somebody waiting on the way out.
+ */
+export async function forgetOfflineCopies(userId: string): Promise<void> {
+  const forget = async () => {
+    if (typeof indexedDB === 'undefined' || typeof indexedDB.databases !== 'function') return;
+    const prefix = offlineCacheKey(userId, '');
+    const names = (await indexedDB.databases())
+      .map((database) => database.name)
+      .filter((name): name is string => typeof name === 'string' && name.startsWith(prefix));
+    await Promise.all(
+      names.map(
+        (name) =>
+          new Promise<void>((resolve) => {
+            const request = indexedDB.deleteDatabase(name);
+            // Blocked: another tab has it open. The deletion waits for that
+            // tab; this does not.
+            request.onsuccess = request.onerror = request.onblocked = () => resolve();
+          }),
+      ),
+    );
+  };
+  try {
+    await Promise.race([
+      forget(),
+      new Promise<void>((resolve) => setTimeout(resolve, FORGET_TIMEOUT_MS)),
+    ]);
+  } catch {
+    // Nothing here is worth failing the way out over.
+  }
+}
+
 export interface OfflineCache {
   /**
    * True once the cache for the CURRENT (user, board) has settled — either
@@ -64,9 +115,7 @@ export function useOfflineCache(
   // out from under an open connection blocks on that connection instead.
   const providerRef = useRef<IndexeddbPersistence | null>(null);
 
-  // Namespaced per user so a shared machine never leaks one account's
-  // cached board content to the next person who signs in.
-  const key = userId ? `canvasflow:${userId}:${boardId}` : null;
+  const key = userId ? offlineCacheKey(userId, boardId) : null;
 
   useEffect(() => {
     // No user means no namespace to store under, and caching board content

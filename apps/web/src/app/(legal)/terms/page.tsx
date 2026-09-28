@@ -188,8 +188,6 @@ const SECTIONS: LegalSection[] = [
     title: 'Closing your account',
     body: (
       <>
-        {/* [CHECK: the Settings route is only true once Delete account works. Ship this page
-            with that feature, or after it.] */}
         <p>
           You can stop using CanvasFlow at any time. To close your account, go to{' '}
           <strong>Settings → Data & Privacy → Delete account</strong>, or email {supportEmail} from

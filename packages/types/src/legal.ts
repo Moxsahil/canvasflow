@@ -14,3 +14,11 @@ export const TERMS_VERSION = '2026-09-25';
  * the API sends all name it, so it is spelled out once, here.
  */
 export const SUPPORT_EMAIL = 'support@canvasflowapp.com';
+
+/**
+ * How long a request to delete an account waits before the data is erased —
+ * the time somebody has to change their mind by writing to support. The terms
+ * promise erasure within 30 days, and the purge runs daily, so this must stay
+ * well inside that. The database schedules by it and the editor says it.
+ */
+export const ACCOUNT_DELETION_GRACE_DAYS = 7;

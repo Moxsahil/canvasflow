@@ -176,7 +176,7 @@ test('the typed address has to be the account’s own', async () => {
 test('a wrong password is refused, and counts as a wrong sign-in', async () => {
   const response = await ask(cookie.pat, { confirmEmail: PAT, currentPassword: 'not-it' });
   expect(response.status).toBe(400);
-  expect(((await response.json()) as { message: string }).message).toMatch(/password is not right/);
+  expect(((await response.json()) as { message: string }).message).toBe('Incorrect password.');
 
   const digest = createHash('sha256').update(PAT).digest('hex');
   const failures = await db!

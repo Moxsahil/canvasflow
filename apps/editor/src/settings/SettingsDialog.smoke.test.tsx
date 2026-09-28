@@ -148,6 +148,48 @@ describe('SettingsDialog', () => {
     expect(unrecorded).not.toContain('You agreed');
   });
 
+  it('offers an account Delete account, and says how long there is to change one’s mind', () => {
+    const pane = renderToString(<PrivacyPane deleteAccount={async () => {}} onClose={noop} />);
+    expect(pane).toContain('Danger zone');
+    expect(pane).toContain('Deletes your account and the boards you own.');
+    expect(pane).toContain('You’ll have 7 days to change your mind.');
+    expect(pane).not.toContain('This cannot be undone');
+  });
+
+  it('shows a guest no Delete account, since a guest has no account to delete', () => {
+    const pane = renderToString(
+      <PrivacyPane isGuest deleteAccount={async () => {}} onClose={noop} />,
+    );
+    expect(pane).not.toContain('Danger zone');
+    expect(pane).not.toContain('Delete account');
+  });
+
+  it('opens at Delete account when the person is back from signing in again', () => {
+    const dialog = renderToString(
+      <SettingsDialog
+        user={{ name: 'Sahil Barak', email: 'sahil@example.com' }}
+        token={null}
+        account={accountStub()}
+        avatar={avatarStub()}
+        theme="dark"
+        userId="u1"
+        resumeDeletion
+        deleteAccount={async () => {}}
+        onClose={noop}
+      />,
+    );
+    expect(dialog).toContain('Data &amp; Privacy');
+    // Straight onto the confirmation, with nothing to wait through first.
+    expect(dialog).toContain('Delete your account?');
+    expect(dialog).toContain(
+      'Your account is locked and you’re signed out everywhere straight away.',
+    );
+    expect(dialog).toContain('mailto:support@canvasflowapp.com');
+    expect(dialog).not.toContain('What will be deleted');
+    expect(dialog).toContain('Type your email address to confirm');
+    expect(dialog).not.toContain('Checking what would be deleted');
+  });
+
   it('carries the same footer on every pane', () => {
     for (const id of ['profile', 'account', 'workspace', 'notifications', 'billing', 'privacy']) {
       expect(renderPane(id), id).toContain('Changes save to your account, not this board.');

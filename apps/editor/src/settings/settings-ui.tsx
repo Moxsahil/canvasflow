@@ -265,11 +265,19 @@ export function GhostButton({ children, onClick, disabled = false }: RowButtonPr
   );
 }
 
-/** A button for something that cannot be undone. Inert without an `onClick`. */
-export function DangerButton({ children, onClick, disabled = false }: RowButtonProps) {
+/**
+ * A button for something that cannot be undone. Inert without an `onClick`,
+ * unless it submits the overlay's form.
+ */
+export function DangerButton({
+  children,
+  onClick,
+  disabled = false,
+  type = 'button',
+}: RowButtonProps & { type?: 'button' | 'submit' }) {
   return (
     <button
-      type="button"
+      type={type}
       onClick={onClick}
       disabled={disabled}
       className="flex shrink-0 items-center rounded-[7px] border border-[var(--surface-danger-border)] px-[12px] py-[7px] text-[12px] font-medium text-[var(--surface-danger)] transition-colors hover:bg-[var(--surface-danger-wash)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-danger)] disabled:opacity-60"
@@ -348,21 +356,30 @@ export function SettingsOverlay({
   /** When set, the card is a form, so Enter submits it. */
   onSubmit?: () => void;
 }) {
+  // The actions sit outside the part that scrolls, so a step too tall for the
+  // pane scrolls what it says and never hides what can be done about it. The
+  // spacing is the same either way: 16px under the content, 4px over the row.
   const body = (
     <>
-      <div className="flex flex-col gap-[6px]">
-        <h3 className="text-[15px] font-semibold text-[var(--surface-fg)]">{title}</h3>
-        {description && (
-          <p className="text-[12px] leading-[1.55] text-[var(--surface-fg-muted)]">{description}</p>
-        )}
+      <div className="flex min-h-0 flex-col gap-[16px] overflow-y-auto px-[22px] pb-[16px] pt-[22px]">
+        <div className="flex flex-col gap-[6px]">
+          <h3 className="text-[15px] font-semibold text-[var(--surface-fg)]">{title}</h3>
+          {description && (
+            <p className="text-[12px] leading-[1.55] text-[var(--surface-fg-muted)]">
+              {description}
+            </p>
+          )}
+        </div>
+        {children}
       </div>
-      {children}
-      <div className="flex items-center justify-end gap-[10px] pt-[4px]">{actions}</div>
+      <div className="flex shrink-0 items-center justify-end gap-[10px] px-[22px] pb-[22px] pt-[4px]">
+        {actions}
+      </div>
     </>
   );
 
   const card =
-    'flex max-h-full w-[400px] max-w-full flex-col gap-[16px] overflow-y-auto rounded-[14px] border border-[var(--surface-border)] bg-[var(--surface-panel)] p-[22px] shadow-[var(--surface-shadow)]';
+    'flex max-h-full w-[400px] max-w-full flex-col overflow-hidden rounded-[14px] border border-[var(--surface-border)] bg-[var(--surface-panel)] shadow-[var(--surface-shadow)]';
 
   return (
     <div

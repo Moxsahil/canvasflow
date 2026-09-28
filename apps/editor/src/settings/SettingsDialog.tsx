@@ -9,6 +9,7 @@ import { SearchIcon } from './settings-icons';
 import { surfaceThemeVars, type SurfaceTheme } from '../ui/surface-palette';
 import type { AvatarState, ProfileState } from '../profile';
 import { SETTINGS_SECTIONS, type SettingsSectionId } from './settings-sections';
+import type { DeletionInput } from './account-deletion-api';
 
 /**
  * The design is set in Inter. Nothing in the app loads it, so this names it
@@ -28,6 +29,16 @@ interface SettingsDialogProps {
   avatar: AvatarState;
   /** The theme on screen — the dialog carries its own palette for each. */
   theme: SurfaceTheme;
+  /** Who is signed in, for deleting the account. Null until the token decodes. */
+  userId?: string | null;
+  isGuest?: boolean;
+  /**
+   * Open at Data & Privacy with Delete account already showing: the person is
+   * back from signing in again to do it.
+   */
+  resumeDeletion?: boolean;
+  /** Ask for the account to be deleted, and leave once it is. */
+  deleteAccount?: (input: DeletionInput) => Promise<void>;
   onClose: () => void;
 }
 
@@ -47,9 +58,16 @@ export function SettingsDialog({
   account,
   avatar,
   theme,
+  userId = null,
+  isGuest = false,
+  resumeDeletion = false,
+  deleteAccount,
   onClose,
 }: SettingsDialogProps) {
-  const [section, setSection] = useState<SettingsSectionId>('profile');
+  const [section, setSection] = useState<SettingsSectionId>(resumeDeletion ? 'privacy' : 'profile');
+  // Only the first time Data & Privacy shows: leaving it and coming back is
+  // an ordinary visit, not a return from signing in.
+  const [deletionPending, setDeletionPending] = useState(resumeDeletion);
   const [query, setQuery] = useState('');
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -126,7 +144,10 @@ export function SettingsDialog({
                 key={id}
                 type="button"
                 aria-current={active ? 'page' : undefined}
-                onClick={() => setSection(id)}
+                onClick={() => {
+                  setDeletionPending(false);
+                  setSection(id);
+                }}
                 data-testid={`settings-nav-${id}`}
                 className={`flex w-full shrink-0 items-center gap-[10px] rounded-[8px] px-[10px] py-[8px] text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] ${
                   active ? 'bg-[var(--surface-nav-active)]' : 'hover:bg-[var(--surface-nav-hover)]'
@@ -167,7 +188,18 @@ export function SettingsDialog({
         {section === 'workspace' && <WorkspacePane onClose={onClose} />}
         {section === 'notifications' && <NotificationsPane onClose={onClose} />}
         {section === 'billing' && <BillingPane onClose={onClose} />}
-        {section === 'privacy' && <PrivacyPane profile={account.profile} onClose={onClose} />}
+        {section === 'privacy' && (
+          <PrivacyPane
+            profile={account.profile}
+            token={token}
+            signedInEmail={user?.email ?? null}
+            userId={userId}
+            isGuest={isGuest}
+            startDeleting={deletionPending}
+            deleteAccount={deleteAccount}
+            onClose={onClose}
+          />
+        )}
       </div>
     </div>
   );
