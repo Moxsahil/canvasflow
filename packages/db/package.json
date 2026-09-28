@@ -37,6 +37,7 @@
     "prune:sign-in-failures": "tsx scripts/prune-sign-in-failures.ts",
     "prune:password-resets": "tsx scripts/prune-password-resets.ts",
     "purge:deleted-accounts": "tsx scripts/purge-deleted-accounts.ts",
+    "restore:account": "tsx scripts/restore-deleted-account.ts",
     "show:auth-events": "tsx scripts/show-auth-events.ts"
   },
   "dependencies": {

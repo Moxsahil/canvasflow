@@ -16,3 +16,4 @@ export * from './access/users.js';
 export * from './access/sessions.js';
 export * from './access/account-deletion.js';
 export * from './access/account-purge.js';
+export * from './access/account-restore.js';

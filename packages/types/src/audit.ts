@@ -38,6 +38,12 @@ export type AuditAction =
    * names no actor; the target is the anonymized account row.
    */
   | 'auth.account.deleted'
+  /**
+   * A deletion was called off inside its grace period, by support at the
+   * owner's request: the account unlocked and the boards the request hid came
+   * back. Names no actor — support is not an account.
+   */
+  | 'auth.account.deletion_cancelled'
   /** Every session an account had, ended at once. */
   | 'auth.session.revoked'
   /** A refresh token was presented after it had already been spent. */

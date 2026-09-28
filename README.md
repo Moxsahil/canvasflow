@@ -191,6 +191,8 @@ More in [docs/auth-architecture.md](docs/auth-architecture.md) and
   lock and every rate limit
 - [docs/signin-migration-inventory.md](docs/signin-migration-inventory.md): the
   record of moving sign-in into the gateway
+- [docs/account-deletion.md](docs/account-deletion.md): how deleting an account
+  works, and how support restores one inside its 7 days
 
 ## License
 
