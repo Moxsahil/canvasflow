@@ -34,7 +34,7 @@ function messageOf(error: unknown): string {
     : 'Something went wrong. Try again.';
 }
 
-function ErrorLine({ children }: { children: string | null }) {
+export function ErrorLine({ children }: { children: string | null }) {
   if (!children) return null;
   return (
     <p role="alert" className="text-[11.5px] text-[var(--surface-danger)]">
@@ -47,7 +47,7 @@ function ErrorLine({ children }: { children: string | null }) {
  * A password field with its own show/hide. Each field owns its toggle, so
  * revealing one never reveals another.
  */
-function PasswordField({
+export function PasswordField({
   label,
   value,
   onChange,

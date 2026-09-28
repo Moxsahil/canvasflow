@@ -126,7 +126,7 @@ export class AccountDeletionService {
 
       if (!(await this.passwords.verify(input.currentPassword, account.passwordHash))) {
         await this.signInLimits.record(account.email);
-        throw new BadRequestException('Your password is not right.');
+        throw new BadRequestException('Incorrect password.');
       }
     } else if (!recentSignInUntil(await this.signedInAt(userId, sessionId), new Date())) {
       // A code as well as a sentence, because the right response is not to

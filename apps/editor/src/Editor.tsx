@@ -98,6 +98,7 @@ import {
 } from './frames/frame-ops';
 import { useUndoState } from './document/useUndoState';
 import { useBoardSync } from './sync/useBoardSync';
+import { forgetOfflineCopies } from './sync/useOfflineCache';
 import { useAuthToken } from './auth/useAuthToken';
 import { SignOutDialog } from './auth/SignOutDialog';
 import { signOutTo } from './auth/sign-out';
@@ -119,7 +120,12 @@ import {
   type VertexGrab,
 } from './machine/tool-machine.types';
 import { ShortcutsModal } from './help';
-import { decodeJwtUser, decodeJwtWorkspaceId, sessionResumeUrl } from './auth/token';
+import {
+  clearStoredAuthTokens,
+  decodeJwtUser,
+  decodeJwtWorkspaceId,
+  sessionResumeUrl,
+} from './auth/token';
 import { useBoardSwitcher } from './workspace';
 import {
   CursorLayer,
@@ -136,7 +142,13 @@ import { useOpenBoardFile, useSaveBoardFile } from './file';
 import { ExportImageDialog } from './export';
 import { FindBar, useCanvasSearch } from './search';
 import { AccessRevokedDialog, ShareDialog } from './share';
-import { SettingsDialog } from './settings';
+import {
+  SettingsDialog,
+  accountDeletedUrl,
+  requestAccountDeletion,
+  takeDeletionResume,
+  type DeletionInput,
+} from './settings';
 import { usePreferences } from './preferences';
 import { useAvatar, useProfile } from './profile';
 import { VerificationNotice } from './profile/VerificationNotice';
@@ -397,6 +409,19 @@ export function Editor({ boardId }: EditorProps) {
   const [exportOpen, setExportOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Settings is opening at Delete account, because the person has just signed
+  // in again in order to delete it.
+  const [resumeDeletion, setResumeDeletion] = useState(false);
+  /**
+   * A request to delete the account is out, or has gone through.
+   *
+   * Every session ends as part of it, and the sync-server notices within
+   * seconds — often before the answer to the request has even arrived. Its
+   * "session ended" would send the browser to sign in over the top of the
+   * page that says what happens next, so while this is set, being told the
+   * session or the board is gone is expected rather than news.
+   */
+  const deletingAccountRef = useRef(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   /**
@@ -414,7 +439,10 @@ export function Editor({ boardId }: EditorProps) {
   const showShare = useCallback(() => setShareOpen(true), []);
   const hideShare = useCallback(() => setShareOpen(false), []);
   const showSettings = useCallback(() => setSettingsOpen(true), []);
-  const hideSettings = useCallback(() => setSettingsOpen(false), []);
+  const hideSettings = useCallback(() => {
+    setSettingsOpen(false);
+    setResumeDeletion(false);
+  }, []);
   // Toggled rather than opened: the combo that summons it is the natural way
   // to dismiss it again, and pressing it twice should leave the board alone.
   const togglePalette = useCallback(() => setPaletteOpen((open) => !open), []);
@@ -449,6 +477,16 @@ export function Editor({ boardId }: EditorProps) {
   // menu's account row has been showing a raw UUID.
   const user = useMemo(() => (authToken ? decodeJwtUser(authToken) : null), [authToken]);
   const userId = user?.id ?? null;
+
+  // Back from signing in again to delete the account: open straight at it.
+  // The note is read once and is only honoured for the account that left it.
+  useEffect(() => {
+    if (!user || user.isGuest) return;
+    if (takeDeletionResume(user.id)) {
+      setResumeDeletion(true);
+      setSettingsOpen(true);
+    }
+  }, [user]);
 
   /**
    * The account's own profile: the cursor colour this client publishes, and the
@@ -574,11 +612,14 @@ export function Editor({ boardId }: EditorProps) {
     // so `readOnly` and the chrome follow within a second, rather than at the
     // next scheduled refresh up to five minutes away.
     onAccessChanged: refreshAuthToken,
-    onAccessRevoked: () => setAccessRevoked(true),
+    onAccessRevoked: () => {
+      if (!deletingAccountRef.current) setAccessRevoked(true);
+    },
     // Signed out elsewhere, or the password was reset. The gateway's resume
     // route renews if the session is somehow still alive and otherwise lands
     // on sign-in, so this cannot strand anybody who is still signed in.
     onSessionEnded: () => {
+      if (deletingAccountRef.current) return;
       window.location.href = sessionResumeUrl();
     },
   });
@@ -636,6 +677,41 @@ export function Editor({ boardId }: EditorProps) {
     }
     signOutTo(env.VITE_WEB_URL);
   }, [syncStatus, purgeCache]);
+
+  /**
+   * Ask for the account to be deleted, and once it is, leave.
+   *
+   * A refusal — a wrong password, a sign-in too old — is thrown back to the
+   * dialog, which says so, and everything carries on. Once it goes through,
+   * every session the account had has ended, this one's included.
+   *
+   * Unlike signing out, nothing cached here is worth keeping then: with no
+   * session left there is no way to send an unsynced edit anywhere, and the
+   * boards it would belong to are going. So every copy this browser holds for
+   * the account is discarded, and the browser leaves for the page that says
+   * when the erasure runs. `replace`, so Back does not return to a dead board.
+   */
+  const deleteAccount = useCallback(
+    async (input: DeletionInput) => {
+      deletingAccountRef.current = true;
+      let purgeAfter: string;
+      try {
+        ({ purgeAfter } = await requestAccountDeletion(authToken, input));
+      } catch (error) {
+        deletingAccountRef.current = false;
+        throw error;
+      }
+      try {
+        await purgeCache();
+      } catch (err) {
+        console.error('Failed to discard the cached board after deleting the account:', err);
+      }
+      if (userId) await forgetOfflineCopies(userId);
+      clearStoredAuthTokens();
+      window.location.replace(accountDeletedUrl(purgeAfter));
+    },
+    [authToken, purgeCache, userId],
+  );
 
   // Suspended while disconnected: a frozen cursor from a socket that has gone
   // away is worse than no cursor.
@@ -2872,6 +2948,10 @@ export function Editor({ boardId }: EditorProps) {
                 account={account}
                 avatar={avatar}
                 theme={presenceTheme}
+                userId={userId}
+                isGuest={user?.isGuest ?? false}
+                resumeDeletion={resumeDeletion}
+                deleteAccount={deleteAccount}
                 onClose={hideSettings}
               />
             )}

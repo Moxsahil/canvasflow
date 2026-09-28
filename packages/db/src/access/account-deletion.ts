@@ -1,5 +1,5 @@
 import { and, count, eq, inArray, isNull, lte, ne } from 'drizzle-orm';
-import { DEFAULT_USER_PREFERENCES } from '@canvasflow/types';
+import { ACCOUNT_DELETION_GRACE_DAYS, DEFAULT_USER_PREFERENCES } from '@canvasflow/types';
 import type { Database, DatabaseExecutor } from '../client.js';
 import { accountDeletions, type AccountDeletionRow } from '../schema/account-deletion.js';
 import { accounts, sessions } from '../schema/auth.js';
@@ -26,8 +26,11 @@ import { memberships, workspaces } from '../schema/workspaces.js';
  * nothing in anybody else's history has to change.
  */
 
-/** How long a request waits before the data is erased. The terms promise 30 days at most. */
-export const ACCOUNT_DELETION_GRACE_DAYS = 7;
+/**
+ * How long a request waits before the data is erased. Defined beside the terms
+ * in @canvasflow/types, so the editor states the same number this schedules by.
+ */
+export { ACCOUNT_DELETION_GRACE_DAYS };
 
 /** What an erased account is called wherever something still points at it. */
 export const DELETED_USER_NAME = 'Deleted user';
