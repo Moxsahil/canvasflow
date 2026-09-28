@@ -1,0 +1,71 @@
+name: Purge deleted accounts
+
+# Finishes account deletions whose seven-day grace period is over: the files
+# first, then the rows. Asking to delete an account locks it at once; this is
+# what erases it. The terms promise that within 30 days, so a failed run is
+# worth a look the same day — GitHub emails whoever last changed the schedule.
+#
+# These logs are public, like everything else in this repository. The script
+# prints request ids and counts, never an address or a name; keep it that way.
+on:
+  schedule:
+    # Daily, off the hour and half an hour after the nightly prune.
+    - cron: '47 3 * * *'
+  # By hand, as a dry run unless the box is unticked — how production is
+  # checked before the first real run, and after any change to the job.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only report what would be deleted
+        type: boolean
+        default: true
+
+concurrency:
+  group: purge-deleted-accounts
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  purge:
+    name: Purge accounts past their grace period
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      # Spelled out so the database client never logs its queries here.
+      NODE_ENV: production
+      # The runner is in the US and the database in Singapore; see the prune
+      # workflow for why each address gets two seconds to connect.
+      NODE_OPTIONS: --network-family-autoselection-attempt-timeout=2000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Only the database package and what it needs, as for the prune.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter @canvasflow/db...
+
+      - name: Build the database package and what it depends on
+        run: pnpm build --filter=@canvasflow/db...
+
+      # A scheduled run has no inputs, so it is always a real one.
+      - name: Purge
+        run: pnpm --filter @canvasflow/db purge:deleted-accounts ${{ inputs.dry_run && '--dry-run' || '' }}

@@ -331,6 +331,9 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1118.0
+        version: 3.1118.0
       '@canvasflow/config':
         specifier: workspace:*
         version: link:../config

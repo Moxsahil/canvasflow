@@ -22,7 +22,8 @@ export default defineConfig({
       name: 'chromium',
       // Password recovery, account security, the legal pages and account
       // deletion run in their own projects, below.
-      testIgnore: /(password-reset|account-security|legal|account-deletion(-request)?)\.spec\.ts/,
+      testIgnore:
+        /(password-reset|account-security|legal|account-deletion(-request)?|account-purge)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         // Every test in this project starts already signed in, from the file
@@ -54,12 +55,12 @@ export default defineConfig({
       testMatch: /legal\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
-    // Deleting an account: the data layer straight against the development
-    // database, and asking for it through the gateway, each with throwaway
-    // people of its own. Run on its own with `--project=deletion`.
+    // Deleting an account: the data layer and the daily purge straight against
+    // the development database, and asking for it through the gateway, each
+    // with throwaway people of its own. Run on its own with `--project=deletion`.
     {
       name: 'deletion',
-      testMatch: /account-deletion(-request)?\.spec\.ts/,
+      testMatch: /account-(deletion(-request)?|purge)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
   ],

@@ -36,6 +36,7 @@
     "verify:sharing": "tsx scripts/verify-sharing.mts",
     "prune:sign-in-failures": "tsx scripts/prune-sign-in-failures.ts",
     "prune:password-resets": "tsx scripts/prune-password-resets.ts",
+    "purge:deleted-accounts": "tsx scripts/purge-deleted-accounts.ts",
     "show:auth-events": "tsx scripts/show-auth-events.ts"
   },
   "dependencies": {
@@ -46,6 +47,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1118.0",
     "@canvasflow/config": "workspace:*",
     "@types/bcrypt": "^6.0.0",
     "@types/node": "^25.9.1",
