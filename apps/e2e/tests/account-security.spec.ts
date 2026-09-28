@@ -52,7 +52,9 @@ const PASSWORD_CHANGE = { timeout: 20_000 };
 
 // One account moves through these in order: the password each test signs in
 // with depends on the one before it having changed it.
-test.describe.configure({ mode: 'serial' });
+// Two sign-ins before the first check, against a remote development database
+// that may be waking up: past Playwright's default half a minute at times.
+test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
 test.skip(!db, 'DATABASE_URL is not set');
 test.skip(process.env.NODE_ENV === 'production', 'refusing to run against production');
@@ -199,7 +201,7 @@ test('a wrong current password is refused and changes nothing', async ({ browser
   await form.getByRole('button', { name: 'Change password' }).click();
 
   await expect(form.getByRole('alert')).toHaveText(
-    'Your current password is not right.',
+    'Incorrect password, please try again.',
     PASSWORD_CHANGE,
   );
   await form.getByRole('button', { name: 'Cancel' }).click();

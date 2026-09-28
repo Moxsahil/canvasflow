@@ -325,6 +325,17 @@ export async function cancelAccountDeletion(
       .set({ status: 'cancelled', cancelledAt: now })
       .where(eq(accountDeletions.id, request.id));
 
+    // In the same transaction, so a restore and its record cannot part. No
+    // actor: support did this, and support is not an account.
+    await tx.insert(auditLog).values({
+      workspaceId: null,
+      actorId: null,
+      action: 'auth.account.deletion_cancelled',
+      targetType: 'user',
+      targetId: userId,
+      metadata: { requestId: request.id, restoredBoards: restored.length },
+    });
+
     return { ok: true, restoredBoardIds: restored.map((board) => board.id) } as const;
   });
 }
