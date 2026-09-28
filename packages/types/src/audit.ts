@@ -26,6 +26,12 @@ export type AuditAction =
    * ended, so whoever registered the address first cannot still get in.
    */
   | 'auth.account.claimed'
+  /**
+   * Somebody asked for their own account to be deleted. It was locked, the
+   * boards it owns were hidden and every session ended; the data is erased once
+   * the grace period is over.
+   */
+  | 'auth.account.deletion_requested'
   /** Every session an account had, ended at once. */
   | 'auth.session.revoked'
   /** A refresh token was presented after it had already been spent. */

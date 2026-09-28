@@ -7,3 +7,10 @@
  * still matches this. Move it whenever the text of the terms changes.
  */
 export const TERMS_VERSION = '2026-09-25';
+
+/**
+ * Where someone writes for help with their account — including to stop a
+ * deletion inside its grace period. The legal pages, the editor and the mail
+ * the API sends all name it, so it is spelled out once, here.
+ */
+export const SUPPORT_EMAIL = 'support@canvasflowapp.com';

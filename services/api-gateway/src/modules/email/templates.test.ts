@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   accountClaimedEmail,
+  accountDeletionEmail,
   escapeHtml,
   minutesUntil,
   passwordChangedEmail,
@@ -148,6 +149,38 @@ describe('accountClaimedEmail', () => {
 
   it('escapes every value that came from somebody else', () => {
     const email = accountClaimedEmail({ ...base, passwordRemoved: true, providersRemoved: [] });
+    expect(email.html).toContain('Mallory &lt;b&gt;');
+    expect(email.html).not.toContain('<img');
+  });
+});
+
+describe('accountDeletionEmail', () => {
+  const base = {
+    accountName: 'Mallory <b>',
+    purgeAfter: new Date('2026-10-01T14:05:00Z'),
+    ownedBoards: 3,
+    supportEmail: 'support@canvasflowapp.com',
+    requestedFrom: origin,
+  };
+
+  it('says when it becomes final and how to stop it, in both parts', () => {
+    const email = accountDeletionEmail(base);
+    for (const part of [email.text, email.html]) {
+      expect(part).toContain('1 October 2026 at 14:05 UTC');
+      expect(part).toContain('support@canvasflowapp.com');
+    }
+    expect(email.html).toContain('mailto:support@canvasflowapp.com');
+    expect(email.text).toContain("You've been signed out everywhere.");
+  });
+
+  it('counts the boards that were hidden, and says nothing of boards there were not', () => {
+    expect(accountDeletionEmail(base).text).toContain('The 3 boards you own');
+    expect(accountDeletionEmail({ ...base, ownedBoards: 1 }).text).toContain('The board you own');
+    expect(accountDeletionEmail({ ...base, ownedBoards: 0 }).text).not.toContain('board');
+  });
+
+  it('escapes every value that came from somebody else', () => {
+    const email = accountDeletionEmail(base);
     expect(email.html).toContain('Mallory &lt;b&gt;');
     expect(email.html).not.toContain('<img');
   });

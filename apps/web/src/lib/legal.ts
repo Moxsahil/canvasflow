@@ -1,3 +1,5 @@
+import { SUPPORT_EMAIL } from '@canvasflow/types';
+
 /**
  * Who runs CanvasFlow and how to reach them, as the legal pages state it. The
  * pages quote these rather than spelling them out, so a change here lands on
@@ -34,7 +36,7 @@ export const MINIMUM_AGE = 18;
  */
 export const CONTACT = {
   /** Help with an account, including someone else getting into it, or closing it. */
-  support: 'support@canvasflowapp.com',
+  support: SUPPORT_EMAIL,
   /** These terms, and reports of anything on CanvasFlow that breaks them. */
   legal: 'legal@canvasflowapp.com',
   /** The privacy policy, requests about personal data, and privacy complaints. */
