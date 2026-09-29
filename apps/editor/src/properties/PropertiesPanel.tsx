@@ -1,85 +1,41 @@
+import { Fragment, useRef, useState, type ReactNode } from 'react';
+import { ArrowDownToLine, ArrowUpToLine, MoveDown, MoveUp } from 'lucide-react';
 import type { Shape } from '@canvasflow/canvas-engine';
+import { strokeColorFor } from '@canvasflow/canvas-engine';
+import { cn } from '@/lib/utils';
+import { menuSurfaceClasses } from '@/components/ui/menu-look';
 import type { ItemStyle } from '../machine/tool-machine.types';
-import { Island, Stack } from '../ui';
-import { ColorSwatchRow } from './ColorSwatchRow';
-import { OpacitySlider } from './OpacitySlider';
-import { OptionButton } from './OptionButton';
-import { PanelSection } from './PanelSection';
-import { strokeColorFor, type Arrowhead } from '@canvasflow/canvas-engine';
-import { useRef, useState, type ComponentType } from 'react';
 import { ColorPickerPopover } from './color/ColorPickerPopover';
 import {
-  AlignCenterIcon,
-  AlignLeftIcon,
-  AlignRightIcon,
-  ArchitectIcon,
-  ArrowheadArrowIcon,
-  ArrowheadBarIcon,
-  ArrowheadCircleIcon,
-  ArrowheadCircleOutlineIcon,
-  ArrowheadDiamondIcon,
-  ArrowheadDiamondOutlineIcon,
-  ArrowheadNoneIcon,
-  ArrowheadTriangleIcon,
-  ArrowheadTriangleOutlineIcon,
-  ArtistIcon,
-  BringForwardIcon,
-  BringToFrontIcon,
-  CartoonistIcon,
-  ConstantWidthIcon,
-  CrossHatchIcon,
-  CurvedArrowIcon,
-  DashedStrokeIcon,
-  DottedStrokeIcon,
-  ElbowArrowIcon,
-  HachureIcon,
-  PressureIcon,
-  RoundEdgeIcon,
-  SendBackwardIcon,
-  SendToBackIcon,
-  SharpEdgeIcon,
-  SolidFillIcon,
-  SolidStrokeIcon,
-  StraightArrowIcon,
-  StrokeWidthIcon,
-} from './icons';
+  ChoiceChip,
+  ColorChip,
+  InspectorDivider,
+  InspectorIconButton,
+  InspectorPopover,
+  InspectorRow,
+  InspectorSection,
+  PercentControl,
+  SegmentedControl,
+  StepperControl,
+} from './inspector';
+import { BACKGROUND_SWATCHES, STROKE_SWATCHES } from './palette';
 import {
-  ARROWHEADS,
-  BACKGROUND_SWATCHES,
-  FONT_FAMILIES,
-  FONT_SIZES,
-  STROKE_SWATCHES,
-  STROKE_WIDTHS,
-} from './palette';
+  ALIGN_OPTIONS,
+  ARROWHEAD_ICONS,
+  ARROW_TYPE_OPTIONS,
+  ArrowheadGrid,
+  CORNER_OPTIONS,
+  DASH_OPTIONS,
+  FONT_OPTIONS,
+  FONT_SIZE_OPTIONS,
+  LOOK_OPTIONS,
+  PATTERN_OPTIONS,
+  PRESSURE_OPTIONS,
+  WEIGHT_STEPS,
+  arrowheadLabel,
+} from './style-options';
+import { styleSections } from './style-sections';
 import './PropertiesPanel.css';
-
-/** Glyph per arrowhead kind, shared by the start and end rows. */
-const ARROWHEAD_ICONS: Record<Arrowhead, ComponentType> = {
-  none: ArrowheadNoneIcon,
-  arrow: ArrowheadArrowIcon,
-  bar: ArrowheadBarIcon,
-  circle: ArrowheadCircleIcon,
-  circle_outline: ArrowheadCircleOutlineIcon,
-  triangle: ArrowheadTriangleIcon,
-  triangle_outline: ArrowheadTriangleOutlineIcon,
-  diamond: ArrowheadDiamondIcon,
-  diamond_outline: ArrowheadDiamondOutlineIcon,
-};
-
-/**
- * Shape kinds a fill colour means something for. Lines and freehand strokes
- * qualify because they can enclose an area — a filled line closes into a
- * polygon, and a freehand stroke fills once it loops back on itself.
- */
-const FILLABLE_KINDS: ReadonlySet<Shape['kind']> = new Set([
-  'rectangle',
-  'ellipse',
-  'diamond',
-  'line',
-  'freehand',
-]);
-/** Shape kinds whose corners or joints can be rounded off. */
-const EDGED_KINDS: ReadonlySet<Shape['kind']> = new Set(['rectangle', 'diamond', 'line']);
 
 export interface LayerActions {
   onSendToBack: () => void;
@@ -88,7 +44,8 @@ export interface LayerActions {
   onBringToFront: () => void;
 }
 
-interface PropertiesPanelProps {
+/** What both of the style surfaces — the docked panel and the floating bar — edit with. */
+export interface StyleSurfaceProps {
   /** Style of the selection, or the pending style when nothing is selected. */
   style: ItemStyle;
   /** Kinds currently being edited — decides which sections apply. */
@@ -105,22 +62,22 @@ interface PropertiesPanelProps {
   darkMode: boolean;
 }
 
-/** Which colour the open picker is editing, and where to anchor it. */
-interface OpenPicker {
-  target: 'stroke' | 'fill';
+/** Which popover is open, and where to anchor it. */
+interface OpenPopover {
+  target: 'stroke' | 'fill' | 'startArrowhead' | 'endArrowhead';
   top: number;
   /** Kept so the outside-click handler can tell the trigger apart from a click-away. */
   trigger: HTMLElement;
 }
 
 /**
- * The style panel at the top-right. It edits the selection when there is one,
- * and otherwise the style the next drawn shape will take — which is why it
- * appears for an active drawing tool on an empty canvas.
+ * The style panel docked on the right edge. It edits the selection when there
+ * is one, and otherwise the style the next drawn shape will take — which is
+ * why it appears for an active drawing tool on an empty canvas.
  *
- * Every section is gated on `shapeKinds`: it shows only when it applies to
- * every kind in the current edit target, so a mixed selection falls back to
- * the properties they share.
+ * Laid out as an inspector: each property one row, its name on the left and
+ * its value on the right, grouped into sections — see `styleSections` for
+ * when each one applies.
  */
 export function PropertiesPanel({
   style,
@@ -129,353 +86,328 @@ export function PropertiesPanel({
   onStyleChange,
   layerActions,
   darkMode,
-}: PropertiesPanelProps) {
+}: StyleSurfaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [picker, setPicker] = useState<OpenPicker | null>(null);
+  const [popover, setPopover] = useState<OpenPopover | null>(null);
 
-  const openPicker = (target: OpenPicker['target']) => (trigger: HTMLElement) => {
+  const openPopover = (target: OpenPopover['target']) => (trigger: HTMLElement) => {
     const container = containerRef.current;
     if (!container) return;
     // Anchor to the trigger's own row rather than the panel top, so the popover
-    // lines up with the swatch that opened it however the panel is scrolled.
-    const top = trigger.getBoundingClientRect().top - container.getBoundingClientRect().top;
-    setPicker((current) => (current?.target === target ? null : { target, top, trigger }));
+    // lines up with the chip that opened it however the panel is scrolled.
+    const top = trigger.getBoundingClientRect().top - container.getBoundingClientRect().top - 4;
+    setPopover((current) => (current?.target === target ? null : { target, top, trigger }));
+  };
+  const closePopover = () => setPopover(null);
+  // Opens inward, into the board: the panel sits against the right edge.
+  const popoverPosition = popover ? { top: popover.top, right: 'calc(100% + 0.5rem)' } : {};
+
+  const show = styleSections(shapeKinds, style);
+  const paintStroke = (colour: string) => strokeColorFor(colour, darkMode);
+
+  const strokeColourRow = (
+    <InspectorRow label="Colour">
+      <ColorChip
+        label={show.textOnly ? 'Text colour' : 'Stroke colour'}
+        value={style.strokeColor}
+        paint={paintStroke}
+        expanded={popover?.target === 'stroke'}
+        onOpen={openPopover('stroke')}
+      />
+    </InspectorRow>
+  );
+
+  const arrowheadRow = (end: 'start' | 'end') => {
+    const value = end === 'start' ? style.startArrowhead : style.endArrowhead;
+    const Icon = ARROWHEAD_ICONS[value];
+    return (
+      <InspectorRow label={end === 'start' ? 'Start' : 'End'}>
+        <ChoiceChip
+          label={end === 'start' ? 'Start arrowhead' : 'End arrowhead'}
+          valueLabel={arrowheadLabel(value)}
+          icon={<Icon />}
+          mirrored={end === 'start' && value !== 'none'}
+          expanded={popover?.target === `${end}Arrowhead`}
+          onOpen={openPopover(`${end}Arrowhead`)}
+        />
+      </InspectorRow>
+    );
   };
 
-  const closePicker = () => setPicker(null);
+  const sections: { key: string; node: ReactNode }[] = [];
 
-  const every = (predicate: (kind: Shape['kind']) => boolean) =>
-    shapeKinds.length > 0 && shapeKinds.every(predicate);
+  if (show.textOnly) {
+    sections.push({
+      key: 'text',
+      node: (
+        <InspectorSection title="Text">
+          {strokeColourRow}
+          <InspectorRow label="Font">
+            <SegmentedControl
+              label="Font"
+              value={style.fontFamily}
+              options={FONT_OPTIONS}
+              onChange={(fontFamily) => onStyleChange({ fontFamily })}
+            />
+          </InspectorRow>
+          <InspectorRow label="Size">
+            <SegmentedControl
+              label="Font size"
+              value={style.fontSize}
+              options={FONT_SIZE_OPTIONS}
+              onChange={(fontSize) => onStyleChange({ fontSize })}
+            />
+          </InspectorRow>
+          <InspectorRow label="Align">
+            <SegmentedControl
+              label="Text align"
+              value={style.textAlign}
+              options={ALIGN_OPTIONS}
+              onChange={(textAlign) => onStyleChange({ textAlign })}
+            />
+          </InspectorRow>
+        </InspectorSection>
+      ),
+    });
+  } else {
+    sections.push({
+      key: 'stroke',
+      node: (
+        <InspectorSection title="Stroke">
+          {strokeColourRow}
+          {show.stroke && (
+            <InspectorRow label="Weight">
+              <StepperControl
+                label="Stroke weight"
+                value={style.strokeWidth}
+                steps={WEIGHT_STEPS}
+                format={(width) => `${width} px`}
+                decreaseLabel="Thinner"
+                increaseLabel="Thicker"
+                onChange={(strokeWidth) => onStyleChange({ strokeWidth })}
+              />
+            </InspectorRow>
+          )}
+          {show.strokeTreatments && (
+            <InspectorRow label="Dash">
+              <SegmentedControl
+                label="Stroke dash"
+                value={style.strokeStyle}
+                options={DASH_OPTIONS}
+                onChange={(strokeStyle) => onStyleChange({ strokeStyle })}
+              />
+            </InspectorRow>
+          )}
+          {show.pressure && (
+            <InspectorRow label="Pressure">
+              <SegmentedControl
+                label="Pressure"
+                value={style.simulatePressure ? 'tapered' : 'constant'}
+                options={PRESSURE_OPTIONS}
+                onChange={(pressure) => onStyleChange({ simulatePressure: pressure === 'tapered' })}
+              />
+            </InspectorRow>
+          )}
+        </InspectorSection>
+      ),
+    });
+  }
 
-  const isTextOnly = every((k) => k === 'text');
-  const showBackground = every((k) => FILLABLE_KINDS.has(k));
-  // A hatch pattern is only visible once there's something to hatch.
-  const showFill = showBackground && style.fillColor !== null;
-  // Text is sized by fontSize and drawn without Rough; an image paints its own
-  // pixels and is never outlined. Neither has a stroke to configure.
-  const showStroke = !isTextOnly && !every((k) => k === 'image');
-  const showEdges = every((k) => EDGED_KINDS.has(k));
-  const isFreehandOnly = every((k) => k === 'freehand');
-  const showPressure = isFreehandOnly;
-  /**
-   * The stroke treatments a hand-drawn line isn't offered.
-   *
-   * Roughness and corner treatment genuinely miss it — a tapered stroke is
-   * painted segment by segment rather than generated, so neither reaches it.
-   * A dash pattern would apply, but a line that was drawn rather than
-   * described carries its own character, and cutting it into dashes reads as
-   * fighting the stroke instead of styling it.
-   */
-  const showStrokeTreatments = showStroke && !isFreehandOnly;
-  const showArrow = every((k) => k === 'arrow');
+  if (show.fill) {
+    sections.push({
+      key: 'fill',
+      node: (
+        <InspectorSection title="Fill">
+          <InspectorRow label="Colour">
+            <ColorChip
+              label="Fill colour"
+              value={style.fillColor}
+              expanded={popover?.target === 'fill'}
+              onOpen={openPopover('fill')}
+            />
+          </InspectorRow>
+          {show.fillPattern && (
+            <InspectorRow label="Pattern">
+              <SegmentedControl
+                label="Fill pattern"
+                value={style.fillStyle}
+                options={PATTERN_OPTIONS}
+                onChange={(fillStyle) => onStyleChange({ fillStyle })}
+              />
+            </InspectorRow>
+          )}
+        </InspectorSection>
+      ),
+    });
+  }
+
+  if (show.strokeTreatments || show.corners) {
+    sections.push({
+      key: 'shape',
+      node: (
+        <InspectorSection title="Shape">
+          {show.strokeTreatments && (
+            <InspectorRow label="Look">
+              <SegmentedControl
+                label="Look"
+                value={style.roughness}
+                options={LOOK_OPTIONS}
+                onChange={(roughness) => onStyleChange({ roughness })}
+              />
+            </InspectorRow>
+          )}
+          {show.corners && (
+            <InspectorRow label="Corners">
+              <SegmentedControl
+                label="Corners"
+                value={style.edges}
+                options={CORNER_OPTIONS}
+                onChange={(edges) => onStyleChange({ edges })}
+              />
+            </InspectorRow>
+          )}
+        </InspectorSection>
+      ),
+    });
+  }
+
+  if (show.arrow) {
+    sections.push({
+      key: 'arrow',
+      node: (
+        <InspectorSection title="Arrow">
+          <InspectorRow label="Type">
+            <SegmentedControl
+              label="Arrow type"
+              value={style.arrowType}
+              options={ARROW_TYPE_OPTIONS}
+              onChange={(arrowType) => onStyleChange({ arrowType })}
+            />
+          </InspectorRow>
+          {arrowheadRow('start')}
+          {arrowheadRow('end')}
+        </InspectorSection>
+      ),
+    });
+  }
+
+  sections.push({
+    key: 'layer',
+    node: (
+      <InspectorSection title="Layer">
+        <InspectorRow label="Opacity">
+          <PercentControl
+            label="Opacity"
+            value={style.opacity}
+            onChange={(opacity) => onStyleChange({ opacity })}
+          />
+        </InspectorRow>
+        {canReorder && (
+          <InspectorRow label="Arrange">
+            <ArrangeButtons actions={layerActions} />
+          </InspectorRow>
+        )}
+      </InspectorSection>
+    ),
+  });
+
+  const arrowheadEnd =
+    popover?.target === 'startArrowhead'
+      ? 'start'
+      : popover?.target === 'endArrowhead'
+        ? 'end'
+        : null;
 
   return (
     <div className="cf-properties-container" ref={containerRef}>
-      <Island padding={3} className="cf-properties">
-        <Stack.Col gap={3}>
-          <PanelSection label="Stroke">
-            <ColorSwatchRow
-              swatches={STROKE_SWATCHES}
-              value={style.strokeColor}
-              onChange={(strokeColor) => onStyleChange({ strokeColor })}
-              onOpenPicker={openPicker('stroke')}
-              pickerOpen={picker?.target === 'stroke'}
-              paint={(strokeColor) => strokeColorFor(strokeColor, darkMode)}
-            />
-          </PanelSection>
+      <aside
+        aria-label="Style"
+        className={cn(
+          menuSurfaceClasses,
+          // Never runs off a short viewport; the popovers sit outside it, so
+          // scrolling here cannot clip them.
+          'flex max-h-[calc(100vh-8rem)] w-60 flex-col overflow-y-auto p-1 pb-1.5 text-xs',
+        )}
+        data-testid="properties-panel"
+      >
+        {sections.map(({ key, node }, index) => (
+          <Fragment key={key}>
+            {index > 0 && <InspectorDivider />}
+            {node}
+          </Fragment>
+        ))}
+      </aside>
 
-          {showBackground && (
-            <PanelSection label="Background">
-              <ColorSwatchRow
-                swatches={BACKGROUND_SWATCHES}
-                value={style.fillColor}
-                onChange={(fillColor) => onStyleChange({ fillColor })}
-                onOpenPicker={openPicker('fill')}
-                pickerOpen={picker?.target === 'fill'}
-              />
-            </PanelSection>
-          )}
-
-          {showFill && (
-            <PanelSection label="Fill">
-              <OptionButton
-                icon={<HachureIcon />}
-                label="Hachure"
-                active={style.fillStyle === 'hachure'}
-                onClick={() => onStyleChange({ fillStyle: 'hachure' })}
-              />
-              <OptionButton
-                icon={<CrossHatchIcon />}
-                label="Cross-hatch"
-                active={style.fillStyle === 'cross-hatch'}
-                onClick={() => onStyleChange({ fillStyle: 'cross-hatch' })}
-              />
-              <OptionButton
-                icon={<SolidFillIcon />}
-                label="Solid"
-                active={style.fillStyle === 'solid'}
-                onClick={() => onStyleChange({ fillStyle: 'solid' })}
-              />
-            </PanelSection>
-          )}
-
-          {showStroke && (
-            <PanelSection label="Stroke width">
-              {STROKE_WIDTHS.map(({ value, label }) => (
-                <OptionButton
-                  key={value}
-                  icon={<StrokeWidthIcon weight={value} />}
-                  label={label}
-                  active={style.strokeWidth === value}
-                  onClick={() => onStyleChange({ strokeWidth: value })}
-                />
-              ))}
-            </PanelSection>
-          )}
-
-          {showStrokeTreatments && (
-            <PanelSection label="Stroke style">
-              <OptionButton
-                icon={<SolidStrokeIcon />}
-                label="Solid"
-                active={style.strokeStyle === 'solid'}
-                onClick={() => onStyleChange({ strokeStyle: 'solid' })}
-              />
-              <OptionButton
-                icon={<DashedStrokeIcon />}
-                label="Dashed"
-                active={style.strokeStyle === 'dashed'}
-                onClick={() => onStyleChange({ strokeStyle: 'dashed' })}
-              />
-              <OptionButton
-                icon={<DottedStrokeIcon />}
-                label="Dotted"
-                active={style.strokeStyle === 'dotted'}
-                onClick={() => onStyleChange({ strokeStyle: 'dotted' })}
-              />
-            </PanelSection>
-          )}
-
-          {showPressure && (
-            <PanelSection label="Pressure">
-              <OptionButton
-                icon={<ConstantWidthIcon />}
-                label="Constant width"
-                active={!style.simulatePressure}
-                onClick={() => onStyleChange({ simulatePressure: false })}
-              />
-              <OptionButton
-                icon={<PressureIcon />}
-                label="Tapered"
-                active={style.simulatePressure}
-                onClick={() => onStyleChange({ simulatePressure: true })}
-              />
-            </PanelSection>
-          )}
-
-          {showStrokeTreatments && (
-            <PanelSection label="Sloppiness">
-              <OptionButton
-                icon={<ArchitectIcon />}
-                label="Architect"
-                active={style.roughness === 0}
-                onClick={() => onStyleChange({ roughness: 0 })}
-              />
-              <OptionButton
-                icon={<ArtistIcon />}
-                label="Artist"
-                active={style.roughness === 1}
-                onClick={() => onStyleChange({ roughness: 1 })}
-              />
-              <OptionButton
-                icon={<CartoonistIcon />}
-                label="Cartoonist"
-                active={style.roughness === 2}
-                onClick={() => onStyleChange({ roughness: 2 })}
-              />
-            </PanelSection>
-          )}
-
-          {showArrow && (
-            <PanelSection label="Arrow type">
-              <OptionButton
-                icon={<StraightArrowIcon />}
-                label="Straight"
-                active={style.arrowType === 'straight'}
-                onClick={() => onStyleChange({ arrowType: 'straight' })}
-              />
-              <OptionButton
-                icon={<CurvedArrowIcon />}
-                label="Curved"
-                active={style.arrowType === 'curved'}
-                onClick={() => onStyleChange({ arrowType: 'curved' })}
-              />
-              <OptionButton
-                icon={<ElbowArrowIcon />}
-                label="Elbow"
-                active={style.arrowType === 'elbow'}
-                onClick={() => onStyleChange({ arrowType: 'elbow' })}
-              />
-            </PanelSection>
-          )}
-
-          {showArrow && (
-            <>
-              <PanelSection label="Arrowhead start" layout="grid">
-                {ARROWHEADS.map(({ value, label }) => {
-                  const Icon = ARROWHEAD_ICONS[value];
-                  return (
-                    <OptionButton
-                      key={value}
-                      icon={<Icon />}
-                      label={label}
-                      // The glyphs point right; the start marker faces the
-                      // other way, so flip everything but the bare shaft.
-                      mirrored={value !== 'none'}
-                      active={style.startArrowhead === value}
-                      onClick={() => onStyleChange({ startArrowhead: value })}
-                    />
-                  );
-                })}
-              </PanelSection>
-
-              <PanelSection label="Arrowhead end" layout="grid">
-                {ARROWHEADS.map(({ value, label }) => {
-                  const Icon = ARROWHEAD_ICONS[value];
-                  return (
-                    <OptionButton
-                      key={value}
-                      icon={<Icon />}
-                      label={label}
-                      active={style.endArrowhead === value}
-                      onClick={() => onStyleChange({ endArrowhead: value })}
-                    />
-                  );
-                })}
-              </PanelSection>
-            </>
-          )}
-
-          {showEdges && (
-            <PanelSection label="Edges">
-              <OptionButton
-                icon={<SharpEdgeIcon />}
-                label="Sharp"
-                active={style.edges === 'sharp'}
-                onClick={() => onStyleChange({ edges: 'sharp' })}
-              />
-              <OptionButton
-                icon={<RoundEdgeIcon />}
-                label="Round"
-                active={style.edges === 'round'}
-                onClick={() => onStyleChange({ edges: 'round' })}
-              />
-            </PanelSection>
-          )}
-
-          {isTextOnly && (
-            <>
-              <PanelSection label="Font family">
-                {FONT_FAMILIES.map(({ value, label }) => (
-                  <OptionButton
-                    key={label}
-                    icon={<span style={{ fontFamily: value, fontSize: 13 }}>A</span>}
-                    label={label}
-                    active={style.fontFamily === value}
-                    onClick={() => onStyleChange({ fontFamily: value })}
-                  />
-                ))}
-              </PanelSection>
-
-              <PanelSection label="Font size">
-                {FONT_SIZES.map(({ value, label }) => (
-                  <OptionButton
-                    key={value}
-                    icon={<span style={{ fontSize: 11 }}>{label.charAt(0)}</span>}
-                    label={label}
-                    active={style.fontSize === value}
-                    onClick={() => onStyleChange({ fontSize: value })}
-                  />
-                ))}
-              </PanelSection>
-
-              <PanelSection label="Text align">
-                <OptionButton
-                  icon={<AlignLeftIcon />}
-                  label="Left"
-                  active={style.textAlign === 'left'}
-                  onClick={() => onStyleChange({ textAlign: 'left' })}
-                />
-                <OptionButton
-                  icon={<AlignCenterIcon />}
-                  label="Center"
-                  active={style.textAlign === 'center'}
-                  onClick={() => onStyleChange({ textAlign: 'center' })}
-                />
-                <OptionButton
-                  icon={<AlignRightIcon />}
-                  label="Right"
-                  active={style.textAlign === 'right'}
-                  onClick={() => onStyleChange({ textAlign: 'right' })}
-                />
-              </PanelSection>
-            </>
-          )}
-
-          <PanelSection label="Opacity" layout="block">
-            <OpacitySlider
-              value={style.opacity}
-              onChange={(opacity) => onStyleChange({ opacity })}
-            />
-          </PanelSection>
-
-          {canReorder && (
-            <PanelSection label="Layers">
-              <OptionButton
-                icon={<SendToBackIcon />}
-                label="Send to back"
-                onClick={layerActions.onSendToBack}
-              />
-              <OptionButton
-                icon={<SendBackwardIcon />}
-                label="Send backward"
-                onClick={layerActions.onSendBackward}
-              />
-              <OptionButton
-                icon={<BringForwardIcon />}
-                label="Bring forward"
-                onClick={layerActions.onBringForward}
-              />
-              <OptionButton
-                icon={<BringToFrontIcon />}
-                label="Bring to front"
-                onClick={layerActions.onBringToFront}
-              />
-            </PanelSection>
-          )}
-        </Stack.Col>
-      </Island>
-
-      {picker && (
+      {(popover?.target === 'stroke' || popover?.target === 'fill') && (
         <ColorPickerPopover
-          key={picker.target}
-          title={picker.target === 'stroke' ? 'Stroke colour' : 'Background colour'}
-          value={picker.target === 'stroke' ? style.strokeColor : style.fillColor}
-          allowTransparent={picker.target === 'fill'}
-          top={picker.top}
-          trigger={picker.trigger}
+          key={popover.target}
+          title={
+            popover.target === 'fill'
+              ? 'Fill colour'
+              : show.textOnly
+                ? 'Text colour'
+                : 'Stroke colour'
+          }
+          value={popover.target === 'stroke' ? style.strokeColor : style.fillColor}
+          swatches={popover.target === 'stroke' ? STROKE_SWATCHES : BACKGROUND_SWATCHES}
+          paint={popover.target === 'stroke' ? paintStroke : undefined}
+          position={popoverPosition}
+          trigger={popover.trigger}
           onChange={(next, transient) =>
             onStyleChange(
-              picker.target === 'stroke'
+              popover.target === 'stroke'
                 ? // Stroke has no transparent state, so a cleared value is ignored.
                   { strokeColor: next ?? style.strokeColor }
                 : { fillColor: next },
               transient,
             )
           }
-          onClose={closePicker}
+          onClose={closePopover}
         />
       )}
+
+      {popover && arrowheadEnd && (
+        <InspectorPopover
+          key={popover.target}
+          title={arrowheadEnd === 'start' ? 'Start arrowhead' : 'End arrowhead'}
+          position={popoverPosition}
+          trigger={popover.trigger}
+          onClose={closePopover}
+          className="w-44 p-1"
+        >
+          <ArrowheadGrid
+            end={arrowheadEnd}
+            columns={3}
+            value={arrowheadEnd === 'start' ? style.startArrowhead : style.endArrowhead}
+            onPick={(value) => {
+              onStyleChange(
+                arrowheadEnd === 'start' ? { startArrowhead: value } : { endArrowhead: value },
+              );
+              closePopover();
+            }}
+          />
+        </InspectorPopover>
+      )}
+    </div>
+  );
+}
+
+/** Bring to front, forward, backward and to back, as the context menu orders them. */
+export function ArrangeButtons({ actions }: { actions: LayerActions }) {
+  return (
+    <div className="flex gap-0.5">
+      <InspectorIconButton label="Bring to front" onClick={actions.onBringToFront}>
+        <ArrowUpToLine aria-hidden="true" />
+      </InspectorIconButton>
+      <InspectorIconButton label="Bring forward" onClick={actions.onBringForward}>
+        <MoveUp aria-hidden="true" />
+      </InspectorIconButton>
+      <InspectorIconButton label="Send backward" onClick={actions.onSendBackward}>
+        <MoveDown aria-hidden="true" />
+      </InspectorIconButton>
+      <InspectorIconButton label="Send to back" onClick={actions.onSendToBack}>
+        <ArrowDownToLine aria-hidden="true" />
+      </InspectorIconButton>
     </div>
   );
 }
