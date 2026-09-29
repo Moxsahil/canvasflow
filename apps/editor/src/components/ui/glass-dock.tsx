@@ -108,7 +108,10 @@ export function GlassDock({ children, 'aria-label': ariaLabel, className }: Glas
         // reads as a halo around each of them on a dark canvas. Borders,
         // blurred surfaces and the tooltip's own contrast do the separating.
         className={cn(
-          'relative flex items-center gap-1 rounded-2xl px-2 py-1.5',
+          // 28px buttons, as on the floating style bar, with more air between
+          // them: a row of fifteen packed as tight as the bar's few chips
+          // reads as cramped.
+          'relative flex items-center gap-1 rounded-card px-1.5 py-1',
           'border border-(--dock-border-color) bg-(--dock-bg-color)',
           'backdrop-blur-xl backdrop-saturate-150',
           className,
@@ -192,7 +195,7 @@ export function GlassDockItem({ id, label, children }: GlassDockItemProps) {
 
 /** Hairline between two groups of dock items. */
 export function GlassDockSeparator() {
-  return <div aria-hidden="true" className="mx-1 h-6 w-px shrink-0 bg-(--dock-separator-color)" />;
+  return <div aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-(--dock-separator-color)" />;
 }
 
 /** A run of related items — kept together so the separator has something to sit between. */

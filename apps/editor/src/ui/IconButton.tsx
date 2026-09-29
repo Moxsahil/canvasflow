@@ -17,7 +17,7 @@ interface IconButtonProps {
 }
 
 /**
- * Square icon button sized to the standard 2rem chrome row. Hover feedback is
+ * Square icon button at the chrome's button size, `--default-button-size`. Hover feedback is
  * suppressed while disabled, so an unavailable action (undo with nothing to
  * undo) reads as inert rather than merely unresponsive.
  */

@@ -50,7 +50,7 @@ const BUTTON_CLASS = 'size-(--default-button-size)';
  * Appearance section — so this panel is about the view alone rather than a mix
  * of view, editing and app settings.
  *
- * It shares this edge with the dock, which is centred on it and, at some 33rem
+ * It shares this edge with the dock, which is centred on it and, at some 27rem
  * of buttons, much the wider of the two. So the panel gives way as the canvas
  * narrows rather than being painted over: below DESKTOP everything but the
  * readout goes, and below TABLET the panel goes with it. Those are a rung
@@ -84,7 +84,7 @@ export function ZoomPanel({
           onClick={onResetZoom}
           render={
             <Button
-              className="h-(--default-button-size) w-12 px-0 text-muted-foreground text-xs tabular-nums"
+              className="h-(--default-button-size) w-11 px-0 text-muted-foreground text-xs tabular-nums"
               variant="ghost"
             />
           }
@@ -102,10 +102,10 @@ export function ZoomPanel({
       // Surface, radius, padding, gap and row alignment are the dock's, class
       // for class (see GlassDock) — including the shadow it does not have — so
       // the two bars along this edge read as one bar broken in two rather than
-      // as two panels of slightly different build. `p-0` clears the p-1 the
-      // component ships with, which px/py would otherwise leave to stylesheet
-      // order to settle.
-      className="absolute right-4 bottom-4 z-(--zIndex-layerUI) items-center gap-1 rounded-2xl border-(--dock-border-color) bg-(--dock-bg-color) p-0 px-2 py-1.5 backdrop-blur-xl backdrop-saturate-150"
+      // as two panels of slightly different build. `px-1.5 py-1` replace the
+      // p-1 the component ships with; they merge, so neither is left to
+      // stylesheet order to settle.
+      className="absolute right-4 bottom-4 z-(--zIndex-layerUI) items-center gap-1 rounded-card border-(--dock-border-color) bg-(--dock-bg-color) px-1.5 py-1 backdrop-blur-xl backdrop-saturate-150"
     >
       {/* <SyncStatusDot status={syncStatus} /> */}
 
@@ -152,12 +152,12 @@ export function ZoomPanel({
 
           {/* Two corrections to what the component ships. `my-0`, spelled in
               the same variant it sets the margin in so the two merge: left on,
-              the separator is the tallest thing in the row at 24px plus 6px a
-              side, and the bar sizes itself to that, standing 4px prouder than
-              the dock. And `self-center`, because its `self-stretch` with a
+              its 6px a side would count towards the row's height, and the bar
+              could stand prouder than the dock. And `self-center`, because its
+              `self-stretch` with a
               height this definite lays out as flex-start — which sits the line
               against the top of the row rather than in the middle of it. */}
-          <ToolbarSeparator className="mx-1 h-6 self-center bg-(--dock-separator-color) data-[orientation=vertical]:my-0" />
+          <ToolbarSeparator className="mx-1 h-4 self-center bg-(--dock-separator-color) data-[orientation=vertical]:my-0" />
 
           <ToolbarGroup>
             <Tooltip>
