@@ -64,9 +64,15 @@ export interface BoardSwitcherState {
    * plain label rather than offering a menu that would be empty.
    */
   available: boolean;
-  /** The workspace whose boards are showing beside the list. */
-  expandedWorkspaceId: string | null;
-  expandWorkspace: (workspaceId: string | null) => void;
+  /**
+   * The workspace whose boards the sidebar lists, when it is not the open
+   * board's own. Null lists the open board's workspace.
+   */
+  browsedWorkspaceId: string | null;
+  /** Lists another workspace's boards, fetching them the first time. Null goes home. */
+  browseWorkspace: (workspaceId: string | null) => void;
+  /** Fetches a workspace's boards without listing them, for the manage dialog. */
+  loadWorkspaceBoards: (workspaceId: string) => void;
   boardsFor: (workspaceId: string) => WorkspaceBoards | undefined;
   openBoard: (boardId: string) => void;
   createBoard: (workspaceId: string) => void;
@@ -120,6 +126,33 @@ interface UseBoardSwitcherOptions {
   workspaceId: string | null;
 }
 
+/**
+ * What the sidebar last knew, kept for as long as the tab is open.
+ *
+ * Opening another board remounts the editor, and this hook with it, while the
+ * new board's token is still being minted. Starting from what was already on
+ * screen — and re-reading it quietly behind — is what keeps the sidebar still
+ * while only the board changes. Only settled lists are kept: a loading or
+ * failed one says nothing worth showing again.
+ */
+const remembered: {
+  workspaces: WorkspaceSummary[] | null;
+  available: boolean;
+  boards: Record<string, WorkspaceBoards>;
+} = { workspaces: null, available: true, boards: {} };
+
+function rememberBoards(id: string, list: BoardSummary[]) {
+  remembered.boards = { ...remembered.boards, [id]: { status: 'ready', boards: list } };
+}
+
+/** The workspace whose list holds this board, as far as the lists go. */
+function workspaceHolding(boardId: string, boards: Record<string, WorkspaceBoards>): string | null {
+  for (const [id, entry] of Object.entries(boards)) {
+    if (entry.status === 'ready' && entry.boards.some((board) => board.id === boardId)) return id;
+  }
+  return null;
+}
+
 function messageOf(err: unknown): string {
   return err instanceof Error ? err.message : 'Something went wrong.';
 }
@@ -130,20 +163,35 @@ function messageOf(err: unknown): string {
  *
  * Two requests on mount — the workspace list, and the boards of the board's
  * own workspace, which is also where its title comes from. Every other
- * workspace is fetched the first time it is expanded, so a person with a dozen
+ * workspace is fetched the first time it is browsed, so a person with a dozen
  * of them pays for the one they look at.
  *
  * Opening a board is a route change rather than a reload: the editor is keyed
  * by board id, so it remounts clean, and its token hook mints a token for the
  * new board from the user's session.
  */
-export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptions) {
+export function useBoardSwitcher({
+  boardId,
+  workspaceId: tokenWorkspaceId,
+}: UseBoardSwitcherOptions) {
   const navigate = useNavigate();
 
-  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[] | null>(null);
-  const [available, setAvailable] = useState(true);
-  const [boards, setBoards] = useState<Record<string, WorkspaceBoards>>({});
-  const [expandedWorkspaceId, setExpandedWorkspaceId] = useState<string | null>(null);
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[] | null>(
+    () => remembered.workspaces,
+  );
+  const [available, setAvailable] = useState(() => remembered.available);
+  const [boards, setBoards] = useState<Record<string, WorkspaceBoards>>(() => ({
+    ...remembered.boards,
+  }));
+
+  // The token names the board's workspace, but a board opened from the list
+  // is still waiting on its token. The list it was opened from already says
+  // which workspace holds it, so the sidebar need not wait.
+  const workspaceId = useMemo(
+    () => tokenWorkspaceId ?? workspaceHolding(boardId, boards),
+    [tokenWorkspaceId, boardId, boards],
+  );
+  const [browsedWorkspaceId, setBrowsedWorkspaceId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Held here rather than in the switcher, because the sidebar's own "Rename
@@ -155,23 +203,44 @@ export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptio
   const [manageTarget, setManageTarget] = useState<ManageTarget | null>(null);
 
   // Which workspaces have been asked for already. A ref rather than derived
-  // from `boards`, so a hover that re-fires while a request is in flight
-  // doesn't start a second one.
+  // from `boards`, so a second ask while a request is in flight doesn't start
+  // another one.
   const requestedRef = useRef<Set<string>>(new Set());
+
+  // Whatever else changes the lists — a rename, a delete, a new workspace —
+  // is kept for the next board too.
+  useEffect(() => {
+    remembered.workspaces = workspaces;
+  }, [workspaces]);
+  useEffect(() => {
+    remembered.boards = Object.fromEntries(
+      Object.entries(boards).filter(([, entry]) => entry.status === 'ready'),
+    );
+  }, [boards]);
 
   const loadBoards = useCallback((id: string) => {
     if (requestedRef.current.has(id)) return;
     requestedRef.current.add(id);
-    setBoards((prev) => ({ ...prev, [id]: { status: 'loading' } }));
+    // A list already on screen stays there while it is re-read.
+    setBoards((prev) =>
+      prev[id]?.status === 'ready' ? prev : { ...prev, [id]: { status: 'loading' } },
+    );
 
     listWorkspaceBoards(id)
       .then((list) => {
+        // Kept even if this editor has gone by now: the next one starts from it.
+        rememberBoards(id, list);
         setBoards((prev) => ({ ...prev, [id]: { status: 'ready', boards: list } }));
       })
       .catch((err: unknown) => {
-        // Dropped from the requested set so expanding again retries.
+        // Dropped from the requested set so asking again retries.
         requestedRef.current.delete(id);
-        setBoards((prev) => ({ ...prev, [id]: { status: 'error', error: messageOf(err) } }));
+        // Nor does a failed re-read take away a list that was already there.
+        setBoards((prev) =>
+          prev[id]?.status === 'ready'
+            ? prev
+            : { ...prev, [id]: { status: 'error', error: messageOf(err) } },
+        );
       });
   }, []);
 
@@ -180,12 +249,14 @@ export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptio
 
     listWorkspaces()
       .then((list) => {
+        remembered.workspaces = list;
         if (!cancelled) setWorkspaces(list);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
         // 401 is the ordinary answer for a guest, not a fault worth reporting.
         if (err instanceof WorkspaceApiError && err.status === 401) {
+          remembered.available = false;
           setAvailable(false);
           return;
         }
@@ -197,8 +268,8 @@ export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptio
     };
   }, []);
 
-  // The board's own workspace, for the title in the rail header and so the
-  // list beside it is already there the first time it opens.
+  // The board's own workspace: the sidebar lists it, and the board's title
+  // and colour come from it.
   useEffect(() => {
     if (workspaceId) loadBoards(workspaceId);
   }, [workspaceId, loadBoards]);
@@ -227,12 +298,13 @@ export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptio
     };
   }, [boards, workspaceId, boardId, workspaces, available]);
 
-  const expandWorkspace = useCallback(
+  const browseWorkspace = useCallback(
     (id: string | null) => {
-      setExpandedWorkspaceId(id);
+      // The open board's own workspace is home, so browsing to it is going home.
+      setBrowsedWorkspaceId(id === workspaceId ? null : id);
       if (id) loadBoards(id);
     },
-    [loadBoards],
+    [loadBoards, workspaceId],
   );
 
   const boardsFor = useCallback((id: string) => boards[id], [boards]);
@@ -250,7 +322,29 @@ export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptio
       setBusy(true);
       setError(null);
       requestCreateBoard(id)
-        .then((board) => navigate(`/boards/${board.id}`))
+        .then((board) => {
+          // Listed before it opens, newest first as the server orders them,
+          // so the new board's sidebar already knows it and its workspace.
+          const entry = remembered.boards[id];
+          rememberBoards(id, [board, ...(entry?.status === 'ready' ? entry.boards : [])]);
+          setBoards((prev) => {
+            const listed = prev[id];
+            return {
+              ...prev,
+              [id]: {
+                status: 'ready',
+                boards: [board, ...(listed?.status === 'ready' ? listed.boards : [])],
+              },
+            };
+          });
+          remembered.workspaces =
+            remembered.workspaces?.map((workspace) =>
+              workspace.id === id
+                ? { ...workspace, boardCount: workspace.boardCount + 1 }
+                : workspace,
+            ) ?? null;
+          navigate(`/boards/${board.id}`);
+        })
         .catch((err: unknown) => setError(messageOf(err)))
         .finally(() => setBusy(false));
     },
@@ -266,7 +360,8 @@ export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptio
         // Nothing to fetch: it was created empty a moment ago.
         requestedRef.current.add(workspace.id);
         setBoards((prev) => ({ ...prev, [workspace.id]: { status: 'ready', boards: [] } }));
-        setExpandedWorkspaceId(workspace.id);
+        // Shown straight away, so its empty list and New board are what you see.
+        setBrowsedWorkspaceId(workspace.id);
       })
       .catch((err: unknown) => setError(messageOf(err)))
       .finally(() => setBusy(false));
@@ -304,8 +399,8 @@ export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptio
 
   /**
    * The values behind the open dialog, resolved from whichever workspace's
-   * list holds that board — the switcher can target one in any workspace it
-   * has expanded, not only the board's own.
+   * list holds that board — the sidebar can rename one in any workspace it
+   * has listed, not only the board's own.
    */
   const renameTarget = useMemo<RenameBoardTarget | null>(() => {
     if (!renameBoardId) return null;
@@ -320,8 +415,8 @@ export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptio
     return { boardId: renameBoardId, title: null, color: null };
   }, [renameBoardId, boards]);
 
-  // Defaults to the board on screen, which is what the sidebar's row means by
-  // "Rename board"; the switcher names one when renaming another.
+  // Defaults to the board on screen, which is what the board card means by
+  // "Rename board"; a row in the board list names one when renaming another.
   const beginRename = useCallback(
     (id?: string) => {
       setError(null);
@@ -391,8 +486,8 @@ export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptio
             },
           };
         });
-        // The count sits next to the workspace's name in the switcher, so it
-        // has to move with the list rather than wait for the next page load.
+        // The count sits under the workspace's name in the sidebar, so it has
+        // to move with the list rather than wait for the next page load.
         setWorkspaces((prev) =>
           prev
             ? prev.map((workspace) =>
@@ -452,7 +547,7 @@ export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptio
         // the same id — an operator undoing this — would be fetched again
         // rather than served from a list that is no longer there.
         requestedRef.current.delete(id);
-        setExpandedWorkspaceId((current) => (current === id ? null : current));
+        setBrowsedWorkspaceId((current) => (current === id ? null : current));
 
         // The open board was in it, and went with it.
         if (workspaceId === id) openNextBoard({ workspaceId: id });
@@ -487,8 +582,9 @@ export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptio
       workspaceId,
       workspaces,
       available,
-      expandedWorkspaceId,
-      expandWorkspace,
+      browsedWorkspaceId,
+      browseWorkspace,
+      loadWorkspaceBoards: loadBoards,
       boardsFor,
       openBoard,
       createBoard,
@@ -514,8 +610,9 @@ export function useBoardSwitcher({ boardId, workspaceId }: UseBoardSwitcherOptio
       workspaceId,
       workspaces,
       available,
-      expandedWorkspaceId,
-      expandWorkspace,
+      browsedWorkspaceId,
+      browseWorkspace,
+      loadBoards,
       boardsFor,
       openBoard,
       createBoard,

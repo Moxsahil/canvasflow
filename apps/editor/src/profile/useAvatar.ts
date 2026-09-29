@@ -74,6 +74,23 @@ async function resolveAvatar(
   return resolved?.url ?? null;
 }
 
+/**
+ * Whose photo this tab last showed as its own.
+ *
+ * Opening another board remounts the editor while its token is still being
+ * minted, and nothing can be resolved without one. With this, the new board
+ * starts from the URL already resolved, so the account row does not blink to
+ * initials and back on every switch.
+ */
+let lastOwn: { userId: string; version: string } | null = null;
+
+/** The photo last shown for this version, if its URL has not run out. */
+function rememberedOwnAvatar(version: string | null): string | null {
+  if (!version || !lastOwn || lastOwn.version !== version) return null;
+  const cached = urlCache.get(cacheKey(lastOwn.userId, version));
+  return cached && cached.expiresAt > Date.now() ? cached.url : null;
+}
+
 export interface AvatarState {
   /** Null while there is no photo, or none resolved yet. */
   readonly url: string | null;
@@ -107,7 +124,7 @@ export function useAvatar({
   version,
   onChanged,
 }: UseAvatarOptions): AvatarState {
-  const [url, setUrl] = useState<string | null>(null);
+  const [url, setUrl] = useState<string | null>(() => rememberedOwnAvatar(version));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -115,14 +132,17 @@ export function useAvatar({
   onChangedRef.current = onChanged;
 
   useEffect(() => {
-    if (!token || !userId || !version) {
+    if (!version) {
       setUrl(null);
       return;
     }
+    // The token is still on its way: keep the photo already on screen.
+    if (!token || !userId) return;
 
     let cancelled = false;
     resolveAvatar(boardId, token, userId, version)
       .then((resolved) => {
+        lastOwn = { userId, version };
         if (!cancelled) setUrl(resolved);
       })
       .catch(() => {

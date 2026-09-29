@@ -52,7 +52,8 @@
   /* Every Island padding and Stack gap is a multiple of this, so the whole
      UI rescales from one number. */
   --space-factor: 0.25rem;
-  --default-button-size: 2rem;
+  /* The chrome's buttons, at the height of a menu row. */
+  --default-button-size: 1.75rem;
   --default-icon-size: 1rem;
   --border-radius-md: 0.375rem;
   --border-radius-lg: 0.5rem;

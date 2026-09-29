@@ -32,7 +32,8 @@ export interface ExpandingSearchDockProps {
   className?: string;
 }
 
-const COLLAPSED_SIZE = 40;
+/** As tall as the dock and the other bars on the board. */
+const COLLAPSED_SIZE = 36;
 
 export function ExpandingSearchDock({
   expanded,
@@ -87,7 +88,7 @@ export function ExpandingSearchDock({
               className="relative flex items-center gap-1 overflow-hidden rounded-full border border-(--default-border-color) bg-(--island-bg-color)"
             >
               <Search
-                className="ml-3.5 h-4 w-4 shrink-0 text-(--keybinding-color)"
+                className="ml-3 h-4 w-4 shrink-0 text-(--keybinding-color)"
                 aria-hidden="true"
               />
               <input
@@ -98,7 +99,7 @@ export function ExpandingSearchDock({
                 onKeyDown={onInputKeyDown}
                 placeholder={placeholder}
                 aria-label={label}
-                className="h-full min-w-0 flex-1 bg-transparent px-1.5 text-[0.8125rem] text-(--text-primary-color) outline-none placeholder:text-(--keybinding-color)"
+                className="h-full min-w-0 flex-1 bg-transparent px-1.5 text-xs text-(--text-primary-color) outline-none placeholder:text-(--keybinding-color)"
               />
               {trailing}
               <motion.button
@@ -110,7 +111,7 @@ export function ExpandingSearchDock({
                 whileTap={{ scale: 0.9 }}
                 title="Close search"
                 aria-label="Close search"
-                className="mr-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-(--icon-fill-color) hover:bg-(--button-hover-bg) focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none"
+                className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-(--icon-fill-color) hover:bg-(--button-hover-bg) focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
               </motion.button>

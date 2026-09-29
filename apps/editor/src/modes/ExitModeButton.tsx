@@ -64,7 +64,7 @@ export function ExitModeButton({ mode, onExit }: ExitModeButtonProps) {
       className={cn(
         // The share button's build, class for class, bar the width: "Exit
         // focus mode" and its arrow need room "Share" does not.
-        'h-10 w-36 text-[13px] [&_svg]:size-4',
+        'h-9 w-32 text-xs [&_svg]:size-4',
         'border-(--default-border-color) bg-(--island-bg-color) text-(--text-primary-color)',
         // Recolouring the token rather than the utilities keeps the sweep and
         // the text it reveals in step, exactly as the live share button does.

@@ -166,7 +166,7 @@ export function PeerList({
           className={cn(
             // Chrome tokens rather than the component palette, so this reads as
             // one family with the search button sitting next to it.
-            'h-10 w-28 text-[13px] [&_svg]:size-4',
+            'h-9 w-24 text-xs [&_svg]:size-4',
             'border-(--default-border-color) bg-(--island-bg-color) text-(--text-primary-color)',
             // Green while people are actually here — the answer to "did the
             // link work?". Recolouring the token rather than the utilities

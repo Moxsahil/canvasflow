@@ -33,7 +33,7 @@ describe('haloPlacement', () => {
   it('docks above the toolbar with nothing selected', () => {
     const place = haloPlacement(null, bar, board);
     expect(place).toMatchObject({ side: 'dock', left: 450, opensUp: true });
-    expect(place.top).toBe(800 - 76 - 36);
+    expect(place.top).toBe(800 - 68 - 36);
   });
 
   it('docks too when the selection has been scrolled out of view', () => {

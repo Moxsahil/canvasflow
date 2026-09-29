@@ -3,37 +3,29 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarRail,
+  SidebarTrigger,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { formatShortcut } from '../help/platform';
 import {
-  BoardSwitcher,
   ManageDialog,
   RenameBoardDialog,
+  WorkspaceSwitcher,
   type BoardSwitcherState,
 } from '../workspace';
 import { PreferencesMenu, type PreferencesState } from '../preferences';
 import type { ThemePreference } from '../theme';
 import type { SurfaceTheme } from '../ui/surface-palette';
+import { BoardCard } from './BoardCard';
+import { BoardList, RailSeparator } from './BoardList';
 import { ThemeToggle } from './ThemeToggle';
-import { MenuSection } from './MenuSection';
 import { NavUser, type SidebarUser } from './NavUser';
-import {
-  MENU_ITEMS,
-  SIDEBAR_ITEMS,
-  SIDEBAR_SECTIONS,
-  type MenuActions,
-  type MenuItemId,
-} from './menu-items';
+import { MENU_ITEMS, SIDEBAR_ITEMS, type MenuActions, type MenuItemId } from './menu-items';
 
 interface AppSidebarProps {
   /** The board on screen, and the workspaces and boards it can be swapped for. */
@@ -62,13 +54,15 @@ interface AppSidebarProps {
 }
 
 /**
- * The editor's sidebar: the board it is showing at the top, what can be done to
- * that board in the middle, appearance and the account at the foot.
+ * The editor's sidebar, laid out as a library of the workspace's boards: the
+ * workspace at the top, its boards one click apart in the middle with the open
+ * board's card under them, and help, appearance and the account at the foot.
  *
  * Everything in it is drawn from the sidebar's own palette — no chrome tokens,
  * no hand-rolled rows — so it reads as one surface with the popups it opens.
- * Collapses to an icon column and back by the rail on its edge or ⌘B, and the
- * state persists in the cookie the sidebar writes for itself.
+ * Collapses to an icon rail and back by the button beside the workspace, the
+ * rail on its edge or ⌘B, and the state persists in the cookie the sidebar
+ * writes for itself.
  */
 export function AppSidebar({
   boardSwitcher,
@@ -84,47 +78,29 @@ export function AppSidebar({
     // No rule down the edge: the canvas runs right up to the sidebar, and a
     // line between them reads as a seam in the window rather than as chrome.
     <Sidebar collapsible="icon" className="group-data-[side=left]:border-r-0">
-      <SidebarHeader>
-        <SidebarMenu>
-          <BoardSwitcher state={boardSwitcher} portalContainer={portalContainer} />
+      <SidebarHeader className="flex-row items-center gap-1 group-data-[collapsible=icon]:flex-col">
+        {/* The rail starts at the button that opens it again: the workspace
+            has nothing to show there that the open sidebar doesn't. */}
+        <SidebarMenu className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+          <WorkspaceSwitcher state={boardSwitcher} portalContainer={portalContainer} />
         </SidebarMenu>
+        <CollapseButton />
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {SIDEBAR_SECTIONS.map((section) => (
-                <MenuSection
-                  key={section.id}
-                  label={section.label}
-                  defaultOpen={section.defaultOpen}
-                  icon={<section.icon />}
-                >
-                  {section.items.map((id) => (
-                    <MenuSubRow key={id} id={id} onSelect={actions?.[id]} />
-                  ))}
-                </MenuSection>
-              ))}
-              {SIDEBAR_ITEMS.map((id) => (
-                <MenuRow key={id} id={id} onSelect={actions?.[id]} />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Appearance</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <ThemeToggle value={theme} onChange={onThemeChange} />
-              <PreferencesMenu preferences={preferences} portalContainer={portalContainer} />
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <BoardList state={boardSwitcher} portalContainer={portalContainer} theme={surfaceTheme} />
+        <RailSeparator />
+        <BoardCard state={boardSwitcher} actions={actions} portalContainer={portalContainer} />
       </SidebarContent>
 
       <SidebarFooter>
+        <SidebarMenu>
+          {SIDEBAR_ITEMS.map((id) => (
+            <MenuRow key={id} id={id} onSelect={actions?.[id]} />
+          ))}
+          <ThemeToggle value={theme} onChange={onThemeChange} />
+          <PreferencesMenu preferences={preferences} portalContainer={portalContainer} />
+        </SidebarMenu>
         <SidebarMenu>
           <NavUser user={user} actions={actions} portalContainer={portalContainer} />
         </SidebarMenu>
@@ -132,10 +108,9 @@ export function AppSidebar({
 
       <SidebarRail />
 
-      {/* Mounted here rather than inside the switcher, because the Board
-          section's own "Rename board" row opens it without the switcher ever
-          being touched — and the switcher's menu closes as the dialog opens,
-          which would take a dialog living inside it down with it. */}
+      {/* Mounted here rather than inside the list or the card, because both
+          open it — and a menu that closes as the dialog opens would take a
+          dialog living inside it down with it. */}
       <RenameBoardDialog
         target={boardSwitcher.renameTarget}
         onOpenChange={(open) => {
@@ -146,10 +121,27 @@ export function AppSidebar({
         theme={surfaceTheme}
       />
 
-      {/* Same reasoning: the switcher's menu closes as this opens, and the
-          board rows inside it hand off to the rename dialog above. */}
+      {/* Same reasoning: opened from the workspace menu and from the list. */}
       <ManageDialog state={boardSwitcher} theme={surfaceTheme} />
     </Sidebar>
+  );
+}
+
+/**
+ * Beside the workspace, where the sidebar can be put away from; above the rail
+ * once it has been, where it comes back from. Named for what it will do.
+ */
+function CollapseButton() {
+  const { state } = useSidebar();
+  const label = state === 'collapsed' ? 'Expand sidebar' : 'Collapse sidebar';
+
+  return (
+    <SidebarTrigger
+      title={`${label} · ${formatShortcut('mod+b')}`}
+      aria-label={label}
+      data-testid="sidebar-collapse"
+      className="shrink-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+    />
   );
 }
 
@@ -167,30 +159,6 @@ interface RowProps {
 function rowHint(onSelect: RowProps['onSelect'], shortcut?: string) {
   const hint = shortcut ? formatShortcut(shortcut) : null;
   return { hint, badge: onSelect === undefined ? 'Soon' : hint };
-}
-
-/** A row inside an expanded section. No icon column — the indent carries it. */
-function MenuSubRow({ id, onSelect }: RowProps) {
-  const { label, shortcut, destructive } = MENU_ITEMS[id];
-  const { hint, badge } = rowHint(onSelect, shortcut);
-
-  return (
-    <SidebarMenuSubItem>
-      <SidebarMenuSubButton asChild>
-        <button
-          type="button"
-          onClick={onSelect ?? undefined}
-          disabled={!onSelect}
-          aria-keyshortcuts={hint ?? undefined}
-          data-testid={`menu-${id}`}
-          className={cn(destructive && 'text-destructive hover:text-destructive')}
-        >
-          <span>{label}</span>
-          <span className="ml-auto shrink-0 text-xs opacity-50">{badge}</span>
-        </button>
-      </SidebarMenuSubButton>
-    </SidebarMenuSubItem>
-  );
 }
 
 /** A row that stands on its own, with its icon in the collapsed column. */
