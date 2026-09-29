@@ -20,6 +20,21 @@ export function ColorDot({ color, className }: { color: BoardColor; className?: 
   );
 }
 
+/**
+ * A board's name with its colour tag before it, as the sidebar's header shows
+ * the open board. The tag leads rather than trails so every row keeps it: the
+ * end of a row is where a list says something about the board — when it last
+ * changed, or a tick for the one that is open.
+ */
+export function BoardTitle({ title, color }: { title: string; color: BoardColor }) {
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <ColorDot color={color} />
+      <span className="truncate">{title}</span>
+    </span>
+  );
+}
+
 /** Short enough to sit beside a title without crowding it. */
 export function formatUpdatedAt(iso: string): string {
   const date = new Date(iso);

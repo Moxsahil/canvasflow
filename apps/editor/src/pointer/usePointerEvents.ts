@@ -149,6 +149,15 @@ interface UsePointerEventsOptions {
   ) => void;
   onPointerUp: (point: Point, screenPoint: Point) => void;
   /**
+   * A press of the secondary button, the one that opens the context menu.
+   *
+   * Reported on the press rather than with the menu, so the selection is
+   * settled before the menu reads it. The browser's `contextmenu` comes after
+   * this on every platform: straight after on some, only once the button is
+   * released on others. The press starts no gesture of its own.
+   */
+  onContextPress?: (point: Point, screenPoint: Point) => void;
+  /**
    * Two presses in the same place in quick succession, from a mouse, a
    * trackpad, a pen or a finger alike — see `DOUBLE_PRESS_MS`. Reported after
    * the second press has been delivered in full, so the board has finished
@@ -174,6 +183,7 @@ export function usePointerEvents(
     onPointerDown,
     onPointerMove,
     onPointerUp,
+    onContextPress,
     onDoubleClick,
     onPointerHover,
     screenToWorld,
@@ -194,6 +204,12 @@ export function usePointerEvents(
     if (!canvas) return;
 
     const handlePointerDown = (e: PointerEvent) => {
+      // Not default-prevented, unlike the other two: the browser moving focus
+      // off an open text field is what a right-click away from it should do.
+      if (e.button === 2) {
+        onContextPress?.(screenToWorld(e.clientX, e.clientY), eventToCanvasScreen(e));
+        return;
+      }
       if (e.button !== 0 && e.button !== 1) return;
       e.preventDefault();
       isDownRef.current = true;
@@ -272,6 +288,7 @@ export function usePointerEvents(
     onPointerDown,
     onPointerMove,
     onPointerUp,
+    onContextPress,
     onDoubleClick,
     onPointerHover,
     screenToWorld,

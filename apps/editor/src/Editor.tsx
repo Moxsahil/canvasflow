@@ -84,6 +84,12 @@ import { ExitModeButton } from './modes/ExitModeButton';
 import { toolMachine, resizeShape, resizeSnapHandle } from './machine/tool-machine';
 import { useKeyboardShortcuts } from './tools/useKeyboardShortcuts';
 import { CommandPalette, useEditorCommands } from './commands';
+import {
+  CanvasContextMenu,
+  contextPressAt,
+  type ContextMenuTarget,
+  type MoveToBoards,
+} from './context-menu';
 import { hitTestHandles } from './selection/handles';
 import { useBoardDocument, useYjsShapes } from './document/useYjsDocument';
 import { useBoardImages, pickImageFiles } from './images';
@@ -103,7 +109,7 @@ import { useAuthToken } from './auth/useAuthToken';
 import { SignOutDialog } from './auth/SignOutDialog';
 import { signOutTo } from './auth/sign-out';
 import { env } from './lib/env';
-import { PropertiesPanel, itemStyleFromShape } from './properties';
+import { PropertiesPanel, StyleHalo, itemStyleFromShape } from './properties';
 import {
   TOOL_TO_SHAPE_KIND,
   VIEW_MODE_TOOL,
@@ -423,6 +429,9 @@ export function Editor({ boardId }: EditorProps) {
    */
   const deletingAccountRef = useRef(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [contextMenuOpen, setContextMenuOpen] = useState(false);
+  /** Decided on the right-button press, so it is ready by the time the menu opens. */
+  const [contextMenuTarget, setContextMenuTarget] = useState<ContextMenuTarget>('canvas');
   const [resetOpen, setResetOpen] = useState(false);
   /**
    * This session has lost the board.
@@ -1079,6 +1088,21 @@ export function Editor({ boardId }: EditorProps) {
   const showProperties =
     !readOnly && !chromeHidden && (selectedShapes.length > 0 || toolShapeKind !== null);
 
+  /**
+   * The selection's box in board pixels, for the floating style bar to sit
+   * over. Follows every pan and zoom, since the camera is part of it.
+   */
+  const selectionOnBoard = useMemo(() => {
+    const rect = computeBoundingRect(selectedShapes);
+    if (!rect) return null;
+    return {
+      x: (rect.x - camera.x) * camera.zoom,
+      y: (rect.y - camera.y) * camera.zoom,
+      width: rect.width * camera.zoom,
+      height: rect.height * camera.zoom,
+    };
+  }, [selectedShapes, camera]);
+
   const handleStyleChange = useCallback(
     (patch: Partial<ItemStyle>, transient = false) => {
       // Always remember the choice, so the next shape drawn inherits it.
@@ -1557,6 +1581,70 @@ export function Editor({ boardId }: EditorProps) {
       preferences.values.snapToObjects,
     ],
   );
+
+  /**
+   * A right-button press: make the selection match what was clicked, and note
+   * which menu that calls for. Nothing is sent to the machine as a pointer, so
+   * the press starts no drag, marquee or stroke.
+   */
+  const handleContextPress = useCallback(
+    (point: Point) => {
+      notifyActivity();
+      // Commit an open text editor first, as a left press does, so the commit
+      // cannot land after the selection below and take it over.
+      if (actorRef.getSnapshot().matches('editingText')) {
+        const active = document.activeElement;
+        if (active instanceof HTMLTextAreaElement) {
+          active.blur();
+        }
+      }
+      // Nothing is selectable in view mode, so there is only the board's menu.
+      if (viewMode) {
+        setContextMenuTarget('canvas');
+        return;
+      }
+      const press = contextPressAt(
+        point,
+        shapes,
+        // Read through the actor: the commit above can have just changed it.
+        actorRef.getSnapshot().context.selectedIds,
+        spatialIndex,
+        camera.zoom,
+      );
+      if (press.select) actorRef.send({ type: 'SELECT_ALL', shapeIds: [...press.select] });
+      setContextMenuTarget(press.target);
+    },
+    [actorRef, viewMode, shapes, spatialIndex, camera.zoom, notifyActivity],
+  );
+
+  /**
+   * Refused mid-gesture. A right-click during a drag or a stroke belongs to
+   * that gesture, and the menu's modal layer would take the pointer from it
+   * halfway through. A touch long-press lands here too, since its press has
+   * already started a gesture — so for now the menu is mouse and pen only.
+   */
+  const handleContextMenuOpenChange = useCallback(
+    (open: boolean) => {
+      if (open && !actorRef.getSnapshot().matches('idle')) return;
+      setContextMenuOpen(open);
+    },
+    [actorRef],
+  );
+
+  // Move to lists this workspace's boards, which the switcher has already
+  // fetched for the rail. Moving itself waits on its own endpoint, so there is
+  // no `onMove` yet and the rows read "Soon".
+  const moveToBoards: MoveToBoards | null =
+    boardSwitcher.available && boardSwitcher.workspaceId
+      ? {
+          workspaceName:
+            boardSwitcher.workspaces?.find(
+              (workspace) => workspace.id === boardSwitcher.workspaceId,
+            )?.name ?? null,
+          currentBoardId: boardId,
+          boards: boardSwitcher.boardsFor(boardSwitcher.workspaceId),
+        }
+      : null;
 
   const handlePointerMove = useCallback(
     (
@@ -2396,6 +2484,22 @@ export function Editor({ boardId }: EditorProps) {
     preferences.set('snapToObjects', !preferences.values.snapToObjects);
   }, [preferences]);
 
+  const toggleMidpointSnapping = useCallback(() => {
+    preferences.set('snapToMidpoints', !preferences.values.snapToMidpoints);
+  }, [preferences]);
+
+  const chooseInspector = useCallback(() => {
+    preferences.set('floatingStyleBar', false);
+  }, [preferences]);
+
+  const chooseHalo = useCallback(() => {
+    preferences.set('floatingStyleBar', true);
+  }, [preferences]);
+
+  const toggleArrowBinding = useCallback(() => {
+    preferences.set('arrowBinding', !preferences.values.arrowBinding);
+  }, [preferences]);
+
   const toggleFocusMode = useCallback(() => {
     preferences.set('focusMode', !preferences.values.focusMode);
   }, [preferences]);
@@ -2494,6 +2598,9 @@ export function Editor({ boardId }: EditorProps) {
       shareOpen ||
       settingsOpen ||
       paletteOpen ||
+      // The menu moves between its rows with the arrow keys, which would
+      // otherwise nudge the selection it was opened on as well.
+      contextMenuOpen ||
       resetOpen ||
       pendingReplace !== null ||
       notice !== null ||
@@ -2603,6 +2710,21 @@ export function Editor({ boardId }: EditorProps) {
 
   const handleCancelText = useCallback(() => actorRef.send({ type: 'CANCEL_TEXT' }), [actorRef]);
 
+  /** What both style surfaces edit with — the docked panel and the floating bar alike. */
+  const styleSurfaceProps = {
+    style: propertyStyle,
+    shapeKinds: propertyShapeKinds,
+    canReorder: selectedIds.length === 1,
+    onStyleChange: handleStyleChange,
+    layerActions: {
+      onSendToBack: handleSendToBack,
+      onSendBackward: handleSendBackward,
+      onBringForward: handleBringForward,
+      onBringToFront: handleBringToFront,
+    },
+    darkMode: resolvedTheme === 'dark',
+  };
+
   return (
     <div
       ref={editorRef}
@@ -2657,37 +2779,88 @@ export function Editor({ boardId }: EditorProps) {
             to the window — and measured, so the canvas resizes with it. */}
         <SidebarInset className="relative min-w-0 overflow-hidden">
           <div ref={containerRef} className="absolute inset-0">
-            <CanvasStack
-              shapes={shapesForRender}
-              pendingErasureIds={pendingErasureIds}
-              editingFrameIds={editingFrameIds}
-              editingArrowLabelId={editingArrow?.id}
-              newElement={newElement}
-              selectedIds={selectedIdsForRender}
-              marquee={marquee}
-              images={images.cache}
-              imageRevision={images.revision}
-              darkMode={resolvedTheme === 'dark'}
-              onDropFiles={readOnly ? undefined : handleInsertImages}
-              activeTool={activeTool}
-              camera={camera}
-              isSpacePressed={isSpacePressed}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onDoubleClick={handleDoubleClick}
-              onWheelZoom={handleWheelZoom}
-              onWheelPan={handleWheelPan}
-              isPanning={isPanning}
-              backgroundColor={canvasBackgroundFor(presenceTheme)}
-              showGrid={preferences.values.showGrid}
-              searchHighlights={search.highlights}
-              snapGuides={snapGuides}
-              hoveredHandleId={hoveredHandleId}
-              peersRef={peersRef}
-              subscribePeers={subscribe}
-              onPointerHover={handlePointerHover}
-            />
+            {/* Around the canvas alone, so a right-click on the chrome floating
+                over it still gets the browser's own menu, or none. Rows go live
+                by being given a handler here; the rest read "Soon". */}
+            <CanvasContextMenu
+              target={contextMenuTarget}
+              readOnly={readOnly}
+              moveTo={moveToBoards}
+              open={contextMenuOpen}
+              onOpenChange={handleContextMenuOpenChange}
+              container={editorRoot}
+              actions={{
+                cut: selectedIds.length > 0 ? handleCut : null,
+                copy: selectedIds.length > 0 ? handleCopy : null,
+                paste: handlePaste,
+                duplicate: selectedIds.length > 0 ? handleDuplicate : null,
+                exportImage: showExport,
+                // The document reorders one shape at a time, so these wait
+                // for a single selection — as the properties panel's do.
+                bringToFront: selectedIds.length === 1 ? handleBringToFront : null,
+                bringForward: selectedIds.length === 1 ? handleBringForward : null,
+                sendBackward: selectedIds.length === 1 ? handleSendBackward : null,
+                sendToBack: selectedIds.length === 1 ? handleSendToBack : null,
+                deleteSelection: selectedIds.length > 0 ? handleDelete : null,
+                selectAll: shapes.length > 0 ? handleSelectAll : null,
+                showGrid: toggleGrid,
+                snapToObjects: toggleSnapping,
+                snapToMidpoints: toggleMidpointSnapping,
+                arrowBinding: toggleArrowBinding,
+                focusMode: toggleFocusMode,
+                viewMode: toggleViewMode,
+                commandPalette: togglePalette,
+                stylePanelInspector: chooseInspector,
+                stylePanelHalo: chooseHalo,
+              }}
+              checks={{
+                showGrid: preferences.values.showGrid,
+                snapToObjects: preferences.values.snapToObjects,
+                snapToMidpoints: preferences.values.snapToMidpoints,
+                arrowBinding: preferences.values.arrowBinding,
+                focusMode: preferences.values.focusMode,
+                viewMode,
+                stylePanelInspector: !preferences.values.floatingStyleBar,
+                stylePanelHalo: preferences.values.floatingStyleBar,
+              }}
+            >
+              {/* Filling the container, as CanvasStack did before it was
+                  wrapped, so the canvas still sizes to the space it has. */}
+              <div className="absolute inset-0">
+                <CanvasStack
+                  shapes={shapesForRender}
+                  pendingErasureIds={pendingErasureIds}
+                  editingFrameIds={editingFrameIds}
+                  editingArrowLabelId={editingArrow?.id}
+                  newElement={newElement}
+                  selectedIds={selectedIdsForRender}
+                  marquee={marquee}
+                  images={images.cache}
+                  imageRevision={images.revision}
+                  darkMode={resolvedTheme === 'dark'}
+                  onDropFiles={readOnly ? undefined : handleInsertImages}
+                  activeTool={activeTool}
+                  camera={camera}
+                  isSpacePressed={isSpacePressed}
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onContextPress={handleContextPress}
+                  onDoubleClick={handleDoubleClick}
+                  onWheelZoom={handleWheelZoom}
+                  onWheelPan={handleWheelPan}
+                  isPanning={isPanning}
+                  backgroundColor={canvasBackgroundFor(presenceTheme)}
+                  showGrid={preferences.values.showGrid}
+                  searchHighlights={search.highlights}
+                  snapGuides={snapGuides}
+                  hoveredHandleId={hoveredHandleId}
+                  peersRef={peersRef}
+                  subscribePeers={subscribe}
+                  onPointerHover={handlePointerHover}
+                />
+              </div>
+            </CanvasContextMenu>
 
             {/* Laser trails, ours and everyone's. Outside CanvasStack for the
           same reason the cursors are, and painted by its own frame loop so a
@@ -2785,21 +2958,20 @@ export function Editor({ boardId }: EditorProps) {
               </div>
             )}
 
-            {showProperties && (
-              <PropertiesPanel
-                style={propertyStyle}
-                shapeKinds={propertyShapeKinds}
-                canReorder={selectedIds.length === 1}
-                onStyleChange={handleStyleChange}
-                layerActions={{
-                  onSendToBack: handleSendToBack,
-                  onSendBackward: handleSendBackward,
-                  onBringForward: handleBringForward,
-                  onBringToFront: handleBringToFront,
-                }}
-                darkMode={resolvedTheme === 'dark'}
-              />
-            )}
+            {/* Two ways to set out the same controls, chosen in preferences: a
+                panel docked at the right edge, or a bar floating over the
+                selection that steps aside while the selection is dragged. */}
+            {showProperties &&
+              (preferences.values.floatingStyleBar ? (
+                <StyleHalo
+                  {...styleSurfaceProps}
+                  anchor={selectionOnBoard}
+                  board={screen}
+                  hidden={isReachingGesture}
+                />
+              ) : (
+                <PropertiesPanel {...styleSurfaceProps} />
+              ))}
 
             {frameNameEditor && (
               <FrameNameEditor
