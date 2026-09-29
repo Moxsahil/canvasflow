@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ACCOUNT_DELETION_GRACE_DAYS, SUPPORT_EMAIL } from '@canvasflow/types';
-import { ErrorLine, PasswordField } from './AccountOverlays';
+import { PasswordField } from './AccountDialogs';
 import {
   AccountDeletionError,
   signInAgainUrl,
@@ -10,10 +10,10 @@ import {
 import { deletionStep, readyToDelete, rememberDeletionResume } from './account-deletion';
 import { providerNames } from './account-format';
 import { fetchAccountSecurity, type SignInProvider } from './account-security-api';
-import { DangerButton, GhostButton, PrimaryButton, SettingsOverlay } from './settings-ui';
+import { ErrorLine, INPUT, SettingsButton, SettingsModal } from './settings-ui';
 
 /**
- * Deleting your own account, drawn over Data & Privacy.
+ * Deleting your own account: the dialog Delete account opens on Data & Privacy.
  *
  * One paragraph says what happens — locked at once, history on other people's
  * boards kept as "Deleted user", erased after the grace period, and how to stop
@@ -36,7 +36,7 @@ function Note({ children }: { children: ReactNode }) {
   return <p className="text-[12px] leading-[1.55] text-[var(--surface-fg-muted)]">{children}</p>;
 }
 
-export function DeleteAccountOverlay({
+export function DeleteAccountDialog({
   token,
   userId,
   preview,
@@ -94,10 +94,15 @@ export function DeleteAccountOverlay({
 
   if (step === 'blocked') {
     return (
-      <SettingsOverlay
+      <SettingsModal
         title="You can’t delete your account yet"
         description="You own a workspace other people belong to. Hand it over or remove them first."
-        actions={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}
+        onClose={onClose}
+        actions={
+          <SettingsButton variant="primary" onClick={onClose}>
+            Done
+          </SettingsButton>
+        }
       />
     );
   }
@@ -136,8 +141,9 @@ export function DeleteAccountOverlay({
   const unavailable = !preview && loadError;
 
   return (
-    <SettingsOverlay
+    <SettingsModal
       title="Delete your account?"
+      width={460}
       description={
         <>
           Your account is locked and you’re signed out everywhere straight away. Changes you made on
@@ -152,21 +158,28 @@ export function DeleteAccountOverlay({
           within {ACCOUNT_DELETION_GRACE_DAYS} days and we’ll stop it.
         </>
       }
+      onClose={onClose}
       onSubmit={() => void submit()}
       actions={
         <>
-          <GhostButton onClick={onClose}>Cancel</GhostButton>
-          {unavailable && <GhostButton onClick={onRetry}>Try again</GhostButton>}
+          <SettingsButton variant="ghost" onClick={onClose}>
+            Cancel
+          </SettingsButton>
+          {unavailable && (
+            <SettingsButton variant="ghost" onClick={onRetry}>
+              Try again
+            </SettingsButton>
+          )}
           {step !== 'sign-in-again' && (
-            <DangerButton type="submit" disabled={!ready}>
+            <SettingsButton variant="danger" type="submit" disabled={!ready}>
               {busy ? 'Deleting…' : 'Delete account'}
-            </DangerButton>
+            </SettingsButton>
           )}
         </>
       }
     >
       {step === 'sign-in-again' ? (
-        <div className="flex flex-col gap-[10px] rounded-[10px] border border-[var(--surface-border)] bg-[var(--surface-card)] p-[14px]">
+        <div className="flex flex-col gap-[10px]">
           <Note>
             For your safety, sign in again first. You’ll come straight back here, and then have 10
             minutes to delete your account.
@@ -178,9 +191,13 @@ export function DeleteAccountOverlay({
           ) : (
             <div className="flex flex-wrap gap-[8px]">
               {providers.map((provider) => (
-                <PrimaryButton key={provider} onClick={() => signInAgain(provider)}>
+                <SettingsButton
+                  key={provider}
+                  variant="primary"
+                  onClick={() => signInAgain(provider)}
+                >
                   Continue with {providerNames([provider])}
-                </PrimaryButton>
+                </SettingsButton>
               ))}
             </div>
           )}
@@ -207,7 +224,7 @@ export function DeleteAccountOverlay({
               autoCapitalize="off"
               spellCheck={false}
               autoFocus
-              className="w-full rounded-[7px] border border-[var(--surface-border)] bg-[var(--surface-input)] px-[10px] py-[8px] text-[12.5px] text-[var(--surface-fg)] placeholder:text-[var(--surface-fg-faint)] focus:border-[var(--surface-danger)] focus:outline-none"
+              className={INPUT}
             />
           </label>
 
@@ -229,6 +246,6 @@ export function DeleteAccountOverlay({
 
       {unavailable && <ErrorLine>{loadError}</ErrorLine>}
       <ErrorLine>{error}</ErrorLine>
-    </SettingsOverlay>
+    </SettingsModal>
   );
 }

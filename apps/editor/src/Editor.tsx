@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { useActorRef, useSelector } from '@xstate/react';
 import {
   arrowsAffectedBy,
@@ -3126,21 +3127,25 @@ export function Editor({ boardId }: EditorProps) {
             />
 
             {/* Mounted only while open: the fields inside hold unsaved edits,
-                and closing the dialog is what discards them. */}
-            {settingsOpen && (
-              <SettingsDialog
-                user={chromeUser}
-                token={authToken}
-                account={account}
-                avatar={avatar}
-                theme={presenceTheme}
-                userId={userId}
-                isGuest={user?.isGuest ?? false}
-                resumeDeletion={resumeDeletion}
-                deleteAccount={deleteAccount}
-                onClose={hideSettings}
-              />
-            )}
+                and closing the window is what discards them. Kept a moment
+                longer on the way out, so it can sink away rather than vanish. */}
+            <AnimatePresence>
+              {settingsOpen && (
+                <SettingsDialog
+                  key="settings"
+                  user={chromeUser}
+                  token={authToken}
+                  account={account}
+                  avatar={avatar}
+                  theme={presenceTheme}
+                  userId={userId}
+                  isGuest={user?.isGuest ?? false}
+                  resumeDeletion={resumeDeletion}
+                  deleteAccount={deleteAccount}
+                  onClose={hideSettings}
+                />
+              )}
+            </AnimatePresence>
 
             <CommandPalette
               commands={commands}

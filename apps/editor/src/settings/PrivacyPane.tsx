@@ -7,23 +7,19 @@ import {
   type DeletionInput,
   type DeletionPreview,
 } from './account-deletion-api';
-import { DeleteAccountOverlay } from './DeleteAccountOverlay';
+import { DeleteAccountDialog } from './DeleteAccountDialog';
 import {
-  Card,
-  DangerButton,
+  Band,
   ExternalLinkButton,
-  GroupLabel,
-  Row,
-  RowText,
-  SecondaryButton,
-  SettingsPane,
+  SettingRow,
+  SettingsButton,
+  SettingsPage,
   Toggle,
   ValueText,
 } from './settings-ui';
 
 /** Data & Privacy: taking your boards with you, or closing the account. */
 export function PrivacyPane({
-  onClose,
   profile = null,
   token = null,
   signedInEmail = null,
@@ -32,20 +28,19 @@ export function PrivacyPane({
   startDeleting = false,
   deleteAccount,
 }: {
-  onClose: () => void;
   /** The signed-in account, when there is one. It says which terms were agreed to. */
   profile?: Profile | null;
   /** Reaches the gateway, for deleting the account. */
   token?: string | null;
   /**
    * The address the sign-in token names. Known from the first render, so the
-   * Delete account step can say what to type before anything has loaded.
+   * Delete account dialog can say what to type before anything has loaded.
    */
   signedInEmail?: string | null;
   userId?: string | null;
   /** A guest has no account, so there is nothing here for them to delete. */
   isGuest?: boolean;
-  /** Open with the Delete account step already showing — back from signing in again. */
+  /** Open with the Delete account dialog up — back from signing in again. */
   startDeleting?: boolean;
   /** Ask for the account to be deleted, and leave once it is. The editor owns both. */
   deleteAccount?: (input: DeletionInput) => Promise<void>;
@@ -58,8 +53,8 @@ export function PrivacyPane({
   const canDelete = !isGuest && deleteAccount !== undefined;
 
   // Fetched as the pane opens rather than when the button is pressed, so the
-  // Delete account step opens straight onto the fields it needs. A failed
-  // refresh keeps the preview already held; the step only reports a failure
+  // Delete account dialog opens straight onto the fields it needs. A failed
+  // refresh keeps the preview already held; the dialog only reports a failure
   // when it has nothing to go on.
   useEffect(() => {
     if (!canDelete) return;
@@ -90,13 +85,12 @@ export function PrivacyPane({
       : `Last updated ${formatTermsVersion(TERMS_VERSION)}`;
 
   return (
-    <SettingsPane
-      title="Data & Privacy"
-      subtitle="Export your boards or close your account."
-      onClose={onClose}
-      overlay={
+    <SettingsPage
+      lead="Export your boards or close your account."
+      dialog={
         deleting && deleteAccount ? (
-          <DeleteAccountOverlay
+          <DeleteAccountDialog
+            key="delete"
             token={token}
             userId={userId}
             preview={preview}
@@ -109,56 +103,72 @@ export function PrivacyPane({
         ) : undefined
       }
     >
-      <GroupLabel>Your data</GroupLabel>
-      <Card>
-        <Row>
-          <RowText title="Export all boards" hint="Download every board as .canvasflow JSON" />
-          <SecondaryButton>Export</SecondaryButton>
-        </Row>
-        <Row>
-          <RowText title="Storage used" hint="Across 3 boards in this workspace" />
+      {/* Nothing stores the analytics choice yet, so the band does not claim
+          it saved. */}
+      <Band title="Your data" description="Take your boards with you, and choose what we learn.">
+        <SettingRow
+          setting="export"
+          title="Export all boards"
+          hint="Download every board as .canvasflow JSON"
+        >
+          <SettingsButton>Export</SettingsButton>
+        </SettingRow>
+        <SettingRow
+          setting="storage-used"
+          title="Storage used"
+          hint="Across 3 boards in this workspace"
+        >
           <ValueText>48 MB</ValueText>
-        </Row>
-        <Row>
-          <RowText title="Usage analytics" hint="Share anonymous data to improve CanvasFlow" />
+        </SettingRow>
+        <SettingRow
+          setting="analytics"
+          title="Usage analytics"
+          hint="Share anonymous data to improve CanvasFlow"
+        >
           <Toggle label="Usage analytics" on={analytics} onChange={setAnalytics} />
-        </Row>
-      </Card>
+        </SettingRow>
+      </Band>
 
       {/* The editor has no footer, so this is where the legal pages are found
           from inside it. */}
-      <GroupLabel>Legal</GroupLabel>
-      <Card>
-        <Row>
-          <RowText title="Terms of Service" hint={termsHint} />
+      <Band title="Legal" description="What you agreed to, and what we keep.">
+        <SettingRow setting="terms" title="Terms of Service" hint={termsHint}>
           <ExternalLinkButton href={termsUrl()} label="Read the Terms of Service">
             Read
           </ExternalLinkButton>
-        </Row>
-        <Row>
-          <RowText title="Privacy Policy" hint="What we collect, and your rights over it" />
+        </SettingRow>
+        <SettingRow
+          setting="privacy-policy"
+          title="Privacy Policy"
+          hint="What we collect, and your rights over it"
+        >
           <ExternalLinkButton href={privacyUrl()} label="Read the Privacy Policy">
             Read
           </ExternalLinkButton>
-        </Row>
-      </Card>
+        </SettingRow>
+      </Band>
 
       {!isGuest && (
-        <>
-          <GroupLabel>Danger zone</GroupLabel>
-          <Card>
-            <Row>
-              <RowText
-                title="Delete account"
-                hint={`Deletes your account and the boards you own. You’ll have ${ACCOUNT_DELETION_GRACE_DAYS} days to change your mind.`}
-              />
-              <DangerButton onClick={() => setDeleting(true)} disabled={!deleteAccount}>
-                Delete account
-              </DangerButton>
-            </Row>
-          </Card>
-        </>
+        <Band
+          title="Danger zone"
+          description="The one thing here that cannot be undone once its grace period ends."
+          danger
+        >
+          <SettingRow
+            setting="delete-account"
+            title="Delete account"
+            hint={`Deletes your account and the boards you own. You’ll have ${ACCOUNT_DELETION_GRACE_DAYS} days to change your mind.`}
+          >
+            <SettingsButton
+              variant="danger"
+              onClick={() => setDeleting(true)}
+              disabled={!deleteAccount}
+            >
+              Delete account
+            </SettingsButton>
+          </SettingRow>
+        </Band>
       )}
-    </SettingsPane>
+    </SettingsPage>
   );
 }

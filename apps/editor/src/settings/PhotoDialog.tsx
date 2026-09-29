@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ErrorLine, SettingsButton, SettingsModal } from './settings-ui';
 
 /**
- * Choose which part of a photo becomes the avatar.
+ * Choose which part of a photo becomes the avatar: the dialog Upload opens on
+ * the Profile page.
  *
  * The picture is dragged and zoomed under a fixed circular window rather than a
  * box being dragged over the picture. It is the same gesture either way, but
@@ -20,8 +22,8 @@ const VIEWPORT = 260;
 /**
  * What gets stored, in pixels.
  *
- * Twice the largest place one is drawn — the 52px row in this dialog — so it
- * stays sharp on a dense display without storing a photograph nobody sees.
+ * More than twice the largest place one is drawn, so it stays sharp on a dense
+ * display without storing a photograph nobody sees.
  */
 const OUTPUT = 256;
 
@@ -32,10 +34,12 @@ const MAX_ZOOM = 4;
 const OUTPUT_QUALITY = 0.9;
 const OUTPUT_MIME = 'image/jpeg';
 
-interface AvatarCropperProps {
+interface PhotoDialogProps {
   /** The picked file. Replaced rather than reopened when another is chosen. */
   file: File;
   busy: boolean;
+  /** Why the last upload did not go through, while it is still worth saying. */
+  error?: string | null;
   onCancel: () => void;
   onUse: (blob: Blob, mimeType: string) => void;
 }
@@ -49,7 +53,7 @@ interface Layout {
   y: number;
 }
 
-export function AvatarCropper({ file, busy, onCancel, onUse }: AvatarCropperProps) {
+export function PhotoDialog({ file, busy, error = null, onCancel, onUse }: PhotoDialogProps) {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [failed, setFailed] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -80,7 +84,10 @@ export function AvatarCropper({ file, busy, onCancel, onUse }: AvatarCropperProp
       element.onload = null;
       element.onerror = null;
       setImage(null);
-      URL.revokeObjectURL(src);
+      // A moment later rather than at once: a load still under way — React's
+      // development double-mount starts one and drops it straight away — would
+      // otherwise fail against an address that is already gone.
+      setTimeout(() => URL.revokeObjectURL(src), 1000);
     };
   }, [file]);
 
@@ -173,20 +180,24 @@ export function AvatarCropper({ file, busy, onCancel, onUse }: AvatarCropperProp
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Position your photo"
-      className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-[18px] bg-[var(--surface-backdrop)] p-[24px]"
+    <SettingsModal
+      title="Position your photo"
+      description="Drag the photo to place it, and zoom until it fills the circle the way you want. The circle is exactly what others will see."
+      onClose={onCancel}
+      width={400}
+      actions={
+        <>
+          <SettingsButton variant="ghost" onClick={onCancel}>
+            Cancel
+          </SettingsButton>
+          <SettingsButton variant="primary" onClick={handleUse} disabled={!image || busy}>
+            {busy ? 'Uploading…' : 'Use photo'}
+          </SettingsButton>
+        </>
+      }
     >
-      <p className="text-[12.5px] font-medium text-[var(--surface-fg)]">
-        Drag to position, and zoom to fit
-      </p>
-
       {failed ? (
-        <p className="text-[12px] text-[var(--surface-danger)]">
-          That file could not be opened as an image.
-        </p>
+        <ErrorLine>That file could not be opened as an image.</ErrorLine>
       ) : (
         <div
           onPointerDown={handlePointerDown}
@@ -194,7 +205,7 @@ export function AvatarCropper({ file, busy, onCancel, onUse }: AvatarCropperProp
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
           style={{ width: VIEWPORT, height: VIEWPORT }}
-          className="relative shrink-0 touch-none overflow-hidden rounded-full border border-[var(--surface-border)] bg-[var(--surface-card)] [cursor:grab] active:[cursor:grabbing]"
+          className="relative shrink-0 self-center touch-none overflow-hidden rounded-full bg-[var(--surface-wash)] shadow-[0_0_0_1px_var(--surface-border)] [cursor:grab] active:[cursor:grabbing]"
         >
           {image && (
             <img
@@ -212,35 +223,21 @@ export function AvatarCropper({ file, busy, onCancel, onUse }: AvatarCropperProp
         </div>
       )}
 
-      <input
-        type="range"
-        min={MIN_ZOOM}
-        max={MAX_ZOOM}
-        step={0.01}
-        value={zoom}
-        aria-label="Zoom"
-        disabled={!image || busy}
-        onChange={(event) => setZoom(Number(event.target.value))}
-        className="w-[260px] accent-[var(--surface-accent)]"
-      />
-
-      <div className="flex items-center gap-[10px]">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="flex shrink-0 items-center rounded-[7px] px-[14px] py-[8px] text-[12px] font-medium text-[var(--surface-fg-faint)] transition-colors hover:text-[var(--surface-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={handleUse}
+      <label className="flex items-center gap-[10px] self-center text-[11.5px] text-[var(--surface-fg-muted)]">
+        Zoom
+        <input
+          type="range"
+          min={MIN_ZOOM}
+          max={MAX_ZOOM}
+          step={0.01}
+          value={zoom}
           disabled={!image || busy}
-          className="flex shrink-0 items-center rounded-[7px] bg-[var(--surface-accent)] px-[14px] py-[8px] text-[12px] font-medium text-[var(--surface-on-accent)] transition-colors hover:bg-[var(--surface-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-fg)] disabled:opacity-60"
-        >
-          {busy ? 'Uploading…' : 'Use photo'}
-        </button>
-      </div>
-    </div>
+          onChange={(event) => setZoom(Number(event.target.value))}
+          className="w-[200px] accent-[var(--surface-accent)]"
+        />
+      </label>
+
+      <ErrorLine>{error}</ErrorLine>
+    </SettingsModal>
   );
 }

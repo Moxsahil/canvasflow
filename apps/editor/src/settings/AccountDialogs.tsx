@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Mail } from 'lucide-react';
 import { PASSWORD_MAX_LENGTH, PASSWORD_RULES, meetsPasswordRules } from '@canvasflow/types';
 import { cn } from '@/lib/utils';
 import { sessionResumeUrl } from '../auth/token';
@@ -12,16 +12,19 @@ import {
   type SignedOut,
 } from './account-security-api';
 import { formatDay, providerNames } from './account-format';
+import { GitHubMark, GoogleMark } from './provider-marks';
 import {
-  DangerButton,
-  GhostButton,
-  PrimaryButton,
-  SettingsOverlay,
+  ErrorLine,
+  INPUT,
+  SettingsButton,
+  SettingsModal,
   StatusTag,
+  DialogList,
+  DialogListRow,
 } from './settings-ui';
 
 /**
- * The steps behind the Account & Security rows, each drawn over the pane.
+ * The dialogs behind the Account & Security rows, each over the Settings window.
  *
  * Every one of them states what will happen before it happens, and what did
  * happen afterwards: these are the changes to an account that somebody is most
@@ -32,15 +35,6 @@ function messageOf(error: unknown): string {
   return error instanceof AccountSecurityError || error instanceof Error
     ? error.message
     : 'Something went wrong. Try again.';
-}
-
-export function ErrorLine({ children }: { children: string | null }) {
-  if (!children) return null;
-  return (
-    <p role="alert" className="text-[11.5px] text-[var(--surface-danger)]">
-      {children}
-    </p>
-  );
 }
 
 /**
@@ -76,10 +70,10 @@ export function PasswordField({
         aria-invalid={invalid}
         autoFocus={autoFocus}
         className={cn(
-          'w-full rounded-[7px] border bg-[var(--surface-input)] py-[8px] pl-[10px] pr-[38px] text-[12.5px] text-[var(--surface-fg)] placeholder:text-[var(--surface-fg-faint)] focus:outline-none',
-          invalid
-            ? 'border-[var(--surface-danger-border)] focus:border-[var(--surface-danger)]'
-            : 'border-[var(--surface-border)] focus:border-[var(--surface-accent)]',
+          INPUT,
+          'pr-[38px]',
+          invalid &&
+            'border-[var(--surface-danger-border)] focus:border-[var(--surface-danger)] focus:shadow-none',
         )}
       />
       <button
@@ -87,7 +81,7 @@ export function PasswordField({
         onClick={() => setShown((v) => !v)}
         aria-label={shown ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
         aria-pressed={shown}
-        className="absolute inset-y-0 right-0 flex w-[34px] items-center justify-center text-[var(--surface-fg-faint)] transition-colors hover:text-[var(--surface-fg)] focus-visible:outline-none focus-visible:text-[var(--surface-fg)]"
+        className="absolute inset-y-0 right-0 flex w-[34px] items-center justify-center text-[var(--surface-fg-faint)] transition-colors hover:text-[var(--surface-fg)] focus-visible:text-[var(--surface-fg)] focus-visible:outline-none"
       >
         {shown ? <EyeOff className="size-[14px]" /> : <Eye className="size-[14px]" />}
       </button>
@@ -107,7 +101,7 @@ function Rule({ label, met }: { label: string; met: boolean }) {
         aria-hidden="true"
         className={cn(
           'size-[5px] shrink-0 rounded-full',
-          met ? 'bg-emerald-500' : 'bg-[var(--surface-toggle-off)]',
+          met ? 'bg-[var(--surface-ok)]' : 'bg-[var(--surface-toggle-off)]',
         )}
       />
       {label}
@@ -117,7 +111,7 @@ function Rule({ label, met }: { label: string; met: boolean }) {
 
 // ---------------------------------------------------------------------------
 
-export function ChangePasswordOverlay({
+export function ChangePasswordDialog({
   token,
   email,
   onClose,
@@ -126,7 +120,7 @@ export function ChangePasswordOverlay({
   token: string | null;
   email: string;
   onClose: () => void;
-  /** The password changed; the pane re-reads the account. */
+  /** The password changed; the page reads the account again. */
   onChanged: () => void;
 }) {
   const [current, setCurrent] = useState('');
@@ -160,104 +154,108 @@ export function ChangePasswordOverlay({
   };
 
   if (done) {
+    const signIn = done === 'everywhere';
     return (
-      <SettingsOverlay
+      <SettingsModal
         title="Password changed"
         description={
           done === 'other-devices'
             ? 'Every other device has been signed out. This one stays signed in.'
-            : done === 'everywhere'
+            : signIn
               ? 'Every device has been signed out, this one too. Sign in again with your new password.'
               : 'Devices that were already signed in stay signed in.'
         }
+        onClose={onClose}
         actions={
-          <PrimaryButton
+          <SettingsButton
+            variant="primary"
             onClick={
-              done === 'everywhere'
+              signIn
                 ? () => {
                     window.location.href = sessionResumeUrl();
                   }
                 : onClose
             }
           >
-            {done === 'everywhere' ? 'Sign in' : 'Done'}
-          </PrimaryButton>
+            {signIn ? 'Sign in' : 'Done'}
+          </SettingsButton>
         }
       />
     );
   }
 
   return (
-    <SettingsOverlay
+    <SettingsModal
       title="Change password"
       description="Enter your current password, then choose a new one. We'll email you to confirm the change."
+      onClose={onClose}
       onSubmit={() => void submit()}
       actions={
         <>
-          <GhostButton onClick={onClose}>Cancel</GhostButton>
-          <PrimaryButton type="submit" disabled={!ready}>
+          <SettingsButton variant="ghost" onClick={onClose}>
+            Cancel
+          </SettingsButton>
+          <SettingsButton variant="primary" type="submit" disabled={!ready}>
             {busy ? 'Changing…' : 'Change password'}
-          </PrimaryButton>
+          </SettingsButton>
         </>
       }
     >
-      <div className="flex flex-col gap-[10px]">
-        {/* Tells a password manager which saved entry this replaces. */}
-        <input type="email" autoComplete="username" value={email} readOnly hidden />
-        <PasswordField
-          label="Current password"
-          value={current}
-          onChange={setCurrent}
-          autoComplete="current-password"
-          autoFocus
-        />
-        <PasswordField
-          label="New password"
-          value={next}
-          onChange={setNext}
-          autoComplete="new-password"
-        />
-        <PasswordField
-          label="Confirm new password"
-          value={confirm}
-          onChange={setConfirm}
-          autoComplete="new-password"
-          invalid={mismatched}
-        />
+      {/* Tells a password manager which saved entry this replaces. */}
+      <input type="email" autoComplete="username" value={email} readOnly hidden />
+      <PasswordField
+        label="Current password"
+        value={current}
+        onChange={setCurrent}
+        autoComplete="current-password"
+        autoFocus
+      />
+      <PasswordField
+        label="New password"
+        value={next}
+        onChange={setNext}
+        autoComplete="new-password"
+      />
+      <PasswordField
+        label="Confirm new password"
+        value={confirm}
+        onChange={setConfirm}
+        autoComplete="new-password"
+        invalid={mismatched}
+      />
 
-        {next.length > 0 && (
-          <ul className="grid grid-cols-2 gap-x-[12px] gap-y-[4px]" aria-live="polite">
-            {PASSWORD_RULES.map((rule) => (
-              <Rule key={rule.label} label={rule.label} met={rule.test(next)} />
-            ))}
-            {confirm.length > 0 && <Rule label="Passwords match" met={!mismatched} />}
-          </ul>
-        )}
+      {next.length > 0 && (
+        <ul className="grid grid-cols-2 gap-x-[12px] gap-y-[4px]" aria-live="polite">
+          {PASSWORD_RULES.map((rule) => (
+            <Rule key={rule.label} label={rule.label} met={rule.test(next)} />
+          ))}
+          {confirm.length > 0 && <Rule label="Passwords match" met={!mismatched} />}
+        </ul>
+      )}
 
-        <label className="flex cursor-pointer items-start gap-[8px] pt-[2px] text-[12px] text-[var(--surface-fg)]">
-          <input
-            type="checkbox"
-            checked={signOutOthers}
-            onChange={(event) => setSignOutOthers(event.target.checked)}
-            className="mt-[2px] size-[14px] shrink-0 accent-[var(--surface-accent)]"
-          />
-          <span>
-            Sign out other devices
-            <span className="block text-[11px] text-[var(--surface-fg-faint)]">
-              Recommended if you think someone else knows your password.
-            </span>
+      <label className="flex cursor-pointer items-start gap-[8px] pt-[2px] text-[12px] text-[var(--surface-fg)]">
+        <input
+          type="checkbox"
+          checked={signOutOthers}
+          onChange={(event) => setSignOutOthers(event.target.checked)}
+          className="mt-[2px] size-[14px] shrink-0 accent-[var(--surface-accent)]"
+        />
+        <span>
+          Sign out other devices
+          <span className="block text-[11px] text-[var(--surface-fg-muted)]">
+            Recommended if you think someone else knows your password.
           </span>
-        </label>
+        </span>
+      </label>
 
-        <ErrorLine>{error}</ErrorLine>
-      </div>
-    </SettingsOverlay>
+      <ErrorLine>{error}</ErrorLine>
+    </SettingsModal>
   );
 }
 
 // ---------------------------------------------------------------------------
 
-export function AddPasswordOverlay({
+export function AddPasswordDialog({
   token,
   security,
   onClose,
@@ -286,63 +284,43 @@ export function AddPasswordOverlay({
 
   if (sent) {
     return (
-      <SettingsOverlay
+      <SettingsModal
         title="Check your email"
         description={`We sent a link to ${security.email}. It expires in 30 minutes. Once you set a password there, you'll be signed out everywhere and can sign in with either your password or ${via}.`}
-        actions={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}
+        onClose={onClose}
+        actions={
+          <SettingsButton variant="primary" onClick={onClose}>
+            Done
+          </SettingsButton>
+        }
       />
     );
   }
 
   return (
-    <SettingsOverlay
+    <SettingsModal
       title="Add a password"
       description={`Your account signs in with ${via}. We'll email ${security.email} a link to set a password, so you can also sign in with your email. The link proves the inbox is yours, so nobody at an unlocked computer can add one for you.`}
+      onClose={onClose}
       actions={
         <>
-          <GhostButton onClick={onClose}>Cancel</GhostButton>
-          <PrimaryButton onClick={() => void send()} disabled={busy}>
+          <SettingsButton variant="ghost" onClick={onClose}>
+            Cancel
+          </SettingsButton>
+          <SettingsButton variant="primary" onClick={() => void send()} disabled={busy}>
             {busy ? 'Sending…' : 'Email me a link'}
-          </PrimaryButton>
+          </SettingsButton>
         </>
       }
     >
       <ErrorLine>{error}</ErrorLine>
-    </SettingsOverlay>
+    </SettingsModal>
   );
 }
 
 // ---------------------------------------------------------------------------
 
-function ListRow({
-  title,
-  detail,
-  tag,
-}: {
-  title: string;
-  detail?: string;
-  tag?: React.ReactNode;
-}) {
-  return (
-    <li className="flex items-center gap-[12px] px-[14px] py-[11px]">
-      <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
-        <p className="truncate text-[12.5px] font-medium text-[var(--surface-fg)]">{title}</p>
-        {detail && <p className="text-[11px] text-[var(--surface-fg-faint)]">{detail}</p>}
-      </div>
-      {tag}
-    </li>
-  );
-}
-
-function List({ children }: { children: React.ReactNode }) {
-  return (
-    <ul className="flex flex-col divide-y divide-[var(--surface-border)] overflow-hidden rounded-[10px] border border-[var(--surface-border)] bg-[var(--surface-card)]">
-      {children}
-    </ul>
-  );
-}
-
-export function ConnectedAccountsOverlay({
+export function ConnectedAccountsDialog({
   security,
   onClose,
 }: {
@@ -355,31 +333,46 @@ export function ConnectedAccountsOverlay({
   );
 
   return (
-    <SettingsOverlay
+    <SettingsModal
       title="Connected accounts"
       description="Every way you can sign in to CanvasFlow."
-      actions={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}
+      onClose={onClose}
+      actions={
+        <SettingsButton variant="primary" onClick={onClose}>
+          Done
+        </SettingsButton>
+      }
     >
-      <List>
-        <ListRow
+      <DialogList>
+        {/* The envelope keeps the three names in one column beside the two marks. */}
+        <DialogListRow
+          icon={<Mail className="size-[16px] text-[var(--surface-fg-muted)]" aria-hidden="true" />}
           title="Email and password"
           detail={security.email}
           tag={tag(security.hasPassword, 'Set', 'Not set')}
         />
-        <ListRow title="Google" tag={tag(linked('google'), 'Connected', 'Not connected')} />
-        <ListRow title="GitHub" tag={tag(linked('github'), 'Connected', 'Not connected')} />
-      </List>
-      <p className="text-[11px] leading-[1.55] text-[var(--surface-fg-faint)]">
+        <DialogListRow
+          icon={<GoogleMark />}
+          title="Google"
+          tag={tag(linked('google'), 'Connected', 'Not connected')}
+        />
+        <DialogListRow
+          icon={<GitHubMark />}
+          title="GitHub"
+          tag={tag(linked('github'), 'Connected', 'Not connected')}
+        />
+      </DialogList>
+      <p className="text-[11.5px] leading-[1.55] text-[var(--surface-fg-muted)]">
         To connect Google or GitHub, sign in with it using {security.email}. An account with the
         same confirmed email address is joined to this one automatically.
       </p>
-    </SettingsOverlay>
+    </SettingsModal>
   );
 }
 
 // ---------------------------------------------------------------------------
 
-export function SessionsOverlay({
+export function SessionsDialog({
   security,
   onClose,
 }: {
@@ -387,14 +380,19 @@ export function SessionsOverlay({
   onClose: () => void;
 }) {
   return (
-    <SettingsOverlay
+    <SettingsModal
       title="Active sessions"
       description="Where your account is signed in right now. Location is approximate."
-      actions={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}
+      onClose={onClose}
+      actions={
+        <SettingsButton variant="primary" onClick={onClose}>
+          Done
+        </SettingsButton>
+      }
     >
-      <List>
+      <DialogList>
         {security.sessions.map((session) => (
-          <ListRow
+          <DialogListRow
             key={session.id}
             title={session.device ?? 'Unknown browser'}
             detail={`${session.location ?? 'Location unknown'} · Active since ${formatDay(
@@ -403,14 +401,14 @@ export function SessionsOverlay({
             tag={session.current ? <StatusTag tone="positive">This device</StatusTag> : undefined}
           />
         ))}
-      </List>
-    </SettingsOverlay>
+      </DialogList>
+    </SettingsModal>
   );
 }
 
 // ---------------------------------------------------------------------------
 
-export function SignOutEverywhereOverlay({
+export function SignOutEverywhereDialog({
   token,
   deviceCount,
   onClose,
@@ -440,19 +438,22 @@ export function SignOutEverywhereOverlay({
     deviceCount > 1 ? `all ${deviceCount} devices, including this one` : 'this device';
 
   return (
-    <SettingsOverlay
+    <SettingsModal
       title="Sign out everywhere?"
       description={`This signs out ${devices}, and closes any board open on them. You'll need to sign in again.`}
+      onClose={onClose}
       actions={
         <>
-          <GhostButton onClick={onClose}>Cancel</GhostButton>
-          <DangerButton onClick={() => void confirm()} disabled={busy}>
+          <SettingsButton variant="ghost" onClick={onClose}>
+            Cancel
+          </SettingsButton>
+          <SettingsButton variant="danger" onClick={() => void confirm()} disabled={busy}>
             {busy ? 'Signing out…' : 'Sign out all'}
-          </DangerButton>
+          </SettingsButton>
         </>
       }
     >
       <ErrorLine>{error}</ErrorLine>
-    </SettingsOverlay>
+    </SettingsModal>
   );
 }

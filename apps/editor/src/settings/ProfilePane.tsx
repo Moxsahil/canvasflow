@@ -2,104 +2,165 @@ import { useEffect, useRef, useState } from 'react';
 import { PRESENCE_PALETTE, type PresenceTheme } from '@canvasflow/canvas-engine';
 import type { CursorColor } from '@canvasflow/types';
 import { initialsOf } from '@/lib/initials';
-import { AvatarCropper } from '../profile/AvatarCropper';
-import type { AvatarState, ProfileState } from '../profile';
+import { cn } from '@/lib/utils';
+import type { AvatarState, Profile, ProfileState } from '../profile';
+import { PhotoDialog } from './PhotoDialog';
+import { useBand } from './settings-frame';
 import {
-  Card,
+  Band,
   ComingSoonTag,
-  GhostButton,
-  GroupLabel,
-  Row,
-  RowText,
-  SecondaryButton,
-  SettingsPane,
-  TextField,
+  INPUT,
+  InlineTextField,
+  SettingRow,
+  SettingsButton,
+  SettingsPage,
+  StackedField,
 } from './settings-ui';
-import { EmailRow } from './EmailRow';
 
 interface ProfilePaneProps {
-  /** Seeds the fields before the profile arrives. Null until the token decodes. */
+  /** Seeds the name before the profile arrives. Null until the token decodes. */
   user: { name: string; email: string | null } | null;
-  /** The editor's bearer token. The verification routes live on the gateway. */
-  token: string | null;
   /** The account's saved profile, and the way to write to it. */
   account: ProfileState;
   /** The photo, which is stored as bytes rather than as a profile field. */
   avatar: AvatarState;
   /** Each palette colour has a shade per theme; this picks which one is drawn. */
   theme: PresenceTheme;
-  onClose: () => void;
 }
 
 /**
  * Profile: how you appear to the people you share a board with.
  *
- * The display name and the cursor colour are saved to the account. The rest —
- * the photo, the username, the email — have no endpoint behind them yet and
- * are left as they were, holding their edits for as long as the dialog is open
- * and dropping them when it closes.
+ * The name saves when its own Save is pressed, the colour the moment it is
+ * picked, and the photo once it has been positioned. The username has nowhere
+ * to be saved yet and says so.
  *
- * A guest has no profile to load, so the two live fields are disabled rather
+ * A guest has no profile to write to, so the live fields are disabled rather
  * than offering a save that would be refused.
  */
-export function ProfilePane({ user, token, account, avatar, theme, onClose }: ProfilePaneProps) {
-  const { profile, saving, error, save } = account;
-  const fallbackName = user?.name?.trim() || 'Account';
+export function ProfilePane({ user, account, avatar, theme }: ProfilePaneProps) {
+  const { profile, error, save } = account;
+  const savedName = profile?.name ?? (user?.name?.trim() || 'Account');
+  const editable = profile !== null;
 
   // The file waiting to be positioned. Set by the picker, cleared when the
-  // cropper is done with it either way.
+  // photo dialog is done with it either way.
   const [picked, setPicked] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Set when a photo went up from the dialog, so the band can say so.
+  const [photoSaved, setPhotoSaved] = useState(false);
 
-  const [displayName, setDisplayName] = useState(profile?.name ?? fallbackName);
-  const [cursorColor, setCursorColor] = useState<CursorColor | null>(profile?.cursorColor ?? null);
-  /** What this pane refused to send, as against what the server refused. */
-  const [formError, setFormError] = useState<string | null>(null);
+  /** What this page refused to send, as against what the server refused. */
+  const [nameProblem, setNameProblem] = useState<string | null>(null);
+  const [nameRefused, setNameRefused] = useState(false);
 
-  // The dialog can open before the profile has arrived. Seeded once when it
-  // does and never again, so a slow response cannot overwrite what has been
-  // typed in the meantime.
-  const seeded = useRef(profile !== null);
-  useEffect(() => {
-    if (!profile || seeded.current) return;
-    seeded.current = true;
-    setDisplayName(profile.name);
-    setCursorColor(profile.cursorColor);
-  }, [profile]);
-
-  const editable = profile !== null && !saving;
-  const trimmedName = displayName.trim();
-  const nameChanged = profile !== null && trimmedName.length > 0 && trimmedName !== profile.name;
-  const colorChanged = profile !== null && cursorColor !== profile.cursorColor;
-
-  const handleSave = () => {
-    // An emptied field is a mistake, not a request to be nameless — and it is
-    // the one edit that would otherwise close the dialog having saved nothing,
-    // because an empty name is never sent.
-    if (profile !== null && trimmedName.length === 0) {
-      setFormError('Display name is required.');
-      return;
+  const saveName = async (next: string) => {
+    // An emptied field is a mistake, not a request to be nameless.
+    if (next.length === 0) {
+      setNameProblem('Display name is required.');
+      return false;
     }
-
-    // Nothing to send — a guest's pane, or one nobody touched — so this stays
-    // the plain close the footer has always been.
-    if (!nameChanged && !colorChanged) {
-      onClose();
-      return;
-    }
-
-    void save({
-      ...(nameChanged ? { name: trimmedName } : {}),
-      ...(colorChanged ? { cursorColor } : {}),
-    }).then((saved) => {
-      // A refusal keeps the dialog open with its message in the footer, so the
-      // text that was rejected is still there to fix.
-      if (saved) onClose();
-    });
+    const saved = await save({ name: next });
+    setNameRefused(!saved);
+    return saved;
   };
 
-  // One letter per name, as the share dialog's access list abbreviates people.
-  const letters = initialsOf(trimmedName || fallbackName);
+  return (
+    <SettingsPage
+      lead="How you appear to collaborators on shared boards."
+      dialog={
+        picked && (
+          <PhotoDialog
+            key="photo"
+            file={picked}
+            busy={avatar.busy}
+            error={avatar.error}
+            onCancel={() => setPicked(null)}
+            onUse={(blob, mimeType) => {
+              void avatar.upload(blob, mimeType).then((uploaded) => {
+                // Left open on failure, with the reason under it, so the photo
+                // that was just positioned is not lost to a retry.
+                if (!uploaded) return;
+                setPhotoSaved(true);
+                setPicked(null);
+              });
+            }}
+          />
+        )
+      }
+    >
+      <Band title="Identity" description="Your photo, your name and the handle people @mention.">
+        <PhotoRow
+          avatar={avatar}
+          name={savedName}
+          editable={editable}
+          announce={photoSaved}
+          onAnnounced={() => setPhotoSaved(false)}
+          onPick={setPicked}
+        />
+
+        <InlineTextField
+          setting="display-name"
+          label="Display name"
+          hint="Shown on your cursor while collaborating"
+          value={savedName}
+          placeholder="Your name"
+          maxLength={80}
+          disabled={!editable}
+          onSave={saveName}
+          error={nameProblem ?? (nameRefused ? error : null)}
+          onEdit={() => {
+            setNameProblem(null);
+            setNameRefused(false);
+          }}
+        />
+
+        {/* It says what it is for once it exists, and that it does not yet. */}
+        <StackedField
+          setting="username"
+          label="Username"
+          htmlFor="settings-username"
+          badge={<ComingSoonTag />}
+          hint="Will name you in @mentions and shorter board links"
+        >
+          <input
+            id="settings-username"
+            type="text"
+            value=""
+            placeholder="username"
+            aria-label="Username"
+            disabled
+            readOnly
+            className={INPUT}
+          />
+        </StackedField>
+      </Band>
+
+      <Band title="Presence" description="How other people pick you out on a board.">
+        <CursorColour profile={profile} save={save} theme={theme} editable={editable} />
+      </Band>
+    </SettingsPage>
+  );
+}
+
+/** The photo and the ways to change it. Upload opens the dialog that positions it. */
+function PhotoRow({
+  avatar,
+  name,
+  editable,
+  announce,
+  onAnnounced,
+  onPick,
+}: {
+  avatar: AvatarState;
+  name: string;
+  editable: boolean;
+  /** A photo just went up from the dialog: say so once. */
+  announce: boolean;
+  onAnnounced: () => void;
+  onPick: (file: File) => void;
+}) {
+  const band = useBand();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // A photo that will not load leaves the letters showing rather than a broken
   // image. Sign-in providers issue a URL even for an account that never set a
@@ -107,163 +168,149 @@ export function ProfilePane({ user, token, account, avatar, theme, onClose }: Pr
   const [photoFailed, setPhotoFailed] = useState(false);
   useEffect(() => setPhotoFailed(false), [avatar.url]);
 
-  const handleUse = (blob: Blob, mimeType: string) => {
-    void avatar.upload(blob, mimeType).then((uploaded) => {
-      // Left open on failure, with the message under it, so the photo that was
-      // just positioned is not lost to a retry.
-      if (uploaded) setPicked(null);
-    });
-  };
+  useEffect(() => {
+    if (!announce) return;
+    band?.saved();
+    onAnnounced();
+  }, [announce, band, onAnnounced]);
 
   return (
-    <SettingsPane
-      title="Profile"
-      subtitle="How you appear to collaborators on shared boards."
-      onClose={onClose}
-      onSave={handleSave}
-      saving={saving}
-      error={formError ?? avatar.error ?? error}
-      overlay={
-        picked && (
-          <AvatarCropper
-            file={picked}
-            busy={avatar.busy}
-            onCancel={() => setPicked(null)}
-            onUse={handleUse}
+    <SettingRow
+      setting="photo"
+      title="Profile photo"
+      hint="JPG, PNG or WebP. 2 MB max."
+      leading={
+        avatar.url && !photoFailed ? (
+          <img
+            src={avatar.url}
+            alt=""
+            onError={() => setPhotoFailed(true)}
+            className="size-[40px] shrink-0 rounded-full object-cover"
           />
+        ) : (
+          // One letter per name, as the share dialog's access list abbreviates people.
+          <div className="flex size-[40px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-wash)] text-[13px] font-medium text-[var(--surface-fg-muted)]">
+            {initialsOf(name)}
+          </div>
         )
       }
     >
-      <GroupLabel>Identity</GroupLabel>
-      <Card>
-        {/* The avatar row is taller than the rest — 16px of padding against
-            their 15px — because the 52px circle sets the height. */}
-        <div className="flex w-full items-center gap-[16px] px-[18px] py-[16px]">
-          {avatar.url && !photoFailed ? (
-            <img
-              src={avatar.url}
-              alt=""
-              onError={() => setPhotoFailed(true)}
-              className="size-[52px] shrink-0 rounded-full object-cover"
+      {/* The real control is this input; the button is what it looks like. A
+          bare file input cannot be styled to match the row, and replacing it
+          with a scripted picker would lose the keyboard. */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null;
+          // Cleared so that choosing the same file twice still counts as a
+          // change; without it a cancelled crop cannot be reopened.
+          event.target.value = '';
+          if (file) onPick(file);
+        }}
+      />
+      <SettingsButton
+        disabled={!editable || avatar.busy}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        Upload
+      </SettingsButton>
+      <SettingsButton
+        variant="ghost"
+        disabled={!editable || avatar.busy || !avatar.url}
+        onClick={() => {
+          void avatar.remove().then((removed) => {
+            if (removed) band?.saved();
+            else band?.failed(avatar.error ?? 'That did not go through. Try again.');
+          });
+        }}
+      >
+        Remove
+      </SettingsButton>
+    </SettingRow>
+  );
+}
+
+/**
+ * The swatches, which save as they are picked.
+ *
+ * They are the board's own palette rather than a second list of hexes, so the
+ * swatch is the colour collaborators actually see. Until one is picked the
+ * colour comes from the account id, and no swatch is marked.
+ */
+function CursorColour({
+  profile,
+  save,
+  theme,
+  editable,
+}: {
+  profile: Profile | null;
+  save: ProfileState['save'];
+  theme: PresenceTheme;
+  editable: boolean;
+}) {
+  const band = useBand();
+  const saved = profile?.cursorColor ?? null;
+  const [picked, setPicked] = useState<CursorColor | null>(saved);
+  const [busy, setBusy] = useState(false);
+
+  // Follows the account when it changes elsewhere, but never mid-save.
+  useEffect(() => {
+    if (!busy) setPicked(saved);
+  }, [saved, busy]);
+
+  const choose = async (next: CursorColor) => {
+    if (next === picked || busy) return;
+    const before = picked;
+    setPicked(next);
+    setBusy(true);
+    band?.clear();
+    const kept = await save({ cursorColor: next });
+    setBusy(false);
+    if (kept) {
+      band?.saved();
+    } else {
+      setPicked(before);
+      band?.failed('That colour did not save. Try again.');
+    }
+  };
+
+  return (
+    <StackedField
+      setting="cursor-colour"
+      label="Cursor colour"
+      hint="Identifies you in real time on shared boards"
+    >
+      <div
+        role="radiogroup"
+        aria-label="Cursor colour"
+        className="flex items-center gap-[8px] py-[3px] pl-[3px]"
+      >
+        {PRESENCE_PALETTE.map((entry) => {
+          const selected = entry.name === picked;
+          return (
+            <button
+              key={entry.name}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              aria-label={entry.name}
+              disabled={!editable}
+              onClick={() => void choose(entry.name)}
+              style={{ backgroundColor: theme === 'dark' ? entry.dark : entry.light }}
+              // The ring is drawn outside the circle rather than added to its
+              // size, so picking a colour cannot nudge the row. It takes the
+              // foreground colour so it reads in either theme.
+              className={cn(
+                'size-[20px] rounded-full ring-offset-2 ring-offset-[var(--surface-panel)] transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] disabled:opacity-60',
+                selected && 'ring-2 ring-[var(--surface-fg)]',
+              )}
             />
-          ) : (
-            <div className="flex size-[52px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-raised)] text-[16px] font-medium text-[var(--surface-fg-muted)]">
-              {letters}
-            </div>
-          )}
-          <RowText title="Profile photo" hint="JPG, PNG or WebP. 2 MB max." />
-          <div className="flex shrink-0 items-start gap-[8px]">
-            {/* The real control is this input; the button is what it looks
-                like. A bare file input cannot be styled to match the row, and
-                replacing it with a scripted picker would lose the keyboard. */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0] ?? null;
-                // Cleared so that choosing the same file twice still counts as
-                // a change; without it a cancelled crop cannot be reopened.
-                event.target.value = '';
-                if (file) setPicked(file);
-              }}
-            />
-            <SecondaryButton
-              disabled={!editable || avatar.busy}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              Upload
-            </SecondaryButton>
-            <GhostButton
-              disabled={!editable || avatar.busy || !avatar.url}
-              onClick={() => {
-                void avatar.remove();
-              }}
-            >
-              Remove
-            </GhostButton>
-          </div>
-        </div>
-
-        <Row>
-          <RowText title="Display name" hint="Shown on your cursor while collaborating" />
-          <TextField
-            label="Display name"
-            value={displayName}
-            onChange={(next) => {
-              setFormError(null);
-              setDisplayName(next);
-            }}
-            placeholder="Your name"
-            disabled={!editable}
-          />
-        </Row>
-
-        <EmailRow
-          email={profile?.email ?? user?.email ?? null}
-          verified={profile?.emailVerified ?? false}
-          token={token}
-          onVerified={account.reload}
-        />
-
-        <Row>
-          {/* The hint used to describe what a username is "used in", present
-              tense, while nothing used it at all. It says what it is for when
-              it exists, which is the honest version of the same sentence. */}
-          <RowText
-            title="Username"
-            hint="Will name you in @mentions and shorter board links"
-            badge={<ComingSoonTag />}
-          />
-          <TextField
-            label="Username"
-            value=""
-            onChange={() => {}}
-            placeholder="username"
-            disabled
-          />
-        </Row>
-      </Card>
-
-      <GroupLabel>Presence</GroupLabel>
-      <Card>
-        <Row>
-          <RowText title="Cursor colour" hint="Identifies you in real time on shared boards" />
-          <div
-            role="radiogroup"
-            aria-label="Cursor colour"
-            className="flex shrink-0 items-center gap-[9px]"
-          >
-            {/* The board's own palette rather than a second list of hexes, so
-                the swatch is the colour collaborators will actually see — each
-                entry carries a shade for each theme. Until one is picked the
-                colour comes from the account id, and no swatch is marked. */}
-            {PRESENCE_PALETTE.map((entry) => {
-              const selected = entry.name === cursorColor;
-              return (
-                <button
-                  key={entry.name}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  aria-label={entry.name}
-                  disabled={!editable}
-                  onClick={() => setCursorColor(entry.name)}
-                  style={{ backgroundColor: theme === 'dark' ? entry.dark : entry.light }}
-                  // The ring is drawn outside the circle rather than added to
-                  // its size, so picking a colour cannot nudge the row. It
-                  // takes the foreground colour so it reads against the card
-                  // in either theme — near-white on dark, near-black on light.
-                  className={`size-[22px] rounded-full focus-visible:outline-none disabled:opacity-60 ${
-                    selected ? 'ring-2 ring-[var(--surface-fg)]' : ''
-                  } focus-visible:ring-2 focus-visible:ring-[var(--surface-fg)]`}
-                />
-              );
-            })}
-          </div>
-        </Row>
-      </Card>
-    </SettingsPane>
+          );
+        })}
+      </div>
+    </StackedField>
   );
 }

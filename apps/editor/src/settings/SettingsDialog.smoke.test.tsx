@@ -8,13 +8,13 @@ import { PrivacyPane } from './PrivacyPane';
 import { ProfilePane } from './ProfilePane';
 import { SettingsDialog } from './SettingsDialog';
 import { WorkspacePane } from './WorkspacePane';
-import { SETTINGS_SECTIONS } from './settings-sections';
+import { SETTINGS_INDEX, SETTINGS_SECTIONS, searchSettings } from './settings-sections';
 import { PRESENCE_PALETTE } from '@canvasflow/canvas-engine';
 import type { AvatarState, Profile, ProfileState } from '../profile';
 
 const noop = () => {};
 
-/** A profile that has already loaded, for the panes that read one. */
+/** A profile that has already loaded, for the pages that read one. */
 const SAVED: Profile = {
   id: 'u1',
   name: 'Sahil Saved',
@@ -51,37 +51,27 @@ function avatarStub(url: string | null = null): AvatarState {
   };
 }
 
+const USER = { name: 'Sahil Barak', email: 'sahil@example.com' };
+
 /**
- * One pane on its own. The dialog shows the selected one and keeps that choice
- * to itself, so a pane is reached here directly rather than through a click the
- * server renderer cannot make.
+ * One tab's page on its own. The window shows the selected one and keeps that
+ * choice to itself, so a page is reached here directly rather than through a
+ * click the server renderer cannot make.
  */
 function renderPane(id: string) {
   const panes: Record<string, JSX.Element> = {
-    profile: (
-      <ProfilePane
-        user={null}
-        token={null}
-        account={accountStub()}
-        avatar={avatarStub()}
-        theme="dark"
-        onClose={noop}
-      />
-    ),
-    account: <AccountPane token={null} onClose={noop} />,
-    workspace: <WorkspacePane onClose={noop} />,
-    notifications: <NotificationsPane onClose={noop} />,
-    billing: <BillingPane onClose={noop} />,
-    privacy: <PrivacyPane onClose={noop} />,
+    profile: <ProfilePane user={null} account={accountStub()} avatar={avatarStub()} theme="dark" />,
+    account: <AccountPane token={null} user={USER} account={accountStub(SAVED)} />,
+    workspace: <WorkspacePane />,
+    notifications: <NotificationsPane />,
+    billing: <BillingPane />,
+    privacy: <PrivacyPane deleteAccount={async () => {}} />,
   };
   return renderToString(panes[id]!);
 }
 
 function render(
-  user: { name: string; email: string | null } | null = {
-    name: 'Sahil Barak',
-    email: 'sahil@example.com',
-  },
+  user: { name: string; email: string | null } | null = USER,
   theme: 'light' | 'dark' = 'dark',
   account: ProfileState = accountStub(),
   avatar: AvatarState = avatarStub(),
@@ -99,43 +89,82 @@ function render(
 }
 
 describe('SettingsDialog', () => {
-  it('rails all six sections, with Profile the one selected', () => {
+  it('puts the six sections in a row of tabs, with Profile selected', () => {
     const html = render();
-    for (const { label } of SETTINGS_SECTIONS) {
+    expect(html).toContain('role="tablist"');
+    expect(html.match(/role="tab"/g)).toHaveLength(SETTINGS_SECTIONS.length);
+    for (const { id, label } of SETTINGS_SECTIONS) {
       expect(html).toContain(label.replace('&', '&amp;'));
+      expect(html).toContain(`data-testid="settings-tab-${id}"`);
     }
-    // The current section is marked on the row, not just coloured in.
-    expect(html).toContain('aria-current="page"');
+    expect(html.match(/aria-selected="true"/g)).toHaveLength(1);
+    expect(html).toMatch(/aria-selected="true"[^>]*data-testid="settings-tab-profile"/);
+    expect(html).toContain('role="tabpanel"');
   });
 
-  it('opens on the Profile pane', () => {
+  it('opens on Profile, with its groups as bands rather than boxes', () => {
     const html = render();
     expect(html).toContain('How you appear to collaborators on shared boards.');
+    for (const band of ['Identity', 'Presence']) {
+      expect(html).toContain(`aria-label="${band}"`);
+    }
+    expect(html).toContain('Your photo, your name and the handle people @mention.');
     expect(html).toContain('Display name');
     expect(html).toContain('Cursor colour');
   });
 
-  it('gives every section a pane, none of them a placeholder', () => {
-    // One pane renders at a time, so each is checked on its own — the point is
-    // that no section is left saying it has not been built.
-    for (const [id, marker] of [
-      ['account', 'Sign-in methods, active sessions, and account deletion.'],
-      ['workspace', 'Members, roles, and workspace-level settings.'],
-      ['notifications', 'Choose what CanvasFlow emails you about.'],
-      ['billing', 'Plan, seats, usage, and invoice history.'],
-      ['privacy', 'Export your boards or close your account.'],
-    ] as const) {
+  it('has no footer and no rail: everything saves where it is changed', () => {
+    const html = render();
+    expect(html).not.toContain('Save changes');
+    expect(html).not.toContain('Changes save to your account, not this board.');
+    expect(html).not.toContain('aria-current="page"');
+    expect(html).not.toContain('--surface-rail');
+  });
+
+  it('gives every section a page of its own', () => {
+    for (const { id, lead } of SETTINGS_SECTIONS) {
       const pane = renderPane(id);
-      expect(pane, id).toContain(marker);
+      expect(pane, id).toContain(lead);
       expect(pane, id).not.toContain('not built yet');
     }
   });
 
+  it('keeps the address under Sign-in, beside the other ways in', () => {
+    const pane = renderPane('account');
+    expect(pane).toContain('aria-label="Sign-in"');
+    expect(pane).toContain('aria-label="Sessions"');
+    expect(pane).toContain('sahil@example.com');
+    expect(pane).toContain('Verified');
+    expect(pane).not.toContain('Display name');
+  });
+
+  it('has a row for every setting search can find', () => {
+    const pages = SETTINGS_SECTIONS.map(({ id }) => renderPane(id)).join('');
+    for (const entry of SETTINGS_INDEX) {
+      expect(pages, entry.id).toContain(`data-setting="${entry.id}"`);
+    }
+  });
+
+  it('searches titles, groups and other words for a setting', () => {
+    expect(searchSettings('').length).toBe(0);
+    expect(searchSettings('digest').map((entry) => entry.id)).toEqual([
+      'weekly-digest',
+      'product-updates',
+    ]);
+    expect(searchSettings('2fa').map((entry) => entry.id)).toEqual(['two-factor']);
+    expect(searchSettings('delete').map((entry) => entry.id)).toContain('delete-account');
+    // A guest has no account to delete, so it is not offered.
+    expect(searchSettings('delete', { isGuest: true }).map((entry) => entry.id)).not.toContain(
+      'delete-account',
+    );
+    expect(searchSettings('e').length).toBeLessThanOrEqual(6);
+  });
+
   it('links to both legal pages from Data & Privacy, and says which terms were agreed to', () => {
     const agreed = renderToString(
-      <PrivacyPane profile={{ ...SAVED, termsVersion: TERMS_VERSION }} onClose={noop} />,
+      <PrivacyPane profile={{ ...SAVED, termsVersion: TERMS_VERSION }} />,
     );
-    expect(agreed).toContain('Legal');
+    expect(agreed).toContain('aria-label="Legal"');
     expect(agreed).toContain('href="http://localhost:3000/terms"');
     expect(agreed).toContain('href="http://localhost:3000/privacy"');
     expect(agreed.match(/target="_blank"/g)).toHaveLength(2);
@@ -143,13 +172,13 @@ describe('SettingsDialog', () => {
 
     // Nothing on record: the terms notice does the asking, so this only says
     // when they last changed.
-    const unrecorded = renderPane('privacy');
+    const unrecorded = renderToString(<PrivacyPane />);
     expect(unrecorded).toContain('Last updated');
     expect(unrecorded).not.toContain('You agreed');
   });
 
   it('offers an account Delete account, and says how long there is to change one’s mind', () => {
-    const pane = renderToString(<PrivacyPane deleteAccount={async () => {}} onClose={noop} />);
+    const pane = renderPane('privacy');
     expect(pane).toContain('Danger zone');
     expect(pane).toContain('Deletes your account and the boards you own.');
     expect(pane).toContain('You’ll have 7 days to change your mind.');
@@ -157,17 +186,15 @@ describe('SettingsDialog', () => {
   });
 
   it('shows a guest no Delete account, since a guest has no account to delete', () => {
-    const pane = renderToString(
-      <PrivacyPane isGuest deleteAccount={async () => {}} onClose={noop} />,
-    );
+    const pane = renderToString(<PrivacyPane isGuest deleteAccount={async () => {}} />);
     expect(pane).not.toContain('Danger zone');
     expect(pane).not.toContain('Delete account');
   });
 
-  it('opens at Delete account when the person is back from signing in again', () => {
+  it('opens with the Delete account dialog up when the person is back from signing in again', () => {
     const dialog = renderToString(
       <SettingsDialog
-        user={{ name: 'Sahil Barak', email: 'sahil@example.com' }}
+        user={USER}
         token={null}
         account={accountStub()}
         avatar={avatarStub()}
@@ -178,22 +205,16 @@ describe('SettingsDialog', () => {
         onClose={noop}
       />,
     );
-    expect(dialog).toContain('Data &amp; Privacy');
-    // Straight onto the confirmation, with nothing to wait through first.
-    expect(dialog).toContain('Delete your account?');
+    expect(dialog).toMatch(/aria-selected="true"[^>]*data-testid="settings-tab-privacy"/);
+    // A dialog of its own over the window, with the page still there behind it.
+    expect(dialog).toMatch(/role="dialog" aria-modal="true" aria-label="Delete your account\?"/);
+    expect(dialog).toContain('aria-label="Your data"');
     expect(dialog).toContain(
       'Your account is locked and you’re signed out everywhere straight away.',
     );
     expect(dialog).toContain('mailto:support@canvasflowapp.com');
-    expect(dialog).not.toContain('What will be deleted');
     expect(dialog).toContain('Type your email address to confirm');
     expect(dialog).not.toContain('Checking what would be deleted');
-  });
-
-  it('carries the same footer on every pane', () => {
-    for (const id of ['profile', 'account', 'workspace', 'notifications', 'billing', 'privacy']) {
-      expect(renderPane(id), id).toContain('Changes save to your account, not this board.');
-    }
   });
 
   it('starts the notification switches where the design left them', () => {
@@ -217,21 +238,18 @@ describe('SettingsDialog', () => {
   });
 
   it('falls back to a placeholder name before the token decodes', () => {
-    const html = render(null);
-    expect(html).toContain('value="Account"');
+    expect(render(null)).toContain('value="Account"');
   });
 
   it('carries a whole palette for each theme, not a dark one with patches', () => {
-    // The design is stated in dark; light mirrors it by role. Both are declared
-    // on the root, so nothing inside needs to know which theme it is painting.
     const dark = render(undefined, 'dark');
     expect(dark).toContain('--surface-panel:#1a1a19');
-    expect(dark).toContain('--surface-card:#131313');
+    expect(dark).toContain('--surface-wash:#222221');
     expect(dark).toContain('--surface-fg:#f2f2f2');
 
     const light = render(undefined, 'light');
     expect(light).toContain('--surface-panel:#ffffff');
-    expect(light).toContain('--surface-card:#fafaf9');
+    expect(light).toContain('--surface-wash:#f4f4f2');
     expect(light).toContain('--surface-fg:#1a1a19');
 
     // The accent means "selected/primary/you" in both, so it does not move.
@@ -240,8 +258,6 @@ describe('SettingsDialog', () => {
   });
 
   it('offers the board’s own palette, with nothing marked until a colour is picked', () => {
-    // The swatches are the colours collaborators actually see, so they come
-    // from the presence palette rather than a second list kept beside it.
     const html = render();
     for (const entry of PRESENCE_PALETTE) {
       expect(html).toContain(`aria-label="${entry.name}"`);
@@ -258,36 +274,23 @@ describe('SettingsDialog', () => {
   });
 
   it('marks the unbuilt rows rather than letting them look ready', () => {
-    // They keep their place in the design — somebody looking for the setting
-    // should find it and learn it is coming, not conclude it does not exist.
-    const html = render(undefined, 'dark', accountStub(SAVED));
-    // One, not two. The email row is built now: it states whether the address
-    // is confirmed and offers to send a link, so it no longer carries a
-    // placeholder or the disabled "Change" button that stood in for one.
-    expect(html.match(/Coming soon/g)).toHaveLength(1);
-    expect(html).toContain('aria-label="Username"');
-
-    // Both hints described behaviour that did not exist, which is what made
-    // the rows look finished.
-    expect(html).not.toContain('Used in board URLs and @mentions');
-    expect(html).not.toContain('invite destination');
+    const profile = render(undefined, 'dark', accountStub(SAVED));
+    expect(profile.match(/Coming soon/g)).toHaveLength(1);
+    expect(profile).toContain('aria-label="Username"');
+    expect(renderPane('account').match(/Coming soon/g)).toHaveLength(1);
   });
 
   it('disables the live fields for a guest, who has no profile to save to', () => {
-    const html = render();
-    expect(html).toContain('disabled=""');
+    expect(render()).toContain('disabled=""');
   });
 
   it('shows initials until a photo resolves, and the photo once it does', () => {
     expect(render()).toContain('>SB</div>');
-
     const withPhoto = render(undefined, 'dark', accountStub(SAVED), avatarStub('blob:photo'));
     expect(withPhoto).toContain('src="blob:photo"');
   });
 
   it('offers Remove only when there is a photo to remove', () => {
-    // Both buttons render either way; what changes is whether Remove can be
-    // pressed, and an enabled Remove over an initial would remove nothing.
     const withPhoto = render(undefined, 'dark', accountStub(SAVED), avatarStub('blob:photo'));
     const withoutPhoto = render(undefined, 'dark', accountStub(SAVED));
 
