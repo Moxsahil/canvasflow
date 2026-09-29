@@ -6,10 +6,18 @@ import {
   identityRowClasses,
   InitialBadge,
 } from '@/components/ui/initial-badge';
+import {
+  MenuBadge,
+  MenuRowEnd,
+  menuButtonRowClasses,
+  menuLabelClasses,
+  menuPopoverClasses,
+  menuSeparatorClasses,
+} from '@/components/ui/menu-look';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { SidebarMenuItem } from '@/components/ui/sidebar';
 import { Workspaces, WorkspaceContent, WorkspaceTrigger } from '@/components/ui/workspaces';
-import { ColorDot, formatUpdatedAt } from './board-presentation';
+import { BoardTitle, ColorDot, formatUpdatedAt } from './board-presentation';
 import type { BoardSwitcherState, ManageTarget } from './useBoardSwitcher';
 import type { WorkspaceSummary } from './workspace-api';
 
@@ -19,11 +27,17 @@ interface BoardSwitcherProps {
   portalContainer: HTMLElement | null;
 }
 
-/** Rows in both panels, so the switcher reads as one surface with the sidebar. */
-const rowClasses =
-  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-hidden ring-sidebar-ring transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50';
+/**
+ * Both panels wear the editor's menu look, as the other menus that open from
+ * the sidebar do. The board panel keeps its footer in view while the list
+ * above it scrolls, so it caps its height and scrolls the list alone.
+ */
+const boardPanelClasses = cn(menuPopoverClasses, 'max-h-80 overflow-hidden');
 
-const panelClasses = 'flex max-h-80 w-64 flex-col p-0';
+/** Quiet lines where a row would be: loading, and nothing to list. */
+const noteClasses = 'px-2 py-1.5 text-xs text-neutral-500 dark:text-neutral-400';
+
+const errorClasses = 'text-red-500 dark:text-red-400';
 
 /**
  * A board row holds two controls — open, and rename — so it is a container
@@ -31,7 +45,7 @@ const panelClasses = 'flex max-h-80 w-64 flex-col p-0';
  * treatment moves to the container so the row still lights up as one thing.
  */
 const boardRowClasses =
-  'group/board flex w-full items-center gap-1 rounded-md py-1.5 pl-2 pr-1 text-left text-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground has-[:focus-visible]:bg-sidebar-accent';
+  'group/board flex w-full items-center gap-1 rounded py-0.5 pr-1 pl-0 text-xs hover:bg-neutral-950/10 has-focus-visible:bg-neutral-950/10 dark:hover:bg-neutral-50/10 dark:has-focus-visible:bg-neutral-50/10';
 
 /**
  * The board identity in the sidebar header, and the only way to reach another
@@ -156,7 +170,6 @@ export function BoardSwitcher({ state, portalContainer }: BoardSwitcherProps) {
         <WorkspaceContent
           side="right"
           align="start"
-          className="w-64"
           container={portalContainer}
           data-workspace-menu=""
           // The board panel is a popup of its own, so every pointer and focus
@@ -179,7 +192,7 @@ export function BoardSwitcher({ state, portalContainer }: BoardSwitcherProps) {
             ) : null;
           }}
         >
-          {state.error && <p className="px-2 py-1.5 text-xs text-destructive">{state.error}</p>}
+          {state.error && <p className={cn(noteClasses, errorClasses)}>{state.error}</p>}
           {namingWorkspace ? (
             <NewWorkspaceForm
               busy={state.busy}
@@ -192,24 +205,24 @@ export function BoardSwitcher({ state, portalContainer }: BoardSwitcherProps) {
           ) : (
             <button
               type="button"
-              className={cn(rowClasses, 'text-sidebar-foreground/70')}
+              className={menuButtonRowClasses}
               disabled={state.busy}
               onClick={() => setNamingWorkspace(true)}
             >
-              <Plus className="size-4 shrink-0" aria-hidden="true" />
               <span>Create workspace</span>
+              <MenuRowEnd icon={<Plus aria-hidden="true" />} />
             </button>
           )}
           {/* Last in the footer: creating is the common errand, tidying up is
               the occasional one, and this is the row that opens a dialog. */}
           <button
             type="button"
-            className={cn(rowClasses, 'text-sidebar-foreground/70')}
+            className={menuButtonRowClasses}
             data-testid="manage-workspaces"
             onClick={() => handleManage({ kind: 'workspaces' })}
           >
-            <Settings2 className="size-4 shrink-0" aria-hidden="true" />
             <span>Manage workspaces</span>
+            <MenuRowEnd icon={<Settings2 aria-hidden="true" />} />
           </button>
         </WorkspaceContent>
       </Workspaces>
@@ -252,21 +265,21 @@ function WorkspaceRow({
     >
       <PopoverAnchor asChild>
         <span
-          className="flex min-w-0 flex-1 items-center gap-2"
+          className="flex min-w-0 flex-1 items-center gap-3"
+          // Lights the whole row in the list for as long as its boards are up,
+          // the way a submenu's row stays lit — see WorkspaceContent.
+          data-expanded={expanded ? '' : undefined}
           onMouseEnter={() => state.expandWorkspace(workspace.id)}
         >
-          <InitialBadge
-            label={workspace.name}
-            src={workspace.logoUrl}
-            className="size-6 rounded-md text-[0.625rem]"
+          <span className="min-w-0 truncate">{workspace.name}</span>
+          <MenuRowEnd
+            badge={
+              <MenuBadge>
+                {workspace.boardCount === 1 ? '1 board' : `${workspace.boardCount} boards`}
+              </MenuBadge>
+            }
+            icon={<ChevronRight aria-hidden="true" />}
           />
-          <span className="flex min-w-0 flex-1 flex-col items-start">
-            <span className="w-full truncate text-sm">{workspace.name}</span>
-            <span className="text-xs opacity-60">
-              {workspace.boardCount === 1 ? '1 board' : `${workspace.boardCount} boards`}
-            </span>
-          </span>
-          <ChevronRight className="ml-auto size-4 shrink-0 opacity-60" />
         </span>
       </PopoverAnchor>
 
@@ -275,7 +288,7 @@ function WorkspaceRow({
         align="start"
         sideOffset={8}
         container={portalContainer}
-        className={panelClasses}
+        className={boardPanelClasses}
         data-board-panel=""
         // Opened by hover, so it must not pull focus off whatever the pointer
         // left behind — nor throw focus back on the way out.
@@ -289,23 +302,19 @@ function WorkspaceRow({
           if (isInside(event.target, '[data-workspace-menu]')) event.preventDefault();
         }}
       >
-        <div className="shrink-0 border-b border-sidebar-border px-3 py-2">
-          <p className="truncate text-xs font-medium text-sidebar-foreground/70">
-            {workspace.name}
-          </p>
-        </div>
+        <p className={cn(menuLabelClasses, 'shrink-0')}>{workspace.name}</p>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-1">
+        <div className="flex min-h-0 w-full flex-1 flex-col gap-y-1 overflow-y-auto">
           {entry?.status === 'ready' && entry.boards.length === 0 && (
-            <p className="px-2 py-2 text-sm text-sidebar-foreground/70">No boards yet.</p>
+            <p className={noteClasses}>No boards yet.</p>
           )}
           {(entry === undefined || entry.status === 'loading') && (
-            <p className="px-2 py-2 text-sm text-sidebar-foreground/70">Loading boards…</p>
+            <p className={noteClasses}>Loading boards…</p>
           )}
           {entry?.status === 'error' && (
             <button
               type="button"
-              className={cn(rowClasses, 'text-destructive')}
+              className={cn(menuButtonRowClasses, errorClasses)}
               onClick={() => state.expandWorkspace(workspace.id)}
             >
               <span className="truncate">{entry.error} Try again.</span>
@@ -315,28 +324,23 @@ function WorkspaceRow({
             entry.boards.map((board) => {
               const current = board.id === state.boardId;
               return (
-                <div
-                  key={board.id}
-                  className={cn(
-                    boardRowClasses,
-                    current && 'bg-sidebar-accent text-sidebar-accent-foreground',
-                  )}
-                >
+                <div key={board.id} className={boardRowClasses}>
+                  {/* The tagged title on the left; on the right, when it last
+                      changed — or a tick for the board already open, as the
+                      context menu's Move to marks it. */}
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 items-center gap-2 rounded-sm outline-hidden ring-sidebar-ring focus-visible:ring-2"
+                    className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded px-2 py-1 text-left outline-none"
                     aria-current={current ? 'page' : undefined}
                     onClick={() => state.openBoard(board.id)}
                   >
-                    <ColorDot color={board.color} />
-                    <span className="min-w-0 flex-1 truncate">{board.title}</span>
-                    {current ? (
-                      <Check className="size-4 shrink-0" aria-hidden="true" />
-                    ) : (
-                      <span className="shrink-0 text-xs opacity-60">
-                        {formatUpdatedAt(board.updatedAt)}
-                      </span>
-                    )}
+                    <BoardTitle title={board.title} color={board.color} />
+                    <MenuRowEnd
+                      badge={
+                        current ? null : <MenuBadge>{formatUpdatedAt(board.updatedAt)}</MenuBadge>
+                      }
+                      icon={current ? <Check aria-hidden="true" /> : null}
+                    />
                   </button>
                   {/* Revealed by hovering the row, and by focus for a keyboard,
                       so the list stays a list of names rather than of controls. */}
@@ -345,7 +349,7 @@ function WorkspaceRow({
                     // Opacity says whether it is revealed; colour says whether
                     // it is under the pointer. Two properties rather than two
                     // opacities, which would fight over which variant wins.
-                    className="shrink-0 rounded-sm p-1 text-sidebar-foreground/60 opacity-0 outline-hidden ring-sidebar-ring transition-opacity hover:text-sidebar-foreground focus-visible:opacity-100 focus-visible:ring-2 group-hover/board:opacity-100"
+                    className="shrink-0 rounded p-1 text-neutral-500 opacity-0 outline-none transition-opacity group-hover/board:opacity-100 hover:text-neutral-950 focus-visible:opacity-100 dark:text-neutral-400 dark:hover:text-neutral-50"
                     aria-label={`Rename ${board.title}`}
                     title="Rename board"
                     onClick={() => onRename(board.id)}
@@ -357,28 +361,27 @@ function WorkspaceRow({
             })}
         </div>
 
-        <div className="shrink-0 border-t border-sidebar-border p-1">
-          <button
-            type="button"
-            className={cn(rowClasses, 'text-sidebar-foreground/70')}
-            disabled={state.busy}
-            onClick={() => state.createBoard(workspace.id)}
-          >
-            <Plus className="size-4 shrink-0" aria-hidden="true" />
-            <span>New board</span>
-          </button>
-          {/* Scoped to this workspace, so the dialog opens straight onto the
-              list that is already on screen rather than making you find it. */}
-          <button
-            type="button"
-            className={cn(rowClasses, 'text-sidebar-foreground/70')}
-            data-testid="manage-boards"
-            onClick={() => onManage({ kind: 'boards', workspaceId: workspace.id })}
-          >
-            <Settings2 className="size-4 shrink-0" aria-hidden="true" />
-            <span>Manage boards</span>
-          </button>
-        </div>
+        <div role="separator" className={menuSeparatorClasses} />
+        <button
+          type="button"
+          className={menuButtonRowClasses}
+          disabled={state.busy}
+          onClick={() => state.createBoard(workspace.id)}
+        >
+          <span>New board</span>
+          <MenuRowEnd icon={<Plus aria-hidden="true" />} />
+        </button>
+        {/* Scoped to this workspace, so the dialog opens straight onto the
+            list that is already on screen rather than making you find it. */}
+        <button
+          type="button"
+          className={menuButtonRowClasses}
+          data-testid="manage-boards"
+          onClick={() => onManage({ kind: 'boards', workspaceId: workspace.id })}
+        >
+          <span>Manage boards</span>
+          <MenuRowEnd icon={<Settings2 aria-hidden="true" />} />
+        </button>
       </PopoverContent>
     </Popover>
   );
@@ -397,7 +400,7 @@ function NewWorkspaceForm({ busy, onCreate, onCancel }: NewWorkspaceFormProps) {
 
   return (
     <form
-      className="flex items-center gap-1 px-1 py-0.5"
+      className="flex w-full items-center gap-1"
       onSubmit={(event) => {
         event.preventDefault();
         if (trimmed) onCreate(trimmed);
@@ -419,12 +422,12 @@ function NewWorkspaceForm({ busy, onCreate, onCancel }: NewWorkspaceFormProps) {
             onCancel();
           }
         }}
-        className="min-w-0 flex-1 rounded-md bg-transparent px-2 py-1.5 text-sm outline-hidden ring-sidebar-ring placeholder:text-sidebar-foreground/50 focus-visible:ring-2"
+        className="min-w-0 flex-1 rounded bg-neutral-950/5 px-2 py-1.5 text-xs outline-none placeholder:text-neutral-500 focus-visible:ring-1 focus-visible:ring-neutral-400 dark:bg-neutral-50/5 dark:placeholder:text-neutral-400 dark:focus-visible:ring-neutral-500"
       />
       <button
         type="submit"
         disabled={busy || !trimmed}
-        className={cn(rowClasses, 'w-auto shrink-0 px-2 text-sidebar-foreground/70')}
+        className={cn(menuButtonRowClasses, 'w-auto shrink-0')}
       >
         Add
       </button>

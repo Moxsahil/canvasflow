@@ -9,177 +9,92 @@
   z-index: var(--zIndex-layerUI);
 }
 
-.cf-properties {
-  /* Never let the panel run off a short viewport. */
-  max-height: calc(100vh - 8rem);
-  overflow-y: auto;
-  width: 13rem;
-}
-
-.cf-panel-section {
-  margin: 0;
-  padding: 0;
-  border: none;
-  min-width: 0;
-}
-
-.cf-properties__label {
-  display: block;
-  margin-bottom: 0.25rem;
-  font-family: var(--font-sans);
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: var(--text-primary-color);
-}
-
-/* ---------- swatches ---------- */
-
-/* Unfiltered on purpose: a swatch names the colour you are choosing, and that
-   is one colour, not one per theme. The palette reads the same in both. */
-.cf-swatch {
-  display: inline-block;
-  box-sizing: border-box;
-  width: 1.35rem;
-  height: 1.35rem;
-  padding: 0;
-  border: 1px solid var(--default-border-color);
-  border-radius: var(--border-radius-md);
-  transition: transform 100ms ease;
-}
-
-/* Only the pickable swatches react — the trailing preview is a readout. */
-button.cf-swatch {
-  cursor: pointer;
-}
-
-button.cf-swatch:hover {
-  transform: scale(1.1);
-}
-
-.cf-swatch--active {
-  box-shadow:
-    0 0 0 1px var(--island-bg-color),
-    0 0 0 3px var(--color-brand-active);
-}
-
-.cf-swatch:focus-visible {
-  outline: 2px solid var(--focus-highlight-color);
-  outline-offset: 1px;
-}
-
-/* Transparent reads as a checkerboard rather than as "white".
-
-   The one swatch whose colours are the panel's rather than the board's — it
-   stands for the absence of a colour, so it follows the chrome into dark mode
-   while every swatch beside it holds still. */
-.cf-swatch--transparent {
-  --checker: color-mix(in srgb, var(--color-chrome-muted) 55%, var(--color-surface-lowest));
-  background-color: var(--color-surface-lowest);
+/* "No colour" reads as a checkerboard rather than as white. It stands for the
+   absence of a colour, so it takes the panel's own greys in each theme while
+   every real colour beside it holds still. */
+.cf-transparent-swatch {
+  --checker-ground: #fafafa;
+  --checker: #d4d4d4;
+  background-color: var(--checker-ground);
   background-image:
     linear-gradient(45deg, var(--checker) 25%, transparent 25%),
     linear-gradient(-45deg, var(--checker) 25%, transparent 25%),
     linear-gradient(45deg, transparent 75%, var(--checker) 75%),
     linear-gradient(-45deg, transparent 75%, var(--checker) 75%);
-  background-size: 8px 8px;
+  background-size: 6px 6px;
   background-position:
     0 0,
-    0 4px,
-    4px -4px,
-    -4px 0;
+    0 3px,
+    3px -3px,
+    -3px 0;
 }
 
-.cf-swatch-row__divider {
-  width: 1px;
-  align-self: stretch;
-  margin: 0 0.25rem;
-  background-color: var(--default-border-color);
+.cf-editor[data-theme='dark'] .cf-transparent-swatch {
+  --checker-ground: #404040;
+  --checker: #262626;
 }
 
-/* ---------- icon option buttons ---------- */
+/* ---------- inspector range ----------
+   A thin track filled up to the value (`--fill`, set inline), with a round
+   thumb in the panel's ink. */
 
-.cf-option-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--default-button-size);
-  height: var(--default-button-size);
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--border-radius-lg);
-  background-color: var(--color-surface-low);
-  color: var(--icon-fill-color);
+.cf-inspector-range {
+  --track: rgb(10 10 10 / 0.08);
+  --ink: #0a0a0a;
+  --ground: #fafafa;
+  appearance: none;
+  height: 16px;
+  margin: 0;
+  background: transparent;
   cursor: pointer;
-  transition: background-color 100ms ease;
 }
 
-.cf-option-button svg {
-  width: var(--default-icon-size);
-  height: var(--default-icon-size);
+.cf-editor[data-theme='dark'] .cf-inspector-range {
+  --track: rgb(250 250 250 / 0.1);
+  --ink: #fafafa;
+  --ground: oklch(26.9% 0 none);
 }
 
-.cf-option-button:hover:not(:disabled) {
-  background-color: var(--button-hover-bg);
+.cf-inspector-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background:
+    linear-gradient(var(--ink), var(--ink)) 0 / var(--fill, 0%) 100% no-repeat,
+    var(--track);
 }
 
-.cf-option-button--active {
-  background-color: var(--color-surface-primary-container);
-  color: var(--color-on-primary-container);
+.cf-inspector-range::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--track);
 }
 
-/* The pointer is still over the button you just clicked, and the hover rule
-   above outweighs the selected fill on specificity — so without this, choosing
-   an option leaves it looking grey until you move the mouse off it, which
-   reads as the click not having landed.
-
-   Mixed towards its own foreground, the same answer the dock's buttons give:
-   plain grey here would say "off". */
-.cf-option-button--active:hover:not(:disabled) {
-  background-color: color-mix(
-    in srgb,
-    var(--color-surface-primary-container) 85%,
-    var(--color-on-primary-container)
-  );
+.cf-inspector-range::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ink);
 }
 
-.cf-option-button:focus-visible {
-  outline: 2px solid var(--focus-highlight-color);
-  outline-offset: 1px;
+.cf-inspector-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 0 0 3px var(--ground);
 }
 
-.cf-option-button:disabled {
-  cursor: default;
-  color: var(--color-chrome-muted);
-}
-
-.cf-option-button--mirrored svg {
-  transform: scaleX(-1);
-}
-
-/* Wraps once the options outgrow the panel — nine arrowheads don't fit on
-   one row, and a popover would be a heavier answer than a second row. */
-.cf-option-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
+.cf-inspector-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 0 0 3px var(--ground);
 }
 
 /* ---------- colour picker ---------- */
-
-/* Sits beside the panel, not inside it: the Island scrolls and would clip it.
-   Opens inward (leftward), since the panel is against the right edge. No drop
-   shadow, matching the panel it opens from. */
-.cf-color-popover {
-  position: absolute;
-  right: calc(100% + 0.5rem);
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  box-sizing: border-box;
-  padding: 0.75rem;
-  background-color: var(--island-bg-color);
-  border-radius: var(--border-radius-lg);
-  z-index: var(--zIndex-popup);
-}
 
 .cf-wheel {
   position: relative;
@@ -205,10 +120,7 @@ button.cf-swatch:hover {
   pointer-events: none;
 }
 
-.cf-color-popover__field {
-  display: block;
-}
-
+/* Brightness: the track is the colour ramp itself, set inline. */
 .cf-color-popover__value {
   display: block;
   width: 100%;
@@ -216,7 +128,7 @@ button.cf-swatch:hover {
   margin: 0;
   padding: 0;
   border-radius: 999px;
-  border: 1px solid var(--default-border-color);
+  border: 1px solid rgb(128 128 128 / 0.35);
   appearance: none;
   cursor: pointer;
 }
@@ -238,59 +150,4 @@ button.cf-swatch:hover {
   border-radius: 50%;
   box-shadow: 0 0 0 1px rgb(0 0 0 / 0.4);
   background: transparent;
-}
-
-.cf-color-popover__hex {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--border-radius-md);
-  background-color: var(--color-surface-low);
-  color: var(--text-primary-color);
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
-}
-
-.cf-color-popover__hex input {
-  width: 100%;
-  border: none;
-  background: none;
-  color: inherit;
-  font: inherit;
-  outline: none;
-}
-
-.cf-color-popover__transparent {
-  padding: 0.375rem;
-  border: 1px solid var(--default-border-color);
-  border-radius: var(--border-radius-md);
-  background-color: transparent;
-  color: var(--text-primary-color);
-  font-family: var(--font-sans);
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.cf-color-popover__transparent:hover {
-  background-color: var(--button-hover-bg);
-}
-
-/* ---------- opacity ---------- */
-
-.cf-opacity__range {
-  display: block;
-  width: 100%;
-  margin: 0;
-  accent-color: var(--color-brand-active);
-  cursor: pointer;
-}
-
-.cf-opacity__bounds {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.125rem;
-  font-family: var(--font-sans);
-  font-size: 0.6875rem;
-  color: var(--color-chrome-muted);
 }

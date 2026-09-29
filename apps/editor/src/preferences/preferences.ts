@@ -17,6 +17,7 @@ export interface EditorPreferences {
   pasteAtCursor: boolean;
   focusMode: boolean;
   viewMode: boolean;
+  floatingStyleBar: boolean;
   canvasStats: boolean;
   debugMode: boolean;
 }
@@ -44,6 +45,7 @@ export const DEFAULT_PREFERENCES: EditorPreferences = {
   pasteAtCursor: false,
   focusMode: false,
   viewMode: false,
+  floatingStyleBar: false,
   canvasStats: false,
   debugMode: false,
 };
@@ -178,6 +180,11 @@ export const PREFERENCE_GROUPS: readonly PreferenceGroupMeta[] = [
         label: 'View mode',
         shortcut: 'alt+r',
         hint: 'Look around the board without editing it',
+      },
+      {
+        id: 'floatingStyleBar',
+        label: 'Floating style bar',
+        hint: 'Style controls float in a bar over the selection instead of docking at the right',
       },
       {
         id: 'canvasStats',

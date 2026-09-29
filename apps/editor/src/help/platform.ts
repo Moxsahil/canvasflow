@@ -94,6 +94,26 @@ export function formatShortcutKeys(keys: string): string[] {
 }
 
 /**
+ * A shortcut in `mod+x` notation, as `aria-keyshortcuts` spells it — for a
+ * menu row with no room to print its key, so assistive technology can still
+ * say it.
+ *
+ * @example ariaKeyShortcut('mod+shift+e') → 'Control+Shift+E' (Meta on a Mac)
+ */
+export function ariaKeyShortcut(keys: string): string {
+  const names: Record<string, string> = {
+    mod: isMac() ? 'Meta' : 'Control',
+    shift: 'Shift',
+    alt: 'Alt',
+    delete: 'Delete',
+  };
+  return keys
+    .split('+')
+    .map((part) => names[part] ?? part.toUpperCase())
+    .join('+');
+}
+
+/**
  * Legacy single-string formatter, kept for backward compatibility.
  * Prefer formatShortcutKeys for pill-based rendering.
  */

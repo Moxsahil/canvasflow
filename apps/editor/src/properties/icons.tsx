@@ -43,17 +43,6 @@ export function SolidFillIcon() {
   );
 }
 
-// --- stroke width ---
-
-/** A single horizontal rule whose thickness previews the stroke width. */
-export function StrokeWidthIcon({ weight }: { weight: number }) {
-  return (
-    <svg {...base} strokeWidth={weight * 1.5 + 1}>
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  );
-}
-
 // --- stroke style ---
 
 export function SolidStrokeIcon() {
@@ -279,46 +268,6 @@ export function AlignRightIcon() {
   return (
     <svg {...base}>
       <path d="M4 7h16M10 12h10M7 17h13" />
-    </svg>
-  );
-}
-
-// --- layers ---
-
-export function SendToBackIcon() {
-  return (
-    <svg {...base}>
-      <path d="M12 3v12" />
-      <path d="M8 11l4 4 4-4" />
-      <line x1="4" y1="20" x2="20" y2="20" />
-    </svg>
-  );
-}
-
-export function SendBackwardIcon() {
-  return (
-    <svg {...base}>
-      <path d="M12 4v14" />
-      <path d="M7 13l5 5 5-5" />
-    </svg>
-  );
-}
-
-export function BringForwardIcon() {
-  return (
-    <svg {...base}>
-      <path d="M12 20V6" />
-      <path d="M7 11l5-5 5 5" />
-    </svg>
-  );
-}
-
-export function BringToFrontIcon() {
-  return (
-    <svg {...base}>
-      <path d="M12 21V9" />
-      <path d="M8 13l4-4 4 4" />
-      <line x1="4" y1="4" x2="20" y2="4" />
     </svg>
   );
 }

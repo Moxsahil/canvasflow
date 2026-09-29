@@ -169,28 +169,35 @@ html[data-theme='dark'] #root {
   }
 }
 
+/* The chrome's surface — the sidebar, and through --island-bg-color every
+   floating panel — is the menus' own neutral palette (see menu-look.tsx), so a
+   menu reads as part of the chrome it opens from rather than a card laid on
+   it. The panel colour and border are the palette's exact values; the hover is
+   what the menus' translucent highlight comes to over that panel, stated solid
+   because it is also painted over surfaces other than the sidebar. Primary and
+   ring keep their own colours: they are emphasis, not surface. */
 :root {
-  --sidebar: hsl(0 0% 98%);
-  --sidebar-foreground: hsl(240 5.3% 26.1%);
+  --sidebar: oklch(98.5% 0 none); /* neutral-50 */
+  --sidebar-foreground: oklch(37.1% 0 none); /* neutral-700 */
   --sidebar-primary: hsl(240 5.9% 10%);
   --sidebar-primary-foreground: hsl(0 0% 98%);
-  --sidebar-accent: hsl(240 4.8% 95.9%);
-  --sidebar-accent-foreground: hsl(240 5.9% 10%);
-  --sidebar-border: hsl(220 13% 91%);
+  --sidebar-accent: #e2e2e2; /* neutral-950 at 10% over neutral-50 */
+  --sidebar-accent-foreground: oklch(20.5% 0 none); /* neutral-900 */
+  --sidebar-border: oklch(87% 0 none); /* neutral-300 */
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
 }
 
-/* The values are exactly the ones the sidebar ships with; only the selector is
-   this app's, since it themes by attribute rather than by a `.dark` class. */
+/* By attribute as well as by class: this app themes with `data-theme` on the
+   editor root and <html>, not with a `.dark` class. */
 .dark,
 [data-theme='dark'] {
-  --sidebar: hsl(240 5.9% 10%);
-  --sidebar-foreground: hsl(240 4.8% 95.9%);
+  --sidebar: oklch(26.9% 0 none); /* neutral-800 */
+  --sidebar-foreground: oklch(97% 0 none); /* neutral-100 */
   --sidebar-primary: hsl(224.3 76.3% 48%);
   --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(240 3.7% 15.9%);
-  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-border: hsl(240 3.7% 15.9%);
+  --sidebar-accent: #3b3b3b; /* neutral-50 at 10% over neutral-800 */
+  --sidebar-accent-foreground: oklch(97% 0 none); /* neutral-100 */
+  --sidebar-border: oklch(37.1% 0 none); /* neutral-700 */
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
 }
 
