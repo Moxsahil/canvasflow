@@ -1,4 +1,4 @@
-export { BoardSwitcher } from './BoardSwitcher';
+export { WorkspaceSwitcher } from './WorkspaceSwitcher';
 export { ManageDialog } from './ManageDialog';
 export { RenameBoardDialog } from './RenameBoardDialog';
 export {

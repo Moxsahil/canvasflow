@@ -386,6 +386,15 @@ interface EditorProps {
   boardId: string;
 }
 
+/**
+ * The account the sidebar last showed, kept for as long as the tab is open.
+ *
+ * Every board mints its own token, and until the new one arrives there is no
+ * one to name. Opening a board from the sidebar would otherwise blank the
+ * account row for that moment on every switch.
+ */
+let lastChromeUser: { name: string; email: string | null; avatarUrl: string | null } | null = null;
+
 export function Editor({ boardId }: EditorProps) {
   /** The editor root. Every popup portals here, for the theme tokens on it. */
   const editorRef = useRef<HTMLDivElement>(null);
@@ -550,9 +559,14 @@ export function Editor({ boardId }: EditorProps) {
   });
 
   const chromeUser = useMemo(
-    () => user && { name: user.name, email: user.email, avatarUrl: avatar.url },
+    () => (user ? { name: user.name, email: user.email, avatarUrl: avatar.url } : lastChromeUser),
     [user, avatar.url],
   );
+  // A guest's identity is the share link's, not an account worth carrying to
+  // the next board.
+  useEffect(() => {
+    if (user && !user.isGuest) lastChromeUser = chromeUser;
+  }, [user, chromeUser]);
 
   // The board's identity in the rail: its title, the workspace it sits in, and
   // the rest of the account's boards. Also the only place the board's real
@@ -2915,12 +2929,12 @@ export function Editor({ boardId }: EditorProps) {
               )}
             </div>
 
-            {/* Collapses and expands the sidebar. Floating over the canvas because
-          the editor has no header bar to seat it in, and it is the only way
-          back to the sidebar on a viewport too narrow to keep one on screen.
-          Gone with the rail it opens once the chrome is away. */}
+            {/* Opens the sidebar on a phone, where it is a sheet that leaves no
+          rail behind to open it from. Wider, the sidebar's own button beside
+          the workspace does this, so the canvas corner stays clear. Gone
+          with the rest of the chrome once it is away. */}
             {!chromeHidden && (
-              <SidebarTrigger className="absolute top-4 left-4 z-(--zIndex-layerUI)" />
+              <SidebarTrigger className="absolute top-4 left-4 z-(--zIndex-layerUI) md:hidden" />
             )}
 
             {/* The dock goes with the rest of the chrome. The tools themselves

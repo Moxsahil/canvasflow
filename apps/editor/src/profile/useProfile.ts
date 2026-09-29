@@ -74,12 +74,22 @@ function messageOf(cause: unknown): string {
 }
 
 /**
+ * The profile as last loaded in this tab.
+ *
+ * Opening another board remounts the editor, and this hook with it. Starting
+ * from the copy already on screen keeps the account row and its photo still
+ * while the new board's copy is read; that read still happens, and replaces
+ * this one when it lands.
+ */
+let lastProfile: Profile | null = null;
+
+/**
  * @param enabled Whether there is an account to load one for. Guests have no
  * profile to read, so asking would spend a request to be told 401.
  */
 export function useProfile(enabled: boolean, options: UseProfileOptions = {}): ProfileState {
   const revalidateOn = options.revalidateOn ?? null;
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(() => lastProfile);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,11 +101,12 @@ export function useProfile(enabled: boolean, options: UseProfileOptions = {}): P
 
   // The profile as last applied, readable outside a render — the channel
   // listener below needs to compare against it without depending on it.
-  const profileRef = useRef<Profile | null>(null);
+  const profileRef = useRef<Profile | null>(lastProfile);
   const channelRef = useRef<BroadcastChannel | null>(null);
 
   const apply = useCallback((next: Profile) => {
     profileRef.current = next;
+    lastProfile = next;
     setProfile(next);
   }, []);
 

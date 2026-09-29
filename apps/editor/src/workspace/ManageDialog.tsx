@@ -45,7 +45,7 @@ interface ManageDialogProps {
  */
 export function ManageDialog({ state, theme }: ManageDialogProps) {
   const target = state.manageTarget;
-  const { expandWorkspace, endManage, beginManage } = state;
+  const { loadWorkspaceBoards, endManage, beginManage } = state;
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -56,13 +56,11 @@ export function ManageDialog({ state, theme }: ManageDialogProps) {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Reaching the board pane from inside this dialog can name a workspace whose
-  // boards were never fetched — only the ones expanded in the menu have been.
-  // This is the same lazy load the menu does; the expansion it also records is
-  // inert while the menu is closed, and lands you back on the same workspace
-  // when it next opens.
+  // boards were never fetched — only the ones the sidebar has listed have been.
+  // Fetched without listing it, so the sidebar stays on the workspace it shows.
   useEffect(() => {
-    if (target?.kind === 'boards') expandWorkspace(target.workspaceId);
-  }, [target, expandWorkspace]);
+    if (target?.kind === 'boards') loadWorkspaceBoards(target.workspaceId);
+  }, [target, loadWorkspaceBoards]);
 
   // A dialog reopened should not still be mid-rename from last time.
   useEffect(() => {

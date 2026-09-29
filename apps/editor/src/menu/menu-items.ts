@@ -2,9 +2,7 @@ import {
   CircleQuestionMark,
   Command,
   ExternalLink,
-  Files,
   FolderOpen,
-  Frame,
   ImageDown,
   Keyboard,
   Link2,
@@ -14,7 +12,6 @@ import {
   Search,
   Settings,
   Settings2,
-  Share2,
   Trash2,
   Users,
   type LucideIcon,
@@ -85,41 +82,29 @@ export const MENU_ITEMS: Readonly<Record<MenuItemId, MenuItemMeta>> = {
   signOut: { id: 'signOut', label: 'Sign out', icon: LogOut },
 };
 
-export interface MenuSection {
-  readonly id: string;
-  readonly label: string;
-  readonly icon: LucideIcon;
-  readonly items: readonly MenuItemId[];
-  /** Expanded on first render. Only the first section is, as the design has it. */
-  readonly defaultOpen?: boolean;
-}
-
 /**
- * The sidebar body: a named, collapsible section per group of actions, each
- * expanding to its own items.
- *
- * Board-level actions sit here rather than behind the board badge: a menu you
- * have to discover by clicking a board id isn't a menu. Reset stays last within
- * its section — it is the one entry that discards work.
+ * The open board's card in the sidebar: the actions people reach for most, as
+ * a row of icons under the board's name. Each carries its label as a tooltip
+ * and an accessible name.
  */
-export const SIDEBAR_SECTIONS: readonly MenuSection[] = [
-  {
-    id: 'board',
-    label: 'Board',
-    icon: Files,
-    defaultOpen: true,
-    items: ['open', 'saveTo', 'exportImage', 'renameBoard'],
-  },
-  { id: 'share', label: 'Share', icon: Share2, items: ['liveCollaboration', 'copyLink'] },
-  {
-    id: 'canvas',
-    label: 'Canvas',
-    icon: Frame,
-    items: ['commandPalette', 'findOnCanvas', 'resetCanvas'],
-  },
+export const BOARD_CARD_ITEMS: readonly MenuItemId[] = [
+  'open',
+  'saveTo',
+  'exportImage',
+  'renameBoard',
+  'copyLink',
 ];
 
-/** Rows that stand on their own, under the sections. */
+/**
+ * The rest of what can be done to the board, behind the card's More button.
+ * Reset stays last and on its own — it is the one entry that discards work.
+ */
+export const BOARD_MORE_GROUPS: readonly (readonly MenuItemId[])[] = [
+  ['liveCollaboration', 'findOnCanvas', 'commandPalette'],
+  ['resetCanvas'],
+];
+
+/** Rows that stand on their own, at the foot of the sidebar. */
 export const SIDEBAR_ITEMS: readonly MenuItemId[] = ['help'];
 
 /** Account actions, behind the avatar at the bottom of the sidebar. */
