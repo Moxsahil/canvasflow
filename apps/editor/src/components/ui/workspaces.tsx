@@ -3,6 +3,12 @@ import { CheckIcon, ChevronsUpDownIcon } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  menuButtonRowClasses,
+  menuLabelClasses,
+  menuPopoverClasses,
+  menuSeparatorClasses,
+} from './menu-look';
 
 /**
  * A workspace switcher: a trigger that names the current workspace, and a
@@ -10,9 +16,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
  *
  * Generic over the caller's own workspace shape — everything it needs is
  * reachable through `getWorkspaceId` / `getWorkspaceName`, and both the
- * trigger and each row can be rendered wholesale by the caller. Colours are
- * the editor's chrome tokens rather than the component palette, because this
- * lives in the sidebar next to the dropdown menus.
+ * trigger and each row can be rendered wholesale by the caller. The trigger
+ * wears the sidebar's chrome tokens, being a row of it; the popover wears the
+ * editor's menu look, like the other menus that open from the sidebar.
  */
 
 export interface Workspace {
@@ -200,74 +206,72 @@ function WorkspaceContent({
   }, [searchQuery, onSearch]);
 
   const defaultRenderWorkspace = (workspace: Workspace, isSelected: boolean) => (
-    <div className="flex min-w-0 flex-1 items-center gap-2">
-      <Avatar className="size-6 rounded-md">
-        <AvatarImage src={workspace.logo} alt={getWorkspaceName(workspace)} />
-        <AvatarFallback>{getWorkspaceName(workspace).charAt(0).toUpperCase()}</AvatarFallback>
-      </Avatar>
-      <div className="flex min-w-0 flex-1 flex-col items-start">
-        <span className="truncate text-sm">{getWorkspaceName(workspace)}</span>
-        {workspace.plan && <span className="text-xs opacity-60">{workspace.plan}</span>}
-      </div>
-      {isSelected && <CheckIcon className="ml-auto h-4 w-4" />}
-    </div>
+    <>
+      <span className="min-w-0 truncate">{getWorkspaceName(workspace)}</span>
+      <span className="ml-auto flex shrink-0 items-center gap-2">
+        {workspace.plan && (
+          <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+            {workspace.plan}
+          </span>
+        )}
+        {isSelected && <CheckIcon className="size-4" />}
+      </span>
+    </>
   );
 
   return (
-    <PopoverContent className={cn('p-0', className)} align={props.align || 'start'} {...props}>
-      <div className="border-b border-sidebar-border px-3 py-2">
-        <p className="text-xs font-medium text-sidebar-foreground/70">{title}</p>
-      </div>
+    <PopoverContent
+      className={cn(menuPopoverClasses, 'overflow-hidden', className)}
+      align={props.align || 'start'}
+      {...props}
+    >
+      <p className={menuLabelClasses}>{title}</p>
 
       {searchable && (
-        <div className="border-b border-sidebar-border px-3 py-2">
-          <input
-            type="text"
-            placeholder="Search workspaces..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full border-none bg-transparent text-sm outline-hidden placeholder:text-sidebar-foreground/50"
-          />
-        </div>
+        <input
+          type="text"
+          placeholder="Search workspaces..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full rounded bg-transparent px-2 py-1.5 text-xs outline-none placeholder:text-neutral-500 dark:placeholder:text-neutral-400"
+        />
       )}
 
-      <div className="max-h-[300px] overflow-y-auto">
+      <div className="flex max-h-75 w-full flex-col gap-y-1 overflow-y-auto">
         {filteredWorkspaces.length === 0 ? (
-          <div className="px-3 py-2 text-center text-sm text-sidebar-foreground/70">
+          <p className="px-2 py-1.5 text-xs text-neutral-500 dark:text-neutral-400">
             No workspaces found
-          </div>
+          </p>
         ) : (
-          <div className="p-1">
-            {filteredWorkspaces.map((workspace) => {
-              const isSelected =
-                selectedWorkspace &&
-                getWorkspaceId(selectedWorkspace) === getWorkspaceId(workspace);
+          filteredWorkspaces.map((workspace) => {
+            const isSelected =
+              selectedWorkspace && getWorkspaceId(selectedWorkspace) === getWorkspaceId(workspace);
 
-              return (
-                <button
-                  key={getWorkspaceId(workspace)}
-                  type="button"
-                  onClick={() => onWorkspaceSelect(workspace)}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm',
-                    'outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent',
-                    isSelected && 'bg-sidebar-accent text-sidebar-accent-foreground',
-                  )}
-                >
-                  {renderWorkspace
-                    ? renderWorkspace(workspace, !!isSelected)
-                    : defaultRenderWorkspace(workspace, !!isSelected)}
-                </button>
-              );
-            })}
-          </div>
+            return (
+              <button
+                key={getWorkspaceId(workspace)}
+                type="button"
+                onClick={() => onWorkspaceSelect(workspace)}
+                // A caller's row marks itself `data-expanded` while whatever it
+                // opens beside the list is up, and stays lit for as long.
+                className={cn(
+                  menuButtonRowClasses,
+                  'has-data-expanded:bg-neutral-950/10 dark:has-data-expanded:bg-neutral-50/10',
+                )}
+              >
+                {renderWorkspace
+                  ? renderWorkspace(workspace, !!isSelected)
+                  : defaultRenderWorkspace(workspace, !!isSelected)}
+              </button>
+            );
+          })
         )}
       </div>
 
       {children && (
         <>
-          <div className="border-t border-sidebar-border" />
-          <div className="p-1">{children}</div>
+          <div role="separator" className={menuSeparatorClasses} />
+          {children}
         </>
       )}
     </PopoverContent>

@@ -1,14 +1,14 @@
 import { ChevronRight } from 'lucide-react';
 import { Fragment, useEffect, useState } from 'react';
 import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+  InlineDropdownMenu,
+  InlineDropdownMenuContent,
+  InlineDropdownMenuSeparator,
+  InlineDropdownMenuToggleItem,
+  InlineDropdownMenuTrigger,
+} from '@/components/ui/inline-dropdown-menu';
 import { SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
-import { formatShortcut } from '../help/platform';
+import { ariaKeyShortcut } from '../help/platform';
 import { MENU_ITEMS } from '../menu/menu-items';
 import { PREFERENCE_GROUPS } from './preferences';
 import type { PreferencesState } from './usePreferences';
@@ -45,53 +45,47 @@ export function PreferencesMenu({ preferences, portalContainer }: PreferencesMen
 
   return (
     <SidebarMenuItem>
-      <DropdownMenu open={open} onOpenChange={setOpen}>
+      <InlineDropdownMenu open={open} onOpenChange={setOpen}>
         <SidebarMenuButton asChild tooltip={label} data-testid="menu-preferences">
-          <DropdownMenuTrigger>
+          <InlineDropdownMenuTrigger>
             <Icon aria-hidden="true" />
             <span>{label}</span>
             <ChevronRight className="ml-auto shrink-0" />
-          </DropdownMenuTrigger>
+          </InlineDropdownMenuTrigger>
         </SidebarMenuButton>
 
         {/* Out over the canvas, aligned with the row: the rail is against the
             left edge of the window, so this is the only side with room, and it
             is where the row's own chevron points. */}
-        <DropdownMenuContent
+        <InlineDropdownMenuContent
           side="right"
           align="start"
           sideOffset={8}
           aria-label={label}
           container={portalContainer}
-          className="min-w-52"
         >
           {PREFERENCE_GROUPS.map((group, index) => (
             <Fragment key={group.id}>
-              {index > 0 && <DropdownMenuSeparator />}
+              {index > 0 && <InlineDropdownMenuSeparator />}
               {group.items.map((item) => (
-                <DropdownMenuCheckboxItem
+                // Ticking a box is not choosing a command: the menu stays up so
+                // the next one can be ticked without reopening it, which is the
+                // whole reason these live together in a list.
+                <InlineDropdownMenuToggleItem
                   key={item.id}
                   checked={preferences.values[item.id]}
+                  onToggle={() => preferences.set(item.id, !preferences.values[item.id])}
                   title={item.hint}
+                  aria-keyshortcuts={item.shortcut ? ariaKeyShortcut(item.shortcut) : undefined}
                   data-testid={`preference-${item.id}`}
-                  // Ticking a box is not choosing a command: the menu stays up
-                  // so the next one can be ticked without reopening it, which
-                  // is the whole reason these live together in a list.
-                  onSelect={(event) => event.preventDefault()}
-                  onCheckedChange={(next) => preferences.set(item.id, next)}
                 >
-                  <span>{item.label}</span>
-                  {item.shortcut && (
-                    <span className="ml-auto pl-4 text-xs opacity-50">
-                      {formatShortcut(item.shortcut)}
-                    </span>
-                  )}
-                </DropdownMenuCheckboxItem>
+                  {item.label}
+                </InlineDropdownMenuToggleItem>
               ))}
             </Fragment>
           ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </InlineDropdownMenuContent>
+      </InlineDropdownMenu>
     </SidebarMenuItem>
   );
 }

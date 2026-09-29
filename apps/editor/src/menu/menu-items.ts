@@ -1,10 +1,12 @@
 import {
   CircleQuestionMark,
   Command,
+  ExternalLink,
   Files,
   FolderOpen,
   Frame,
   ImageDown,
+  Keyboard,
   Link2,
   LogOut,
   Pencil,
@@ -122,6 +124,66 @@ export const SIDEBAR_ITEMS: readonly MenuItemId[] = ['help'];
 
 /** Account actions, behind the avatar at the bottom of the sidebar. */
 export const ACCOUNT_MENU_GROUPS: readonly (readonly MenuItemId[])[] = [['settings'], ['signOut']];
+
+export interface LanguageOption {
+  /** BCP 47, as `<html lang>` would take it. */
+  readonly code: string;
+  /**
+   * In its own language: a language menu is read by someone who may not read
+   * the one the app is in right now.
+   */
+  readonly label: string;
+}
+
+/**
+ * The account menu's Language list. The editor is only written in English so
+ * far, so English is the one choice and the rest read "Soon" until the app
+ * is translated.
+ */
+export const LANGUAGES: readonly LanguageOption[] = [
+  { code: 'en', label: 'English' },
+  { code: 'es', label: 'Español' },
+  { code: 'fr', label: 'Français' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'pt-BR', label: 'Português' },
+  { code: 'it', label: 'Italiano' },
+  { code: 'hi', label: 'हिन्दी' },
+  { code: 'ja', label: '日本語' },
+  { code: 'ko', label: '한국어' },
+  { code: 'zh-CN', label: '中文' },
+];
+
+export const CURRENT_LANGUAGE = 'en';
+
+export interface LearnMoreItem {
+  readonly id: string;
+  readonly label: string;
+  readonly icon?: LucideIcon;
+  /**
+   * A page of the web app, opened in a new tab — the icon of every such row
+   * says so. A page row with no path is one not written yet, and reads "Soon".
+   */
+  readonly path?: string;
+  /** Runs one of the menu's own actions instead of opening a page. */
+  readonly action?: MenuItemId;
+}
+
+/**
+ * The account menu's Learn more list, in groups: who makes this, the terms
+ * it is offered on, and how to drive it. Only pages the web app actually
+ * serves carry a path.
+ */
+export const LEARN_MORE_GROUPS: readonly (readonly LearnMoreItem[])[] = [
+  [{ id: 'about', label: 'About CanvasFlow', icon: ExternalLink, path: '/' }],
+  [
+    { id: 'usagePolicy', label: 'Usage policy', icon: ExternalLink },
+    { id: 'privacyPolicy', label: 'Privacy policy', icon: ExternalLink, path: '/privacy' },
+    { id: 'termsOfService', label: 'Terms of service', icon: ExternalLink, path: '/terms' },
+    { id: 'privacyChoices', label: 'Your privacy choices' },
+  ],
+  // The shortcuts dialog is what Help opens: the one action it has.
+  [{ id: 'keyboardShortcuts', label: 'Keyboard shortcuts', icon: Keyboard, action: 'help' }],
+];
 
 /**
  * Handlers for menu items, in three states:
