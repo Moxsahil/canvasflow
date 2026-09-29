@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { resendVerification } from '../profile/verification-status';
 import { useVerificationStatus } from '../profile/useVerificationStatus';
-import { Row, RowText, SecondaryButton, StatusTag } from './settings-ui';
+import { SettingRow, SettingsButton, StatusTag } from './settings-ui';
 
 /**
  * Matches the server's own per-minute rule.
@@ -80,27 +80,23 @@ export function EmailRow({ email, verified, token, onVerified }: EmailRowProps) 
 
   if (confirmed) {
     return (
-      <Row>
-        <RowText
-          title="Email"
-          hint={email ?? 'No address on this account'}
-          badge={<StatusTag tone="positive">Verified</StatusTag>}
-        />
-      </Row>
+      <SettingRow setting="email" title="Email" hint={email ?? 'No address on this account'}>
+        <StatusTag tone="positive">Verified</StatusTag>
+      </SettingRow>
     );
   }
 
   return (
-    <Row>
-      <RowText
-        title="Email"
-        hint={hintFor(email, status, cooldown)}
-        badge={<StatusTag tone="caution">Unverified</StatusTag>}
-      />
-      <SecondaryButton onClick={() => void send()} disabled={!token || cooldown > 0}>
+    <SettingRow
+      setting="email"
+      title="Email"
+      hint={hintFor(email, status, cooldown)}
+      badge={<StatusTag tone="caution">Unverified</StatusTag>}
+    >
+      <SettingsButton onClick={() => void send()} disabled={!token || cooldown > 0}>
         {buttonLabel(status, cooldown)}
-      </SecondaryButton>
-    </Row>
+      </SettingsButton>
+    </SettingRow>
   );
 }
 

@@ -1,60 +1,36 @@
-import {
-  Card,
-  GroupLabel,
-  Meter,
-  Row,
-  RowText,
-  SecondaryButton,
-  SettingsPane,
-  ValueText,
-} from './settings-ui';
+import { Band, Meter, SettingRow, SettingsButton, SettingsPage, ValueText } from './settings-ui';
 
 /** Billing: the plan, what it allows, and how it is paid for. */
-export function BillingPane({ onClose }: { onClose: () => void }) {
+export function BillingPane() {
   return (
-    <SettingsPane
-      title="Billing"
-      subtitle="Plan, seats, usage, and invoice history."
-      onClose={onClose}
-    >
-      <GroupLabel>Plan</GroupLabel>
-      {/* The one card in the dialog that is not a stack of rows: the plan is
-          the whole card, so its title sits larger and its padding is even. */}
-      <Card>
-        <div className="flex w-full items-center gap-[16px] px-[18px] py-[18px]">
-          <div className="flex min-w-0 flex-1 flex-col gap-[5px]">
-            <p className="text-[15px] font-semibold text-[var(--surface-fg)]">Free plan</p>
-            <p className="text-[11px] text-[var(--surface-fg-faint)]">
-              3 of 3 boards used, 1 collaborator per board
-            </p>
-          </div>
-          <SecondaryButton>Upgrade</SecondaryButton>
-        </div>
-      </Card>
+    <SettingsPage lead="Plan, seats, usage, and invoice history.">
+      <Band title="Plan" description="What this workspace is on today.">
+        <SettingRow
+          setting="plan"
+          title={<span className="text-[14px] font-semibold">Free plan</span>}
+          hint="3 of 3 boards used, 1 collaborator per board"
+        >
+          <SettingsButton variant="primary">Upgrade</SettingsButton>
+        </SettingRow>
+      </Band>
 
-      <GroupLabel>Usage</GroupLabel>
-      <Card>
-        <Row>
-          <RowText title="Seats" hint="Collaborators with edit access" />
+      <Band title="Usage" description="Measured against the plan's limits.">
+        <SettingRow setting="seats" title="Seats" hint="Collaborators with edit access">
           <ValueText>1 of 1</ValueText>
-        </Row>
-        <Row>
-          <RowText title="Storage" hint="Board snapshots and exported images" />
+        </SettingRow>
+        <SettingRow setting="storage" title="Storage" hint="Board snapshots and exported images">
           <Meter used={48} total={100} label="48 MB of 100 MB" />
-        </Row>
-      </Card>
+        </SettingRow>
+      </Band>
 
-      <GroupLabel>Payment</GroupLabel>
-      <Card>
-        <Row>
-          <RowText title="Payment method" hint="No card on file" />
-          <SecondaryButton>Add card</SecondaryButton>
-        </Row>
-        <Row>
-          <RowText title="Invoices" hint="Receipts for past billing periods" />
-          <SecondaryButton>View history</SecondaryButton>
-        </Row>
-      </Card>
-    </SettingsPane>
+      <Band title="Payment" description="The card, and receipts for what it paid.">
+        <SettingRow setting="payment-method" title="Payment method" hint="No card on file">
+          <SettingsButton>Add card</SettingsButton>
+        </SettingRow>
+        <SettingRow setting="invoices" title="Invoices" hint="Receipts for past billing periods">
+          <SettingsButton>View history</SettingsButton>
+        </SettingRow>
+      </Band>
+    </SettingsPage>
   );
 }

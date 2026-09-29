@@ -1,36 +1,40 @@
 import { useEffect, useState } from 'react';
+import type { ProfileState } from '../profile';
 import {
-  AddPasswordOverlay,
-  ChangePasswordOverlay,
-  ConnectedAccountsOverlay,
-  SessionsOverlay,
-  SignOutEverywhereOverlay,
-} from './AccountOverlays';
+  AddPasswordDialog,
+  ChangePasswordDialog,
+  ConnectedAccountsDialog,
+  SessionsDialog,
+  SignOutEverywhereDialog,
+} from './AccountDialogs';
 import { fetchAccountSecurity, type AccountSecurity } from './account-security-api';
 import { passwordHint, sessionsHint, signInMethodsHint } from './account-format';
-import {
-  Card,
-  ComingSoonTag,
-  GroupLabel,
-  Row,
-  RowText,
-  SecondaryButton,
-  SettingsPane,
-} from './settings-ui';
+import { EmailRow } from './EmailRow';
+import { Band, ComingSoonTag, SettingRow, SettingsButton, SettingsPage } from './settings-ui';
 
-type Overlay = 'password' | 'accounts' | 'sessions' | 'sign-out';
+type Opened = 'password' | 'accounts' | 'sessions' | 'sign-out';
 
 /**
  * Account & Security: how you get in, and what is currently signed in.
  *
- * Read from the gateway each time the pane opens rather than from anything the
+ * Read from the gateway each time the page opens rather than from anything the
  * editor already holds: a password changed or a device signed in elsewhere a
  * minute ago has to show here.
  */
-export function AccountPane({ token, onClose }: { token: string | null; onClose: () => void }) {
+export function AccountPane({
+  token,
+  user,
+  account,
+}: {
+  token: string | null;
+  /** The address the sign-in token names, until the profile says otherwise. */
+  user: { name: string; email: string | null } | null;
+  /** Whether the address is confirmed, and the way to hear that it now is. */
+  account: ProfileState;
+}) {
   const [security, setSecurity] = useState<AccountSecurity | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [overlay, setOverlay] = useState<Overlay | null>(null);
+  const [opened, setOpened] = useState<Opened | null>(null);
   // Bumped to read the account again after something here changed it.
   const [version, setVersion] = useState(0);
 
@@ -56,27 +60,29 @@ export function AccountPane({ token, onClose }: { token: string | null; onClose:
     security ? text(security) : error ? 'Unavailable' : 'Loading…';
 
   const drawn = (() => {
-    if (!security || !overlay) return null;
-    const close = () => setOverlay(null);
-    switch (overlay) {
+    if (!security || !opened) return null;
+    const close = () => setOpened(null);
+    switch (opened) {
       case 'password':
         return security.hasPassword ? (
-          <ChangePasswordOverlay
+          <ChangePasswordDialog
+            key="password"
             token={token}
             email={security.email}
             onClose={close}
             onChanged={() => setVersion((v) => v + 1)}
           />
         ) : (
-          <AddPasswordOverlay token={token} security={security} onClose={close} />
+          <AddPasswordDialog key="password" token={token} security={security} onClose={close} />
         );
       case 'accounts':
-        return <ConnectedAccountsOverlay security={security} onClose={close} />;
+        return <ConnectedAccountsDialog key="accounts" security={security} onClose={close} />;
       case 'sessions':
-        return <SessionsOverlay security={security} onClose={close} />;
+        return <SessionsDialog key="sessions" security={security} onClose={close} />;
       case 'sign-out':
         return (
-          <SignOutEverywhereOverlay
+          <SignOutEverywhereDialog
+            key="sign-out"
             token={token}
             deviceCount={security.sessions.length}
             onClose={close}
@@ -86,52 +92,58 @@ export function AccountPane({ token, onClose }: { token: string | null; onClose:
   })();
 
   return (
-    <SettingsPane
-      title="Account & Security"
-      subtitle="Sign-in methods, active sessions, and account deletion."
-      onClose={onClose}
-      error={error}
-      overlay={drawn}
-    >
-      <GroupLabel>Sign-in</GroupLabel>
-      <Card>
-        <Row>
-          <RowText title="Password" hint={hint(passwordHint)} />
-          <SecondaryButton onClick={() => setOverlay('password')} disabled={loading}>
+    <SettingsPage lead="Sign-in methods, active sessions, and account deletion." dialog={drawn}>
+      <Band title="Sign-in" description="The ways you get into CanvasFlow." error={error}>
+        <EmailRow
+          email={account.profile?.email ?? user?.email ?? null}
+          verified={account.profile?.emailVerified ?? false}
+          token={token}
+          onVerified={account.reload}
+        />
+        <SettingRow setting="password" title="Password" hint={hint(passwordHint)}>
+          <SettingsButton onClick={() => setOpened('password')} disabled={loading}>
             {security && !security.hasPassword ? 'Add' : 'Change'}
-          </SecondaryButton>
-        </Row>
-        <Row>
-          <RowText title="Connected accounts" hint={hint(signInMethodsHint)} />
-          <SecondaryButton onClick={() => setOverlay('accounts')} disabled={loading}>
+          </SettingsButton>
+        </SettingRow>
+        <SettingRow
+          setting="connected-accounts"
+          title="Connected accounts"
+          hint={hint(signInMethodsHint)}
+        >
+          <SettingsButton onClick={() => setOpened('accounts')} disabled={loading}>
             Manage
-          </SecondaryButton>
-        </Row>
-        <Row>
-          <RowText
-            title="Two-factor authentication"
-            hint="Require a second step at sign-in"
-            badge={<ComingSoonTag />}
-          />
-          <SecondaryButton disabled>Set up</SecondaryButton>
-        </Row>
-      </Card>
+          </SettingsButton>
+        </SettingRow>
+        <SettingRow
+          setting="two-factor"
+          title="Two-factor authentication"
+          hint="Require a second step at sign-in"
+          badge={<ComingSoonTag />}
+        >
+          <SettingsButton disabled>Set up</SettingsButton>
+        </SettingRow>
+      </Band>
 
-      <GroupLabel>Sessions</GroupLabel>
-      <Card>
-        <Row>
-          <RowText title="Active sessions" hint={hint((s) => sessionsHint(s.sessions.length))} />
-          <SecondaryButton onClick={() => setOverlay('sessions')} disabled={loading}>
+      <Band title="Sessions" description="Where you are signed in right now.">
+        <SettingRow
+          setting="sessions"
+          title="Active sessions"
+          hint={hint((s) => sessionsHint(s.sessions.length))}
+        >
+          <SettingsButton onClick={() => setOpened('sessions')} disabled={loading}>
             View all
-          </SecondaryButton>
-        </Row>
-        <Row>
-          <RowText title="Sign out everywhere" hint="Signs out every device, including this one" />
-          <SecondaryButton onClick={() => setOverlay('sign-out')} disabled={loading}>
+          </SettingsButton>
+        </SettingRow>
+        <SettingRow
+          setting="sign-out-everywhere"
+          title="Sign out everywhere"
+          hint="Signs out every device, including this one"
+        >
+          <SettingsButton onClick={() => setOpened('sign-out')} disabled={loading}>
             Sign out all
-          </SecondaryButton>
-        </Row>
-      </Card>
-    </SettingsPane>
+          </SettingsButton>
+        </SettingRow>
+      </Band>
+    </SettingsPage>
   );
 }

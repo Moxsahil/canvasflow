@@ -26,12 +26,12 @@ export type SurfaceTheme = 'light' | 'dark';
 interface SurfacePalette {
   /** Dims the board behind the dialog. */
   backdrop: string;
-  /** The dialog itself, behind the pane. */
+  /** The dialog itself. */
   surface: string;
-  /** The section rail, a shade off the surface. */
-  rail: string;
   /** Hairlines, and every border in the dialog. */
   border: string;
+  /** The quieter rule between the groups of a page, a step under `border`. */
+  line: string;
   /** The cards the rows sit in. */
   card: string;
   /** Text fields — the one surface that reads as recessed. */
@@ -53,6 +53,23 @@ interface SurfacePalette {
   onAccent: string;
   /** The switch's track while off, and the empty part of the storage meter. */
   toggleOff: string;
+  /** A soft fill that needs no border: a segmented control's track, a quiet button. */
+  wash: string;
+  washHover: string;
+  /** The selected segment, lifted off the wash. */
+  thumb: string;
+  thumbShadow: string;
+  /** The accent at a whisper: the ring around a focused field. */
+  accentWash: string;
+  /** Said once something is saved. */
+  ok: string;
+  okWash: string;
+  /** Marks the row a search just led to, then fades. */
+  flash: string;
+  /** The shadow a header casts once the page scrolls under it. */
+  stuck: string;
+  /** A scrollbar's thumb: there when you look for it, and otherwise out of the way. */
+  scrollbar: string;
   /** Only the Danger zone card, which holds the one irreversible action. */
   danger: string;
   dangerBorder: string;
@@ -64,8 +81,8 @@ const PALETTES: Record<SurfaceTheme, SurfacePalette> = {
   dark: {
     backdrop: 'rgba(0,0,0,0.5)',
     surface: '#1a1a19',
-    rail: 'rgba(23,23,23,0.67)',
     border: '#232323',
+    line: '#242423',
     card: '#131313',
     input: '#0b0b0b',
     raised: '#1e1e1e',
@@ -79,6 +96,16 @@ const PALETTES: Record<SurfaceTheme, SurfacePalette> = {
     accentHover: '#2f76e8',
     onAccent: '#ffffff',
     toggleOff: '#2f2f2f',
+    wash: '#222221',
+    washHover: '#2a2a29',
+    thumb: '#333332',
+    thumbShadow: '0 1px 2px rgba(0,0,0,0.5)',
+    accentWash: 'rgba(59,130,246,0.15)',
+    ok: '#4ade80',
+    okWash: 'rgba(74,222,128,0.12)',
+    flash: 'rgba(59,130,246,0.22)',
+    stuck: '0 8px 16px -12px rgba(0,0,0,0.9)',
+    scrollbar: '#484847',
     danger: '#f87171',
     dangerBorder: '#5a2a2a',
     dangerWash: 'rgba(248,113,113,0.12)',
@@ -89,8 +116,8 @@ const PALETTES: Record<SurfaceTheme, SurfacePalette> = {
     // fault rather than as depth.
     backdrop: 'rgba(0,0,0,0.35)',
     surface: '#ffffff',
-    rail: 'rgba(247,247,246,0.85)',
     border: '#e4e4e2',
+    line: '#efefed',
     card: '#fafaf9',
     input: '#ffffff',
     raised: '#f4f4f2',
@@ -104,6 +131,17 @@ const PALETTES: Record<SurfaceTheme, SurfacePalette> = {
     accentHover: '#2f76e8',
     onAccent: '#ffffff',
     toggleOff: '#d9d9d6',
+    wash: '#f4f4f2',
+    washHover: '#ebebe8',
+    thumb: '#ffffff',
+    thumbShadow: '0 1px 2px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04)',
+    accentWash: 'rgba(59,130,246,0.1)',
+    // Darker than the dark theme's green: it has to read as text on white.
+    ok: '#15803d',
+    okWash: 'rgba(22,163,74,0.1)',
+    flash: 'rgba(59,130,246,0.16)',
+    stuck: '0 8px 14px -12px rgba(0,0,0,0.35)',
+    scrollbar: '#cdcdc9',
     danger: '#dc2626',
     dangerBorder: '#f0c8c8',
     dangerWash: 'rgba(220,38,38,0.08)',
@@ -123,8 +161,8 @@ export function surfaceThemeVars(theme: SurfaceTheme): CSSProperties {
   return {
     '--surface-backdrop': palette.backdrop,
     '--surface-panel': palette.surface,
-    '--surface-rail': palette.rail,
     '--surface-border': palette.border,
+    '--surface-line': palette.line,
     '--surface-card': palette.card,
     '--surface-input': palette.input,
     '--surface-raised': palette.raised,
@@ -138,6 +176,16 @@ export function surfaceThemeVars(theme: SurfaceTheme): CSSProperties {
     '--surface-accent-hover': palette.accentHover,
     '--surface-on-accent': palette.onAccent,
     '--surface-toggle-off': palette.toggleOff,
+    '--surface-wash': palette.wash,
+    '--surface-wash-hover': palette.washHover,
+    '--surface-thumb': palette.thumb,
+    '--surface-thumb-shadow': palette.thumbShadow,
+    '--surface-accent-wash': palette.accentWash,
+    '--surface-ok': palette.ok,
+    '--surface-ok-wash': palette.okWash,
+    '--surface-flash': palette.flash,
+    '--surface-stuck': palette.stuck,
+    '--surface-scrollbar': palette.scrollbar,
     '--surface-danger': palette.danger,
     '--surface-danger-border': palette.dangerBorder,
     '--surface-danger-wash': palette.dangerWash,

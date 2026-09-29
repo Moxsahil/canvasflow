@@ -1,57 +1,60 @@
 import { useState } from 'react';
 import {
-  Card,
-  GroupLabel,
-  Row,
-  RowText,
-  SecondaryButton,
-  SettingsPane,
-  TextField,
+  Band,
+  InlineTextField,
+  SettingRow,
+  SettingsButton,
+  SettingsPage,
   ValueText,
 } from './settings-ui';
 
 /** Workspace: what the workspace is called, and who is in it. */
-export function WorkspacePane({ onClose }: { onClose: () => void }) {
+export function WorkspacePane() {
   const [workspaceName, setWorkspaceName] = useState("Sahil Barak's workspace");
 
   return (
-    <SettingsPane
-      title="Workspace"
-      subtitle="Members, roles, and workspace-level settings."
-      onClose={onClose}
-    >
-      <GroupLabel>Workspace</GroupLabel>
-      <Card>
-        <Row>
-          <RowText title="Workspace name" hint="Appears in the board header and share links" />
-          <TextField
-            label="Workspace name"
-            value={workspaceName}
-            onChange={setWorkspaceName}
-            placeholder="Workspace name"
-          />
-        </Row>
-        <Row>
-          <RowText title="Your role" hint="Full access to every board" />
+    <SettingsPage lead="Members, roles, and workspace-level settings.">
+      <Band title="Workspace" description="Its name, and your part in it.">
+        {/* Nothing stores the name from here yet, so the band does not say
+            "Saved" when it is kept. */}
+        <InlineTextField
+          setting="workspace-name"
+          label="Workspace name"
+          hint="Appears in the board header and share links"
+          value={workspaceName}
+          placeholder="Workspace name"
+          maxLength={60}
+          announce={false}
+          onSave={(next) => {
+            if (!next) return false;
+            setWorkspaceName(next);
+            return true;
+          }}
+        />
+        <SettingRow setting="role" title="Your role" hint="Full access to every board">
           <ValueText>Owner</ValueText>
-        </Row>
-      </Card>
+        </SettingRow>
+      </Band>
 
-      <GroupLabel>People</GroupLabel>
-      <Card>
-        <Row>
-          <RowText title="Members" hint="4 members, 1 invite pending" />
-          <SecondaryButton>Manage</SecondaryButton>
-        </Row>
-        <Row>
-          <RowText title="Default board access" hint="Applies to newly created boards" />
+      <Band title="People" description="Who is in, and who new boards let in.">
+        <SettingRow setting="members" title="Members" hint="4 members, 1 invite pending">
+          <SettingsButton>Manage</SettingsButton>
+        </SettingRow>
+        <SettingRow
+          setting="board-access"
+          title="Default board access"
+          hint="Applies to newly created boards"
+        >
           <ValueText>Invite only</ValueText>
-        </Row>
-        <Row>
-          <RowText title="Leave workspace" hint="You'll lose access to all shared boards" />
-          <SecondaryButton>Leave</SecondaryButton>
-        </Row>
-      </Card>
-    </SettingsPane>
+        </SettingRow>
+        <SettingRow
+          setting="leave-workspace"
+          title="Leave workspace"
+          hint="You'll lose access to all shared boards"
+        >
+          <SettingsButton variant="danger">Leave</SettingsButton>
+        </SettingRow>
+      </Band>
+    </SettingsPage>
   );
 }

@@ -84,7 +84,7 @@ async function signedIn(browser: Browser, email: string): Promise<Page> {
 async function openDeleteDialog(page: Page) {
   await page.getByTestId('menu-account').click();
   await page.getByTestId('menu-item-settings').click();
-  await page.getByTestId('settings-nav-privacy').click();
+  await page.getByTestId('settings-tab-privacy').click();
   await page.getByTestId('settings-dialog').getByRole('button', { name: 'Delete account' }).click();
   return deleteDialog(page);
 }

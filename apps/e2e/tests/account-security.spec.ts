@@ -78,7 +78,7 @@ async function signedInDevice(browser: Browser): Promise<Page> {
 async function openAccountPane(page: Page) {
   await page.getByTestId('menu-account').click();
   await page.getByTestId('menu-item-settings').click();
-  await page.getByTestId('settings-nav-account').click();
+  await page.getByTestId('settings-tab-account').click();
   const pane = page.getByTestId('settings-dialog');
   await expect(pane.getByText(/devices? signed in right now/)).toBeVisible({ timeout: 15_000 });
   return pane;
