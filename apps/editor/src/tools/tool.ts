@@ -10,6 +10,7 @@ import {
   FreehandIcon,
   TextIcon,
   ImageIcon,
+  CommentIcon,
   FrameIcon,
   LaserIcon,
   SketchIcon,
@@ -31,6 +32,7 @@ export type Tool =
   | 'image'
   | 'frame'
   | 'laser'
+  | 'comment'
   | 'eraser';
 
 export const TOOL_TO_SHAPE_KIND = {
@@ -51,8 +53,12 @@ export const TOOL_TO_SHAPE_KIND = {
   image: 'image',
   frame: 'frame',
   // The laser is absent on purpose: it paints a trail that fades, not a shape,
-  // so there is no kind for it to map to.
-} as const satisfies Record<Exclude<Tool, 'hand' | 'select' | 'eraser' | 'laser'>, string>;
+  // so there is no kind for it to map to. Nor is there one for the comment
+  // tool, which leaves a pin on the board and no shape in it.
+} as const satisfies Record<
+  Exclude<Tool, 'hand' | 'select' | 'eraser' | 'laser' | 'comment'>,
+  string
+>;
 
 export interface ToolMeta {
   readonly id: Tool;
@@ -91,6 +97,10 @@ export const TOOLS: readonly ToolMeta[] = [
   { id: 'freehand', label: 'Freehand', icon: FreehandIcon, shortcut: 'P', numericKey: '7' },
   { id: 'text', label: 'Text', icon: TextIcon, shortcut: 'T', numericKey: '8' },
   { id: 'image', label: 'Image', icon: ImageIcon, shortcut: 'I', numericKey: '9' },
+  // In the row rather than the overflow, though it draws nothing: a comment is
+  // how most people who open a board they did not draw will ever touch it, and
+  // they will not go looking behind a chevron for the way to.
+  { id: 'comment', label: 'Comment', icon: CommentIcon, shortcut: 'M', numericKey: null },
   // These three live in the overflow, and none takes a digit: you lay out
   // frames before the work, point with the laser while presenting it, and
   // reach for the sketch tool for a run of shapes rather than for one. None is
@@ -128,10 +138,10 @@ export function isPickerTool(tool: Tool): boolean {
  * Tools the lock has nothing to say about, and which therefore never hand you
  * back to select.
  *
- * Three kinds of exemption. Select and hand make no shape at all. The eraser
- * and the laser are already modes — they run until you leave them, so there is
- * nothing for a lock to hold. The image tool opens a picker rather than
- * drawing, and never becomes the active tool at all.
+ * Three kinds of exemption. Select, hand and comment make no shape at all. The
+ * eraser and the laser are already modes — they run until you leave them, so
+ * there is nothing for a lock to hold. The image tool opens a picker rather
+ * than drawing, and never becomes the active tool at all.
  *
  * Freehand and sketch are the interesting ones: both make a shape like any
  * other tool, but both are reached for to draw a run rather than one thing. A
@@ -144,6 +154,7 @@ const NON_LOCKABLE_TOOLS: ReadonlySet<Tool> = new Set<Tool>([
   'hand',
   'eraser',
   'laser',
+  'comment',
   'image',
   'freehand',
   'sketch',

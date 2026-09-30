@@ -34,7 +34,7 @@ const GAP = 12;
 /** The top of the board belongs to the sidebar toggle and the share button. */
 const TOP_CHROME = 64;
 /** The toolbar docked at the bottom, its margin and a gap above it. */
-const DOCK_CLEARANCE = 68;
+export const DOCK_CLEARANCE = 68;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(value, Math.max(min, max)));

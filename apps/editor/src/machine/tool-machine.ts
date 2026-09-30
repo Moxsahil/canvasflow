@@ -998,4 +998,4 @@ export const toolMachine = setup({
 });
 
 // Re-export helpers used by the Editor
-export { resizeShape, resizeSnapHandle };
+export { resizeShape, resizeSnapHandle, MIN_TEXT_FONT_SIZE, MAX_TEXT_FONT_SIZE };

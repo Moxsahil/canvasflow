@@ -2,6 +2,7 @@ import {
   ArrowDownToLine,
   ArrowUpToLine,
   BoxSelect,
+  ChartColumn,
   ClipboardPaste,
   Copy,
   CopyPlus,
@@ -10,6 +11,7 @@ import {
   Eye,
   Focus,
   Maximize,
+  MessageSquare,
   MoveDown,
   MoveUp,
   Redo2,
@@ -68,6 +70,8 @@ export type CommandId =
   | 'toggleTheme'
   | 'toggleFocusMode'
   | 'toggleViewMode'
+  | 'toggleCanvasStats'
+  | 'toggleComments'
   | 'undo'
   | 'redo'
   | 'cut'
@@ -138,6 +142,7 @@ const TOOL_KEYWORDS: Partial<Record<Tool, readonly string[]>> = {
   line: ['segment', 'straight'],
   arrow: ['connector', 'pointer', 'link'],
   freehand: ['pencil', 'draw', 'sketch', 'pen'],
+  comment: ['note', 'feedback', 'pin', 'thread', 'review', 'annotate'],
   sketch: ['recognise', 'recognize', 'shape', 'convert'],
   text: ['type', 'label', 'write', 'font'],
   image: ['picture', 'photo', 'upload', 'insert'],
@@ -248,6 +253,22 @@ export const COMMANDS: readonly CommandMeta[] = [
     category: 'View',
     shortcut: 'alt+r',
     keywords: ['read only', 'look', 'present', 'lock editing', 'viewer'],
+  },
+  {
+    id: 'toggleCanvasStats',
+    label: 'Toggle canvas stats',
+    icon: ChartColumn,
+    category: 'View',
+    shortcut: 'alt+/',
+    keywords: ['properties', 'dimensions', 'coordinates', 'position', 'size', 'width', 'height'],
+  },
+  {
+    id: 'toggleComments',
+    label: 'Show or hide comments',
+    icon: MessageSquare,
+    category: 'View',
+    shortcut: 'shift+c',
+    keywords: ['pins', 'threads', 'feedback', 'notes', 'review'],
   },
 
   {

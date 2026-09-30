@@ -1,0 +1,18 @@
+/* While a field's label is being dragged the pointer leaves the label almost
+   at once, and would otherwise turn back into whatever it is over — and drag
+   a text selection across the strip as it went. */
+.cf-scrubbing,
+.cf-scrubbing * {
+  cursor: ew-resize !important;
+  user-select: none;
+}
+
+/* On a board too narrow for the whole strip it scrolls sideways, and a
+   scrollbar under one line of numbers would be taller than the line. */
+.cf-stats-strip {
+  scrollbar-width: none;
+}
+
+.cf-stats-strip::-webkit-scrollbar {
+  display: none;
+}

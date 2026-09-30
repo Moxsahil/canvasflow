@@ -43,8 +43,9 @@ export function isCommandPaletteShortcut(event: ShortcutEvent): boolean {
   return event.shiftKey && (event.key === 'p' || event.key === 'P' || event.key === '?');
 }
 
-export function shouldIgnoreShortcut(event: KeyboardEvent): boolean {
-  const target = event.target as HTMLElement | null;
+/** Whether an event landed somewhere text is typed, and so belongs to it. */
+export function isTypingTarget(eventTarget: EventTarget | null): boolean {
+  const target = eventTarget as HTMLElement | null;
   if (!target) return false;
 
   const tag = target.tagName;
@@ -56,7 +57,11 @@ export function shouldIgnoreShortcut(event: KeyboardEvent): boolean {
     if (type !== 'radio' && type !== 'checkbox' && type !== 'range') return true;
   }
   if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
-  if (target.isContentEditable) return true;
+  return !!target.isContentEditable;
+}
+
+export function shouldIgnoreShortcut(event: KeyboardEvent): boolean {
+  if (isTypingTarget(event.target)) return true;
 
   if (event.ctrlKey || event.metaKey || event.altKey) return true;
   return false;

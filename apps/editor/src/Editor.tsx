@@ -63,10 +63,20 @@ import {
   type SnapTargets,
 } from './snapping';
 import {
+  PASTE_HERE_NOTICE,
+  PASTE_NOTICE,
+  clipboardContentFrom,
+  isPasteNotice,
+  pastedTextWidth,
+  readClipboardContent,
   readImagesFromClipboard,
-  readShapesFromClipboard,
+  shapesCentredOn,
+  wrappedToWidth,
   writeShapesToClipboard,
+  type CarriedPaste,
 } from './clipboard';
+import { screenToWorld } from './pointer/coords';
+import { useLastPointerPosition } from './pointer/useLastPointerPosition';
 import { CanvasStack } from './canvas/CanvasStack';
 import { pointerCursorValue } from './canvas/pointer-cursor';
 import { useCameraPersistence } from './canvas/useCameraPersistence';
@@ -93,8 +103,20 @@ import {
 } from './context-menu';
 import { hitTestHandles } from './selection/handles';
 import { useBoardDocument, useYjsShapes } from './document/useYjsDocument';
-import { useBoardImages, pickImageFiles } from './images';
+import { useBoardImages, imageFilesFromDataTransfer, pickImageFiles } from './images';
 import { LaserLayer, useLaserTrails } from './laser';
+import {
+  CommentsLayer,
+  CommentsMenu,
+  anchorPoint,
+  commentTargetAt,
+  isPinInView,
+  mentionablePeople,
+  useCommentPlacement,
+  useComments,
+  useUnreadThreads,
+  type CommentThread,
+} from './comments';
 import { FrameNameEditor } from './frames/FrameNameEditor';
 import {
   assignmentsAfterMove,
@@ -111,6 +133,7 @@ import { SignOutDialog } from './auth/SignOutDialog';
 import { signOutTo } from './auth/sign-out';
 import { env } from './lib/env';
 import { PropertiesPanel, StyleHalo, itemStyleFromShape } from './properties';
+import { StatsPanel, membershipAfterStatsEdit, type StatsPatch, type StatsProperty } from './stats';
 import {
   TOOL_TO_SHAPE_KIND,
   VIEW_MODE_TOOL,
@@ -160,12 +183,15 @@ import {
 } from './settings';
 import { warmAccountSecurity } from './settings/account-security-api';
 import { usePreferences } from './preferences';
-import { useAvatar, useProfile } from './profile';
+import { useAvatar, useAvatarUrls, useProfile } from './profile';
 import { VerificationNotice } from './profile/VerificationNotice';
 import { TermsNotice } from './profile/TermsNotice';
 
 import { ConfirmDialog } from './ui';
 import { NoticeDialog, type Notice } from './ui/NoticeDialog';
+
+/** How far left of centre a thread's pin is put when the board has to be brought to it: about half the thread beside it. */
+const THREAD_LEAD = 160;
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -406,6 +432,16 @@ export function Editor({ boardId }: EditorProps) {
   /** The space left of the sidebar: what the canvas fills and measures. */
   const containerRef = useRef<HTMLDivElement>(null);
   const { width, height } = useCanvasResize(containerRef);
+  const lastPointerPosition = useLastPointerPosition();
+  /**
+   * Where the next paste keystroke is to land, left by a menu's paste that
+   * found nothing it was allowed to read — see `pasteFromMenu`. No point means
+   * wherever a paste would go anyway.
+   *
+   * Given up as soon as "here" stops meaning what it did: a press on the
+   * board, or the view moving under it.
+   */
+  const pasteTargetRef = useRef<{ at: Point | undefined } | null>(null);
 
   /**
    * Held in state rather than read straight off the ref: a ref is still null on
@@ -634,6 +670,16 @@ export function Editor({ boardId }: EditorProps) {
     doc.setReadOnly(readOnly);
   }, [doc, readOnly]);
   const shapes = useYjsShapes(doc);
+  const comments = useComments(doc);
+  const commenting = useCommentPlacement();
+  // Taken apart for the pointer handlers, which depend on these four and on
+  // nothing else about it.
+  const {
+    begin: beginComment,
+    follow: followComment,
+    settle: settleComment,
+    isPlacing: isPlacingComment,
+  } = commenting;
   const { canUndo, canRedo } = useUndoState(doc);
 
   const {
@@ -809,6 +855,12 @@ export function Editor({ boardId }: EditorProps) {
     prevTextEditingAtRef.current = textEditingAt;
   }
   const camera = useSelector(actorRef, (s) => s.context.camera);
+  // A paste left waiting for its keystroke was aimed at a spot in this view.
+  // Once the view has moved, that spot may be anywhere — off the screen as
+  // likely as not.
+  useEffect(() => {
+    pasteTargetRef.current = null;
+  }, [camera]);
   const restoreCamera = useCallback(
     (next: Camera) => actorRef.send({ type: 'SET_CAMERA', camera: next }),
     [actorRef],
@@ -1092,6 +1144,91 @@ export function Editor({ boardId }: EditorProps) {
     return index;
   }, [shapes]);
 
+  // --- comments -----------------------------------------------------------
+  // Who a comment written here is signed by: the token's copy of the account,
+  // as the rest of this window shows it.
+  const commentAuthor = useMemo(() => (user ? { id: user.id, name: user.name } : null), [user]);
+
+  // Who a comment here can name with an @: whoever is on the board now, and
+  // whoever has written or been named on it before. The full list of a board's
+  // members is its owner's to see, so it is not what this is drawn from.
+  const mentionable = useMemo(
+    () =>
+      mentionablePeople(
+        roster.map((entry) => ({ id: entry.userId, name: entry.name })),
+        comments.threads,
+        userId,
+      ),
+    [roster, comments.threads, userId],
+  );
+
+  // Photos for everyone who has written on this board, for whoever is about
+  // to, and for anyone who can be named. Asked for by id, so an author who is
+  // no longer connected — or no longer on the board — still has their face
+  // beside what they said.
+  const commentPeople = useMemo(() => {
+    const ids = new Set<string>(mentionable.map((person) => person.id));
+    for (const thread of comments.threads) {
+      for (const comment of thread.comments) ids.add(comment.authorId);
+    }
+    if (userId && !user?.isGuest) ids.add(userId);
+    return [...ids].map((id) => ({ id }));
+  }, [comments.threads, mentionable, userId, user?.isGuest]);
+  const commentPhotos = useAvatarUrls({ boardId, token: authToken, subjects: commentPeople });
+  const unreadThreads = useUnreadThreads(
+    boardId,
+    comments.threads,
+    userId,
+    commenting.openThreadId,
+  );
+
+  const commentTargetHere = useCallback(
+    (point: Point) => commentTargetAt(point, shapes, spatialIndex, camera.zoom),
+    [shapes, spatialIndex, camera.zoom],
+  );
+
+  // A comment posted is what the tool was picked up for, so it is put down.
+  const finishCommenting = useCallback(() => {
+    if (actorRef.getSnapshot().context.activeTool === 'comment') {
+      actorRef.send({ type: 'SELECT_TOOL', tool: 'select' });
+    }
+  }, [actorRef]);
+
+  // Picked from the list: open the thread at its pin. The board stays where it
+  // is when the pin is already in view — moving a board someone is looking at,
+  // to show them something they can see, reads as the board jumping. It is
+  // only brought to a pin that is out of view, and then the pin is put left of
+  // centre, so that the thread opening to its right sits in the middle of the
+  // view rather than running off the edge of it.
+  const { openThread: openCommentThread } = commenting;
+  const showCommentThread = useCallback(
+    (thread: CommentThread) => {
+      if (!preferences.values.showComments) preferences.set('showComments', true);
+      const point = anchorPoint(thread.anchor, new Map(shapes.map((shape) => [shape.id, shape])));
+      const view = actorRef.getSnapshot().context.camera;
+      const pin = { x: (point.x - view.x) * view.zoom, y: (point.y - view.y) * view.zoom };
+      if (!isPinInView(pin, { width, height })) {
+        actorRef.send({
+          type: 'SET_CAMERA',
+          camera: {
+            x: point.x - (width / 2 - THREAD_LEAD) / view.zoom,
+            y: point.y - height / 2 / view.zoom,
+            zoom: view.zoom,
+          },
+        });
+      }
+      openCommentThread(thread.id);
+    },
+    [actorRef, shapes, width, height, preferences, openCommentThread],
+  );
+
+  // The composer belongs to the tool that opened it: switch away, and it goes
+  // too. What was typed is kept for the next one.
+  const { closePending } = commenting;
+  useEffect(() => {
+    if (activeTool !== 'comment') closePending();
+  }, [activeTool, closePending]);
+
   // --- properties panel ---------------------------------------------------
   // The panel edits the selection when there is one, and otherwise the style
   // the next drawn shape will take. That second mode is why it shows for an
@@ -1333,15 +1470,20 @@ export function Editor({ boardId }: EditorProps) {
       // A frame goes with what is standing in it. One undo brings the whole
       // thing back, which is the only reading that matches deleting what
       // looks on screen like a single object.
-      const going = withFrameMembers(emitted.ids, doc.getShapes());
+      const current = doc.getShapes();
+      const going = withFrameMembers(emitted.ids, current);
       releaseArrowsFrom(doc, going);
+      // A comment pinned to one of these stays on the board, where its shape
+      // last was — and goes back onto the shape if the delete is undone.
+      const shapesById = new Map(current.map((shape) => [shape.id, shape]));
+      comments.store.holdPins(new Set(going), (thread) => anchorPoint(thread.anchor, shapesById));
       doc.deleteShapes(going);
     });
     return () => {
       sub1.unsubscribe();
       sub2.unsubscribe();
     };
-  }, [actorRef, doc]);
+  }, [actorRef, doc, comments.store]);
 
   // --- initial view --------------------------------------------------------
   /**
@@ -1454,6 +1596,7 @@ export function Editor({ boardId }: EditorProps) {
     (point: Point, screenPoint: Point, button: number, shiftKey: boolean, snapOverride = false) => {
       notifyActivity();
       lastCanvasPointRef.current = screenPoint;
+      pasteTargetRef.current = null;
 
       // The laser never reaches the machine. It selects nothing, draws nothing,
       // and marks nothing for erasure — letting POINTER_DOWN through would only
@@ -1461,6 +1604,13 @@ export function Editor({ boardId }: EditorProps) {
       if (activeTool === 'laser') {
         laser.begin(point.x, point.y);
         setLasering(true);
+        return;
+      }
+      // Nor does a comment being placed: the press opens its composer, which
+      // follows the pointer until the button comes up. Any other button is
+      // left to pan the board as it would with any tool.
+      if (activeTool === 'comment' && button === 0) {
+        beginComment(point);
         return;
       }
       // The canvas's pointerdown suppresses the browser's default focus
@@ -1603,6 +1753,7 @@ export function Editor({ boardId }: EditorProps) {
       activeTool,
       laser,
       setLasering,
+      beginComment,
       isSpacePressed,
       selectedIds,
       shapes,
@@ -1624,6 +1775,7 @@ export function Editor({ boardId }: EditorProps) {
   const handleContextPress = useCallback(
     (point: Point) => {
       notifyActivity();
+      pasteTargetRef.current = null;
       // Commit an open text editor first, as a left press does, so the commit
       // cannot land after the selection below and take it over.
       if (actorRef.getSnapshot().matches('editingText')) {
@@ -1694,6 +1846,10 @@ export function Editor({ boardId }: EditorProps) {
         // Only while the button is down. A laser tracks the cursor the way a
         // real one does — it is off until you press it.
         laser.extend(point.x, point.y);
+        return;
+      }
+      if (activeTool === 'comment' && isPlacingComment()) {
+        followComment(point);
         return;
       }
 
@@ -1891,6 +2047,8 @@ export function Editor({ boardId }: EditorProps) {
       actorRef,
       activeTool,
       laser,
+      isPlacingComment,
+      followComment,
       doc,
       shapes,
       spatialIndex,
@@ -1988,6 +2146,12 @@ export function Editor({ boardId }: EditorProps) {
         setLasering(false);
         return;
       }
+      if (activeTool === 'comment' && isPlacingComment()) {
+        // Where the button comes up is where the pin goes: on the shape under
+        // it, or on the board.
+        settleComment(point, commentTargetAt(point, shapes, spatialIndex, camera.zoom));
+        return;
+      }
 
       const snap = actorRef.getSnapshot();
       const draggedVertex = snap.matches('draggingVertex') && vertexReleasedRef.current;
@@ -2067,7 +2231,19 @@ export function Editor({ boardId }: EditorProps) {
         doc.breakUndoGroup();
       }
     },
-    [actorRef, activeTool, laser, setLasering, doc, showSnapGuides],
+    [
+      actorRef,
+      activeTool,
+      laser,
+      setLasering,
+      isPlacingComment,
+      settleComment,
+      shapes,
+      spatialIndex,
+      camera.zoom,
+      doc,
+      showSnapGuides,
+    ],
   );
 
   // Double-pressing a text shape (with any tool active) reopens it for editing;
@@ -2165,11 +2341,23 @@ export function Editor({ boardId }: EditorProps) {
         handlePickImage();
         return;
       }
+      // Picking up the comment tool with the pins hidden shows them: a pin
+      // placed and not drawn would look like a comment that was lost.
+      if (tool === 'comment' && !preferences.values.showComments) {
+        preferences.set('showComments', true);
+      }
       actorRef.send({ type: 'SELECT_TOOL', tool });
     },
-    [actorRef, handlePickImage, readOnly, viewMode],
+    [actorRef, handlePickImage, readOnly, viewMode, preferences],
   );
-  const handleEscape = useCallback(() => actorRef.send({ type: 'ESCAPE' }), [actorRef]);
+  const handleEscape = useCallback(() => {
+    actorRef.send({ type: 'ESCAPE' });
+    // The comment tool is put down by Escape, where the drawing tools stay in
+    // hand: there is no half-drawn shape for the key to be cancelling instead.
+    if (actorRef.getSnapshot().context.activeTool === 'comment') {
+      actorRef.send({ type: 'SELECT_TOOL', tool: 'select' });
+    }
+  }, [actorRef]);
   const handleSpaceDown = useCallback(() => actorRef.send({ type: 'SPACE_DOWN' }), [actorRef]);
   const handleSpaceUp = useCallback(() => actorRef.send({ type: 'SPACE_UP' }), [actorRef]);
   const handleZoomIn = useCallback(
@@ -2490,42 +2678,172 @@ export function Editor({ boardId }: EditorProps) {
     }
   }, [shapes, selectedIds, actorRef]);
 
-  const handlePaste = useCallback(async () => {
-    // Images first: a screenshot on the clipboard carries no text for the shape
-    // reader to find, so checking text first would silently drop the paste.
-    if (!readOnly) {
-      const pastedImages = await readImagesFromClipboard();
-      if (pastedImages.length > 0) {
-        handleInsertImages(pastedImages);
-        return;
+  /**
+   * Writing off the clipboard as a text shape, in the style new text is typed
+   * in and wrapped to what fits the view.
+   *
+   * Left at the origin: it was copied from no place on the board, so where it
+   * goes is for whoever pastes it to say.
+   */
+  const textShapeFromClipboard = useCallback(
+    (text: string): Shape => {
+      const { itemStyle, camera, dynamicSize } = actorRef.getSnapshot().context;
+      const scale = newShapeScale(camera, dynamicSize);
+      const blank = createText({
+        id: genId(),
+        x: 0,
+        y: 0,
+        text: '',
+        strokeColor: itemStyle.strokeColor,
+        opacity: itemStyle.opacity,
+        fontFamily: itemStyle.fontFamily,
+        fontSize: itemStyle.fontSize,
+        textAlign: itemStyle.textAlign,
+        scale,
+      });
+      // Measured as the shape itself will be, font and scale included, so a
+      // line that is said to fit is one that is drawn fitting.
+      const widthOf = (line: string) => shapeBounds({ ...blank, text: line }).width;
+      const widest = pastedTextWidth(width, camera.zoom, scale);
+
+      return { ...blank, text: wrappedToWidth(text, widest, widthOf) };
+    },
+    [actorRef, width],
+  );
+
+  /**
+   * Put the clipboard on the board: beside what it was copied from, or — given
+   * a point — with the middle of what arrives on that point.
+   *
+   * `carried` is what a paste keystroke brought with it, used in place of
+   * asking for the clipboard. Resolves to whether there was anything to paste.
+   */
+  const pasteClipboard = useCallback(
+    async (at?: Point, carried?: CarriedPaste): Promise<boolean> => {
+      // Images first: a screenshot on the clipboard carries no text for the shape
+      // reader to find, so checking text first would silently drop the paste.
+      if (!readOnly) {
+        const pastedImages = carried ? carried.images : await readImagesFromClipboard();
+        if (pastedImages.length > 0) {
+          handleInsertImages(pastedImages, at);
+          return true;
+        }
       }
+
+      const content = carried
+        ? clipboardContentFrom(carried.text, genId)
+        : await readClipboardContent(genId);
+      if (!content) return false;
+
+      let placedShapes: Shape[];
+      if (content.kind === 'text') {
+        // Text was copied from nowhere on the board, so there is nothing to
+        // land beside: without a point it goes in the middle of the view.
+        placedShapes = shapesCentredOn(
+          [textShapeFromClipboard(content.text)],
+          at ?? viewportCentre(),
+          doc.getShapes(),
+        );
+      } else if (at) {
+        placedShapes = shapesCentredOn(content.shapes, at, doc.getShapes());
+      } else {
+        // With nowhere to aim for, offset each pasted shape 20px in both axes
+        // so they're visually distinguishable from the originals
+        const OFFSET = 20;
+        placedShapes = content.shapes.map((s) => ({
+          ...s,
+          x: s.x + OFFSET,
+          y: s.y + OFFSET,
+        }));
+      }
+
+      // Add each shape via the document — each addShape assigns a fresh
+      // fractional zIndex above current max, so pasted shapes land on top
+      // in their original relative order
+      for (const shape of placedShapes) {
+        doc.addShape(shape);
+      }
+
+      // Auto-select the pasted shapes so user can immediately drag them
+      actorRef.send({
+        type: 'SELECT_ALL',
+        shapeIds: placedShapes.map((s) => s.id),
+      });
+      return true;
+    },
+    [doc, actorRef, readOnly, handleInsertImages, textShapeFromClipboard, viewportCentre],
+  );
+
+  /**
+   * Paste from a menu or the palette, which can only ask for the clipboard —
+   * and are refused the one thing people most often copy outside a browser: a
+   * file, from a folder. The browser hands that over on the paste keystroke
+   * and nowhere else.
+   *
+   * So a paste that comes back with nothing says so, and waits: the keystroke
+   * that follows lands where this one was meant to.
+   */
+  const pasteFromMenu = useCallback(
+    async (at?: Point) => {
+      pasteTargetRef.current = null;
+      if (await pasteClipboard(at)) return;
+      if (readOnly) return;
+
+      pasteTargetRef.current = { at };
+      setNotice(at ? PASTE_HERE_NOTICE : PASTE_NOTICE);
+    },
+    [pasteClipboard, readOnly],
+  );
+
+  const handlePaste = useCallback(() => pasteFromMenu(), [pasteFromMenu]);
+
+  /**
+   * Cmd/Ctrl+V. Read off the event there and then, since the browser empties
+   * it as soon as the event is over, and landed where a menu's paste was left
+   * waiting, if one was.
+   */
+  const handleKeyboardPaste = useCallback(
+    (pasted: DataTransfer | null) => {
+      const carried: CarriedPaste = {
+        images: imageFilesFromDataTransfer(pasted),
+        text: pasted?.getData('text/plain') ?? '',
+      };
+      const target = pasteTargetRef.current;
+      pasteTargetRef.current = null;
+      setNotice((shown) => (isPasteNotice(shown) ? null : shown));
+
+      void pasteClipboard(target?.at, carried);
+    },
+    [pasteClipboard],
+  );
+
+  /**
+   * Paste where the pointer is as the row is picked, rather than beside the
+   * original.
+   *
+   * The point is taken before the clipboard is asked for anything: the browser
+   * may stop to ask permission first, and the pointer goes on moving while it
+   * does. A pointer that is not over the board — the row was picked from the
+   * keyboard with the mouse resting on the sidebar — has no "here" to offer,
+   * so the paste lands in the middle of the view instead of out of sight.
+   */
+  const handlePasteHere = useCallback(() => {
+    const pointer = lastPointerPosition();
+    const container = containerRef.current;
+    let at = viewportCentre();
+
+    if (pointer && container) {
+      const rect = container.getBoundingClientRect();
+      const overBoard =
+        pointer.x >= rect.left &&
+        pointer.x <= rect.right &&
+        pointer.y >= rect.top &&
+        pointer.y <= rect.bottom;
+      if (overBoard) at = screenToWorld(pointer.x, pointer.y, container, camera);
     }
 
-    const pastedShapes = await readShapesFromClipboard(genId);
-    if (pastedShapes.length === 0) return;
-
-    // Offset each pasted shape 20px in both axes so they're
-    // visually distinguishable from the originals
-    const OFFSET = 20;
-    const offsetShapes = pastedShapes.map((s) => ({
-      ...s,
-      x: s.x + OFFSET,
-      y: s.y + OFFSET,
-    }));
-
-    // Add each shape via the document — each addShape assigns a fresh
-    // fractional zIndex above current max, so pasted shapes land on top
-    // in their original relative order
-    for (const shape of offsetShapes) {
-      doc.addShape(shape);
-    }
-
-    // Auto-select the pasted shapes so user can immediately drag them
-    actorRef.send({
-      type: 'SELECT_ALL',
-      shapeIds: offsetShapes.map((s) => s.id),
-    });
-  }, [doc, actorRef, readOnly, handleInsertImages]);
+    return pasteFromMenu(at);
+  }, [lastPointerPosition, pasteFromMenu, camera, viewportCentre]);
 
   const toggleGrid = useCallback(() => {
     preferences.set('showGrid', !preferences.values.showGrid);
@@ -2562,6 +2880,51 @@ export function Editor({ boardId }: EditorProps) {
   const toggleViewMode = useCallback(() => {
     preferences.set('viewMode', !preferences.values.viewMode);
   }, [preferences]);
+
+  const toggleCanvasStats = useCallback(() => {
+    preferences.set('canvasStats', !preferences.values.canvasStats);
+  }, [preferences]);
+
+  const toggleComments = useCallback(() => {
+    preferences.set('showComments', !preferences.values.showComments);
+  }, [preferences]);
+
+  /**
+   * Geometry from the stats panel, written as it arrives: once for a number
+   * typed in, once for every step of a drag.
+   *
+   * A move or a resize from here is the same as one made with the pointer, so
+   * the arrows attached to what changed are redrawn to follow it.
+   */
+  const handleStatsEdit = useCallback(
+    (patches: readonly StatsPatch[]) => {
+      for (const { id, patch } of patches) {
+        doc.updateShape(id, patch as Partial<Shape>);
+      }
+      settleBoundArrowsInDocument(doc, new Set(patches.map((patch) => patch.id)));
+    },
+    [doc],
+  );
+
+  /**
+   * The end of an edit from the stats panel. Frame membership settles here,
+   * as it does on the release of a drag, and the edit becomes one undo step.
+   */
+  const handleStatsEditEnd = useCallback(
+    (property: StatsProperty, ids: readonly string[]) => {
+      const changes = membershipAfterStatsEdit(property, ids, doc.getShapes());
+      for (const { id, frameId } of changes) {
+        doc.updateShape(id, { frameId });
+      }
+      if (changes.length > 0) {
+        for (const id of membersHiddenByTheirFrame(doc.getShapes())) {
+          doc.bringToFront(id);
+        }
+      }
+      doc.breakUndoGroup();
+    },
+    [doc],
+  );
 
   // View mode outranks focus mode when both are on: it is the one that changes
   // what the canvas does, so it is the one to be shown and let go of first.
@@ -2627,7 +2990,7 @@ export function Editor({ boardId }: EditorProps) {
     onZoomToSelection: handleZoomToSelection,
     onCopy: handleCopy,
     onCut: handleCut,
-    onPaste: handlePaste,
+    onPaste: handleKeyboardPaste,
     onShowHelp: handleShowHelp,
     onToggleTheme: toggleTheme,
     onToggleGrid: toggleGrid,
@@ -2635,6 +2998,8 @@ export function Editor({ boardId }: EditorProps) {
     onToggleToolLock: toggleToolLock,
     onToggleFocusMode: toggleFocusMode,
     onToggleViewMode: toggleViewMode,
+    onToggleCanvasStats: toggleCanvasStats,
+    onToggleComments: toggleComments,
     onOpenFile: openBoardFile,
     onSaveFile: saveBoardFileToDisk,
     onExportImage: showExport,
@@ -2660,6 +3025,8 @@ export function Editor({ boardId }: EditorProps) {
       pendingReplace !== null ||
       notice !== null ||
       accessRevoked,
+    // The notice that asks for the paste keystroke has to be able to get it.
+    pasteWhileDisabled: isPasteNotice(notice),
   });
 
   /**
@@ -2678,6 +3045,8 @@ export function Editor({ boardId }: EditorProps) {
       toggleTheme,
       toggleFocusMode,
       toggleViewMode,
+      toggleCanvasStats,
+      toggleComments,
       undo: handleUndo,
       redo: handleRedo,
       cut: handleCut,
@@ -2848,6 +3217,7 @@ export function Editor({ boardId }: EditorProps) {
                 cut: selectedIds.length > 0 ? handleCut : null,
                 copy: selectedIds.length > 0 ? handleCopy : null,
                 paste: handlePaste,
+                pasteHere: handlePasteHere,
                 duplicate: selectedIds.length > 0 ? handleDuplicate : null,
                 exportImage: showExport,
                 // The document reorders one shape at a time, so these wait
@@ -2864,6 +3234,8 @@ export function Editor({ boardId }: EditorProps) {
                 arrowBinding: toggleArrowBinding,
                 focusMode: toggleFocusMode,
                 viewMode: toggleViewMode,
+                canvasStats: toggleCanvasStats,
+                showComments: toggleComments,
                 commandPalette: togglePalette,
                 stylePanelInspector: chooseInspector,
                 stylePanelHalo: chooseHalo,
@@ -2875,6 +3247,8 @@ export function Editor({ boardId }: EditorProps) {
                 arrowBinding: preferences.values.arrowBinding,
                 focusMode: preferences.values.focusMode,
                 viewMode,
+                canvasStats: preferences.values.canvasStats,
+                showComments: preferences.values.showComments,
                 stylePanelInspector: !preferences.values.floatingStyleBar,
                 stylePanelHalo: preferences.values.floatingStyleBar,
               }}
@@ -2917,6 +3291,33 @@ export function Editor({ boardId }: EditorProps) {
               </div>
             </CanvasContextMenu>
 
+            {/* Comments: a pin for every thread, and what opens from one. Drawn
+                before the laser and the cursors so both pass over the pins.
+                Still up with the chrome away — a comment is part of what is
+                on the board, not part of the frame around it. */}
+            {preferences.values.showComments && (
+              <CommentsLayer
+                threads={comments.threads}
+                unread={unreadThreads}
+                store={comments.store}
+                shapes={shapes}
+                camera={camera}
+                board={screen}
+                user={commentAuthor}
+                canComment={!readOnly && commentAuthor !== null}
+                photos={commentPhotos}
+                theme={presenceTheme}
+                people={mentionable}
+                container={editorRoot}
+                pending={commenting.pending}
+                openThreadId={commenting.openThreadId}
+                onOpenThread={commenting.openThread}
+                onClosePending={commenting.closePending}
+                onPosted={finishCommenting}
+                targetAt={commentTargetHere}
+              />
+            )}
+
             {/* Laser trails, ours and everyone's. Outside CanvasStack for the
           same reason the cursors are, and painted by its own frame loop so a
           fading trail never re-renders the scene. */}
@@ -2951,6 +3352,16 @@ export function Editor({ boardId }: EditorProps) {
           time. ⌘F still has to land somewhere, so the search comes up on its
           own for as long as it is in use and leaves on Escape like the rest. */}
             <div className="cf-top-right-dock">
+              {!chromeHidden && (
+                <CommentsMenu
+                  threads={comments.threads}
+                  photos={commentPhotos}
+                  theme={presenceTheme}
+                  openThreadId={commenting.openThreadId}
+                  onSelect={showCommentThread}
+                  container={editorRoot}
+                />
+              )}
               {(!chromeHidden || search.open) && <FindBar search={search} />}
               {chromeHidden ? (
                 <ExitModeButton mode={viewMode ? 'view' : 'focus'} onExit={exitMode} />
@@ -3027,6 +3438,22 @@ export function Editor({ boardId }: EditorProps) {
               ) : (
                 <PropertiesPanel {...styleSurfaceProps} />
               ))}
+
+            {/* The numbers behind the board, as a strip in the bottom-left
+                corner — the one stretch of that edge the dock and the zoom
+                panel leave free. Away with the rest of the chrome in focus
+                and view mode. A viewer may read them. */}
+            {preferences.values.canvasStats && !chromeHidden && (
+              <StatsPanel
+                shapes={shapes}
+                selectedShapes={selectedShapes}
+                readOnly={readOnly}
+                boardWidth={width}
+                onEdit={handleStatsEdit}
+                onEditEnd={handleStatsEditEnd}
+                onClose={toggleCanvasStats}
+              />
+            )}
 
             {frameNameEditor && (
               <FrameNameEditor

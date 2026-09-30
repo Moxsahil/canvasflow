@@ -38,6 +38,15 @@ describe('the two menus', () => {
     }
   });
 
+  it('offers Paste here straight after Paste, on a shape and on empty board alike', () => {
+    for (const menu of [SELECTION_MENU, CANVAS_MENU]) {
+      const ids = idsIn(menu);
+      expect(ids[ids.indexOf('paste') + 1]).toBe('pasteHere');
+    }
+    // It changes the board, so a viewer is not shown it.
+    expect(idsIn(contextMenuFor('canvas', { readOnly: true }))).not.toContain('pasteHere');
+  });
+
   it('ends the selection menu with Delete, on its own', () => {
     expect(SELECTION_MENU.at(-1)).toEqual(['deleteSelection']);
     expect(CONTEXT_MENU_ITEMS.deleteSelection.destructive).toBe(true);
@@ -57,6 +66,7 @@ describe('row metadata', () => {
     expect(CONTEXT_MENU_ITEMS.showGrid).toMatchObject({ toggle: true, shortcut: "mod+'" });
     expect(CONTEXT_MENU_ITEMS.focusMode).toMatchObject({ toggle: true, shortcut: 'alt+z' });
     expect(CONTEXT_MENU_ITEMS.viewMode).toMatchObject({ toggle: true, shortcut: 'alt+r' });
+    expect(CONTEXT_MENU_ITEMS.canvasStats).toMatchObject({ toggle: true, shortcut: 'alt+/' });
   });
 
   it('gives every row an icon except the toggles, which draw their on/off box instead', () => {

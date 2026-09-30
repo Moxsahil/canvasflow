@@ -1,5 +1,10 @@
 import { useEffect } from 'react';
-import { KEY_TO_TOOL, isCommandPaletteShortcut, shouldIgnoreShortcut } from './shortcuts';
+import {
+  KEY_TO_TOOL,
+  isCommandPaletteShortcut,
+  isTypingTarget,
+  shouldIgnoreShortcut,
+} from './shortcuts';
 import type { Tool } from './tool';
 
 interface UseKeyboardShortcutsOptions {
@@ -25,7 +30,11 @@ interface UseKeyboardShortcutsOptions {
   onZoomToSelection: () => void;
   onCopy: () => void;
   onCut: () => void;
-  onPaste: () => void;
+  /**
+   * Handed what the paste carried, to be read before anything is awaited: the
+   * browser empties it once the event has been dealt with.
+   */
+  onPaste: (pasted: DataTransfer | null) => void;
   onShowHelp: () => void;
   onToggleTheme: () => void;
   onToggleGrid: () => void;
@@ -33,12 +42,19 @@ interface UseKeyboardShortcutsOptions {
   onToggleToolLock: () => void;
   onToggleFocusMode: () => void;
   onToggleViewMode: () => void;
+  onToggleCanvasStats: () => void;
+  onToggleComments: () => void;
   onOpenFile: () => void;
   onSaveFile: () => void;
   onExportImage: () => void;
   onFind: () => void;
   onCommandPalette: () => void;
   disabled?: boolean;
+  /**
+   * Answer a paste even while the rest are off. For the one window that is up
+   * to ask for that very keystroke.
+   */
+  pasteWhileDisabled?: boolean;
 }
 
 export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
@@ -73,12 +89,15 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onToggleToolLock,
     onToggleFocusMode,
     onToggleViewMode,
+    onToggleCanvasStats,
+    onToggleComments,
     onOpenFile,
     onSaveFile,
     onExportImage,
     onFind,
     onCommandPalette,
     disabled,
+    pasteWhileDisabled,
   } = opts;
 
   useEffect(() => {
@@ -195,6 +214,28 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
         return;
       }
 
+      // Canvas stats: Alt+/. By code again — and Alt+/ types a division sign
+      // on some layouts, which no check on the key would recognise.
+      if (!mod && event.altKey && !event.shiftKey && event.code === 'Slash') {
+        event.preventDefault();
+        onToggleCanvasStats();
+        return;
+      }
+
+      // Show or hide comments: Shift+C. Checked ahead of the tool keys, where
+      // a bare C is the ellipse — and not while typing, where it is a capital.
+      if (
+        !mod &&
+        !event.altKey &&
+        event.shiftKey &&
+        event.code === 'KeyC' &&
+        !isTypingTarget(event.target)
+      ) {
+        event.preventDefault();
+        onToggleComments();
+        return;
+      }
+
       if (isCommandPaletteShortcut(event)) {
         event.preventDefault();
         onCommandPalette();
@@ -253,13 +294,6 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
       if (mod && event.key === 'c') {
         event.preventDefault();
         onCopy();
-        return;
-      }
-
-      // Paste: Cmd/Ctrl+V
-      if (mod && event.key === 'v') {
-        event.preventDefault();
-        onPaste();
         return;
       }
 
@@ -340,11 +374,26 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
       }
     };
 
+    // Paste: Cmd/Ctrl+V, and the browser's own Edit ▸ Paste. Answered on the
+    // paste event rather than the keydown, which is left alone so that the
+    // event follows it. Only the event is handed a file copied from the
+    // computer's own folders, and it carries text without the page having to
+    // ask leave to read the clipboard.
+    const handlePaste = (event: ClipboardEvent) => {
+      if (disabled && !pasteWhileDisabled) return;
+      // Into a field is the field's paste, not the board's.
+      if (isTypingTarget(event.target)) return;
+      event.preventDefault();
+      onPaste(event.clipboardData);
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('paste', handlePaste);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('paste', handlePaste);
     };
   }, [
     onSelectTool,
@@ -377,11 +426,14 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onToggleToolLock,
     onToggleFocusMode,
     onToggleViewMode,
+    onToggleCanvasStats,
+    onToggleComments,
     onOpenFile,
     onSaveFile,
     onExportImage,
     onFind,
     onCommandPalette,
     disabled,
+    pasteWhileDisabled,
   ]);
 }

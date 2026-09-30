@@ -1,6 +1,8 @@
 import { SUPPORTED_IMAGE_MIME_TYPES, type Shape } from '@canvasflow/canvas-engine';
 import { isCanvasFlowClipboard, isExcalidrawClipboard, type CanvasFlowClipboard } from './schema';
 import { excalidrawElementsToShapes } from './excalidraw-adapter';
+import { withFreshIds } from './paste-placement';
+import { pastedText } from './paste-text';
 
 /**
  * Image files on the clipboard, as a paste would deliver them.
@@ -64,33 +66,61 @@ export async function writeShapesToClipboard(shapes: readonly Shape[]): Promise<
   }
 }
 
-export async function readShapesFromClipboard(genId: () => string): Promise<Shape[]> {
+/**
+ * What a paste keystroke brought with it, read off its event.
+ *
+ * Images are every supported picture among its files, which is where a file
+ * copied from a folder turns up and nowhere else.
+ */
+export interface CarriedPaste {
+  readonly images: File[];
+  readonly text: string;
+}
+
+/** What a paste found on the clipboard, once it has been made sense of. */
+export type ClipboardContent =
+  | { readonly kind: 'shapes'; readonly shapes: Shape[] }
+  | { readonly kind: 'text'; readonly text: string };
+
+/**
+ * Make sense of the clipboard's text.
+ *
+ * Shapes where it is a board's own copy, or one from a drawing app whose
+ * format is understood. Anything else is what it looks like — writing, to be
+ * put on the board as text. Null when there is nothing in it to paste.
+ *
+ * A copy that is recognised but holds nothing usable is nothing, not text:
+ * nobody copying shapes wants their JSON written out on the board instead.
+ */
+export function clipboardContentFrom(raw: string, genId: () => string): ClipboardContent | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    // Not JSON, so not shapes. Most of what is ever copied lands here.
+  }
+
+  let shapes: Shape[] | null = null;
+  if (isCanvasFlowClipboard(parsed)) {
+    // Reassign IDs so pasted shapes never collide with existing ones
+    shapes = withFreshIds(parsed.shapes, genId);
+  } else if (isExcalidrawClipboard(parsed)) {
+    shapes = excalidrawElementsToShapes(parsed.elements, genId);
+  }
+  if (shapes) return shapes.length > 0 ? { kind: 'shapes', shapes } : null;
+
+  const text = pastedText(raw);
+  return text ? { kind: 'text', text } : null;
+}
+
+export async function readClipboardContent(genId: () => string): Promise<ClipboardContent | null> {
   let raw: string;
   try {
     raw = await navigator.clipboard.readText();
   } catch (err) {
     console.error('Clipboard read failed:', err);
-    return [];
+    return null;
   }
 
-  if (!raw) return [];
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    // Not JSON — not our data
-    return [];
-  }
-
-  if (isCanvasFlowClipboard(parsed)) {
-    // Reassign IDs so pasted shapes never collide with existing ones
-    return parsed.shapes.map((s) => ({ ...s, id: genId() }));
-  }
-
-  if (isExcalidrawClipboard(parsed)) {
-    return excalidrawElementsToShapes(parsed.elements, genId);
-  }
-
-  return [];
+  return raw ? clipboardContentFrom(raw, genId) : null;
 }

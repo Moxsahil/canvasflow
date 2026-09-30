@@ -4,7 +4,6 @@ import {
   BookPlus,
   Bookmark,
   Braces,
-  ChartColumn,
   CodeXml,
   Crop,
   EyeOff,
@@ -17,7 +16,6 @@ import {
   Link2,
   Lock,
   LockOpen,
-  MessageSquare,
   MousePointerClick,
   PanelRight,
   PenTool,
@@ -170,7 +168,9 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   cut: fromCommand('cut', 'Cut'),
   copy: fromCommand('copy', 'Copy', false),
   paste: fromCommand('paste', 'Paste'),
-  pasteHere: soon('Paste here', MousePointerClick),
+  // Built, but run from this menu alone: there is no command to take an icon
+  // and a key from, and no key of its own.
+  pasteHere: { label: 'Paste here', icon: MousePointerClick, edits: true },
   duplicate: fromCommand('duplicate', 'Duplicate'),
 
   copyAsPng: soon('PNG', FileImage, false),
@@ -220,10 +220,8 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   arrowBinding: fromPreference('arrowBinding', 'Arrow binding', true),
   focusMode: fromPreference('focusMode', 'Focus mode'),
   viewMode: fromPreference('viewMode', 'View mode'),
-  // A preference that is stored but draws nothing yet, so it is not offered
-  // as a tick that would look like it had failed.
-  canvasStats: soon('Canvas stats', ChartColumn, false),
-  showComments: soon('Show comments', MessageSquare, false),
+  canvasStats: fromPreference('canvasStats', 'Canvas stats'),
+  showComments: fromPreference('showComments', 'Show comments'),
   commandPalette: fromMenu('commandPalette'),
 
   // A viewer has no style controls for either to show.

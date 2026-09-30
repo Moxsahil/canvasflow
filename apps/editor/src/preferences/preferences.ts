@@ -19,6 +19,7 @@ export interface EditorPreferences {
   viewMode: boolean;
   floatingStyleBar: boolean;
   canvasStats: boolean;
+  showComments: boolean;
   debugMode: boolean;
 }
 
@@ -27,9 +28,10 @@ export type PreferenceId = keyof EditorPreferences;
 /**
  * What a board starts with.
  *
- * The four that start on are the ones whose absence people read as a bug
+ * The five that start on are the ones whose absence people read as a bug
  * rather than as a setting: an arrow that won't follow the shape it points at,
- * a drag that stops dead at the edge of the viewport. The rest start off
+ * a drag that stops dead at the edge of the viewport, a comment somebody left
+ * that is nowhere to be seen. The rest start off
  * because they change what the canvas does under you, and a canvas that
  * behaves plainly is the one to arrive at.
  */
@@ -47,6 +49,7 @@ export const DEFAULT_PREFERENCES: EditorPreferences = {
   viewMode: false,
   floatingStyleBar: false,
   canvasStats: false,
+  showComments: true,
   debugMode: false,
 };
 
@@ -191,6 +194,12 @@ export const PREFERENCE_GROUPS: readonly PreferenceGroupMeta[] = [
         label: 'Canvas stats',
         shortcut: 'alt+/',
         hint: 'Dimensions and coordinates for the canvas and the selection',
+      },
+      {
+        id: 'showComments',
+        label: 'Show comments',
+        shortcut: 'shift+c',
+        hint: 'The pins of the comments left on this board',
       },
       {
         id: 'debugMode',
