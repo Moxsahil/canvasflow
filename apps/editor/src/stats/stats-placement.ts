@@ -4,26 +4,21 @@ import { DOCK_CLEARANCE } from '../properties/halo-placement';
 const EDGE = 16;
 /** Kept between the strip and the dock when they share the bottom row. */
 const GAP = 12;
-/**
- * The room kept for the strip at its fullest: text selected, which adds a font
- * size to the four fields a box has.
- *
- * Its place is decided by this rather than by how wide it happens to be right
- * now. It grows and shrinks with every change of selection, and a bar that
- * hopped between two rows each time would be harder to find than one that
- * stays on the row the window has room for.
- */
-export const STRIP_RESERVE = 560;
 
 /**
  * How far above the board's bottom edge the stats strip sits.
  *
- * On the bottom row, in the corner left of the dock, when that corner is wide
- * enough to hold it. The dock is centred, so on a narrower board the corner is
- * not, and the strip stands on the row above instead — still against the left
- * edge, clear of the tools it would otherwise run into.
+ * On the bottom row, in the corner left of the dock, for as long as the strip
+ * as it stands fits there. The dock is centred, so on a narrower board the
+ * corner is not wide, and a strip that would run into the tools stands on the
+ * row above instead — still against the left edge.
+ *
+ * It is the strip's own width that decides, not the most it could ever be. A
+ * strip that left the bottom row with plain room still beside it — because a
+ * panel opening had narrowed the board a little — read as a fault: the only
+ * move anyone expects of it is out of the way of something it would touch.
  */
 export function stripBottom(boardWidth: number, dockWidth: number, stripWidth: number): number {
   const corner = (boardWidth - dockWidth) / 2 - EDGE - GAP;
-  return corner >= Math.max(STRIP_RESERVE, stripWidth) ? EDGE : DOCK_CLEARANCE;
+  return corner >= stripWidth ? EDGE : DOCK_CLEARANCE;
 }
