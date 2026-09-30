@@ -26,12 +26,15 @@ export function eventToCanvasScreen(
  *   - canvasOrigin is the top-left of the canvas element on the page
  *   - zoom is the current zoom factor
  *   - camera is where the top-left of the viewport looks at in world space
+ *
+ * Anything the canvas fills edge to edge shares its origin and will do in its
+ * place, which is what lets the editor ask without holding the canvas itself.
  */
 
 export function screenToWorld(
   screenX: number,
   screenY: number,
-  canvas: HTMLCanvasElement,
+  canvas: Element,
   camera: Camera,
 ): { x: number; y: number } {
   const rect = canvas.getBoundingClientRect();

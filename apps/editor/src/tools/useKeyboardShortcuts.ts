@@ -1,5 +1,10 @@
 import { useEffect } from 'react';
-import { KEY_TO_TOOL, isCommandPaletteShortcut, shouldIgnoreShortcut } from './shortcuts';
+import {
+  KEY_TO_TOOL,
+  isCommandPaletteShortcut,
+  isTypingTarget,
+  shouldIgnoreShortcut,
+} from './shortcuts';
 import type { Tool } from './tool';
 
 interface UseKeyboardShortcutsOptions {
@@ -25,7 +30,11 @@ interface UseKeyboardShortcutsOptions {
   onZoomToSelection: () => void;
   onCopy: () => void;
   onCut: () => void;
-  onPaste: () => void;
+  /**
+   * Handed what the paste carried, to be read before anything is awaited: the
+   * browser empties it once the event has been dealt with.
+   */
+  onPaste: (pasted: DataTransfer | null) => void;
   onShowHelp: () => void;
   onToggleTheme: () => void;
   onToggleGrid: () => void;
@@ -39,6 +48,11 @@ interface UseKeyboardShortcutsOptions {
   onFind: () => void;
   onCommandPalette: () => void;
   disabled?: boolean;
+  /**
+   * Answer a paste even while the rest are off. For the one window that is up
+   * to ask for that very keystroke.
+   */
+  pasteWhileDisabled?: boolean;
 }
 
 export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
@@ -79,6 +93,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onFind,
     onCommandPalette,
     disabled,
+    pasteWhileDisabled,
   } = opts;
 
   useEffect(() => {
@@ -256,13 +271,6 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
         return;
       }
 
-      // Paste: Cmd/Ctrl+V
-      if (mod && event.key === 'v') {
-        event.preventDefault();
-        onPaste();
-        return;
-      }
-
       // Zoom presets: Cmd/Ctrl + 1 / 2 / 3
       if (mod && event.key === '1') {
         event.preventDefault();
@@ -340,11 +348,26 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
       }
     };
 
+    // Paste: Cmd/Ctrl+V, and the browser's own Edit ▸ Paste. Answered on the
+    // paste event rather than the keydown, which is left alone so that the
+    // event follows it. Only the event is handed a file copied from the
+    // computer's own folders, and it carries text without the page having to
+    // ask leave to read the clipboard.
+    const handlePaste = (event: ClipboardEvent) => {
+      if (disabled && !pasteWhileDisabled) return;
+      // Into a field is the field's paste, not the board's.
+      if (isTypingTarget(event.target)) return;
+      event.preventDefault();
+      onPaste(event.clipboardData);
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('paste', handlePaste);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('paste', handlePaste);
     };
   }, [
     onSelectTool,
@@ -383,5 +406,6 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onFind,
     onCommandPalette,
     disabled,
+    pasteWhileDisabled,
   ]);
 }

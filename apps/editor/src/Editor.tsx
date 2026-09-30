@@ -63,10 +63,20 @@ import {
   type SnapTargets,
 } from './snapping';
 import {
+  PASTE_HERE_NOTICE,
+  PASTE_NOTICE,
+  clipboardContentFrom,
+  isPasteNotice,
+  pastedTextWidth,
+  readClipboardContent,
   readImagesFromClipboard,
-  readShapesFromClipboard,
+  shapesCentredOn,
+  wrappedToWidth,
   writeShapesToClipboard,
+  type CarriedPaste,
 } from './clipboard';
+import { screenToWorld } from './pointer/coords';
+import { useLastPointerPosition } from './pointer/useLastPointerPosition';
 import { CanvasStack } from './canvas/CanvasStack';
 import { pointerCursorValue } from './canvas/pointer-cursor';
 import { useCameraPersistence } from './canvas/useCameraPersistence';
@@ -93,7 +103,7 @@ import {
 } from './context-menu';
 import { hitTestHandles } from './selection/handles';
 import { useBoardDocument, useYjsShapes } from './document/useYjsDocument';
-import { useBoardImages, pickImageFiles } from './images';
+import { useBoardImages, imageFilesFromDataTransfer, pickImageFiles } from './images';
 import { LaserLayer, useLaserTrails } from './laser';
 import { FrameNameEditor } from './frames/FrameNameEditor';
 import {
@@ -406,6 +416,16 @@ export function Editor({ boardId }: EditorProps) {
   /** The space left of the sidebar: what the canvas fills and measures. */
   const containerRef = useRef<HTMLDivElement>(null);
   const { width, height } = useCanvasResize(containerRef);
+  const lastPointerPosition = useLastPointerPosition();
+  /**
+   * Where the next paste keystroke is to land, left by a menu's paste that
+   * found nothing it was allowed to read — see `pasteFromMenu`. No point means
+   * wherever a paste would go anyway.
+   *
+   * Given up as soon as "here" stops meaning what it did: a press on the
+   * board, or the view moving under it.
+   */
+  const pasteTargetRef = useRef<{ at: Point | undefined } | null>(null);
 
   /**
    * Held in state rather than read straight off the ref: a ref is still null on
@@ -809,6 +829,12 @@ export function Editor({ boardId }: EditorProps) {
     prevTextEditingAtRef.current = textEditingAt;
   }
   const camera = useSelector(actorRef, (s) => s.context.camera);
+  // A paste left waiting for its keystroke was aimed at a spot in this view.
+  // Once the view has moved, that spot may be anywhere — off the screen as
+  // likely as not.
+  useEffect(() => {
+    pasteTargetRef.current = null;
+  }, [camera]);
   const restoreCamera = useCallback(
     (next: Camera) => actorRef.send({ type: 'SET_CAMERA', camera: next }),
     [actorRef],
@@ -1454,6 +1480,7 @@ export function Editor({ boardId }: EditorProps) {
     (point: Point, screenPoint: Point, button: number, shiftKey: boolean, snapOverride = false) => {
       notifyActivity();
       lastCanvasPointRef.current = screenPoint;
+      pasteTargetRef.current = null;
 
       // The laser never reaches the machine. It selects nothing, draws nothing,
       // and marks nothing for erasure — letting POINTER_DOWN through would only
@@ -1624,6 +1651,7 @@ export function Editor({ boardId }: EditorProps) {
   const handleContextPress = useCallback(
     (point: Point) => {
       notifyActivity();
+      pasteTargetRef.current = null;
       // Commit an open text editor first, as a left press does, so the commit
       // cannot land after the selection below and take it over.
       if (actorRef.getSnapshot().matches('editingText')) {
@@ -2490,42 +2518,172 @@ export function Editor({ boardId }: EditorProps) {
     }
   }, [shapes, selectedIds, actorRef]);
 
-  const handlePaste = useCallback(async () => {
-    // Images first: a screenshot on the clipboard carries no text for the shape
-    // reader to find, so checking text first would silently drop the paste.
-    if (!readOnly) {
-      const pastedImages = await readImagesFromClipboard();
-      if (pastedImages.length > 0) {
-        handleInsertImages(pastedImages);
-        return;
+  /**
+   * Writing off the clipboard as a text shape, in the style new text is typed
+   * in and wrapped to what fits the view.
+   *
+   * Left at the origin: it was copied from no place on the board, so where it
+   * goes is for whoever pastes it to say.
+   */
+  const textShapeFromClipboard = useCallback(
+    (text: string): Shape => {
+      const { itemStyle, camera, dynamicSize } = actorRef.getSnapshot().context;
+      const scale = newShapeScale(camera, dynamicSize);
+      const blank = createText({
+        id: genId(),
+        x: 0,
+        y: 0,
+        text: '',
+        strokeColor: itemStyle.strokeColor,
+        opacity: itemStyle.opacity,
+        fontFamily: itemStyle.fontFamily,
+        fontSize: itemStyle.fontSize,
+        textAlign: itemStyle.textAlign,
+        scale,
+      });
+      // Measured as the shape itself will be, font and scale included, so a
+      // line that is said to fit is one that is drawn fitting.
+      const widthOf = (line: string) => shapeBounds({ ...blank, text: line }).width;
+      const widest = pastedTextWidth(width, camera.zoom, scale);
+
+      return { ...blank, text: wrappedToWidth(text, widest, widthOf) };
+    },
+    [actorRef, width],
+  );
+
+  /**
+   * Put the clipboard on the board: beside what it was copied from, or — given
+   * a point — with the middle of what arrives on that point.
+   *
+   * `carried` is what a paste keystroke brought with it, used in place of
+   * asking for the clipboard. Resolves to whether there was anything to paste.
+   */
+  const pasteClipboard = useCallback(
+    async (at?: Point, carried?: CarriedPaste): Promise<boolean> => {
+      // Images first: a screenshot on the clipboard carries no text for the shape
+      // reader to find, so checking text first would silently drop the paste.
+      if (!readOnly) {
+        const pastedImages = carried ? carried.images : await readImagesFromClipboard();
+        if (pastedImages.length > 0) {
+          handleInsertImages(pastedImages, at);
+          return true;
+        }
       }
+
+      const content = carried
+        ? clipboardContentFrom(carried.text, genId)
+        : await readClipboardContent(genId);
+      if (!content) return false;
+
+      let placedShapes: Shape[];
+      if (content.kind === 'text') {
+        // Text was copied from nowhere on the board, so there is nothing to
+        // land beside: without a point it goes in the middle of the view.
+        placedShapes = shapesCentredOn(
+          [textShapeFromClipboard(content.text)],
+          at ?? viewportCentre(),
+          doc.getShapes(),
+        );
+      } else if (at) {
+        placedShapes = shapesCentredOn(content.shapes, at, doc.getShapes());
+      } else {
+        // With nowhere to aim for, offset each pasted shape 20px in both axes
+        // so they're visually distinguishable from the originals
+        const OFFSET = 20;
+        placedShapes = content.shapes.map((s) => ({
+          ...s,
+          x: s.x + OFFSET,
+          y: s.y + OFFSET,
+        }));
+      }
+
+      // Add each shape via the document — each addShape assigns a fresh
+      // fractional zIndex above current max, so pasted shapes land on top
+      // in their original relative order
+      for (const shape of placedShapes) {
+        doc.addShape(shape);
+      }
+
+      // Auto-select the pasted shapes so user can immediately drag them
+      actorRef.send({
+        type: 'SELECT_ALL',
+        shapeIds: placedShapes.map((s) => s.id),
+      });
+      return true;
+    },
+    [doc, actorRef, readOnly, handleInsertImages, textShapeFromClipboard, viewportCentre],
+  );
+
+  /**
+   * Paste from a menu or the palette, which can only ask for the clipboard —
+   * and are refused the one thing people most often copy outside a browser: a
+   * file, from a folder. The browser hands that over on the paste keystroke
+   * and nowhere else.
+   *
+   * So a paste that comes back with nothing says so, and waits: the keystroke
+   * that follows lands where this one was meant to.
+   */
+  const pasteFromMenu = useCallback(
+    async (at?: Point) => {
+      pasteTargetRef.current = null;
+      if (await pasteClipboard(at)) return;
+      if (readOnly) return;
+
+      pasteTargetRef.current = { at };
+      setNotice(at ? PASTE_HERE_NOTICE : PASTE_NOTICE);
+    },
+    [pasteClipboard, readOnly],
+  );
+
+  const handlePaste = useCallback(() => pasteFromMenu(), [pasteFromMenu]);
+
+  /**
+   * Cmd/Ctrl+V. Read off the event there and then, since the browser empties
+   * it as soon as the event is over, and landed where a menu's paste was left
+   * waiting, if one was.
+   */
+  const handleKeyboardPaste = useCallback(
+    (pasted: DataTransfer | null) => {
+      const carried: CarriedPaste = {
+        images: imageFilesFromDataTransfer(pasted),
+        text: pasted?.getData('text/plain') ?? '',
+      };
+      const target = pasteTargetRef.current;
+      pasteTargetRef.current = null;
+      setNotice((shown) => (isPasteNotice(shown) ? null : shown));
+
+      void pasteClipboard(target?.at, carried);
+    },
+    [pasteClipboard],
+  );
+
+  /**
+   * Paste where the pointer is as the row is picked, rather than beside the
+   * original.
+   *
+   * The point is taken before the clipboard is asked for anything: the browser
+   * may stop to ask permission first, and the pointer goes on moving while it
+   * does. A pointer that is not over the board — the row was picked from the
+   * keyboard with the mouse resting on the sidebar — has no "here" to offer,
+   * so the paste lands in the middle of the view instead of out of sight.
+   */
+  const handlePasteHere = useCallback(() => {
+    const pointer = lastPointerPosition();
+    const container = containerRef.current;
+    let at = viewportCentre();
+
+    if (pointer && container) {
+      const rect = container.getBoundingClientRect();
+      const overBoard =
+        pointer.x >= rect.left &&
+        pointer.x <= rect.right &&
+        pointer.y >= rect.top &&
+        pointer.y <= rect.bottom;
+      if (overBoard) at = screenToWorld(pointer.x, pointer.y, container, camera);
     }
 
-    const pastedShapes = await readShapesFromClipboard(genId);
-    if (pastedShapes.length === 0) return;
-
-    // Offset each pasted shape 20px in both axes so they're
-    // visually distinguishable from the originals
-    const OFFSET = 20;
-    const offsetShapes = pastedShapes.map((s) => ({
-      ...s,
-      x: s.x + OFFSET,
-      y: s.y + OFFSET,
-    }));
-
-    // Add each shape via the document — each addShape assigns a fresh
-    // fractional zIndex above current max, so pasted shapes land on top
-    // in their original relative order
-    for (const shape of offsetShapes) {
-      doc.addShape(shape);
-    }
-
-    // Auto-select the pasted shapes so user can immediately drag them
-    actorRef.send({
-      type: 'SELECT_ALL',
-      shapeIds: offsetShapes.map((s) => s.id),
-    });
-  }, [doc, actorRef, readOnly, handleInsertImages]);
+    return pasteFromMenu(at);
+  }, [lastPointerPosition, pasteFromMenu, camera, viewportCentre]);
 
   const toggleGrid = useCallback(() => {
     preferences.set('showGrid', !preferences.values.showGrid);
@@ -2627,7 +2785,7 @@ export function Editor({ boardId }: EditorProps) {
     onZoomToSelection: handleZoomToSelection,
     onCopy: handleCopy,
     onCut: handleCut,
-    onPaste: handlePaste,
+    onPaste: handleKeyboardPaste,
     onShowHelp: handleShowHelp,
     onToggleTheme: toggleTheme,
     onToggleGrid: toggleGrid,
@@ -2660,6 +2818,8 @@ export function Editor({ boardId }: EditorProps) {
       pendingReplace !== null ||
       notice !== null ||
       accessRevoked,
+    // The notice that asks for the paste keystroke has to be able to get it.
+    pasteWhileDisabled: isPasteNotice(notice),
   });
 
   /**
@@ -2848,6 +3008,7 @@ export function Editor({ boardId }: EditorProps) {
                 cut: selectedIds.length > 0 ? handleCut : null,
                 copy: selectedIds.length > 0 ? handleCopy : null,
                 paste: handlePaste,
+                pasteHere: handlePasteHere,
                 duplicate: selectedIds.length > 0 ? handleDuplicate : null,
                 exportImage: showExport,
                 // The document reorders one shape at a time, so these wait

@@ -170,7 +170,9 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   cut: fromCommand('cut', 'Cut'),
   copy: fromCommand('copy', 'Copy', false),
   paste: fromCommand('paste', 'Paste'),
-  pasteHere: soon('Paste here', MousePointerClick),
+  // Built, but run from this menu alone: there is no command to take an icon
+  // and a key from, and no key of its own.
+  pasteHere: { label: 'Paste here', icon: MousePointerClick, edits: true },
   duplicate: fromCommand('duplicate', 'Duplicate'),
 
   copyAsPng: soon('PNG', FileImage, false),
