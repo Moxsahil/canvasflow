@@ -1,31 +1,41 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { SurfaceDialog } from './SurfaceDialog';
-import { SurfaceButton } from './surface-ui';
+import { useId, type ReactNode } from 'react';
+import {
+  SurfaceWindow,
+  WindowBadge,
+  WindowButton,
+  WindowFooter,
+  WindowHeader,
+} from './SurfaceWindow';
 import type { SurfaceTheme } from './surface-palette';
 
 interface ConfirmDialogProps {
   open: boolean;
   title: string;
+  /** What answering does, under the title. `<strong>` is set in the title's colour. */
   children: ReactNode;
-  /** Omit to get a single dismissing button — the shape a notice takes. */
-  onConfirm?: () => void;
+  onConfirm: () => void;
   confirmLabel?: string;
   cancelLabel?: string;
-  /** The lone button's label when there is nothing to confirm. */
-  dismissLabel?: string;
-  /** Paints the confirming button as a warning, for actions that discard work. */
+  /**
+   * Paints the confirming button in the danger wash and the badge amber, for
+   * an action that discards work — work that can still be undone. The red
+   * badge is kept for what can't be.
+   */
   destructive?: boolean;
+  /** Stands in the badge: what the question is about. */
+  icon?: ReactNode;
   busy?: boolean;
   theme: SurfaceTheme;
   onClose: () => void;
 }
 
 /**
- * A question, on the app's own dialog surface.
+ * A question, in the app's window.
  *
- * Dismissing on the backdrop is deliberate even for a destructive prompt: the
- * backdrop cancels, and it is the confirming button — never the way out — that
- * has to be deliberate.
+ * Cancel takes focus: whoever opened this has been asked something they have
+ * not answered yet, and the answer Enter gives for free should be the one that
+ * changes nothing. Escape, × and a click outside all cancel; it is the
+ * confirming button, never the way out, that has to be deliberate.
  */
 export function ConfirmDialog({
   open,
@@ -34,58 +44,49 @@ export function ConfirmDialog({
   onConfirm,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
-  dismissLabel = 'Got it',
   destructive = false,
+  icon,
   busy = false,
   theme,
   onClose,
 }: ConfirmDialogProps) {
-  const cancelRef = useRef<HTMLButtonElement>(null);
-
-  // Focus lands on the way out rather than on the action. Whoever opened this
-  // has been asked a question they have not answered yet, and the answer that
-  // Enter and Space give for free should be the one that changes nothing.
-  useEffect(() => {
-    if (open) cancelRef.current?.focus();
-  }, [open]);
+  const titleId = useId();
+  const bodyId = useId();
 
   return (
-    <SurfaceDialog
+    <SurfaceWindow
       open={open}
-      title={title}
       theme={theme}
       onClose={onClose}
-      alert
       width={440}
+      labelledBy={titleId}
+      describedBy={bodyId}
+      alert
       data-testid="confirm-dialog"
-      footer={
-        <>
-          <div className="flex-1" />
-          {onConfirm ? (
-            <>
-              <SurfaceButton ref={cancelRef} variant="ghost" onClick={onClose}>
-                {cancelLabel}
-              </SurfaceButton>
-              <SurfaceButton
-                variant={destructive ? 'danger' : 'primary'}
-                loading={busy}
-                onClick={onConfirm}
-                data-testid="confirm-dialog-confirm"
-              >
-                {confirmLabel}
-              </SurfaceButton>
-            </>
-          ) : (
-            // Nothing to decide: the one button dismisses, and it is the
-            // primary because agreeing is the only thing on offer.
-            <SurfaceButton ref={cancelRef} variant="primary" onClick={onClose}>
-              {dismissLabel}
-            </SurfaceButton>
-          )}
-        </>
-      }
     >
-      <div className="text-[12.5px] leading-[1.6] text-[var(--surface-fg-muted)]">{children}</div>
-    </SurfaceDialog>
+      <WindowHeader
+        titleId={titleId}
+        title={title}
+        description={children}
+        descriptionId={bodyId}
+        lead={
+          icon ? <WindowBadge tone={destructive ? 'warn' : 'soft'}>{icon}</WindowBadge> : undefined
+        }
+        onClose={onClose}
+      />
+      <WindowFooter>
+        <WindowButton variant="ghost" autoFocus data-autofocus onClick={onClose}>
+          {cancelLabel}
+        </WindowButton>
+        <WindowButton
+          variant={destructive ? 'danger' : 'primary'}
+          disabled={busy}
+          onClick={onConfirm}
+          data-testid="confirm-dialog-confirm"
+        >
+          {confirmLabel}
+        </WindowButton>
+      </WindowFooter>
+    </SurfaceWindow>
   );
 }

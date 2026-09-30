@@ -48,12 +48,8 @@ export function NotificationsPane() {
 
   return (
     <SettingsPage lead="Choose what CanvasFlow emails you about.">
-      <Band title="Email" description="When something happens that involves you.">
-        {rows(EMAIL)}
-      </Band>
-      <Band title="Digest" description="Round-ups and news, on a schedule.">
-        {rows(DIGEST)}
-      </Band>
+      <Band title="Email">{rows(EMAIL)}</Band>
+      <Band title="Digest">{rows(DIGEST)}</Band>
     </SettingsPage>
   );
 }

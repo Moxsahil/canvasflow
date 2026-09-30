@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 import { Ellipsis, Files } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { menuDangerRowClasses } from '@/components/ui/menu-look';
 import {
   InlineDropdownMenu,
   InlineDropdownMenuBadge,
@@ -215,7 +216,7 @@ function ActionItem({ id, onSelect }: { id: MenuItemId; onSelect?: (() => void) 
       }
       aria-keyshortcuts={onSelect && shortcut ? ariaKeyShortcut(shortcut) : undefined}
       data-testid={`menu-item-${id}`}
-      className={cn(destructive && 'text-red-500 dark:text-red-400')}
+      className={cn(destructive && menuDangerRowClasses)}
     >
       {label}
     </InlineDropdownMenuItem>

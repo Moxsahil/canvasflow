@@ -14,7 +14,7 @@ export function WorkspacePane() {
 
   return (
     <SettingsPage lead="Members, roles, and workspace-level settings.">
-      <Band title="Workspace" description="Its name, and your part in it.">
+      <Band title="Workspace">
         {/* Nothing stores the name from here yet, so the band does not say
             "Saved" when it is kept. */}
         <InlineTextField
@@ -36,7 +36,7 @@ export function WorkspacePane() {
         </SettingRow>
       </Band>
 
-      <Band title="People" description="Who is in, and who new boards let in.">
+      <Band title="People">
         <SettingRow setting="members" title="Members" hint="4 members, 1 invite pending">
           <SettingsButton>Manage</SettingsButton>
         </SettingRow>

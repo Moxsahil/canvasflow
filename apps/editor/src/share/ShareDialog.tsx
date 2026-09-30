@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Play, Square, Users } from 'lucide-react';
-import { SurfaceButton } from '../ui/surface-ui';
-import { initialsOf } from '@/lib/initials';
+import { createPortal } from 'react-dom';
+import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { useAvatarUrls } from '../profile/useAvatar';
-import { SurfaceDialog } from '../ui/SurfaceDialog';
-import type { SurfaceTheme } from '../ui/surface-palette';
-import { TeamInvite, type PermissionLevel, type TeamMember } from '@/components/ui/team-invite';
+import { surfaceThemeVars, type SurfaceTheme } from '../ui/surface-palette';
+import { BACKDROP, WINDOW } from '../settings/settings-ui';
 import {
   createShareLink,
   listMembers,
@@ -18,13 +16,26 @@ import {
   type ShareRole,
 } from './share-api';
 import { QRCode } from './QRCode';
+import { ShareSessionPanel, type LiveSession, type SharePerson } from './ShareSession';
+
+/**
+ * The design is set in Inter. Nothing in the app loads it, so this names it
+ * first and falls back to the platform's own UI face rather than shipping a
+ * webfont for the dialogs.
+ */
+const FONT_STACK = 'Inter, "Segoe UI", system-ui, -apple-system, sans-serif';
+
+/** How long someone who joined while the window was open is marked as new. */
+const JOINED_FOR_MS = 8_000;
 
 interface ShareDialogProps {
   open: boolean;
   onClose: () => void;
   boardId: string;
-  /** Shown as the card's heading; falls back to the id, as the menu does. */
+  /** Shown as the window's title; falls back to the id, as the menu does. */
   boardName?: string;
+  /** Who is looking, so the list can say which row is them. */
+  userId?: string | null;
   /**
    * Who is on the board right now, as a value that changes only when the set
    * of people does.
@@ -43,37 +54,40 @@ interface ShareDialogProps {
    * storage the gateway guards, and that is reached with the token instead.
    */
   authToken: string | null;
-  /** The theme on screen — the dialog surface carries its own palette for each. */
+  /** The theme on screen — the window carries its own palette for each. */
   theme: SurfaceTheme;
-  /** Radix portals out of the tree; the theme tokens live on `.cf-editor`. */
-  portalContainer: HTMLElement | null;
 }
 
 /**
- * Backstop poll while the card is open.
+ * Backstop poll while the window is open.
  *
  * Presence covers everyone who actually connects, which is everyone who joins
  * by link. This is for the rest — a row that appears without a socket behind
- * it — and it runs only while somebody is looking at the card.
+ * it — and it runs only while somebody is looking at the window.
  */
 const REFRESH_INTERVAL_MS = 15_000;
 
 /**
- * The sharing card, in a dialog.
+ * Sharing the board: its session, and who is on it.
  *
- * Everything visible belongs to TeamInvite — this owns the board's sharing
- * state and translates between it and that card's vocabulary: a session link
- * is what people join by, and "can view"/"can edit" is the role it carries.
+ * Everything visible belongs to ShareSessionPanel — this owns the board's
+ * sharing state and the window around it. A session is a link people join by,
+ * live until it is stopped; "can view" / "can edit" is the role it carries.
+ *
+ * The window rises in over the blurred board and sinks away, as the Settings
+ * dialogs do. It is portalled to <body>, carrying its palette with it, because
+ * it is mounted inside the editor, where a transformed ancestor would pin a
+ * full-window overlay inside it.
  */
 export function ShareDialog({
   open,
   onClose,
   boardId,
   boardName,
+  userId = null,
   presenceKey,
   authToken,
   theme,
-  portalContainer,
 }: ShareDialogProps) {
   const [links, setLinks] = useState<ShareLinkSummary[]>([]);
   const [members, setMembers] = useState<BoardMember[]>([]);
@@ -84,6 +98,18 @@ export function ShareDialog({
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<number | null>(null);
+  // The backdrop, which a role menu portals into so it inherits the palette.
+  const [overlay, setOverlay] = useState<HTMLElement | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const menuOpen = useRef(false);
+  const opener = useRef<HTMLElement | null>(null);
+
+  // Who was on the board the last time the list was read, and when anyone new
+  // turned up while the window was open.
+  const seen = useRef<Set<string> | null>(null);
+  const openRef = useRef(open);
+  openRef.current = open;
+  const [arrivals, setArrivals] = useState<Record<string, number>>({});
 
   // At most one link is ever live — see createShareLink.
   const session = links[0] ?? null;
@@ -91,18 +117,41 @@ export function ShareDialog({
   /**
    * `quiet` is for the refreshes nobody asked for — the presence-driven one
    * and the poll. A failure there is not something the reader did and not
-   * something they can act on, and putting it in the card's error line would
-   * mean a blip on a background request looks like their last click failed.
+   * something they can act on, and putting it in the error line would mean a
+   * blip on a background request looks like their last click failed.
    */
+  /**
+   * Bumped whenever this window starts or stops a session and shows the result
+   * straight away. A read that left before that answers with the world as it
+   * was, and would flip the window back until the next one — so it is dropped.
+   */
+  const changes = useRef(0);
+
   const refresh = useCallback(
     async ({ quiet = false }: { quiet?: boolean } = {}) => {
+      const asOf = changes.current;
       try {
         const [nextLinks, nextMembers] = await Promise.all([
           listShareLinks(boardId),
           listMembers(boardId),
         ]);
+        if (asOf !== changes.current) return;
         setLinks(nextLinks);
         setMembers(nextMembers);
+
+        const ids = new Set(nextMembers.map((member) => member.userId));
+        const before = seen.current;
+        if (before && openRef.current) {
+          const joined = [...ids].filter((id) => !before.has(id));
+          if (joined.length > 0) {
+            const at = Date.now();
+            setArrivals((current) => ({
+              ...current,
+              ...Object.fromEntries(joined.map((id) => [id, at])),
+            }));
+          }
+        }
+        seen.current = ids;
 
         // The plaintext token exists only in the response that created it, so a
         // reload cannot reconstruct the URL from the server. Remember it for this
@@ -119,17 +168,17 @@ export function ShareDialog({
   );
 
   /**
-   * Read the board's sharing state once the board loads, not once the card
+   * Read the board's sharing state once the board loads, not once the window
    * opens.
    *
    * Who has access is the first thing a person looks at here, and fetching it
-   * on open means watching it arrive: the card spends a second saying "0
-   * members" and "Only you, for now" — which is not merely blank, it is wrong,
-   * and about a board they have just been looking at other people draw on.
+   * on open means watching it arrive: the window spends a second saying "0
+   * members" — which is not merely blank, it is wrong, and about a board they
+   * have just been looking at other people draw on.
    *
    * Two small queries, once per board. Quiet, because nobody asked for it and
-   * there is nowhere to report a failure to; opening the card tries again, and
-   * that one speaks up.
+   * there is nowhere to report a failure to; opening the window tries again,
+   * and that one speaks up.
    */
   useEffect(() => {
     void refresh({ quiet: true });
@@ -147,7 +196,7 @@ export function ShareDialog({
    * Re-read when the people on the board change.
    *
    * This is what stops a newly joined collaborator sitting invisible until the
-   * card is closed and reopened. The key is tracked in a ref so this fires on
+   * window is closed and reopened. The key is tracked in a ref so this fires on
    * an actual change rather than also duplicating the fetch above on open.
    */
   const lastPresenceKey = useRef(presenceKey);
@@ -164,8 +213,28 @@ export function ShareDialog({
     return () => window.clearInterval(timer);
   }, [open, refresh]);
 
+  // "Joined" is for a moment, not a label to keep.
   useEffect(() => {
-    if (!open) setCopied(false);
+    const times = Object.values(arrivals);
+    if (times.length === 0) return;
+    const next = Math.min(...times) + JOINED_FOR_MS - Date.now();
+    const timer = window.setTimeout(
+      () => {
+        const cutoff = Date.now() - JOINED_FOR_MS;
+        setArrivals((current) =>
+          Object.fromEntries(Object.entries(current).filter(([, at]) => at > cutoff)),
+        );
+      },
+      Math.max(next, 0) + 50,
+    );
+    return () => window.clearTimeout(timer);
+  }, [arrivals]);
+
+  useEffect(() => {
+    if (!open) {
+      setCopied(false);
+      setArrivals({});
+    }
   }, [open]);
 
   useEffect(
@@ -175,14 +244,54 @@ export function ShareDialog({
     [],
   );
 
+  // Escape closes from anywhere inside — after a role menu that is open, which
+  // it closes first. Captured and stopped, so it never also reaches the canvas.
+  // Focus comes into the window as it opens, and goes back to what opened it —
+  // the Share button — when it closes.
+  useEffect(() => {
+    if (!open) return;
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    menuOpen.current = false;
+    panelRef.current?.focus({ preventScroll: true });
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || menuOpen.current) return;
+      event.stopPropagation();
+      onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+      const target = opener.current;
+      opener.current = null;
+      if (target?.isConnected) target.focus({ preventScroll: true });
+    };
+  }, [open, onClose]);
+
   const handleStart = async () => {
     setBusy(true);
     setError(null);
     try {
       const link = await createShareLink(boardId, { role, allowGuests });
       storeLink(boardId, link.id, link.url);
+      // Live the moment the server says so. Its answer is the session, so
+      // reading it back first would only add a second round trip before the
+      // window changes; the read happens behind, for whatever else moved.
+      changes.current += 1;
+      setLinks([
+        {
+          id: link.id,
+          role: link.role,
+          allowGuests: link.allowGuests,
+          expiresAt: link.expiresAt,
+          maxUses: link.maxUses,
+          useCount: 0,
+          lastUsedAt: null,
+          createdAt: new Date().toISOString(),
+          createdByName: '',
+        },
+      ]);
       setUrl(link.url);
-      await refresh();
+      void refresh({ quiet: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not start the session.');
     } finally {
@@ -197,8 +306,11 @@ export function ShareDialog({
     try {
       await revokeShareLink(boardId, session.id);
       clearStoredLink(boardId);
+      // Stopped the moment the server says so; at most one link is ever live.
+      changes.current += 1;
+      setLinks([]);
       setUrl(null);
-      await refresh();
+      void refresh({ quiet: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not stop the session.');
     } finally {
@@ -218,24 +330,23 @@ export function ShareDialog({
     }
   };
 
-  const handleRoleChange = async (userId: string, permission: PermissionLevel) => {
-    const next: 'editor' | 'viewer' = permission === 'can-view' ? 'viewer' : 'editor';
+  const handleRoleChange = async (memberId: string, next: ShareRole) => {
     setError(null);
     // Optimistic: the request is a single indexed update, and the list snapping
-    // back on failure reads better than a select box that freezes.
-    setMembers((current) => current.map((m) => (m.userId === userId ? { ...m, role: next } : m)));
+    // back on failure reads better than a menu that freezes.
+    setMembers((current) => current.map((m) => (m.userId === memberId ? { ...m, role: next } : m)));
     try {
-      await setMemberRole(boardId, userId, next);
+      await setMemberRole(boardId, memberId, next);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not change that role.');
       await refresh();
     }
   };
 
-  const handleRemove = async (userId: string) => {
+  const handleRemove = async (memberId: string) => {
     setError(null);
     try {
-      await removeMember(boardId, userId);
+      await removeMember(boardId, memberId);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not remove that person.');
@@ -246,7 +357,7 @@ export function ShareDialog({
 
   // Photos are read through the board, which is what authorizes seeing one —
   // membership comes from the web app, which knows nothing about storage.
-  // Only while the card is open: a board with fifty members would otherwise
+  // Only while the window is open: a board with fifty members would otherwise
   // cost fifty requests on every load, for a list most people never open.
   // Anyone currently on the board is already resolved for the peer stack, and
   // that cache is shared — so the faces that matter are there immediately.
@@ -259,86 +370,106 @@ export function ShareDialog({
     ),
   });
 
-  const people = useMemo<TeamMember[]>(
+  const people = useMemo<SharePerson[]>(
     () =>
       active.map((member) => ({
         id: member.userId,
         name: member.name,
-        email: member.isGuest ? 'Guest' : member.email,
-        avatar: photos[member.userId] ?? null,
-        role: toPermission(member.role),
+        email: member.email,
+        isGuest: member.isGuest,
         isOwner: member.isOwner,
+        role: member.role,
+        photo: photos[member.userId] ?? null,
+        you: member.userId === userId,
+        justJoined: arrivals[member.userId] !== undefined,
       })),
-    [active, photos],
+    [active, photos, userId, arrivals],
   );
 
-  // A live session's terms are fixed at creation, so once one is running the
-  // card shows what it granted rather than what is selected for the next one.
-  const permission = session ? toPermission(session.role) : toPermission(role);
+  // A live session's terms were fixed when it started, so it shows what it
+  // granted rather than what is chosen for the next one.
+  const live = useMemo<LiveSession | null>(
+    () =>
+      session && {
+        role: session.role,
+        allowGuests: session.allowGuests,
+        startedAt: session.createdAt,
+        expiresAt: session.expiresAt,
+      },
+    [session],
+  );
 
-  return (
-    <SurfaceDialog
-      open={open}
-      theme={theme}
-      title={boardName ?? boardId}
-      subtitle={
-        <span className="flex items-center gap-[5px]">
-          <Users size={12} aria-hidden="true" />
-          {people.length} {people.length === 1 ? 'member' : 'members'}
-          {session ? ' · sharing is live' : ''}
-        </span>
-      }
-      leading={
-        <span className="flex size-[42px] items-center justify-center rounded-full bg-[var(--surface-accent)] text-[13px] font-medium text-[var(--surface-on-accent)]">
-          {initialsOf(boardName ?? boardId)}
-        </span>
-      }
-      width={820}
-      onClose={onClose}
-      footer={
-        <>
-          <p className="min-w-0 flex-1 text-[11px] text-[var(--surface-fg-faint)]">
-            {session
-              ? 'Anyone with the link can join while the session is live.'
-              : 'Starting a session mints a link people can join by.'}
-          </p>
-          <SurfaceButton variant="ghost" onClick={onClose}>
-            Done
-          </SurfaceButton>
-          <SurfaceButton
-            variant={session ? 'danger' : 'primary'}
-            loading={busy}
-            onClick={session ? handleStop : handleStart}
+  const name = boardName ?? boardId;
+  const surface = useMemo(() => ({ ...surfaceThemeVars(theme), fontFamily: FONT_STACK }), [theme]);
+
+  const shell = (
+    <MotionConfig reducedMotion="user">
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            key="share"
+            ref={setOverlay}
+            variants={BACKDROP}
+            initial="hidden"
+            animate="shown"
+            exit="gone"
+            style={surface}
+            // The menus inside wear the editor's menu look, which takes its
+            // dark form from this attribute on an ancestor — and the window is
+            // portalled out from under the editor's own.
+            data-theme={theme}
+            // The text colour is set here as well as on the pieces that need
+            // it, so nothing inside, menus included, inherits the page's.
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-[var(--surface-backdrop)] p-6 text-[var(--surface-fg)] backdrop-blur-[3px]"
+            // Bound to mousedown rather than click, so a drag that starts
+            // inside the link field and ends outside it does not count.
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) onClose();
+            }}
           >
-            {!busy && (session ? <Square size={13} /> : <Play size={13} />)}
-            {session ? 'Stop session' : 'Start session'}
-          </SurfaceButton>
-        </>
-      }
-    >
-      <TeamInvite
-        members={people}
-        link={url}
-        live={session !== null}
-        copied={copied}
-        error={error}
-        permission={permission}
-        onPermissionChange={(next) => setRole(next === 'can-view' ? 'viewer' : 'editor')}
-        allowGuests={session ? session.allowGuests : allowGuests}
-        onAllowGuestsChange={setAllowGuests}
-        onCopy={handleCopy}
-        qr={url ? <QRCode value={url} size={128} /> : undefined}
-        onUpdateMemberPermission={handleRoleChange}
-        onRemoveMember={handleRemove}
-        portalContainer={portalContainer}
-      />
-    </SurfaceDialog>
+            <motion.div
+              ref={panelRef}
+              variants={WINDOW}
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Share ${name}`}
+              tabIndex={-1}
+              data-testid="share-dialog"
+              data-theme-variant={theme}
+              className="flex max-h-full w-[520px] max-w-full flex-col overflow-hidden rounded-[16px] border border-[var(--surface-border)] bg-[var(--surface-panel)] shadow-[var(--surface-shadow)] outline-none"
+            >
+              <ShareSessionPanel
+                boardName={name}
+                people={people}
+                session={live}
+                url={url}
+                role={role}
+                allowGuests={allowGuests}
+                onRoleChange={setRole}
+                onAllowGuestsChange={setAllowGuests}
+                busy={busy}
+                copied={copied}
+                error={error}
+                onStart={() => void handleStart()}
+                onStop={() => void handleStop()}
+                onCopy={() => void handleCopy()}
+                onClose={onClose}
+                onMemberRole={(id, next) => void handleRoleChange(id, next)}
+                onRemoveMember={(id) => void handleRemove(id)}
+                menuContainer={overlay}
+                onMenuOpenChange={(isOpen) => {
+                  menuOpen.current = isOpen;
+                }}
+                qr={url ? <QRCode value={url} size={96} /> : undefined}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </MotionConfig>
   );
-}
 
-function toPermission(role: BoardMember['role']): PermissionLevel {
-  if (role === 'owner') return 'admin';
-  return role === 'viewer' ? 'can-view' : 'can-edit';
+  return typeof document === 'undefined' ? shell : createPortal(shell, document.body);
 }
 
 // --- link memory -----------------------------------------------------------

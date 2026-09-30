@@ -56,6 +56,8 @@ interface SurfacePalette {
   /** A soft fill that needs no border: a segmented control's track, a quiet button. */
   wash: string;
   washHover: string;
+  /** The tinted band a window's header sits in, a step off the panel. */
+  band: string;
   /** The selected segment, lifted off the wash. */
   thumb: string;
   thumbShadow: string;
@@ -64,6 +66,9 @@ interface SurfacePalette {
   /** Said once something is saved. */
   ok: string;
   okWash: string;
+  /** Something went only partly, or not at all, and nothing is lost. */
+  warn: string;
+  warnWash: string;
   /** Marks the row a search just led to, then fades. */
   flash: string;
   /** The shadow a header casts once the page scrolls under it. */
@@ -98,11 +103,14 @@ const PALETTES: Record<SurfaceTheme, SurfacePalette> = {
     toggleOff: '#2f2f2f',
     wash: '#222221',
     washHover: '#2a2a29',
+    band: '#141413',
     thumb: '#333332',
     thumbShadow: '0 1px 2px rgba(0,0,0,0.5)',
     accentWash: 'rgba(59,130,246,0.15)',
     ok: '#4ade80',
     okWash: 'rgba(74,222,128,0.12)',
+    warn: '#fbbf24',
+    warnWash: 'rgba(251,191,36,0.12)',
     flash: 'rgba(59,130,246,0.22)',
     stuck: '0 8px 16px -12px rgba(0,0,0,0.9)',
     scrollbar: '#484847',
@@ -133,12 +141,15 @@ const PALETTES: Record<SurfaceTheme, SurfacePalette> = {
     toggleOff: '#d9d9d6',
     wash: '#f4f4f2',
     washHover: '#ebebe8',
+    band: '#f3f3f1',
     thumb: '#ffffff',
     thumbShadow: '0 1px 2px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04)',
     accentWash: 'rgba(59,130,246,0.1)',
     // Darker than the dark theme's green: it has to read as text on white.
     ok: '#15803d',
     okWash: 'rgba(22,163,74,0.1)',
+    warn: '#b45309',
+    warnWash: 'rgba(245,158,11,0.12)',
     flash: 'rgba(59,130,246,0.16)',
     stuck: '0 8px 14px -12px rgba(0,0,0,0.35)',
     scrollbar: '#cdcdc9',
@@ -178,11 +189,14 @@ export function surfaceThemeVars(theme: SurfaceTheme): CSSProperties {
     '--surface-toggle-off': palette.toggleOff,
     '--surface-wash': palette.wash,
     '--surface-wash-hover': palette.washHover,
+    '--surface-band': palette.band,
     '--surface-thumb': palette.thumb,
     '--surface-thumb-shadow': palette.thumbShadow,
     '--surface-accent-wash': palette.accentWash,
     '--surface-ok': palette.ok,
     '--surface-ok-wash': palette.okWash,
+    '--surface-warn': palette.warn,
+    '--surface-warn-wash': palette.warnWash,
     '--surface-flash': palette.flash,
     '--surface-stuck': palette.stuck,
     '--surface-scrollbar': palette.scrollbar,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Archive,
+  ChevronDown,
   Ellipsis,
   Pencil,
   Pin,
@@ -11,11 +12,14 @@ import {
   Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { menuDangerRowClasses } from '@/components/ui/menu-look';
 import {
   InlineDropdownMenu,
   InlineDropdownMenuBadge,
+  InlineDropdownMenuChoiceItem,
   InlineDropdownMenuContent,
   InlineDropdownMenuItem,
+  InlineDropdownMenuRadioGroup,
   InlineDropdownMenuSeparator,
   InlineDropdownMenuTrigger,
 } from '@/components/ui/inline-dropdown-menu';
@@ -31,9 +35,11 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import type { SurfaceTheme } from '../ui/surface-palette';
+import { BOARD_COLORS } from '../workspace/board-colors';
 import { ColorDot, formatUpdatedAt } from '../workspace/board-presentation';
 import { DeleteWarningDialog } from '../workspace/DeleteWarningDialog';
-import type { BoardSummary, BoardSwitcherState } from '../workspace';
+import type { BoardColor, BoardSummary, BoardSwitcherState } from '../workspace';
+import type { BoardDetailsPatch } from '../workspace/workspace-api';
 
 /** A small square button beside the group's label. */
 const labelActionClasses =
@@ -75,6 +81,8 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
   // has to outlive it long enough to close.
   const [pendingDelete, setPendingDelete] = useState<BoardSummary | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // The row being renamed in place, if any: one at a time.
+  const [renamingId, setRenamingId] = useState<string | null>(null);
 
   const askToDelete = useCallback((board: BoardSummary) => {
     setDeleteError(null);
@@ -193,7 +201,7 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
               <SidebarMenuButton
                 tooltip="Couldn’t load the boards. Try again"
                 onClick={() => state.browseWorkspace(workspaceId)}
-                className="text-red-500 dark:text-red-400"
+                className={menuDangerRowClasses}
               >
                 <RotateCw aria-hidden="true" />
                 <span>Couldn’t load the boards. Try again</span>
@@ -219,7 +227,10 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
               current={board.id === state.boardId}
               portalContainer={portalContainer}
               onOpen={() => state.openBoard(board.id)}
-              onRename={() => state.beginRename(board.id)}
+              renaming={renamingId === board.id}
+              onRename={() => setRenamingId(board.id)}
+              onRenameSave={(patch) => state.renameBoard(board.id, patch)}
+              onRenameEnd={() => setRenamingId(null)}
               onDelete={() => askToDelete(board)}
             />
           ))}
@@ -283,7 +294,12 @@ interface BoardRowProps {
   current: boolean;
   portalContainer: HTMLElement | null;
   onOpen: () => void;
+  /** The row is a name field, from the menu's Rename. */
+  renaming: boolean;
   onRename: () => void;
+  /** Rejects when the server refuses; the field then stays, with the reason. */
+  onRenameSave: (patch: BoardDetailsPatch) => Promise<void>;
+  onRenameEnd: () => void;
   onDelete: () => void;
 }
 
@@ -292,7 +308,30 @@ interface BoardRowProps {
  * focusing it from the keyboard, reveals a menu button in the date's place, so
  * the list stays a list of names rather than of controls.
  */
-function BoardRow({ board, current, portalContainer, onOpen, onRename, onDelete }: BoardRowProps) {
+function BoardRow({
+  board,
+  current,
+  portalContainer,
+  onOpen,
+  renaming,
+  onRename,
+  onRenameSave,
+  onRenameEnd,
+  onDelete,
+}: BoardRowProps) {
+  if (renaming) {
+    return (
+      <SidebarMenuItem>
+        <BoardNameField
+          board={board}
+          portalContainer={portalContainer}
+          onSave={onRenameSave}
+          onEnd={onRenameEnd}
+        />
+      </SidebarMenuItem>
+    );
+  }
+
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -323,6 +362,203 @@ function BoardRow({ board, current, portalContainer, onOpen, onRename, onDelete 
         onDelete={onDelete}
       />
     </SidebarMenuItem>
+  );
+}
+
+const MAX_BOARD_TITLE = 200;
+
+/**
+ * A board's row as a name field, for renaming it where it stands — and
+ * retagging it: the dot at its start opens the seven tag colours.
+ *
+ * The name and the colour are saved together: Enter saves, and so does
+ * clicking away; Escape leaves both as they were. The field holds the new
+ * values while the server answers, so the row doesn't flick back to the old
+ * ones, and a refusal keeps it open with the reason under it.
+ */
+function BoardNameField({
+  board,
+  portalContainer,
+  onSave,
+  onEnd,
+}: {
+  board: BoardSummary;
+  portalContainer: HTMLElement | null;
+  onSave: (patch: BoardDetailsPatch) => Promise<void>;
+  onEnd: () => void;
+}) {
+  const [draft, setDraft] = useState(board.title);
+  const [color, setColor] = useState<BoardColor>(board.color);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  // Set once Enter, Escape or a save has settled it, so the blur that follows
+  // doesn't save a second time.
+  const settled = useRef(false);
+  // While the colours are open, focus is in their menu, not gone for good.
+  const picking = useRef(false);
+  // Coming back from the colours, the name keeps its caret rather than being
+  // selected again.
+  const keepSelection = useRef(false);
+
+  // Focused on the frame after it appears: chosen from the row's menu, focus
+  // would go straight back to the menu, which holds on to it until it closes.
+  const attach = useCallback((input: HTMLInputElement | null) => {
+    inputRef.current = input;
+    if (input) requestAnimationFrame(() => input.focus());
+  }, []);
+
+  const save = () => {
+    if (settled.current || saving || picking.current) return;
+    const title = draft.trim();
+    const patch: BoardDetailsPatch = {};
+    if (title && title !== board.title) patch.title = title;
+    if (color !== board.color) patch.color = color;
+    if (patch.title === undefined && patch.color === undefined) {
+      settled.current = true;
+      onEnd();
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    onSave(patch).then(
+      () => {
+        settled.current = true;
+        onEnd();
+      },
+      (err: unknown) => {
+        setSaving(false);
+        setError(err instanceof Error ? err.message : 'Couldn’t save the board.');
+        requestAnimationFrame(() => inputRef.current?.focus());
+      },
+    );
+  };
+
+  // A press anywhere else saves, as leaving the field does. The canvas keeps
+  // a press from moving focus, so the field would otherwise never hear of it.
+  // A press in the colours is still inside, though they sit elsewhere.
+  const latestSave = useRef(save);
+  latestSave.current = save;
+  useEffect(() => {
+    const pressed = (event: PointerEvent) => {
+      const target = event.target as Element;
+      if (boxRef.current?.contains(target) || target.closest?.('[data-board-colours]')) return;
+      latestSave.current();
+    };
+    document.addEventListener('pointerdown', pressed, true);
+    return () => document.removeEventListener('pointerdown', pressed, true);
+  }, []);
+
+  return (
+    <div
+      ref={boxRef}
+      className="flex flex-col gap-1"
+      // Leaving the field saves — but not for its own colour button, or the
+      // colours it opens.
+      onBlur={(event) => {
+        const next = event.relatedTarget as Element | null;
+        if (next && (boxRef.current?.contains(next) || next.closest('[data-board-colours]'))) {
+          return;
+        }
+        save();
+      }}
+    >
+      <div
+        className={cn(
+          'flex h-8 w-full items-center gap-1 rounded-md bg-sidebar-accent pr-1 pl-1 ring-2 ring-sidebar-ring ring-inset',
+          saving && 'opacity-60',
+        )}
+      >
+        <InlineDropdownMenu
+          onOpenChange={(open) => {
+            picking.current = open;
+          }}
+        >
+          <InlineDropdownMenuTrigger
+            disabled={saving}
+            aria-label={`Colour tag: ${BOARD_COLORS.find((it) => it.value === color)?.label ?? color}`}
+            title="Colour tag"
+            data-testid={`sidebar-board-colour-${board.id}`}
+            className="flex h-6 shrink-0 items-center gap-0.5 rounded px-1 text-sidebar-foreground/60 outline-hidden transition-colors hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[state=open]:bg-sidebar-foreground/10"
+          >
+            <span className="grid size-4 place-items-center">
+              <ColorDot color={color} />
+            </span>
+            <ChevronDown className="size-3" aria-hidden="true" />
+          </InlineDropdownMenuTrigger>
+          <InlineDropdownMenuContent
+            side="bottom"
+            align="start"
+            sideOffset={6}
+            collisionPadding={8}
+            container={portalContainer}
+            aria-label="Colour tag"
+            data-board-colours=""
+            // Back to the name, caret where it was, rather than to the button.
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              keepSelection.current = true;
+              inputRef.current?.focus();
+            }}
+          >
+            <InlineDropdownMenuRadioGroup
+              value={color}
+              onValueChange={(next) => setColor(next as BoardColor)}
+            >
+              {BOARD_COLORS.map((option) => (
+                <InlineDropdownMenuChoiceItem
+                  key={option.value}
+                  value={option.value}
+                  data-testid={`board-colour-${option.value}`}
+                  icon={
+                    <span
+                      aria-hidden="true"
+                      className="size-2.5 rounded-full"
+                      style={{ backgroundColor: option.swatch }}
+                    />
+                  }
+                >
+                  {option.label}
+                </InlineDropdownMenuChoiceItem>
+              ))}
+            </InlineDropdownMenuRadioGroup>
+          </InlineDropdownMenuContent>
+        </InlineDropdownMenu>
+        <input
+          ref={attach}
+          value={draft}
+          maxLength={MAX_BOARD_TITLE}
+          readOnly={saving}
+          aria-label="Board name"
+          aria-invalid={error !== null || undefined}
+          data-testid={`sidebar-board-rename-${board.id}`}
+          onChange={(event) => setDraft(event.target.value)}
+          onFocus={(event) => {
+            if (keepSelection.current) keepSelection.current = false;
+            else event.currentTarget.select();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              save();
+            } else if (event.key === 'Escape') {
+              // Leaves the name and colour as they were, without the board
+              // hearing Escape.
+              event.stopPropagation();
+              settled.current = true;
+              onEnd();
+            }
+          }}
+          className="min-w-0 flex-1 bg-transparent pl-1 text-sm text-sidebar-accent-foreground outline-hidden"
+        />
+      </div>
+      {error && (
+        <p role="alert" className="px-2 text-xs text-red-400">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -380,19 +616,22 @@ function BoardRowMenu({
           Archive
         </InlineDropdownMenuItem>
         <InlineDropdownMenuSeparator />
+        {/* In place, on the row itself — no window, so no ellipsis. The board
+            card's pencil and Manage still open Rename board, which also sets
+            the colour. */}
         <InlineDropdownMenuItem
           icon={<Pencil aria-hidden="true" />}
           onSelect={onRename}
           data-testid="board-menu-rename"
         >
-          Rename…
+          Rename
         </InlineDropdownMenuItem>
         <InlineDropdownMenuSeparator />
         <InlineDropdownMenuItem
           icon={<Trash2 aria-hidden="true" />}
           onSelect={onDelete}
           data-testid="board-menu-delete"
-          className="text-red-500 dark:text-red-400"
+          className={menuDangerRowClasses}
         >
           Delete…
         </InlineDropdownMenuItem>

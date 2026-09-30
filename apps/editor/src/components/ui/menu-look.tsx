@@ -29,6 +29,18 @@ export const menuRowClasses =
   'relative flex w-full cursor-default select-none items-center justify-between gap-3 rounded px-2 py-1.5 text-xs outline-none active:bg-neutral-50/15 data-[highlighted]:bg-neutral-950/10 data-[disabled]:pointer-events-none data-[disabled]:opacity-40 dark:data-[highlighted]:bg-neutral-50/10';
 
 /**
+ * A row that deletes or discards, as the context menu's Delete draws it: red
+ * text, and on highlight the two reds that row stacks (a tint and an overlay)
+ * as one — 14.5% in light, 40% in dark.
+ */
+export const menuDangerRowClasses =
+  'text-red-400 data-[highlighted]:bg-red-500/[14.5%] dark:data-[highlighted]:bg-red-500/40';
+
+/** The same red for a row that lights on hover and focus rather than on Radix's highlight. */
+export const menuDangerButtonClasses =
+  'text-red-400 hover:bg-red-500/[14.5%] hover:text-red-400 focus-visible:bg-red-500/[14.5%] dark:hover:bg-red-500/40 dark:focus-visible:bg-red-500/40';
+
+/**
  * The same row for a plain button outside a Radix menu, which lights on hover
  * and on keyboard focus rather than on Radix's highlight.
  */

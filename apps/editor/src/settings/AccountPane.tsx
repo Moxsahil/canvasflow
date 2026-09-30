@@ -7,7 +7,11 @@ import {
   SessionsDialog,
   SignOutEverywhereDialog,
 } from './AccountDialogs';
-import { fetchAccountSecurity, type AccountSecurity } from './account-security-api';
+import {
+  knownAccountSecurity,
+  loadAccountSecurity,
+  type AccountSecurity,
+} from './account-security-api';
 import { passwordHint, sessionsHint, signInMethodsHint } from './account-format';
 import { EmailRow } from './EmailRow';
 import { Band, ComingSoonTag, SettingRow, SettingsButton, SettingsPage } from './settings-ui';
@@ -17,9 +21,10 @@ type Opened = 'password' | 'accounts' | 'sessions' | 'sign-out';
 /**
  * Account & Security: how you get in, and what is currently signed in.
  *
- * Read from the gateway each time the page opens rather than from anything the
- * editor already holds: a password changed or a device signed in elsewhere a
- * minute ago has to show here.
+ * Read from the gateway each time the page opens: a password changed or a
+ * device signed in elsewhere a minute ago has to show here. Until that answer
+ * lands, the page shows the last one — read ahead of time, shortly after the
+ * editor opens — rather than a row of "Loading…".
  */
 export function AccountPane({
   token,
@@ -32,7 +37,7 @@ export function AccountPane({
   /** Whether the address is confirmed, and the way to hear that it now is. */
   account: ProfileState;
 }) {
-  const [security, setSecurity] = useState<AccountSecurity | null>(null);
+  const [security, setSecurity] = useState<AccountSecurity | null>(knownAccountSecurity);
   const [error, setError] = useState<string | null>(null);
   const [opened, setOpened] = useState<Opened | null>(null);
   // Bumped to read the account again after something here changed it.
@@ -40,7 +45,7 @@ export function AccountPane({
 
   useEffect(() => {
     let live = true;
-    fetchAccountSecurity(token).then(
+    loadAccountSecurity(token).then(
       (next) => {
         if (!live) return;
         setSecurity(next);
@@ -93,7 +98,7 @@ export function AccountPane({
 
   return (
     <SettingsPage lead="Sign-in methods, active sessions, and account deletion." dialog={drawn}>
-      <Band title="Sign-in" description="The ways you get into CanvasFlow." error={error}>
+      <Band title="Sign-in" error={error}>
         <EmailRow
           email={account.profile?.email ?? user?.email ?? null}
           verified={account.profile?.emailVerified ?? false}
@@ -124,7 +129,7 @@ export function AccountPane({
         </SettingRow>
       </Band>
 
-      <Band title="Sessions" description="Where you are signed in right now.">
+      <Band title="Sessions">
         <SettingRow
           setting="sessions"
           title="Active sessions"

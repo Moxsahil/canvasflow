@@ -86,6 +86,47 @@ export async function fetchAccountSecurity(token: string | null): Promise<Accoun
   return ((await res.json()) as { data: AccountSecurity }).data;
 }
 
+/**
+ * The last answer, kept for as long as the page is open, and the request in
+ * flight. The page is the account's: signing out or deleting leaves it, so
+ * nothing kept here outlives the account it describes.
+ */
+let lastKnown: AccountSecurity | null = null;
+let inFlight: Promise<AccountSecurity> | null = null;
+
+/** What Account & Security last said, to show at once while it is read again. */
+export function knownAccountSecurity(): AccountSecurity | null {
+  return lastKnown;
+}
+
+/**
+ * Reads Account & Security, sharing a request already under way rather than
+ * starting a second one.
+ */
+export function loadAccountSecurity(token: string | null): Promise<AccountSecurity> {
+  if (inFlight) return inFlight;
+  const request = fetchAccountSecurity(token).then((data) => {
+    lastKnown = data;
+    return data;
+  });
+  inFlight = request;
+  const settle = () => {
+    if (inFlight === request) inFlight = null;
+  };
+  request.then(settle, settle);
+  return request;
+}
+
+/**
+ * Starts reading Account & Security before anyone asks, unless it is already
+ * known, so the tab has it the moment it opens. A failure here is quiet: the
+ * tab asks again, and says so if it fails there.
+ */
+export function warmAccountSecurity(token: string | null): void {
+  if (lastKnown || inFlight) return;
+  loadAccountSecurity(token).catch(() => {});
+}
+
 export async function changePassword(
   token: string | null,
   input: { currentPassword: string; newPassword: string; signOutOtherDevices: boolean },
