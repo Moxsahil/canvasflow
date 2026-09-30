@@ -79,7 +79,7 @@ export const MENU_ITEMS: Readonly<Record<MenuItemId, MenuItemMeta>> = {
   help: { id: 'help', label: 'Help', icon: CircleQuestionMark, shortcut: 'shift+?' },
   preferences: { id: 'preferences', label: 'Preferences', icon: Settings2 },
   settings: { id: 'settings', label: 'Settings', icon: Settings },
-  signOut: { id: 'signOut', label: 'Sign out', icon: LogOut },
+  signOut: { id: 'signOut', label: 'Log out', icon: LogOut, destructive: true },
 };
 
 /**

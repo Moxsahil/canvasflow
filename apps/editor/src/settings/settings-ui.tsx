@@ -10,7 +10,40 @@ import {
 } from 'react';
 import { AnimatePresence, motion, type Variants } from 'framer-motion';
 import { createPortal } from 'react-dom';
-import { Check, ExternalLink, X } from 'lucide-react';
+import {
+  AtSign,
+  BarChart3,
+  Building2,
+  CalendarDays,
+  Check,
+  Crown,
+  CreditCard,
+  Database,
+  Download,
+  ExternalLink,
+  Eye,
+  FileText,
+  Globe,
+  HardDrive,
+  KeyRound,
+  Link2,
+  LogOut,
+  Mail,
+  MessageSquare,
+  Monitor,
+  MousePointer2,
+  Receipt,
+  Share,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  Type,
+  UserPlus,
+  Users,
+  X,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   BandContext,
@@ -23,10 +56,11 @@ import {
 /**
  * The pieces every Settings page is built from.
  *
- * A page is a lead line and a stack of bands. A band is one group of settings:
- * its name and what it is for in a column on the left, held in place while its
- * fields scroll past on the right, with a single rule between one band and the
- * next. Nothing is boxed; the column and the rule are the whole structure.
+ * A page is a lead line and a stack of groups. A group is a small caption with
+ * a rule running off to the right, and its rows under it. A row starts with an
+ * icon in a soft circle, says what it is, and ends with its control; nothing
+ * divides one row from the next, and the row under the pointer lights up — in
+ * red for the rows that leave or delete, which are named in red too.
  */
 
 export const EASE = [0.2, 0.8, 0.2, 1] as const;
@@ -45,12 +79,97 @@ export const SLIDE: Variants = {
   }),
 };
 
-/** A row a search can lead to: it lights up when it lands, then fades. */
-const FLASHABLE =
-  'rounded-[6px] transition-[background-color,box-shadow] duration-[600ms] data-[flash]:bg-[var(--surface-flash)] data-[flash]:shadow-[0_0_0_6px_var(--surface-flash)] data-[flash]:duration-0';
+/**
+ * A row: lit under the pointer, and when a search lands on it, then fading.
+ * `group/row` lets its icon answer the highlight too.
+ */
+const ROW =
+  'group/row flex items-center gap-[12px] rounded-[10px] px-[10px] py-[9px] transition-[background-color] duration-[600ms] hover:bg-[var(--surface-wash)] hover:duration-150 data-[flash]:bg-[var(--surface-flash)] data-[flash]:duration-0';
 
 const TITLE = 'text-[12.5px] font-medium text-[var(--surface-fg)]';
 const HINT = 'text-[11.5px] text-[var(--surface-fg-muted)]';
+
+/**
+ * Every row's icon, by the id search already knows it by, so a page names a
+ * row once and the icon follows.
+ */
+const ROW_ICONS: Record<string, LucideIcon> = {
+  'display-name': Type,
+  username: AtSign,
+  'cursor-colour': MousePointer2,
+  email: Mail,
+  password: KeyRound,
+  'connected-accounts': Link2,
+  'two-factor': ShieldCheck,
+  sessions: Monitor,
+  'sign-out-everywhere': LogOut,
+  'workspace-name': Building2,
+  role: Crown,
+  members: Users,
+  'board-access': Globe,
+  'leave-workspace': LogOut,
+  'board-shared': Share,
+  'comment-mentions': MessageSquare,
+  'invite-accepted': UserPlus,
+  'weekly-digest': CalendarDays,
+  'product-updates': Sparkles,
+  plan: Zap,
+  seats: Users,
+  storage: Database,
+  'payment-method': CreditCard,
+  invoices: Receipt,
+  export: Download,
+  'storage-used': HardDrive,
+  analytics: BarChart3,
+  terms: FileText,
+  'privacy-policy': Eye,
+  'delete-account': Trash2,
+};
+
+/** The rows whose icon and name are in the danger colour, and whose highlight is red. */
+const DANGER_ROWS = new Set(['leave-workspace', 'delete-account']);
+
+function rowClasses(setting: string): string {
+  return cn(ROW, DANGER_ROWS.has(setting) && 'hover:bg-[var(--surface-danger-wash)]');
+}
+
+/** The icon at the start of a row, in a soft circle that lifts under the pointer. */
+function RowIcon({ setting }: { setting: string }) {
+  const Icon = ROW_ICONS[setting];
+  if (!Icon) return null;
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'flex size-[32px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-wash)] transition-colors group-hover/row:bg-[var(--surface-panel)]',
+        DANGER_ROWS.has(setting)
+          ? 'text-[var(--surface-danger)]'
+          : 'text-[var(--surface-fg-muted)]',
+      )}
+    >
+      <Icon className="size-[16px]" strokeWidth={1.75} />
+    </span>
+  );
+}
+
+/**
+ * A row's control column. Its buttons are pills — outlined on the panel,
+ * the primary in the accent — and its select and fields round off to match.
+ */
+const CONTROLS = cn(
+  'flex shrink-0 items-center gap-[8px]',
+  '[&_[data-variant]]:rounded-full [&_[data-variant]]:px-[12px]',
+  '[&_[data-variant=secondary]]:bg-[var(--surface-panel)] [&_[data-variant=secondary]:hover]:border-[var(--surface-fg-faint)] [&_[data-variant=secondary]:hover]:bg-[var(--surface-panel)]',
+  '[&_[data-variant=danger]]:bg-transparent [&_[data-variant=danger]:hover]:bg-[var(--surface-danger-wash)]',
+);
+
+/** The cross and tick inside a pill field that has been changed. */
+const INLINE_ACTION =
+  'flex h-[22px] w-[26px] items-center justify-center rounded-full text-[var(--surface-fg-muted)] transition-colors hover:bg-[var(--surface-wash)] hover:text-[var(--surface-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] disabled:opacity-50';
+
+/** A text field in a row: a pill at the end of it. */
+export const ROW_INPUT =
+  'h-[30px] w-[220px] rounded-full border border-[var(--surface-border)] bg-[var(--surface-input)] px-[12px] text-[12.5px] text-[var(--surface-fg)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--surface-fg-faint)] focus:border-[var(--surface-accent)] focus:shadow-[0_0_0_3px_var(--surface-accent-wash)] disabled:opacity-60';
 
 /**
  * A thin scrollbar with a rounded thumb in a quiet tone, on no track at all —
@@ -81,9 +200,9 @@ function Scroller({ children }: { children: ReactNode }) {
       ref={ref}
       data-settings-scroll
       onScroll={(event) => frame?.onPageScroll(event.currentTarget)}
-      className={cn('h-full overflow-y-auto px-[20px] pb-[36px]', SCROLLBAR)}
+      className={cn('h-full overflow-y-auto px-[12px] pt-[6px] pb-[28px]', SCROLLBAR)}
     >
-      {children}
+      <div className="flex flex-col">{children}</div>
     </div>
   );
 }
@@ -108,7 +227,9 @@ export function SettingsPage({
   return (
     <>
       <Scroller>
-        <p className="pt-[16px] text-[12px] text-[var(--surface-fg-muted)]">{lead}</p>
+        <p className="mx-[10px] mt-[10px] mb-[2px] text-[12px] text-[var(--surface-fg-muted)]">
+          {lead}
+        </p>
         {children}
       </Scroller>
       <AnimatePresence>{dialog || null}</AnimatePresence>
@@ -126,22 +247,18 @@ interface Said {
 }
 
 /**
- * One group of settings.
- *
- * Its name and a line about it sit in a column of their own, and stay beside
- * the fields while they scroll by. Under them is where the group says a change
- * saved, or why it did not, so the answer turns up next to the question.
+ * One group of settings: a small caption with a rule running off to the right,
+ * and its rows under it. The end of the caption's line is where the group says
+ * a change saved, or why it did not, so the answer turns up by the question.
  */
 export function Band({
   title,
-  description,
   danger = false,
   error = null,
   children,
 }: {
   title: string;
-  description: string;
-  /** Titles the band in the danger colour — the one holding Delete account. */
+  /** Captions the group in the danger colour — the one holding Delete account. */
   danger?: boolean;
   /** Something wrong with the whole group, such as it failing to load. */
   error?: string | null;
@@ -177,25 +294,26 @@ export function Band({
 
   return (
     <BandContext.Provider value={status}>
-      <section
-        aria-label={title}
-        className="grid grid-cols-[164px_minmax(0,1fr)] gap-[28px] border-t border-[var(--surface-line)] py-[22px] first-of-type:border-t-0 first-of-type:pt-[18px]"
-      >
-        <div className="sticky top-[16px] flex flex-col gap-[4px] self-start">
-          <h3
+      <section aria-label={title} className="flex shrink-0 flex-col">
+        <div
+          className={cn(
+            'mx-[10px] mt-[16px] mb-[4px] flex items-center gap-[10px] text-[11.5px] font-semibold',
+            danger ? 'text-[var(--surface-danger)]' : 'text-[var(--surface-fg-faint)]',
+          )}
+        >
+          <h3>{title}</h3>
+          <span
+            aria-hidden="true"
             className={cn(
-              'text-[13px] font-semibold',
-              danger ? 'text-[var(--surface-danger)]' : 'text-[var(--surface-fg)]',
+              'h-px flex-1',
+              danger ? 'bg-[var(--surface-danger-border)]' : 'bg-[var(--surface-line)]',
             )}
-          >
-            {title}
-          </h3>
-          <p className="text-[12px] leading-[1.45] text-[var(--surface-fg-muted)]">{description}</p>
+          />
           <p
             role="status"
             aria-live="polite"
             className={cn(
-              'mt-[6px] flex min-h-[16px] items-center gap-[4px] text-[11.5px] leading-[1.4] font-medium transition-opacity duration-300',
+              'flex items-center gap-[4px] font-medium transition-opacity duration-300',
               shown?.visible ? 'opacity-100' : 'opacity-0',
               shown?.kind === 'error' ? 'text-[var(--surface-danger)]' : 'text-[var(--surface-ok)]',
             )}
@@ -209,13 +327,16 @@ export function Band({
             {shown?.kind === 'error' && shown.message}
           </p>
         </div>
-        <div className="flex min-w-0 flex-col gap-[18px]">{children}</div>
+        <div className="flex min-w-0 flex-col">{children}</div>
       </section>
     </BandContext.Provider>
   );
 }
 
-/** A setting on one line: named on the left, something to do about it on the right. */
+/**
+ * A setting on one line: its icon, what it is, and something to do about it at
+ * the end.
+ */
 export function SettingRow({
   setting,
   title,
@@ -224,32 +345,37 @@ export function SettingRow({
   leading,
   children,
 }: {
-  /** Where search lands. Matches an id in SETTINGS_INDEX. */
+  /** Where search lands. Matches an id in SETTINGS_INDEX, and names the row's icon. */
   setting: string;
   title: ReactNode;
   hint: ReactNode;
   /** Beside the title: a status, or that the row is not built yet. */
   badge?: ReactNode;
-  /** Before the words — the photo, on the photo row. */
+  /** In the icon's place — the photo, on the photo row. */
   leading?: ReactNode;
   children?: ReactNode;
 }) {
   return (
-    <div data-setting={setting} className={cn(FLASHABLE, 'flex items-center gap-[16px]')}>
-      {leading}
+    <div data-setting={setting} className={rowClasses(setting)}>
+      {leading ?? <RowIcon setting={setting} />}
       <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
         <div className="flex items-center gap-[8px]">
-          <p className={TITLE}>{title}</p>
+          <p className={cn(TITLE, DANGER_ROWS.has(setting) && 'text-[var(--surface-danger)]')}>
+            {title}
+          </p>
           {badge}
         </div>
         <p className={HINT}>{hint}</p>
       </div>
-      {children && <div className="flex shrink-0 items-center gap-[8px]">{children}</div>}
+      {children && <div className={CONTROLS}>{children}</div>}
     </div>
   );
 }
 
-/** A setting whose control needs the width: the label above it, the hint below. */
+/**
+ * A setting whose control is a field or a set of choices: the same row, with
+ * the label naming the control at its end.
+ */
 export function StackedField({
   setting,
   label,
@@ -265,25 +391,28 @@ export function StackedField({
   htmlFor?: string;
   badge?: ReactNode;
   hint: ReactNode;
-  /** At the end of the hint's line — where Save and Cancel appear. */
+  /** After the control. */
   after?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <div data-setting={setting} className={cn(FLASHABLE, 'flex flex-col gap-[6px]')}>
-      <div className="flex items-center gap-[8px]">
-        {htmlFor ? (
-          <label htmlFor={htmlFor} className={TITLE}>
-            {label}
-          </label>
-        ) : (
-          <p className={TITLE}>{label}</p>
-        )}
-        {badge}
+    <div data-setting={setting} className={rowClasses(setting)}>
+      <RowIcon setting={setting} />
+      <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
+        <div className="flex items-center gap-[8px]">
+          {htmlFor ? (
+            <label htmlFor={htmlFor} className={TITLE}>
+              {label}
+            </label>
+          ) : (
+            <p className={TITLE}>{label}</p>
+          )}
+          {badge}
+        </div>
+        <div className={HINT}>{hint}</div>
       </div>
-      {children}
-      <div className="flex min-h-[28px] items-center gap-[8px]">
-        <div className={cn(HINT, 'min-w-0 flex-1')}>{hint}</div>
+      <div className={CONTROLS}>
+        {children}
         {after}
       </div>
     </div>
@@ -293,8 +422,9 @@ export function StackedField({
 /**
  * A text setting that saves on its own.
  *
- * Save and Cancel appear under it once it differs from what is saved; Enter
- * saves and Escape puts the saved value back. The band says when it has saved.
+ * A pill at the end of its row. Once it differs from what is saved, a cross
+ * and a tick appear inside it; Enter saves and Escape puts the saved value
+ * back. The group's caption says when it has saved.
  */
 export function InlineTextField({
   setting,
@@ -386,44 +516,62 @@ export function InlineTextField({
           hint
         )
       }
-      after={
-        dirty && !disabled ? (
-          <span className="flex shrink-0 gap-[6px]">
-            <SettingsButton variant="secondary" onClick={revert} disabled={busy}>
-              Cancel
-            </SettingsButton>
-            <SettingsButton variant="primary" onClick={() => void save()} disabled={busy}>
-              {busy ? 'Saving…' : 'Save'}
-            </SettingsButton>
-          </span>
-        ) : undefined
-      }
     >
-      <input
-        id={id}
-        type="text"
-        value={draft}
-        placeholder={placeholder}
-        disabled={disabled}
-        maxLength={maxLength}
-        autoComplete="off"
-        spellCheck={false}
-        aria-invalid={error ? true : undefined}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        onChange={(event) => {
-          touched.current = true;
-          setDraft(event.target.value);
-          onEdit?.();
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            if (dirty) void save();
-          }
-        }}
-        className={cn(INPUT, error && 'border-[var(--surface-danger-border)]')}
-      />
+      <span className="relative inline-flex items-center">
+        <input
+          id={id}
+          type="text"
+          value={draft}
+          placeholder={placeholder}
+          disabled={disabled}
+          maxLength={maxLength}
+          autoComplete="off"
+          spellCheck={false}
+          aria-invalid={error ? true : undefined}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onChange={(event) => {
+            touched.current = true;
+            setDraft(event.target.value);
+            onEdit?.();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              if (dirty) void save();
+            }
+          }}
+          className={cn(
+            ROW_INPUT,
+            dirty && !disabled && 'pr-[60px]',
+            error && 'border-[var(--surface-danger-border)]',
+          )}
+        />
+        {dirty && !disabled && (
+          <span className="absolute right-[4px] flex gap-[2px]">
+            <button
+              type="button"
+              aria-label="Cancel"
+              title="Cancel"
+              disabled={busy}
+              onClick={revert}
+              className={INLINE_ACTION}
+            >
+              <X className="size-[14px]" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              aria-label={busy ? 'Saving…' : 'Save'}
+              title="Save"
+              disabled={busy}
+              onClick={() => void save()}
+              className={cn(INLINE_ACTION, 'text-[var(--surface-accent)]')}
+            >
+              <Check className="size-[14px]" aria-hidden="true" />
+            </button>
+          </span>
+        )}
+      </span>
     </StackedField>
   );
 }
@@ -460,6 +608,7 @@ export const SettingsButton = forwardRef<HTMLButtonElement, SettingsButtonProps>
       <button
         ref={ref}
         type={type}
+        data-variant={variant}
         className={cn(BUTTON, BUTTON_VARIANTS[variant], className)}
         {...props}
       />
@@ -490,6 +639,7 @@ export function ExternalLinkButton({
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`${label} (opens in a new tab)`}
+      data-variant="secondary"
       className={cn(BUTTON, BUTTON_VARIANTS.secondary)}
     >
       {children}

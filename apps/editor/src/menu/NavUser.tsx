@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { menuDangerRowClasses } from '@/components/ui/menu-look';
 import {
   identityDetailClasses,
   identityRowClasses,
@@ -153,11 +154,12 @@ function Soon() {
 
 /** A row the sidebar's vocabulary already names, live exactly when it has a handler. */
 function AccountRow({ id, actions }: { id: MenuItemId; actions?: MenuActions }) {
-  const { label, icon: Icon } = MENU_ITEMS[id];
+  const { label, icon: Icon, destructive } = MENU_ITEMS[id];
   const action = actions?.[id];
   return (
     <InlineDropdownMenuItem
       disabled={!action}
+      className={cn(destructive && menuDangerRowClasses)}
       onSelect={action ?? undefined}
       icon={<Icon aria-hidden="true" />}
       // Only an unbuilt feature is "Soon" — see MenuActions.

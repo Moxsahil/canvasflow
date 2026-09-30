@@ -1,9 +1,15 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { ExternalLink, ScrollText } from 'lucide-react';
 import { TERMS_VERSION } from '@canvasflow/types';
 import { formatTermsVersion, termsUrl } from '@/lib/legal-links';
-import { SurfaceDialog } from '../ui/SurfaceDialog';
-import { SurfaceButton } from '../ui/surface-ui';
+import {
+  SurfaceWindow,
+  WindowBadge,
+  WindowBody,
+  WindowButton,
+  WindowFooter,
+  WindowHeader,
+} from '../ui/SurfaceWindow';
 import type { SurfaceTheme } from '../ui/surface-palette';
 import type { Profile } from './profile-api';
 
@@ -42,12 +48,14 @@ interface TermsNoticeProps {
  * this window or any other the account has open.
  *
  * Not dismissable, like the other window that stands between someone and the
- * board. Continuing to use CanvasFlow is what the terms ask agreement to, so
+ * board: no ×, and Escape or a click outside do nothing. Continuing to use CanvasFlow is what the terms ask agreement to, so
  * closing this and carrying on would be the same answer given without the
  * record of it. Reading them is always one click away, in a new tab, so the
  * board is still here afterwards.
  */
 export function TermsNotice({ profile, onAccept, theme }: TermsNoticeProps) {
+  const titleId = useId();
+  const bodyId = useId();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,59 +76,54 @@ export function TermsNotice({ profile, onAccept, theme }: TermsNoticeProps) {
   };
 
   return (
-    <SurfaceDialog
+    <SurfaceWindow
       open={open}
       theme={theme}
       alert
-      // Escape, the backdrop and the close button all go with this.
       dismissable={false}
-      title={changed ? 'Our Terms of Service have changed' : 'We’ve published our Terms of Service'}
-      subtitle={`Last updated ${formatTermsVersion(TERMS_VERSION)}`}
-      leading={
-        <span className="flex size-[42px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-raised)] text-[var(--surface-accent)]">
-          <ScrollText className="size-[18px]" aria-hidden="true" />
-        </span>
-      }
-      width={480}
       // Never called: nothing here closes it except agreeing, which does so by
       // changing the profile it reads.
       onClose={() => {}}
+      width={460}
+      labelledBy={titleId}
+      describedBy={bodyId}
       data-testid="terms-notice"
-      footer={
-        <>
-          <div className="flex-1" />
-          <SurfaceButton
-            variant="ghost"
-            onClick={() => window.open(termsUrl(), '_blank', 'noopener,noreferrer')}
-          >
-            Read the terms
-            <ExternalLink size={13} aria-hidden="true" />
-          </SurfaceButton>
-          <SurfaceButton variant="primary" loading={busy} onClick={() => void accept()}>
-            Continue
-          </SurfaceButton>
-        </>
-      }
     >
-      <div className="text-[12.5px] leading-[1.6] text-[var(--surface-fg-muted)]">
-        {changed ? (
-          <>
-            We’ve updated them since you last agreed. Choosing Continue means you agree to the new
-            version.
-          </>
-        ) : (
-          <>
-            They set out what you can expect from CanvasFlow, and what we ask of you in return.
-            Choosing Continue means you agree to them.
-          </>
-        )}
-      </div>
+      <WindowHeader
+        titleId={titleId}
+        title={
+          changed ? 'Our Terms of Service have changed' : 'We’ve published our Terms of Service'
+        }
+        description={`Last updated ${formatTermsVersion(TERMS_VERSION)}`}
+        lead={
+          <WindowBadge tone="soft">
+            <ScrollText aria-hidden="true" />
+          </WindowBadge>
+        }
+      />
 
-      {error && (
-        <p role="alert" className="text-[11.5px] leading-[1.6] text-[var(--surface-danger)]">
-          {error}
+      <WindowBody>
+        <p id={bodyId} className="text-[12.5px] leading-[1.6] text-[var(--surface-fg-muted)]">
+          {changed
+            ? 'We’ve updated them since you last agreed. Choosing Continue means you agree to the new version.'
+            : 'They set out what you can expect from CanvasFlow, and what we ask of you in return. Choosing Continue means you agree to them.'}
         </p>
-      )}
-    </SurfaceDialog>
+      </WindowBody>
+
+      {/* Focus starts on the window rather than on Continue, so Enter doesn't
+          agree on anyone's behalf. */}
+      <WindowFooter status={error} danger>
+        <WindowButton
+          variant="ghost"
+          onClick={() => window.open(termsUrl(), '_blank', 'noopener,noreferrer')}
+        >
+          Read the terms
+          <ExternalLink aria-hidden="true" />
+        </WindowButton>
+        <WindowButton variant="primary" disabled={busy} onClick={() => void accept()}>
+          {busy ? 'Saving…' : 'Continue'}
+        </WindowButton>
+      </WindowFooter>
+    </SurfaceWindow>
   );
 }

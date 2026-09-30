@@ -105,7 +105,7 @@ export function PrivacyPane({
     >
       {/* Nothing stores the analytics choice yet, so the band does not claim
           it saved. */}
-      <Band title="Your data" description="Take your boards with you, and choose what we learn.">
+      <Band title="Your data">
         <SettingRow
           setting="export"
           title="Export all boards"
@@ -131,7 +131,7 @@ export function PrivacyPane({
 
       {/* The editor has no footer, so this is where the legal pages are found
           from inside it. */}
-      <Band title="Legal" description="What you agreed to, and what we keep.">
+      <Band title="Legal">
         <SettingRow setting="terms" title="Terms of Service" hint={termsHint}>
           <ExternalLinkButton href={termsUrl()} label="Read the Terms of Service">
             Read
@@ -149,11 +149,7 @@ export function PrivacyPane({
       </Band>
 
       {!isGuest && (
-        <Band
-          title="Danger zone"
-          description="The one thing here that cannot be undone once its grace period ends."
-          danger
-        >
+        <Band title="Danger zone" danger>
           <SettingRow
             setting="delete-account"
             title="Delete account"

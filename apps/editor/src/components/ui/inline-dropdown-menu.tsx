@@ -1,12 +1,13 @@
 import * as React from 'react';
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
 import { MotionConfig } from 'framer-motion';
-import { ChevronRight } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import {
   MenuBadge,
   MenuRowEnd,
+  MenuRowIcon,
   MenuToggleBox,
   menuLabelClasses,
   menuPanelClasses,
@@ -146,6 +147,45 @@ const InlineDropdownMenuToggleItem = React.forwardRef<
   );
 });
 
+/** A set of rows of which exactly one is in effect. */
+const InlineDropdownMenuRadioGroup = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.RadioGroup>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioGroup>
+>(function InlineDropdownMenuRadioGroup({ className, ...props }, ref) {
+  return (
+    <DropdownMenuPrimitive.RadioGroup
+      ref={ref}
+      className={cn('flex w-full flex-col gap-y-1', className)}
+      {...props}
+    />
+  );
+});
+
+/**
+ * One of a radio group, as the context menu draws it: the one in effect
+ * carries a tick before its icon. Picking a row closes the menu, as a command
+ * does.
+ */
+const InlineDropdownMenuChoiceItem = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.RadioItem>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem> & {
+    /** On the right, at 16px, as on every other row. */
+    icon?: React.ReactNode;
+  }
+>(function InlineDropdownMenuChoiceItem({ className, children, icon, ...props }, ref) {
+  return (
+    <DropdownMenuPrimitive.RadioItem ref={ref} className={cn(menuRowClasses, className)} {...props}>
+      <span className="min-w-0 truncate">{children}</span>
+      <span className="ml-auto flex shrink-0 items-center gap-2">
+        <DropdownMenuPrimitive.ItemIndicator className="flex items-center [&>svg]:size-3.5">
+          <Check />
+        </DropdownMenuPrimitive.ItemIndicator>
+        {icon && <MenuRowIcon>{icon}</MenuRowIcon>}
+      </span>
+    </DropdownMenuPrimitive.RadioItem>
+  );
+});
+
 /** A quiet caption over the rows below it. */
 const InlineDropdownMenuLabel = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Label>,
@@ -175,6 +215,8 @@ export {
   InlineDropdownMenuContent,
   InlineDropdownMenuItem,
   InlineDropdownMenuToggleItem,
+  InlineDropdownMenuRadioGroup,
+  InlineDropdownMenuChoiceItem,
   InlineDropdownMenuLabel,
   InlineDropdownMenuSeparator,
   InlineDropdownMenuBadge,

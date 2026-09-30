@@ -389,7 +389,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   fromMenu('findOnCanvas', 'App', ['search', 'text', 'locate']),
   fromMenu('help', 'App', ['shortcuts', 'keyboard', 'keys', 'support']),
   fromMenu('settings', 'App', ['preferences', 'account', 'profile', 'options']),
-  fromMenu('signOut', 'App', ['log out', 'logout', 'leave', 'exit']),
+  fromMenu('signOut', 'App', ['sign out', 'signout', 'logout', 'leave', 'exit']),
 ];
 
 /** Every command by id, for resolving a stored list of recents. */

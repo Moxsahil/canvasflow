@@ -127,6 +127,8 @@ import {
   type VertexGrab,
 } from './machine/tool-machine.types';
 import { ShortcutsModal } from './help';
+import { KeyCaps } from './help/KeyCaps';
+import { FileInput, RotateCcw } from 'lucide-react';
 import {
   clearStoredAuthTokens,
   decodeJwtUser,
@@ -156,12 +158,14 @@ import {
   takeDeletionResume,
   type DeletionInput,
 } from './settings';
+import { warmAccountSecurity } from './settings/account-security-api';
 import { usePreferences } from './preferences';
 import { useAvatar, useProfile } from './profile';
 import { VerificationNotice } from './profile/VerificationNotice';
 import { TermsNotice } from './profile/TermsNotice';
 
 import { ConfirmDialog } from './ui';
+import { NoticeDialog, type Notice } from './ui/NoticeDialog';
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -471,14 +475,16 @@ export function Editor({ boardId }: EditorProps) {
   // Carries its own heading: the open, save and copy-link flows all report
   // through here, and a shared dialog titled for only one of them mislabels
   // the other two.
-  const [notice, setNotice] = useState<{ title: string; body: string } | null>(null);
+  // Open, save and image notices only ever report what went wrong, or what was
+  // skipped, so they carry the warning tone.
+  const [notice, setNotice] = useState<Notice | null>(null);
   const dismissNotice = useCallback(() => setNotice(null), []);
   const showOpenNotice = useCallback(
-    (body: string) => setNotice({ title: 'Open board', body }),
+    (body: string) => setNotice({ title: 'Open board', body, tone: 'warn' }),
     [],
   );
   const showSaveNotice = useCallback(
-    (body: string) => setNotice({ title: 'Save board', body }),
+    (body: string) => setNotice({ title: 'Save board', body, tone: 'warn' }),
     [],
   );
 
@@ -496,6 +502,16 @@ export function Editor({ boardId }: EditorProps) {
   // menu's account row has been showing a raw UUID.
   const user = useMemo(() => (authToken ? decodeJwtUser(authToken) : null), [authToken]);
   const userId = user?.id ?? null;
+
+  // Account & Security reads the account's sign-in methods and sessions from
+  // the gateway, which takes a moment. Asked for once the board has settled,
+  // so the tab has them the moment it opens. Once per page: the answer is kept.
+  const accountAsked = user !== null && !user.isGuest;
+  useEffect(() => {
+    if (!accountAsked) return;
+    const timer = setTimeout(() => warmAccountSecurity(authToken), 2500);
+    return () => clearTimeout(timer);
+  }, [accountAsked, authToken]);
 
   // Back from signing in again to delete the account: open straight at it.
   // The note is read once and is only honoured for the account that left it.
@@ -937,7 +953,10 @@ export function Editor({ boardId }: EditorProps) {
     [selectedIds, editingArrow],
   );
 
-  const showImageNotice = useCallback((body: string) => setNotice({ title: 'Image', body }), []);
+  const showImageNotice = useCallback(
+    (body: string) => setNotice({ title: 'Image', body, tone: 'warn' }),
+    [],
+  );
 
   const images = useBoardImages({
     boardId,
@@ -2405,6 +2424,16 @@ export function Editor({ boardId }: EditorProps) {
     }
   }, [actorRef, doc]);
 
+  // What the two questions say, held while they sink away on close: confirming
+  // a reset empties the board, which would otherwise rewrite the question as
+  // it leaves.
+  const resetShapeCount = useRef(shapes.length);
+  if (resetOpen) resetShapeCount.current = shapes.length;
+  const lastReplace = useRef(pendingReplace);
+  if (pendingReplace) lastReplace.current = pendingReplace;
+  const replaceShapeCount = useRef(shapes.length);
+  if (pendingReplace) replaceShapeCount.current = shapes.length;
+
   const confirmReset = useCallback(() => {
     setResetOpen(false);
     handleResetCanvas();
@@ -2420,18 +2449,29 @@ export function Editor({ boardId }: EditorProps) {
    * access needs a share link instead.
    */
   const handleCopyBoardLink = useCallback(async () => {
+    const url = window.location.href;
     try {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(url);
       setNotice({
         title: 'Link copied',
         body: 'Anyone who already has access can open this board with it. To invite someone new, use Live collaboration.',
+        tone: 'ok',
+        link: { url, copied: true },
       });
     } catch {
       setNotice({
-        title: 'Link copied',
-        body: 'Could not copy the link. Copy it from the address bar instead.',
+        title: 'Couldn’t copy the link',
+        body: 'Your browser didn’t allow it. Copy the link from the address bar instead.',
+        tone: 'warn',
+        link: { url, copied: false },
       });
     }
+  }, []);
+
+  // The notice's way to invite someone new: it gives way to the Share window.
+  const shareFromNotice = useCallback(() => {
+    setNotice(null);
+    setShareOpen(true);
   }, []);
 
   const handleCopy = useCallback(async () => {
@@ -3037,10 +3077,10 @@ export function Editor({ boardId }: EditorProps) {
               onClose={hideShare}
               boardId={boardId}
               boardName={boardTitle}
+              userId={userId}
               presenceKey={presenceKey}
               authToken={authToken}
               theme={presenceTheme}
-              portalContainer={editorRoot}
             />
 
             <ConfirmDialog
@@ -3048,13 +3088,14 @@ export function Editor({ boardId }: EditorProps) {
               title="Replace board contents?"
               confirmLabel="Replace"
               destructive
+              icon={<FileInput aria-hidden="true" />}
               theme={presenceTheme}
               onConfirm={confirmReplace}
               onClose={cancelReplace}
             >
-              Opening <strong>{pendingReplace?.fileName}</strong> replaces the {shapes.length} shape
-              {shapes.length === 1 ? '' : 's'} on this board for everyone in it. You can undo this
-              with ⌘Z.
+              Opening <strong>{lastReplace.current?.fileName}</strong> replaces the{' '}
+              {replaceShapeCount.current} shape{replaceShapeCount.current === 1 ? '' : 's'} on this
+              board for everyone in it. You can undo this with <KeyCaps keys="mod+z" size="sm" />.
             </ConfirmDialog>
 
             <ExportImageDialog
@@ -3065,7 +3106,6 @@ export function Editor({ boardId }: EditorProps) {
               boardName={boardTitle}
               darkTheme={resolvedTheme === 'dark'}
               theme={presenceTheme}
-              portalContainer={editorRoot}
               images={images.cache}
               resolveImageDataUrls={images.resolveDataUrls}
             />
@@ -3077,20 +3117,23 @@ export function Editor({ boardId }: EditorProps) {
               open={resetOpen}
               title="Reset the canvas?"
               confirmLabel="Reset"
-              destructive
+              // Nothing to discard on an empty board, so nothing dressed as
+              // discarding — but the row is still live, and it still
+              // recentres the view.
+              destructive={resetShapeCount.current > 0}
+              icon={<RotateCcw aria-hidden="true" />}
               theme={presenceTheme}
               onConfirm={confirmReset}
               onClose={hideReset}
             >
-              {shapes.length > 0 ? (
+              {resetShapeCount.current > 0 ? (
                 <>
-                  This clears all {shapes.length} shape{shapes.length === 1 ? '' : 's'} from this
-                  board for everyone in it, and returns the view to where a new board starts. You
-                  can undo it with ⌘Z.
+                  This clears all {resetShapeCount.current} shape
+                  {resetShapeCount.current === 1 ? '' : 's'} from this board for everyone in it, and
+                  returns the view to where a new board starts. You can undo it with{' '}
+                  <KeyCaps keys="mod+z" size="sm" />.
                 </>
               ) : (
-                // Nothing to discard, so nothing to warn about — but the row is
-                // still live, and it still recentres the view.
                 <>
                   This board is already empty, so this only returns the view to where a new board
                   starts.
@@ -3098,14 +3141,12 @@ export function Editor({ boardId }: EditorProps) {
               )}
             </ConfirmDialog>
 
-            <ConfirmDialog
-              open={notice !== null}
-              title={notice?.title ?? ''}
+            <NoticeDialog
+              notice={notice}
               theme={presenceTheme}
               onClose={dismissNotice}
-            >
-              {notice?.body}
-            </ConfirmDialog>
+              onLiveCollaboration={readOnly ? undefined : shareFromNotice}
+            />
 
             <SignOutDialog
               open={signOutOpen}
@@ -3117,6 +3158,7 @@ export function Editor({ boardId }: EditorProps) {
               }}
               name={chromeUser?.name ?? 'Account'}
               email={chromeUser?.email ?? null}
+              avatarUrl={user?.isGuest ? null : chromeUser?.avatarUrl}
               isGuest={user?.isGuest ?? false}
               synced={syncStatus === 'connected'}
               busy={signingOut}

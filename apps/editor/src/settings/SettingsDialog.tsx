@@ -6,7 +6,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
-import { AnimatePresence, LayoutGroup, MotionConfig, motion } from 'framer-motion';
+import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AccountPane } from './AccountPane';
@@ -27,6 +27,7 @@ import {
 import { SettingsFrameContext } from './settings-frame';
 import { BACKDROP, CloseButton, SLIDE, WINDOW } from './settings-ui';
 import type { DeletionInput } from './account-deletion-api';
+import { warmAccountSecurity } from './account-security-api';
 
 /**
  * The design is set in Inter. Nothing in the app loads it, so this names it
@@ -35,8 +36,8 @@ import type { DeletionInput } from './account-deletion-api';
  */
 const FONT_STACK = 'Inter, "Segoe UI", system-ui, -apple-system, sans-serif';
 
-/** How much shorter the header gets once it tucks away. */
-const TUCK = 14;
+/** How much shorter the header gets once it folds away to just its tabs. */
+const TUCK = 60;
 
 interface SettingsDialogProps {
   /** Seeds the profile fields. Null until the token decodes. */
@@ -65,9 +66,10 @@ interface SettingsDialogProps {
 /**
  * Settings: the six sections as tabs across the top, one page at a time.
  *
- * Each page is a stack of bands — a group's name on the left, its fields on
- * the right — and saves as it goes: a switch the moment it flips, a text field
- * when its own Save is pressed. There is no footer and nothing waiting to be
+ * The six sections are folder tabs in a tinted band. Each page is a stack of
+ * groups — a caption with a rule, then rows that start with an icon — and
+ * saves as it goes: a switch the moment it flips, a text field when its tick
+ * is pressed. There is no footer and nothing waiting to be
  * saved when the window closes.
  *
  * Mounted only while open, so every field starts from the account again rather
@@ -92,7 +94,6 @@ export function SettingsDialog({
   // an ordinary visit, not a return from signing in.
   const [deletionPending, setDeletionPending] = useState(resumeDeletion);
   const [tucked, setTucked] = useState(false);
-  const [hovered, setHovered] = useState<SettingsSectionId | null>(null);
   const [query, setQuery] = useState('');
   // Results show while the search has focus; the typed words stay when it loses it.
   const [resultsOpen, setResultsOpen] = useState(false);
@@ -182,7 +183,7 @@ export function SettingsDialog({
       }
       if (event.key === '/' && modalsRef.current === 0 && !isTyping(event.target)) {
         event.preventDefault();
-        searchRef.current?.focus();
+        focusSearchRef.current();
       }
     };
     document.addEventListener('keydown', handleKeyDown, true);
@@ -194,6 +195,36 @@ export function SettingsDialog({
   useEffect(() => {
     panelRef.current?.focus();
   }, []);
+
+  // Account & Security is read ahead, in case the editor has not yet: by the
+  // time its tab is chosen, the answer is usually here.
+  useEffect(() => {
+    if (!isGuest) warmAccountSecurity(token);
+    // Once, as the window opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The search sits in the part of the header that folds away on scroll; going
+  // to it brings the page back to the top, and the header down with it.
+  const focusSearch = useCallback(() => {
+    if (tuckedRef.current) {
+      const scroller = bodyRef.current?.querySelector<HTMLElement>('[data-settings-scroll]');
+      if (scroller) scroller.scrollTop = 0;
+      tuckedRef.current = false;
+      setTucked(false);
+      requestAnimationFrame(() => searchRef.current?.focus());
+      return;
+    }
+    searchRef.current?.focus();
+  }, []);
+  const focusSearchRef = useRef(focusSearch);
+  focusSearchRef.current = focusSearch;
+
+  const signedInAs = isGuest
+    ? 'Joined as a guest'
+    : (account.profile?.email ?? user?.email)
+      ? `Signed in as ${account.profile?.email ?? user?.email}`
+      : null;
 
   const clearSearch = useCallback(() => setQuery(''), []);
   useEffect(() => {
@@ -319,21 +350,26 @@ export function SettingsDialog({
           data-theme-variant={theme}
           className="flex h-[600px] max-h-full w-[720px] max-w-full flex-col overflow-hidden rounded-[16px] border border-[var(--surface-border)] bg-[var(--surface-panel)] text-[var(--surface-fg)] shadow-[var(--surface-shadow)] outline-none"
         >
-          <header
-            className={cn(
-              'relative z-[3] shrink-0 bg-[var(--surface-panel)] px-[20px] transition-[padding,box-shadow] duration-200',
-              tucked ? 'pb-[12px] pt-[12px] shadow-[var(--surface-stuck)]' : 'pb-[14px] pt-[18px]',
-            )}
-          >
-            <div className="flex items-center gap-[10px]">
-              <h2
-                className={cn(
-                  'min-w-0 flex-1 font-semibold tracking-[-0.01em] transition-[font-size] duration-200',
-                  tucked ? 'text-[14px]' : 'text-[18px]',
+          {/* A tinted band. The open tab takes the page's colour and runs into
+              it, so it reads as a folder pulled forward. Once the page scrolls
+              the band folds to just the tabs, with search and × beside them. */}
+          <header className="relative z-[3] shrink-0 border-b border-[var(--surface-border)] bg-[var(--surface-band)] px-[16px] pt-[16px]">
+            <div
+              className={cn(
+                'flex items-center gap-[10px] px-[4px] transition-[max-height,opacity,padding] duration-200',
+                tucked
+                  ? 'invisible max-h-0 overflow-hidden pb-0 opacity-0'
+                  : 'max-h-[64px] pb-[14px]',
+              )}
+            >
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-[17px] font-semibold tracking-[-0.01em]">Settings</h2>
+                {signedInAs && (
+                  <p className="mt-[2px] truncate text-[12px] text-[var(--surface-fg-muted)]">
+                    {signedInAs}
+                  </p>
                 )}
-              >
-                Settings
-              </h2>
+              </div>
 
               <div
                 className="relative w-[210px] shrink-0"
@@ -344,7 +380,7 @@ export function SettingsDialog({
                   }
                 }}
               >
-                <label className="flex h-[30px] items-center gap-[8px] rounded-[8px] border border-[var(--surface-border)] bg-[var(--surface-input)] px-[10px] text-[var(--surface-fg-faint)] transition-colors focus-within:border-[var(--surface-accent)]">
+                <label className="flex h-[30px] items-center gap-[8px] rounded-[8px] border border-[var(--surface-border)] bg-[var(--surface-panel)] px-[10px] text-[var(--surface-fg-faint)] transition-colors focus-within:border-[var(--surface-accent)]">
                   <Search className="size-[14px] shrink-0" aria-hidden="true" />
                   <input
                     ref={searchRef}
@@ -425,12 +461,11 @@ export function SettingsDialog({
               <CloseButton label="Close settings" onClick={onClose} />
             </div>
 
-            <LayoutGroup id="settings-tabs">
+            <div className="flex items-end gap-[8px]">
               <div
                 role="tablist"
                 aria-label="Settings sections"
-                onMouseLeave={() => setHovered(null)}
-                className="relative mt-[14px] flex rounded-[10px] bg-[var(--surface-wash)] p-[3px]"
+                className="-mb-px flex items-end gap-px"
               >
                 {SETTINGS_SECTIONS.map(({ id, label }) => {
                   const selected = id === section;
@@ -445,43 +480,37 @@ export function SettingsDialog({
                       tabIndex={selected ? 0 : -1}
                       data-testid={`settings-tab-${id}`}
                       onClick={() => go(id)}
-                      onMouseEnter={() => setHovered(id)}
                       onKeyDown={handleTabKey}
                       className={cn(
-                        'relative h-[30px] flex-auto rounded-[7px] px-[8px] text-[12.5px] font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]',
+                        'relative rounded-t-[9px] border border-b-0 px-[11px] text-[12.5px] font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] focus-visible:ring-inset',
                         selected
-                          ? 'text-[var(--surface-fg)]'
-                          : 'text-[var(--surface-fg-muted)] hover:text-[var(--surface-fg)]',
+                          ? 'h-[36px] border-[var(--surface-border)] bg-[var(--surface-panel)] text-[var(--surface-fg)] after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-[var(--surface-panel)]'
+                          : 'h-[34px] border-transparent text-[var(--surface-fg-muted)] hover:bg-[color-mix(in_srgb,var(--surface-panel)_55%,transparent)] hover:text-[var(--surface-fg)]',
                       )}
                     >
-                      {/* A softer glow follows the pointer along the track. */}
-                      <AnimatePresence>
-                        {hovered === id && !selected && (
-                          <motion.span
-                            layoutId="settings-tab-hover"
-                            aria-hidden="true"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.22, ease: [0.3, 0.7, 0.2, 1] }}
-                            className="absolute inset-0 rounded-[7px] bg-[var(--surface-wash-hover)]"
-                          />
-                        )}
-                      </AnimatePresence>
-                      {selected && (
-                        <motion.span
-                          layoutId="settings-tab-thumb"
-                          aria-hidden="true"
-                          transition={{ duration: 0.3, ease: [0.3, 0.7, 0.2, 1] }}
-                          className="absolute inset-0 rounded-[7px] bg-[var(--surface-thumb)] shadow-[var(--surface-thumb-shadow)]"
-                        />
-                      )}
-                      <span className="relative">{label}</span>
+                      {label}
                     </button>
                   );
                 })}
               </div>
-            </LayoutGroup>
+              <span
+                className={cn(
+                  'ml-auto flex gap-[2px] self-center pb-[2px] transition-opacity duration-200',
+                  tucked ? 'opacity-100' : 'invisible opacity-0',
+                )}
+              >
+                <button
+                  type="button"
+                  aria-label="Search settings"
+                  title="Search settings"
+                  onClick={focusSearch}
+                  className="flex size-[28px] items-center justify-center rounded-[7px] text-[var(--surface-fg-muted)] transition-colors hover:bg-[var(--surface-wash)] hover:text-[var(--surface-fg)] focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] focus-visible:outline-none"
+                >
+                  <Search className="size-[16px]" aria-hidden="true" />
+                </button>
+                <CloseButton label="Close settings" onClick={onClose} />
+              </span>
+            </div>
           </header>
 
           <SettingsFrameContext.Provider value={frame}>

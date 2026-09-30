@@ -9,8 +9,8 @@ import { useBand } from './settings-frame';
 import {
   Band,
   ComingSoonTag,
-  INPUT,
   InlineTextField,
+  ROW_INPUT,
   SettingRow,
   SettingsButton,
   SettingsPage,
@@ -88,7 +88,7 @@ export function ProfilePane({ user, account, avatar, theme }: ProfilePaneProps) 
         )
       }
     >
-      <Band title="Identity" description="Your photo, your name and the handle people @mention.">
+      <Band title="Identity">
         <PhotoRow
           avatar={avatar}
           name={savedName}
@@ -130,12 +130,12 @@ export function ProfilePane({ user, account, avatar, theme }: ProfilePaneProps) 
             aria-label="Username"
             disabled
             readOnly
-            className={INPUT}
+            className={ROW_INPUT}
           />
         </StackedField>
       </Band>
 
-      <Band title="Presence" description="How other people pick you out on a board.">
+      <Band title="Presence">
         <CursorColour profile={profile} save={save} theme={theme} editable={editable} />
       </Band>
     </SettingsPage>
@@ -185,11 +185,11 @@ function PhotoRow({
             src={avatar.url}
             alt=""
             onError={() => setPhotoFailed(true)}
-            className="size-[40px] shrink-0 rounded-full object-cover"
+            className="size-[32px] shrink-0 rounded-full object-cover"
           />
         ) : (
           // One letter per name, as the share dialog's access list abbreviates people.
-          <div className="flex size-[40px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-wash)] text-[13px] font-medium text-[var(--surface-fg-muted)]">
+          <div className="flex size-[32px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-accent)] text-[11px] font-semibold text-[var(--surface-on-accent)]">
             {initialsOf(name)}
           </div>
         )

@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { menuDangerButtonClasses } from '@/components/ui/menu-look';
 import {
   Sidebar,
   SidebarContent,
@@ -174,7 +175,7 @@ function MenuRow({ id, onSelect }: RowProps) {
         tooltip={onSelect === undefined ? `${label} — coming soon` : label}
         aria-keyshortcuts={hint ?? undefined}
         data-testid={`menu-${id}`}
-        className={cn(destructive && 'text-destructive')}
+        className={cn(destructive && menuDangerButtonClasses)}
       >
         <Icon aria-hidden="true" />
         <span>{label}</span>

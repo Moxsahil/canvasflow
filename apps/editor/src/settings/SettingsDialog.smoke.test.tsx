@@ -102,15 +102,18 @@ describe('SettingsDialog', () => {
     expect(html).toContain('role="tabpanel"');
   });
 
-  it('opens on Profile, with its groups as bands rather than boxes', () => {
+  it('opens on Profile, its groups named by a caption alone, its rows led by icons', () => {
     const html = render();
     expect(html).toContain('How you appear to collaborators on shared boards.');
     for (const band of ['Identity', 'Presence']) {
       expect(html).toContain(`aria-label="${band}"`);
     }
-    expect(html).toContain('Your photo, your name and the handle people @mention.');
+    expect(html).not.toContain('Your photo, your name and the handle people @mention.');
+    expect(html).not.toContain('How other people pick you out on a board.');
     expect(html).toContain('Display name');
     expect(html).toContain('Cursor colour');
+    expect(html).toContain('lucide-type');
+    expect(html).toContain('lucide-at-sign');
   });
 
   it('has no footer and no rail: everything saves where it is changed', () => {

@@ -1,7 +1,14 @@
+import { useId } from 'react';
 import { LogIn, ShieldOff, UserPlus } from 'lucide-react';
 import { env } from '@/lib/env';
-import { SurfaceDialog } from '../ui/SurfaceDialog';
-import { SurfaceButton } from '../ui/surface-ui';
+import {
+  SurfaceWindow,
+  WindowBadge,
+  WindowBody,
+  WindowButton,
+  WindowFooter,
+  WindowHeader,
+} from '../ui/SurfaceWindow';
 import type { SurfaceTheme } from '../ui/surface-palette';
 
 interface AccessRevokedDialogProps {
@@ -37,6 +44,8 @@ interface AccessRevokedDialogProps {
  * even while it is closing that application down.
  */
 export function AccessRevokedDialog({ open, boardName, isGuest, theme }: AccessRevokedDialogProps) {
+  const titleId = useId();
+  const bodyId = useId();
   const webUrl = env.VITE_WEB_URL;
   const name = boardName?.trim();
 
@@ -49,68 +58,67 @@ export function AccessRevokedDialog({ open, boardName, isGuest, theme }: AccessR
   };
 
   return (
-    <SurfaceDialog
+    <SurfaceWindow
       open={open}
       theme={theme}
       alert
-      // Escape, the backdrop and the close button all go with this.
+      // No ×, and Escape or a click outside do nothing.
       dismissable={false}
-      // Phrased for every way of arriving here, not just the one that prompted
-      // it: the token route answers the same 404 for "removed", "never had
-      // access" and "board deleted", so a heading that claimed any one of them
-      // would be wrong two-thirds of the time.
-      title="You don’t have access to this board"
-      subtitle={name ? name : 'This board'}
-      leading={
-        <span className="flex size-[42px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-danger-wash)] text-[var(--surface-danger)]">
-          <ShieldOff className="size-[18px]" aria-hidden="true" />
-        </span>
-      }
-      width={540}
-      // Never called: nothing in this dialog asks to close, and the shell only
-      // offers the routes out that `dismissable={false}` has already removed.
+      // Never called: nothing in this dialog asks to close.
       onClose={() => {}}
-      footer={
-        <>
-          <div className="flex-1" />
-          {isGuest ? (
-            <>
-              {/* Kept alongside rather than hidden behind the primary action:
-                  a guest identity is disposable, and plenty of people who
-                  joined as one already have an account. */}
-              <SurfaceButton variant="ghost" onClick={() => go('/login?next=/open')}>
-                <LogIn size={13} aria-hidden="true" />
-                Sign in
-              </SurfaceButton>
-              <SurfaceButton variant="primary" onClick={() => go('/signup')}>
-                <UserPlus size={13} aria-hidden="true" />
-                Create an account
-              </SurfaceButton>
-            </>
-          ) : (
-            /* /open resolves which board to land on — there is no board list
-               page to send anyone to. */
-            <SurfaceButton variant="primary" onClick={() => go('/open')}>
-              Go to my workspace
-            </SurfaceButton>
-          )}
-        </>
-      }
+      width={500}
+      labelledBy={titleId}
+      describedBy={bodyId}
+      data-testid="access-revoked-dialog"
     >
-      <div className="text-[12.5px] leading-[1.6] text-[var(--surface-fg-muted)]">
+      <WindowHeader
+        titleId={titleId}
+        // Phrased for every way of arriving here, not just the one that prompted
+        // it: the token route answers the same 404 for "removed", "never had
+        // access" and "board deleted", so a heading that claimed any one of them
+        // would be wrong two-thirds of the time.
+        title="You don’t have access to this board"
+        description={name ? name : 'This board'}
+        lead={
+          <WindowBadge tone="danger">
+            <ShieldOff aria-hidden="true" />
+          </WindowBadge>
+        }
+      />
+
+      <WindowBody>
+        <p id={bodyId} className="text-[12.5px] leading-[1.6] text-[var(--surface-fg-muted)]">
+          It may have been unshared or deleted. This session has stopped syncing, and anything
+          already drawn stays with the board.{' '}
+          {isGuest
+            ? 'You joined as a guest, so there is nothing else here to go back to. An account gives you boards of your own.'
+            : 'Your own boards are unaffected.'}
+        </p>
+      </WindowBody>
+
+      <WindowFooter>
         {isGuest ? (
           <>
-            It may have been unshared or deleted. This session has stopped syncing, and anything
-            already drawn stays with the board. You joined as a guest, so there is nothing else here
-            to go back to — an account gives you boards of your own.
+            {/* Kept alongside rather than hidden behind the primary action:
+                a guest identity is disposable, and plenty of people who
+                joined as one already have an account. */}
+            <WindowButton variant="ghost" onClick={() => go('/login?next=/open')}>
+              <LogIn aria-hidden="true" />
+              Sign in
+            </WindowButton>
+            <WindowButton variant="primary" onClick={() => go('/signup')}>
+              <UserPlus aria-hidden="true" />
+              Create an account
+            </WindowButton>
           </>
         ) : (
-          <>
-            It may have been unshared or deleted. This session has stopped syncing, and anything
-            already drawn stays with the board. Your own boards are unaffected.
-          </>
+          /* /open resolves which board to land on — there is no board list
+             page to send anyone to. */
+          <WindowButton variant="primary" onClick={() => go('/open')}>
+            Go to my workspace
+          </WindowButton>
         )}
-      </div>
-    </SurfaceDialog>
+      </WindowFooter>
+    </SurfaceWindow>
   );
 }
