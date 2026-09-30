@@ -78,6 +78,11 @@ export const LaserIcon = createIcon(
   </>,
 );
 
+/** A speech bubble with its tail at the bottom left — where a comment's pin points. */
+export const CommentIcon = createIcon(
+  <path d="M5 4.5h14a1.5 1.5 0 0 1 1.5 1.5v9.5a1.5 1.5 0 0 1-1.5 1.5H9.5L5 20.5V17a1.5 1.5 0 0 1-1.5-1.5V6A1.5 1.5 0 0 1 5 4.5z" />,
+);
+
 export const ImageIcon = createIcon(
   <>
     <rect x="3.5" y="5" width="17" height="14" rx="2" />

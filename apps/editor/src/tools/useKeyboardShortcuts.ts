@@ -43,6 +43,7 @@ interface UseKeyboardShortcutsOptions {
   onToggleFocusMode: () => void;
   onToggleViewMode: () => void;
   onToggleCanvasStats: () => void;
+  onToggleComments: () => void;
   onOpenFile: () => void;
   onSaveFile: () => void;
   onExportImage: () => void;
@@ -89,6 +90,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onToggleFocusMode,
     onToggleViewMode,
     onToggleCanvasStats,
+    onToggleComments,
     onOpenFile,
     onSaveFile,
     onExportImage,
@@ -217,6 +219,20 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
       if (!mod && event.altKey && !event.shiftKey && event.code === 'Slash') {
         event.preventDefault();
         onToggleCanvasStats();
+        return;
+      }
+
+      // Show or hide comments: Shift+C. Checked ahead of the tool keys, where
+      // a bare C is the ellipse — and not while typing, where it is a capital.
+      if (
+        !mod &&
+        !event.altKey &&
+        event.shiftKey &&
+        event.code === 'KeyC' &&
+        !isTypingTarget(event.target)
+      ) {
+        event.preventDefault();
+        onToggleComments();
         return;
       }
 
@@ -411,6 +427,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onToggleFocusMode,
     onToggleViewMode,
     onToggleCanvasStats,
+    onToggleComments,
     onOpenFile,
     onSaveFile,
     onExportImage,

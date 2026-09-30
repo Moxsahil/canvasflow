@@ -105,6 +105,18 @@ import { hitTestHandles } from './selection/handles';
 import { useBoardDocument, useYjsShapes } from './document/useYjsDocument';
 import { useBoardImages, imageFilesFromDataTransfer, pickImageFiles } from './images';
 import { LaserLayer, useLaserTrails } from './laser';
+import {
+  CommentsLayer,
+  CommentsMenu,
+  anchorPoint,
+  commentTargetAt,
+  isPinInView,
+  mentionablePeople,
+  useCommentPlacement,
+  useComments,
+  useUnreadThreads,
+  type CommentThread,
+} from './comments';
 import { FrameNameEditor } from './frames/FrameNameEditor';
 import {
   assignmentsAfterMove,
@@ -171,12 +183,15 @@ import {
 } from './settings';
 import { warmAccountSecurity } from './settings/account-security-api';
 import { usePreferences } from './preferences';
-import { useAvatar, useProfile } from './profile';
+import { useAvatar, useAvatarUrls, useProfile } from './profile';
 import { VerificationNotice } from './profile/VerificationNotice';
 import { TermsNotice } from './profile/TermsNotice';
 
 import { ConfirmDialog } from './ui';
 import { NoticeDialog, type Notice } from './ui/NoticeDialog';
+
+/** How far left of centre a thread's pin is put when the board has to be brought to it: about half the thread beside it. */
+const THREAD_LEAD = 160;
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -655,6 +670,16 @@ export function Editor({ boardId }: EditorProps) {
     doc.setReadOnly(readOnly);
   }, [doc, readOnly]);
   const shapes = useYjsShapes(doc);
+  const comments = useComments(doc);
+  const commenting = useCommentPlacement();
+  // Taken apart for the pointer handlers, which depend on these four and on
+  // nothing else about it.
+  const {
+    begin: beginComment,
+    follow: followComment,
+    settle: settleComment,
+    isPlacing: isPlacingComment,
+  } = commenting;
   const { canUndo, canRedo } = useUndoState(doc);
 
   const {
@@ -1119,6 +1144,91 @@ export function Editor({ boardId }: EditorProps) {
     return index;
   }, [shapes]);
 
+  // --- comments -----------------------------------------------------------
+  // Who a comment written here is signed by: the token's copy of the account,
+  // as the rest of this window shows it.
+  const commentAuthor = useMemo(() => (user ? { id: user.id, name: user.name } : null), [user]);
+
+  // Who a comment here can name with an @: whoever is on the board now, and
+  // whoever has written or been named on it before. The full list of a board's
+  // members is its owner's to see, so it is not what this is drawn from.
+  const mentionable = useMemo(
+    () =>
+      mentionablePeople(
+        roster.map((entry) => ({ id: entry.userId, name: entry.name })),
+        comments.threads,
+        userId,
+      ),
+    [roster, comments.threads, userId],
+  );
+
+  // Photos for everyone who has written on this board, for whoever is about
+  // to, and for anyone who can be named. Asked for by id, so an author who is
+  // no longer connected — or no longer on the board — still has their face
+  // beside what they said.
+  const commentPeople = useMemo(() => {
+    const ids = new Set<string>(mentionable.map((person) => person.id));
+    for (const thread of comments.threads) {
+      for (const comment of thread.comments) ids.add(comment.authorId);
+    }
+    if (userId && !user?.isGuest) ids.add(userId);
+    return [...ids].map((id) => ({ id }));
+  }, [comments.threads, mentionable, userId, user?.isGuest]);
+  const commentPhotos = useAvatarUrls({ boardId, token: authToken, subjects: commentPeople });
+  const unreadThreads = useUnreadThreads(
+    boardId,
+    comments.threads,
+    userId,
+    commenting.openThreadId,
+  );
+
+  const commentTargetHere = useCallback(
+    (point: Point) => commentTargetAt(point, shapes, spatialIndex, camera.zoom),
+    [shapes, spatialIndex, camera.zoom],
+  );
+
+  // A comment posted is what the tool was picked up for, so it is put down.
+  const finishCommenting = useCallback(() => {
+    if (actorRef.getSnapshot().context.activeTool === 'comment') {
+      actorRef.send({ type: 'SELECT_TOOL', tool: 'select' });
+    }
+  }, [actorRef]);
+
+  // Picked from the list: open the thread at its pin. The board stays where it
+  // is when the pin is already in view — moving a board someone is looking at,
+  // to show them something they can see, reads as the board jumping. It is
+  // only brought to a pin that is out of view, and then the pin is put left of
+  // centre, so that the thread opening to its right sits in the middle of the
+  // view rather than running off the edge of it.
+  const { openThread: openCommentThread } = commenting;
+  const showCommentThread = useCallback(
+    (thread: CommentThread) => {
+      if (!preferences.values.showComments) preferences.set('showComments', true);
+      const point = anchorPoint(thread.anchor, new Map(shapes.map((shape) => [shape.id, shape])));
+      const view = actorRef.getSnapshot().context.camera;
+      const pin = { x: (point.x - view.x) * view.zoom, y: (point.y - view.y) * view.zoom };
+      if (!isPinInView(pin, { width, height })) {
+        actorRef.send({
+          type: 'SET_CAMERA',
+          camera: {
+            x: point.x - (width / 2 - THREAD_LEAD) / view.zoom,
+            y: point.y - height / 2 / view.zoom,
+            zoom: view.zoom,
+          },
+        });
+      }
+      openCommentThread(thread.id);
+    },
+    [actorRef, shapes, width, height, preferences, openCommentThread],
+  );
+
+  // The composer belongs to the tool that opened it: switch away, and it goes
+  // too. What was typed is kept for the next one.
+  const { closePending } = commenting;
+  useEffect(() => {
+    if (activeTool !== 'comment') closePending();
+  }, [activeTool, closePending]);
+
   // --- properties panel ---------------------------------------------------
   // The panel edits the selection when there is one, and otherwise the style
   // the next drawn shape will take. That second mode is why it shows for an
@@ -1360,15 +1470,20 @@ export function Editor({ boardId }: EditorProps) {
       // A frame goes with what is standing in it. One undo brings the whole
       // thing back, which is the only reading that matches deleting what
       // looks on screen like a single object.
-      const going = withFrameMembers(emitted.ids, doc.getShapes());
+      const current = doc.getShapes();
+      const going = withFrameMembers(emitted.ids, current);
       releaseArrowsFrom(doc, going);
+      // A comment pinned to one of these stays on the board, where its shape
+      // last was — and goes back onto the shape if the delete is undone.
+      const shapesById = new Map(current.map((shape) => [shape.id, shape]));
+      comments.store.holdPins(new Set(going), (thread) => anchorPoint(thread.anchor, shapesById));
       doc.deleteShapes(going);
     });
     return () => {
       sub1.unsubscribe();
       sub2.unsubscribe();
     };
-  }, [actorRef, doc]);
+  }, [actorRef, doc, comments.store]);
 
   // --- initial view --------------------------------------------------------
   /**
@@ -1489,6 +1604,13 @@ export function Editor({ boardId }: EditorProps) {
       if (activeTool === 'laser') {
         laser.begin(point.x, point.y);
         setLasering(true);
+        return;
+      }
+      // Nor does a comment being placed: the press opens its composer, which
+      // follows the pointer until the button comes up. Any other button is
+      // left to pan the board as it would with any tool.
+      if (activeTool === 'comment' && button === 0) {
+        beginComment(point);
         return;
       }
       // The canvas's pointerdown suppresses the browser's default focus
@@ -1631,6 +1753,7 @@ export function Editor({ boardId }: EditorProps) {
       activeTool,
       laser,
       setLasering,
+      beginComment,
       isSpacePressed,
       selectedIds,
       shapes,
@@ -1723,6 +1846,10 @@ export function Editor({ boardId }: EditorProps) {
         // Only while the button is down. A laser tracks the cursor the way a
         // real one does — it is off until you press it.
         laser.extend(point.x, point.y);
+        return;
+      }
+      if (activeTool === 'comment' && isPlacingComment()) {
+        followComment(point);
         return;
       }
 
@@ -1920,6 +2047,8 @@ export function Editor({ boardId }: EditorProps) {
       actorRef,
       activeTool,
       laser,
+      isPlacingComment,
+      followComment,
       doc,
       shapes,
       spatialIndex,
@@ -2017,6 +2146,12 @@ export function Editor({ boardId }: EditorProps) {
         setLasering(false);
         return;
       }
+      if (activeTool === 'comment' && isPlacingComment()) {
+        // Where the button comes up is where the pin goes: on the shape under
+        // it, or on the board.
+        settleComment(point, commentTargetAt(point, shapes, spatialIndex, camera.zoom));
+        return;
+      }
 
       const snap = actorRef.getSnapshot();
       const draggedVertex = snap.matches('draggingVertex') && vertexReleasedRef.current;
@@ -2096,7 +2231,19 @@ export function Editor({ boardId }: EditorProps) {
         doc.breakUndoGroup();
       }
     },
-    [actorRef, activeTool, laser, setLasering, doc, showSnapGuides],
+    [
+      actorRef,
+      activeTool,
+      laser,
+      setLasering,
+      isPlacingComment,
+      settleComment,
+      shapes,
+      spatialIndex,
+      camera.zoom,
+      doc,
+      showSnapGuides,
+    ],
   );
 
   // Double-pressing a text shape (with any tool active) reopens it for editing;
@@ -2194,11 +2341,23 @@ export function Editor({ boardId }: EditorProps) {
         handlePickImage();
         return;
       }
+      // Picking up the comment tool with the pins hidden shows them: a pin
+      // placed and not drawn would look like a comment that was lost.
+      if (tool === 'comment' && !preferences.values.showComments) {
+        preferences.set('showComments', true);
+      }
       actorRef.send({ type: 'SELECT_TOOL', tool });
     },
-    [actorRef, handlePickImage, readOnly, viewMode],
+    [actorRef, handlePickImage, readOnly, viewMode, preferences],
   );
-  const handleEscape = useCallback(() => actorRef.send({ type: 'ESCAPE' }), [actorRef]);
+  const handleEscape = useCallback(() => {
+    actorRef.send({ type: 'ESCAPE' });
+    // The comment tool is put down by Escape, where the drawing tools stay in
+    // hand: there is no half-drawn shape for the key to be cancelling instead.
+    if (actorRef.getSnapshot().context.activeTool === 'comment') {
+      actorRef.send({ type: 'SELECT_TOOL', tool: 'select' });
+    }
+  }, [actorRef]);
   const handleSpaceDown = useCallback(() => actorRef.send({ type: 'SPACE_DOWN' }), [actorRef]);
   const handleSpaceUp = useCallback(() => actorRef.send({ type: 'SPACE_UP' }), [actorRef]);
   const handleZoomIn = useCallback(
@@ -2726,6 +2885,10 @@ export function Editor({ boardId }: EditorProps) {
     preferences.set('canvasStats', !preferences.values.canvasStats);
   }, [preferences]);
 
+  const toggleComments = useCallback(() => {
+    preferences.set('showComments', !preferences.values.showComments);
+  }, [preferences]);
+
   /**
    * Geometry from the stats panel, written as it arrives: once for a number
    * typed in, once for every step of a drag.
@@ -2836,6 +2999,7 @@ export function Editor({ boardId }: EditorProps) {
     onToggleFocusMode: toggleFocusMode,
     onToggleViewMode: toggleViewMode,
     onToggleCanvasStats: toggleCanvasStats,
+    onToggleComments: toggleComments,
     onOpenFile: openBoardFile,
     onSaveFile: saveBoardFileToDisk,
     onExportImage: showExport,
@@ -2882,6 +3046,7 @@ export function Editor({ boardId }: EditorProps) {
       toggleFocusMode,
       toggleViewMode,
       toggleCanvasStats,
+      toggleComments,
       undo: handleUndo,
       redo: handleRedo,
       cut: handleCut,
@@ -3070,6 +3235,7 @@ export function Editor({ boardId }: EditorProps) {
                 focusMode: toggleFocusMode,
                 viewMode: toggleViewMode,
                 canvasStats: toggleCanvasStats,
+                showComments: toggleComments,
                 commandPalette: togglePalette,
                 stylePanelInspector: chooseInspector,
                 stylePanelHalo: chooseHalo,
@@ -3082,6 +3248,7 @@ export function Editor({ boardId }: EditorProps) {
                 focusMode: preferences.values.focusMode,
                 viewMode,
                 canvasStats: preferences.values.canvasStats,
+                showComments: preferences.values.showComments,
                 stylePanelInspector: !preferences.values.floatingStyleBar,
                 stylePanelHalo: preferences.values.floatingStyleBar,
               }}
@@ -3124,6 +3291,33 @@ export function Editor({ boardId }: EditorProps) {
               </div>
             </CanvasContextMenu>
 
+            {/* Comments: a pin for every thread, and what opens from one. Drawn
+                before the laser and the cursors so both pass over the pins.
+                Still up with the chrome away — a comment is part of what is
+                on the board, not part of the frame around it. */}
+            {preferences.values.showComments && (
+              <CommentsLayer
+                threads={comments.threads}
+                unread={unreadThreads}
+                store={comments.store}
+                shapes={shapes}
+                camera={camera}
+                board={screen}
+                user={commentAuthor}
+                canComment={!readOnly && commentAuthor !== null}
+                photos={commentPhotos}
+                theme={presenceTheme}
+                people={mentionable}
+                container={editorRoot}
+                pending={commenting.pending}
+                openThreadId={commenting.openThreadId}
+                onOpenThread={commenting.openThread}
+                onClosePending={commenting.closePending}
+                onPosted={finishCommenting}
+                targetAt={commentTargetHere}
+              />
+            )}
+
             {/* Laser trails, ours and everyone's. Outside CanvasStack for the
           same reason the cursors are, and painted by its own frame loop so a
           fading trail never re-renders the scene. */}
@@ -3158,6 +3352,16 @@ export function Editor({ boardId }: EditorProps) {
           time. ⌘F still has to land somewhere, so the search comes up on its
           own for as long as it is in use and leaves on Escape like the rest. */}
             <div className="cf-top-right-dock">
+              {!chromeHidden && (
+                <CommentsMenu
+                  threads={comments.threads}
+                  photos={commentPhotos}
+                  theme={presenceTheme}
+                  openThreadId={commenting.openThreadId}
+                  onSelect={showCommentThread}
+                  container={editorRoot}
+                />
+              )}
               {(!chromeHidden || search.open) && <FindBar search={search} />}
               {chromeHidden ? (
                 <ExitModeButton mode={viewMode ? 'view' : 'focus'} onExit={exitMode} />

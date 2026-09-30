@@ -66,11 +66,17 @@ describe('preference groups', () => {
     }
   });
 
-  it('starts the four that read as broken when off, on', () => {
+  it('starts the five that read as broken when off, on', () => {
     const on = (Object.keys(DEFAULT_PREFERENCES) as PreferenceId[]).filter(
       (key) => DEFAULT_PREFERENCES[key],
     );
-    expect(on.sort()).toEqual(['arrowBinding', 'edgeScrolling', 'selectOnWrap', 'snapToMidpoints']);
+    expect(on.sort()).toEqual([
+      'arrowBinding',
+      'edgeScrolling',
+      'selectOnWrap',
+      'showComments',
+      'snapToMidpoints',
+    ]);
   });
 });
 

@@ -119,6 +119,11 @@
   cursor: var(--cursor-crosshair);
 }
 
+/* Crosshair for the same reason: a comment is pinned to the spot pressed. */
+.canvas-stack[data-tool='comment'] {
+  cursor: var(--cursor-crosshair);
+}
+
 /* A ring at the pointer, echoing the eraser's reach. */
 .canvas-stack[data-tool='eraser'] {
   cursor: var(--cursor-eraser);

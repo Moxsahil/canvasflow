@@ -16,7 +16,6 @@ import {
   Link2,
   Lock,
   LockOpen,
-  MessageSquare,
   MousePointerClick,
   PanelRight,
   PenTool,
@@ -222,7 +221,7 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   focusMode: fromPreference('focusMode', 'Focus mode'),
   viewMode: fromPreference('viewMode', 'View mode'),
   canvasStats: fromPreference('canvasStats', 'Canvas stats'),
-  showComments: soon('Show comments', MessageSquare, false),
+  showComments: fromPreference('showComments', 'Show comments'),
   commandPalette: fromMenu('commandPalette'),
 
   // A viewer has no style controls for either to show.
