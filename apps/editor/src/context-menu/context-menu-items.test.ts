@@ -66,6 +66,7 @@ describe('row metadata', () => {
     expect(CONTEXT_MENU_ITEMS.showGrid).toMatchObject({ toggle: true, shortcut: "mod+'" });
     expect(CONTEXT_MENU_ITEMS.focusMode).toMatchObject({ toggle: true, shortcut: 'alt+z' });
     expect(CONTEXT_MENU_ITEMS.viewMode).toMatchObject({ toggle: true, shortcut: 'alt+r' });
+    expect(CONTEXT_MENU_ITEMS.canvasStats).toMatchObject({ toggle: true, shortcut: 'alt+/' });
   });
 
   it('gives every row an icon except the toggles, which draw their on/off box instead', () => {

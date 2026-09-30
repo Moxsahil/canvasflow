@@ -4,7 +4,6 @@ import {
   BookPlus,
   Bookmark,
   Braces,
-  ChartColumn,
   CodeXml,
   Crop,
   EyeOff,
@@ -222,9 +221,7 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   arrowBinding: fromPreference('arrowBinding', 'Arrow binding', true),
   focusMode: fromPreference('focusMode', 'Focus mode'),
   viewMode: fromPreference('viewMode', 'View mode'),
-  // A preference that is stored but draws nothing yet, so it is not offered
-  // as a tick that would look like it had failed.
-  canvasStats: soon('Canvas stats', ChartColumn, false),
+  canvasStats: fromPreference('canvasStats', 'Canvas stats'),
   showComments: soon('Show comments', MessageSquare, false),
   commandPalette: fromMenu('commandPalette'),
 

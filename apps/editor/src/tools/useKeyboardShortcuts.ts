@@ -42,6 +42,7 @@ interface UseKeyboardShortcutsOptions {
   onToggleToolLock: () => void;
   onToggleFocusMode: () => void;
   onToggleViewMode: () => void;
+  onToggleCanvasStats: () => void;
   onOpenFile: () => void;
   onSaveFile: () => void;
   onExportImage: () => void;
@@ -87,6 +88,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onToggleToolLock,
     onToggleFocusMode,
     onToggleViewMode,
+    onToggleCanvasStats,
     onOpenFile,
     onSaveFile,
     onExportImage,
@@ -207,6 +209,14 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
       if (!mod && event.altKey && !event.shiftKey && event.code === 'KeyR') {
         event.preventDefault();
         onToggleViewMode();
+        return;
+      }
+
+      // Canvas stats: Alt+/. By code again — and Alt+/ types a division sign
+      // on some layouts, which no check on the key would recognise.
+      if (!mod && event.altKey && !event.shiftKey && event.code === 'Slash') {
+        event.preventDefault();
+        onToggleCanvasStats();
         return;
       }
 
@@ -400,6 +410,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onToggleToolLock,
     onToggleFocusMode,
     onToggleViewMode,
+    onToggleCanvasStats,
     onOpenFile,
     onSaveFile,
     onExportImage,

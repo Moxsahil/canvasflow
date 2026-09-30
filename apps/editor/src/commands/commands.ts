@@ -2,6 +2,7 @@ import {
   ArrowDownToLine,
   ArrowUpToLine,
   BoxSelect,
+  ChartColumn,
   ClipboardPaste,
   Copy,
   CopyPlus,
@@ -68,6 +69,7 @@ export type CommandId =
   | 'toggleTheme'
   | 'toggleFocusMode'
   | 'toggleViewMode'
+  | 'toggleCanvasStats'
   | 'undo'
   | 'redo'
   | 'cut'
@@ -248,6 +250,14 @@ export const COMMANDS: readonly CommandMeta[] = [
     category: 'View',
     shortcut: 'alt+r',
     keywords: ['read only', 'look', 'present', 'lock editing', 'viewer'],
+  },
+  {
+    id: 'toggleCanvasStats',
+    label: 'Toggle canvas stats',
+    icon: ChartColumn,
+    category: 'View',
+    shortcut: 'alt+/',
+    keywords: ['properties', 'dimensions', 'coordinates', 'position', 'size', 'width', 'height'],
   },
 
   {

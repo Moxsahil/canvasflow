@@ -98,6 +98,7 @@ describe('availability', () => {
       // View mode is read-only by choice, and the palette is one of the ways
       // out of it — which it cannot be if read-only takes the command away.
       'toggleViewMode',
+      'toggleCanvasStats',
       'help',
       'settings',
       'signOut',

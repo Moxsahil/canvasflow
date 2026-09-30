@@ -121,6 +121,7 @@ import { SignOutDialog } from './auth/SignOutDialog';
 import { signOutTo } from './auth/sign-out';
 import { env } from './lib/env';
 import { PropertiesPanel, StyleHalo, itemStyleFromShape } from './properties';
+import { StatsPanel, membershipAfterStatsEdit, type StatsPatch, type StatsProperty } from './stats';
 import {
   TOOL_TO_SHAPE_KIND,
   VIEW_MODE_TOOL,
@@ -2721,6 +2722,47 @@ export function Editor({ boardId }: EditorProps) {
     preferences.set('viewMode', !preferences.values.viewMode);
   }, [preferences]);
 
+  const toggleCanvasStats = useCallback(() => {
+    preferences.set('canvasStats', !preferences.values.canvasStats);
+  }, [preferences]);
+
+  /**
+   * Geometry from the stats panel, written as it arrives: once for a number
+   * typed in, once for every step of a drag.
+   *
+   * A move or a resize from here is the same as one made with the pointer, so
+   * the arrows attached to what changed are redrawn to follow it.
+   */
+  const handleStatsEdit = useCallback(
+    (patches: readonly StatsPatch[]) => {
+      for (const { id, patch } of patches) {
+        doc.updateShape(id, patch as Partial<Shape>);
+      }
+      settleBoundArrowsInDocument(doc, new Set(patches.map((patch) => patch.id)));
+    },
+    [doc],
+  );
+
+  /**
+   * The end of an edit from the stats panel. Frame membership settles here,
+   * as it does on the release of a drag, and the edit becomes one undo step.
+   */
+  const handleStatsEditEnd = useCallback(
+    (property: StatsProperty, ids: readonly string[]) => {
+      const changes = membershipAfterStatsEdit(property, ids, doc.getShapes());
+      for (const { id, frameId } of changes) {
+        doc.updateShape(id, { frameId });
+      }
+      if (changes.length > 0) {
+        for (const id of membersHiddenByTheirFrame(doc.getShapes())) {
+          doc.bringToFront(id);
+        }
+      }
+      doc.breakUndoGroup();
+    },
+    [doc],
+  );
+
   // View mode outranks focus mode when both are on: it is the one that changes
   // what the canvas does, so it is the one to be shown and let go of first.
   const exitMode = useCallback(() => {
@@ -2793,6 +2835,7 @@ export function Editor({ boardId }: EditorProps) {
     onToggleToolLock: toggleToolLock,
     onToggleFocusMode: toggleFocusMode,
     onToggleViewMode: toggleViewMode,
+    onToggleCanvasStats: toggleCanvasStats,
     onOpenFile: openBoardFile,
     onSaveFile: saveBoardFileToDisk,
     onExportImage: showExport,
@@ -2838,6 +2881,7 @@ export function Editor({ boardId }: EditorProps) {
       toggleTheme,
       toggleFocusMode,
       toggleViewMode,
+      toggleCanvasStats,
       undo: handleUndo,
       redo: handleRedo,
       cut: handleCut,
@@ -3025,6 +3069,7 @@ export function Editor({ boardId }: EditorProps) {
                 arrowBinding: toggleArrowBinding,
                 focusMode: toggleFocusMode,
                 viewMode: toggleViewMode,
+                canvasStats: toggleCanvasStats,
                 commandPalette: togglePalette,
                 stylePanelInspector: chooseInspector,
                 stylePanelHalo: chooseHalo,
@@ -3036,6 +3081,7 @@ export function Editor({ boardId }: EditorProps) {
                 arrowBinding: preferences.values.arrowBinding,
                 focusMode: preferences.values.focusMode,
                 viewMode,
+                canvasStats: preferences.values.canvasStats,
                 stylePanelInspector: !preferences.values.floatingStyleBar,
                 stylePanelHalo: preferences.values.floatingStyleBar,
               }}
@@ -3188,6 +3234,22 @@ export function Editor({ boardId }: EditorProps) {
               ) : (
                 <PropertiesPanel {...styleSurfaceProps} />
               ))}
+
+            {/* The numbers behind the board, as a strip in the bottom-left
+                corner — the one stretch of that edge the dock and the zoom
+                panel leave free. Away with the rest of the chrome in focus
+                and view mode. A viewer may read them. */}
+            {preferences.values.canvasStats && !chromeHidden && (
+              <StatsPanel
+                shapes={shapes}
+                selectedShapes={selectedShapes}
+                readOnly={readOnly}
+                boardWidth={width}
+                onEdit={handleStatsEdit}
+                onEditEnd={handleStatsEditEnd}
+                onClose={toggleCanvasStats}
+              />
+            )}
 
             {frameNameEditor && (
               <FrameNameEditor
