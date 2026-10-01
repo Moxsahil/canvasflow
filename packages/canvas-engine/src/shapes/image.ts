@@ -21,6 +21,8 @@ export function createImage(
     naturalWidth: number;
     naturalHeight: number;
     status?: ImageStatus;
+    flipX?: boolean;
+    flipY?: boolean;
   },
 ): ImageShape {
   return {
@@ -35,6 +37,8 @@ export function createImage(
     naturalWidth: input.naturalWidth,
     naturalHeight: input.naturalHeight,
     status: input.status ?? 'pending',
+    ...(input.flipX !== undefined && { flipX: input.flipX }),
+    ...(input.flipY !== undefined && { flipY: input.flipY }),
     ...resolveBaseStyle(input),
     // An image paints its own pixels; the stroke and fill vocabulary the other
     // kinds share would only give the properties panel controls that do nothing.

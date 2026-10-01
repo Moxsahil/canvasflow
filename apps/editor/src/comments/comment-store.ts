@@ -51,6 +51,15 @@ export class CommentStore {
   }
 
   /** Every thread, oldest first. The same array until something changes. */
+  /**
+   * The map the threads are kept in, for the board's undo history to take in:
+   * a board edit that moves pins — a flip — is undone with them. Edits made
+   * here are written under this store's own origin, and stay out of undo.
+   */
+  get undoScope(): Y.Map<Y.Map<unknown>> {
+    return this.threads;
+  }
+
   getThreads(): CommentThread[] {
     if (!this.snapshot) {
       const threads: CommentThread[] = [];
@@ -219,6 +228,43 @@ export class CommentStore {
         if (!stored) continue;
         stored.set('px', point.x);
         stored.set('py', point.y);
+      }
+    }, ORIGIN);
+  }
+
+  /**
+   * Reflect the pins on these shapes as the shapes were reflected, about the
+   * same point.
+   *
+   * A pin keeps its place as a fraction of its shape's box, so without this a
+   * pin on the left of a photo stays on the left while the photo mirrors under
+   * it. Mirroring the fraction keeps it on what it was about; the point it
+   * falls back to without the shape is reflected too.
+   *
+   * Called inside the flip's own edit, so undoing the flip puts the pins back.
+   */
+  mirrorPins(
+    shapeIds: ReadonlySet<string>,
+    axis: 'horizontal' | 'vertical',
+    center: CommentAnchor['point'],
+  ): void {
+    if (!this.canWrite() || shapeIds.size === 0) return;
+    const held = this.getThreads().filter(
+      (thread) => thread.anchor.shapeId !== null && shapeIds.has(thread.anchor.shapeId),
+    );
+    if (held.length === 0) return;
+
+    this.yDoc.transact(() => {
+      for (const { id, anchor } of held) {
+        const stored = this.threads.get(id);
+        if (!stored) continue;
+        if (axis === 'horizontal') {
+          stored.set('ax', 1 - anchor.at.x);
+          stored.set('px', 2 * center.x - anchor.point.x);
+        } else {
+          stored.set('ay', 1 - anchor.at.y);
+          stored.set('py', 2 * center.y - anchor.point.y);
+        }
       }
     }, ORIGIN);
   }

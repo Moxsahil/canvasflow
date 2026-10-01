@@ -143,11 +143,15 @@ export function shapesCapturedBy(frame: FrameShape, shapes: readonly Shape[]): s
  * — unless the frame is above it, in which case the frame's border and any
  * fill it has cover the very thing it just took in.
  */
-export function membersHiddenByTheirFrame(shapes: readonly Shape[]): string[] {
+export function membersHiddenByTheirFrame(
+  shapes: readonly Shape[],
+  memberIds?: ReadonlySet<string>,
+): string[] {
   const depth = new Map(shapes.map((shape, index) => [shape.id, index]));
 
   const raise: string[] = [];
   for (const shape of shapes) {
+    if (memberIds && !memberIds.has(shape.id)) continue;
     if (!shape.frameId) continue;
     const frameDepth = depth.get(shape.frameId);
     if (frameDepth === undefined || frameDepth < depth.get(shape.id)!) continue;

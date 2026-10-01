@@ -6,6 +6,7 @@ const editing: CommandContext = {
   readOnly: false,
   viewMode: false,
   selectionCount: 1,
+  canFlipSelection: true,
   shapeCount: 3,
   canUndo: true,
   canRedo: true,
@@ -83,6 +84,8 @@ describe('availability', () => {
       'deleteSelection',
       'selectAll',
       'resetCanvas',
+      'flipHorizontal',
+      'flipVertical',
     ]) {
       expect(ids, id).not.toContain(id);
     }
@@ -108,8 +111,16 @@ describe('availability', () => {
   });
 
   it('withholds the selection commands when nothing is selected', () => {
-    const ids = available({ ...editing, selectionCount: 0 });
-    for (const id of ['cut', 'copy', 'duplicate', 'deleteSelection', 'zoomToSelection']) {
+    const ids = available({ ...editing, selectionCount: 0, canFlipSelection: false });
+    for (const id of [
+      'cut',
+      'copy',
+      'duplicate',
+      'deleteSelection',
+      'zoomToSelection',
+      'flipHorizontal',
+      'flipVertical',
+    ]) {
       expect(ids, id).not.toContain(id);
     }
   });
@@ -121,6 +132,15 @@ describe('availability', () => {
 
     const one = available({ ...editing, selectionCount: 1 });
     for (const id of zOrder) expect(one, id).toContain(id);
+  });
+
+  it('offers flips only when the selection supports them, including multiple shapes', () => {
+    const unsupported = available({ ...editing, canFlipSelection: false });
+    const multiple = available({ ...editing, selectionCount: 3 });
+    for (const id of ['flipHorizontal', 'flipVertical']) {
+      expect(unsupported).not.toContain(id);
+      expect(multiple).toContain(id);
+    }
   });
 
   it('withholds undo and redo when their stacks are empty', () => {

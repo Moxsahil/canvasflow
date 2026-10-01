@@ -27,6 +27,56 @@ function anImage(overrides: Partial<Parameters<typeof createImage>[0]> = {}): Im
 }
 
 describe('image shape', () => {
+  it('leaves legacy images unflipped without adding persisted keys', () => {
+    const original = anImage();
+    const map = integrate(shapeToYMap(original));
+    const read = yMapToShape(map) as ImageShape;
+
+    expect(original.flipX).toBeUndefined();
+    expect(original.flipY).toBeUndefined();
+    expect(map.has('flipX')).toBe(false);
+    expect(map.has('flipY')).toBe(false);
+    expect(read.flipX).toBeUndefined();
+    expect(read.flipY).toBeUndefined();
+  });
+
+  it.each([
+    [true, false],
+    [false, true],
+    [true, true],
+    [false, false],
+  ])('round-trips flipX=%s and flipY=%s without changing image identity', (flipX, flipY) => {
+    const original = anImage({ status: 'saved', flipX, flipY });
+    const read = yMapToShape(integrate(shapeToYMap(original))) as ImageShape;
+
+    expect(read).toEqual(original);
+    expect(shapeBounds(read)).toEqual({ x: 10, y: 20, width: 100, height: 50 });
+    expect(shapeContainsPoint(read, 60, 45)).toBe(true);
+  });
+
+  it('persists explicit false when an image is flipped back', () => {
+    const map = integrate(shapeToYMap(anImage({ flipX: true, flipY: true })));
+    const unflipped = integrate(shapeToYMap(anImage({ flipX: false, flipY: false })));
+    for (const [key, value] of unflipped) map.set(key, value);
+
+    expect(map.get('flipX')).toBe(false);
+    expect(map.get('flipY')).toBe(false);
+    expect(yMapToShape(map)).toMatchObject({ flipX: false, flipY: false });
+  });
+
+  it.each(['true', 'false', 1, 0, null, {}, []])(
+    'does not interpret malformed flip flags as enabled: %j',
+    (value) => {
+      const map = shapeToYMap(anImage());
+      map.set('flipX', value);
+      map.set('flipY', value);
+      const read = yMapToShape(integrate(map)) as ImageShape;
+
+      expect(read.flipX).toBeUndefined();
+      expect(read.flipY).toBeUndefined();
+    },
+  );
+
   it('round-trips through Yjs', () => {
     const original = anImage({ status: 'saved' });
     const shape = yMapToShape(integrate(shapeToYMap(original))) as ImageShape;

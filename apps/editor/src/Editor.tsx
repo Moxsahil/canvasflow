@@ -43,6 +43,7 @@ import {
   strokeColorFor,
   unionRect,
   type Camera,
+  type FlipAxis,
   type Rect,
   type Shape,
   type SnapGuide,
@@ -102,6 +103,7 @@ import {
   type MoveToBoards,
 } from './context-menu';
 import { hitTestHandles } from './selection/handles';
+import { canFlipSelection, flipSelection } from './selection/flip-selection';
 import { useBoardDocument, useYjsShapes } from './document/useYjsDocument';
 import { useBoardImages, imageFilesFromDataTransfer, pickImageFiles } from './images';
 import { LaserLayer, useLaserTrails } from './laser';
@@ -869,6 +871,11 @@ export function Editor({ boardId }: EditorProps) {
   const restoredViewRef = useCameraPersistence(boardId, camera, restoreCamera);
   const isSpacePressed = useSelector(actorRef, (s) => s.context.isSpacePressed);
   const selectedIds = useSelector(actorRef, (s) => s.context.selectedIds);
+  const isIdle = useSelector(actorRef, (s) => s.matches('idle'));
+  const canFlip = useMemo(
+    () => !readOnly && isIdle && canFlipSelection(selectedIds, shapes),
+    [readOnly, isIdle, selectedIds, shapes],
+  );
   const marquee = useSelector(actorRef, (s) => s.context.marquee);
   const itemStyle = useSelector(actorRef, (s) => s.context.itemStyle);
   const erasePending = useSelector(actorRef, (s) => s.context.erasePending);
@@ -2390,6 +2397,19 @@ export function Editor({ boardId }: EditorProps) {
     [doc, selectedIds],
   );
 
+  const handleFlip = useCallback(
+    (axis: FlipAxis) => {
+      const snapshot = actorRef.getSnapshot();
+      if (readOnly || !snapshot.matches('idle')) return;
+      flipSelection(doc, snapshot.context.selectedIds, axis, ({ reflected, center }) =>
+        comments.store.mirrorPins(reflected, axis, center),
+      );
+    },
+    [actorRef, doc, readOnly, comments.store],
+  );
+  const handleFlipHorizontal = useCallback(() => handleFlip('horizontal'), [handleFlip]);
+  const handleFlipVertical = useCallback(() => handleFlip('vertical'), [handleFlip]);
+
   const handleBringForward = useCallback(() => {
     if (selectedIds.length !== 1) return;
     doc.bringForward(selectedIds[0]!);
@@ -2985,6 +3005,8 @@ export function Editor({ boardId }: EditorProps) {
     onBringToFront: handleBringToFront,
     onSendToBack: handleSendToBack,
     onDuplicate: handleDuplicate,
+    onFlipHorizontal: handleFlipHorizontal,
+    onFlipVertical: handleFlipVertical,
     onZoomTo100: handleZoomTo100,
     onZoomToFit: handleZoomToFit,
     onZoomToSelection: handleZoomToSelection,
@@ -3053,6 +3075,8 @@ export function Editor({ boardId }: EditorProps) {
       copy: handleCopy,
       paste: handlePaste,
       duplicate: handleDuplicate,
+      flipHorizontal: handleFlipHorizontal,
+      flipVertical: handleFlipVertical,
       deleteSelection: handleDelete,
       selectAll: handleSelectAll,
       bringForward: handleBringForward,
@@ -3075,6 +3099,7 @@ export function Editor({ boardId }: EditorProps) {
       readOnly,
       viewMode,
       selectionCount: selectedIds.length,
+      canFlipSelection: canFlip,
       shapeCount: shapes.length,
       canUndo,
       canRedo,
@@ -3219,6 +3244,8 @@ export function Editor({ boardId }: EditorProps) {
                 paste: handlePaste,
                 pasteHere: handlePasteHere,
                 duplicate: selectedIds.length > 0 ? handleDuplicate : null,
+                flipHorizontal: canFlip ? handleFlipHorizontal : null,
+                flipVertical: canFlip ? handleFlipVertical : null,
                 exportImage: showExport,
                 // The document reorders one shape at a time, so these wait
                 // for a single selection — as the properties panel's do.

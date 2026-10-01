@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import {
   KEY_TO_TOOL,
+  flipAxisForShortcut,
   isCommandPaletteShortcut,
   isTypingTarget,
   shouldIgnoreShortcut,
@@ -24,6 +25,8 @@ interface UseKeyboardShortcutsOptions {
   onSendBackward: () => void;
   onBringToFront: () => void;
   onSendToBack: () => void;
+  onFlipHorizontal: () => void;
+  onFlipVertical: () => void;
   onDuplicate: () => void;
   onZoomTo100: () => void;
   onZoomToFit: () => void;
@@ -75,6 +78,8 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onSendBackward,
     onBringToFront,
     onSendToBack,
+    onFlipHorizontal,
+    onFlipVertical,
     onDuplicate,
     onZoomTo100,
     onZoomToFit,
@@ -103,6 +108,16 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (disabled) return;
+      const flipAxis = flipAxisForShortcut(event);
+      if (flipAxis) {
+        event.preventDefault();
+        // Holding a flip key must not undo the first flip or select the H/V tool.
+        if (!event.repeat) {
+          if (flipAxis === 'horizontal') onFlipHorizontal();
+          else onFlipVertical();
+        }
+        return;
+      }
       if (event.key === 'Escape') {
         onEscape();
         return;
@@ -412,6 +427,8 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onSendBackward,
     onBringToFront,
     onSendToBack,
+    onFlipHorizontal,
+    onFlipVertical,
     onDuplicate,
     onZoomTo100,
     onZoomToFit,

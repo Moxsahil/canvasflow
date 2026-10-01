@@ -14,7 +14,13 @@ export function useComments(doc: BoardDocument): {
   store: CommentStore;
   threads: readonly CommentThread[];
 } {
-  const store = useMemo(() => new CommentStore(doc.yDoc, () => !doc.isReadOnly()), [doc]);
+  const store = useMemo(() => {
+    const made = new CommentStore(doc.yDoc, () => !doc.isReadOnly());
+    // Only what a board edit does to the comments in passing is undone with
+    // it; the comments' own edits keep out of undo.
+    doc.trackInUndo(made.undoScope);
+    return made;
+  }, [doc]);
   const threads = useSyncExternalStore(
     (listener) => store.subscribe(listener),
     () => store.getThreads(),

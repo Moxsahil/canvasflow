@@ -107,5 +107,17 @@ export function drawImageShape(
     return;
   }
 
-  ctx.drawImage(bitmap, shape.x, shape.y, shape.width, shape.height);
+  ctx.save();
+  try {
+    if (shape.flipX === true || shape.flipY === true) {
+      const cx = shape.x + shape.width / 2;
+      const cy = shape.y + shape.height / 2;
+      ctx.translate(cx, cy);
+      ctx.scale(shape.flipX === true ? -1 : 1, shape.flipY === true ? -1 : 1);
+      ctx.translate(-cx, -cy);
+    }
+    ctx.drawImage(bitmap, shape.x, shape.y, shape.width, shape.height);
+  } finally {
+    ctx.restore();
+  }
 }

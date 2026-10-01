@@ -335,3 +335,57 @@ describe('reactions', () => {
     expect(left[0]!.reactions).toEqual([]);
   });
 });
+
+describe('pins on a flipped shape', () => {
+  const onShape = (shapeId: string, x: number, y: number): CommentAnchor => ({
+    shapeId,
+    at: { x, y },
+    point: { x: 10, y: 20 },
+  });
+
+  it('mirror their place on the shape, and the point they fall back to', () => {
+    const { store } = board();
+    store.addThread(onShape('photo', 0.2, 0.3), ada, 'The left eye');
+    store.addThread(onShape('other', 0.2, 0.3), ada, 'Not flipped');
+    store.addThread(onBoard(5, 5), ada, 'On the board');
+
+    store.mirrorPins(new Set(['photo']), 'horizontal', { x: 100, y: 0 });
+    const [photo, other, loose] = store.getThreads();
+    expect(photo!.anchor).toEqual({
+      shapeId: 'photo',
+      at: { x: 0.8, y: 0.3 },
+      point: { x: 190, y: 20 },
+    });
+    expect(other!.anchor).toEqual(onShape('other', 0.2, 0.3));
+    expect(loose!.anchor).toEqual(onBoard(5, 5));
+
+    store.mirrorPins(new Set(['photo']), 'vertical', { x: 0, y: 50 });
+    expect(store.getThreads()[0]!.anchor).toEqual({
+      shapeId: 'photo',
+      at: { x: 0.8, y: 0.7 },
+      point: { x: 190, y: 80 },
+    });
+  });
+
+  it('stay out of undo when moved on their own, and are undone with a board edit that moves them', () => {
+    const doc = new Y.Doc();
+    const { store } = board(doc);
+    const undo = new Y.UndoManager(doc.getArray('shapes'), {
+      trackedOrigins: new Set([null, undefined, 'local']),
+    });
+    undo.addToScope(store.undoScope);
+    store.addThread(onShape('photo', 0.2, 0.3), ada, 'The left eye');
+
+    store.mirrorPins(new Set(['photo']), 'horizontal', { x: 100, y: 0 });
+    expect(undo.undoStack).toHaveLength(0);
+
+    doc.transact(
+      () => store.mirrorPins(new Set(['photo']), 'horizontal', { x: 100, y: 0 }),
+      'local',
+    );
+    expect(store.getThreads()[0]!.anchor.at.x).toBeCloseTo(0.2);
+    undo.undo();
+    expect(store.getThreads()[0]!.anchor.at.x).toBeCloseTo(0.8);
+    undo.destroy();
+  });
+});

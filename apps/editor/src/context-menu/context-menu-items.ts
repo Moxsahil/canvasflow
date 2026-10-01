@@ -9,8 +9,6 @@ import {
   EyeOff,
   FileCode,
   FileImage,
-  FlipHorizontal,
-  FlipVertical,
   Layers,
   Link,
   Link2,
@@ -199,8 +197,8 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   sendBackward: fromCommand('sendBackward', 'Send backward'),
   sendToBack: fromCommand('sendToBack', 'Send to back'),
 
-  flipHorizontal: soon('Flip horizontal', FlipHorizontal),
-  flipVertical: soon('Flip vertical', FlipVertical),
+  flipHorizontal: fromCommand('flipHorizontal', 'Flip horizontal'),
+  flipVertical: fromCommand('flipVertical', 'Flip vertical'),
 
   addLink: soon('Add link', Link),
   copyLinkToSelection: soon('Copy link to selection', Link2, false),

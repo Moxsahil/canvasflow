@@ -59,6 +59,8 @@ describe('row metadata', () => {
     expect(CONTEXT_MENU_ITEMS.duplicate.shortcut).toBe('mod+d');
     expect(CONTEXT_MENU_ITEMS.bringToFront.shortcut).toBe('mod+]');
     expect(CONTEXT_MENU_ITEMS.bringForward.shortcut).toBe(']');
+    expect(CONTEXT_MENU_ITEMS.flipHorizontal.shortcut).toBe('shift+h');
+    expect(CONTEXT_MENU_ITEMS.flipVertical.shortcut).toBe('shift+v');
     expect(CONTEXT_MENU_ITEMS.exportImage.shortcut).toBe('mod+shift+e');
   });
 
@@ -77,7 +79,6 @@ describe('row metadata', () => {
   });
 
   it('gives an unbuilt row no shortcut, since nothing would answer the key', () => {
-    expect(CONTEXT_MENU_ITEMS.flipHorizontal.shortcut).toBeUndefined();
     expect(CONTEXT_MENU_ITEMS.lock.shortcut).toBeUndefined();
     expect(CONTEXT_MENU_ITEMS.copyAsPng.shortcut).toBeUndefined();
   });
@@ -98,6 +99,8 @@ describe('contextMenuFor', () => {
     expect(ids.has('paste')).toBe(false);
     expect(ids.has('deleteSelection')).toBe(false);
     expect(ids.has('bringToFront')).toBe(false);
+    expect(ids.has('flipHorizontal')).toBe(false);
+    expect(ids.has('flipVertical')).toBe(false);
   });
 
   it('drops a submenu with nothing left in it, and keeps one with something', () => {
