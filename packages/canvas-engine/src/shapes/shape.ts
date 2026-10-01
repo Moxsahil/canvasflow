@@ -166,6 +166,9 @@ export interface ImageShape extends BaseShape {
   readonly kind: 'image';
   readonly width: number;
   readonly height: number;
+  /** Mirror the bitmap within its placed box. Absent means false. */
+  readonly flipX?: boolean;
+  readonly flipY?: boolean;
   /**
    * Content hash of the original file, and the only reference to the bytes the
    * document carries. Keeping the pixels out of the shape is what stops one

@@ -60,6 +60,23 @@ export function isTypingTarget(eventTarget: EventTarget | null): boolean {
   return !!target.isContentEditable;
 }
 
+export function flipAxisForShortcut(
+  event: Pick<KeyboardEvent, 'code' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'target'>,
+): 'horizontal' | 'vertical' | null {
+  if (
+    !event.shiftKey ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.altKey ||
+    isTypingTarget(event.target)
+  ) {
+    return null;
+  }
+  if (event.code === 'KeyH') return 'horizontal';
+  if (event.code === 'KeyV') return 'vertical';
+  return null;
+}
+
 export function shouldIgnoreShortcut(event: KeyboardEvent): boolean {
   if (isTypingTarget(event.target)) return true;
 

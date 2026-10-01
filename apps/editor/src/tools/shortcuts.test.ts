@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isTypingTarget } from './shortcuts';
+import { flipAxisForShortcut, isTypingTarget } from './shortcuts';
 
 /** As much of an element as the check reads. */
 function element(tagName: string, extra: { type?: string; isContentEditable?: boolean } = {}) {
@@ -26,5 +26,52 @@ describe('isTypingTarget', () => {
     expect(isTypingTarget(element('BUTTON'))).toBe(false);
     expect(isTypingTarget(element('BODY'))).toBe(false);
     expect(isTypingTarget(null)).toBe(false);
+  });
+});
+
+describe('flipAxisForShortcut', () => {
+  const horizontal = {
+    code: 'KeyH',
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    shiftKey: true,
+    target: null,
+  };
+
+  it('recognizes Shift+H and Shift+V by physical key code', () => {
+    expect(flipAxisForShortcut(horizontal)).toBe('horizontal');
+    expect(flipAxisForShortcut({ ...horizontal, code: 'KeyV' })).toBe('vertical');
+    expect(flipAxisForShortcut({ ...horizontal, code: 'KeyC' })).toBeNull();
+  });
+
+  it('requires Shift alone, leaving bare tool keys and platform shortcuts untouched', () => {
+    expect(flipAxisForShortcut({ ...horizontal, shiftKey: false })).toBeNull();
+    for (const modifier of ['metaKey', 'ctrlKey', 'altKey']) {
+      for (const code of ['KeyH', 'KeyV']) {
+        expect(flipAxisForShortcut({ ...horizontal, code, [modifier]: true })).toBeNull();
+      }
+    }
+  });
+
+  it('leaves typed capital letters to fields and contenteditable elements', () => {
+    for (const target of [
+      element('INPUT', { type: 'text' }),
+      element('TEXTAREA'),
+      element('SELECT'),
+      element('DIV', { isContentEditable: true }),
+    ]) {
+      expect(flipAxisForShortcut({ ...horizontal, target })).toBeNull();
+    }
+  });
+
+  it('works with focus on the canvas or a toolbar button', () => {
+    for (const target of [
+      element('CANVAS'),
+      element('BUTTON'),
+      element('INPUT', { type: 'radio' }),
+    ]) {
+      expect(flipAxisForShortcut({ ...horizontal, target })).toBe('horizontal');
+    }
   });
 });

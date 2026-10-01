@@ -3,6 +3,7 @@ import { renderSceneToSvgString } from '../src/renderers/svg-scene';
 import { EmptySceneError } from '../src/export/export-scene';
 import { createRectangle } from '../src/shapes/rectangle';
 import { createText } from '../src/shapes/text';
+import { createImage } from '../src/shapes/image';
 import { createArrow } from '../src/shapes/arrow';
 import { createFreehand } from '../src/shapes/freehand';
 import { DARK_INK_COLOR, DEFAULT_STROKE_COLOR, strokeColorFor } from '../src/shapes/style';
@@ -208,5 +209,57 @@ describe('strokeColorFor', () => {
     expect(strokeColorFor(DEFAULT_STROKE_COLOR, false)).toBe(DEFAULT_STROKE_COLOR);
     expect(strokeColorFor('#1971c2', true)).toBe('#1971c2');
     expect(strokeColorFor('#1971c2', false)).toBe('#1971c2');
+  });
+});
+
+describe('image reflection in SVG exports', () => {
+  const bitmap = 'data:image/png;base64,original-pixels';
+  const image = createImage({
+    id: 'image',
+    x: 10,
+    y: 20,
+    width: 100,
+    height: 50,
+    fileId: 'bitmap',
+    mimeType: 'image/png',
+    naturalWidth: 200,
+    naturalHeight: 100,
+  });
+  const options = { imageDataUrls: new Map([['bitmap', bitmap]]) };
+
+  it.each([
+    [true, false, '-1 1'],
+    [false, true, '1 -1'],
+    [true, true, '-1 -1'],
+  ] as const)('reflects flipX=%s flipY=%s around the bitmap center only', (flipX, flipY, scale) => {
+    const svg = renderSceneToSvgString(
+      [
+        { ...image, flipX, flipY, opacity: 50 },
+        { ...image, id: 'next-image', x: 120 },
+      ],
+      options,
+    );
+    const images = svg.match(/<image [^>]+\/>/g)!;
+
+    expect(images).toHaveLength(2);
+    expect(images[0]).toContain('x="10" y="20" width="100" height="50"');
+    expect(images[0]).toContain(`transform="translate(60 45) scale(${scale}) translate(-60 -45)"`);
+    expect(images[0]).toContain(`href="${bitmap}"`);
+    expect(images[0]).toContain('preserveAspectRatio="none"');
+    expect(images[1]).not.toContain('transform=');
+    expect(svg).toContain('<g opacity="0.5"><image');
+  });
+
+  it('does not add a reflection for absent or false flags', () => {
+    for (const shape of [image, { ...image, flipX: false, flipY: false }]) {
+      const svg = renderSceneToSvgString([shape], options);
+      expect(svg.match(/<image [^>]+\/>/)![0]).not.toContain('transform=');
+    }
+  });
+
+  it('leaves the unresolved-image placeholder unchanged', () => {
+    const plain = renderSceneToSvgString([image]);
+    const flipped = renderSceneToSvgString([{ ...image, flipX: true, flipY: true }]);
+    expect(flipped).toBe(plain);
   });
 });

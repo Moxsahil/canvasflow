@@ -150,6 +150,25 @@ export class BoardDocument {
     this.undoManager.stopCapturing();
   }
 
+  /**
+   * Bring another part of the document under this undo history: its edits
+   * made inside a board edit are undone with it.
+   *
+   * Only those. A part that writes under an origin of its own — the comments
+   * do — keeps its own edits out of undo, as before; what is tracked is what a
+   * board edit does to it in passing, such as a flip moving the pins on the
+   * shapes it reflects.
+   */
+  trackInUndo(type: Parameters<Y.UndoManager['addToScope']>[0]): void {
+    this.undoManager.addToScope(type);
+  }
+
+  /** Several edits as one: one sync update to everyone else, and one undo step. */
+  batch(edit: () => void): void {
+    if (this.readOnly) return;
+    this.yDoc.transact(edit, 'local');
+  }
+
   getShapes(): Shape[] {
     const shapes: Shape[] = [];
     for (let i = 0; i < this.yShapes.length; i++) {
@@ -270,6 +289,56 @@ export class BoardDocument {
           return;
         }
       }
+    }, 'local');
+  }
+
+  /** Apply geometry and ordered layer raises in one transaction and board pass. */
+  updateShapes(
+    updates: readonly ShapeUpdate[],
+    options?: { readonly bringToFront?: readonly string[] },
+  ): void {
+    const raiseIds = options?.bringToFront ?? [];
+    if (this.readOnly || (updates.length === 0 && raiseIds.length === 0)) return;
+    const patches = new Map(updates.map(({ id, patch }) => [id, patch]));
+    const toRaise = new Map<string, Y.Map<unknown> | null>();
+    // A frame may occur once directly and again with its parent. Keeping the
+    // last occurrence leaves its descendants above it in the requested order.
+    for (const id of raiseIds) {
+      toRaise.delete(id);
+      toRaise.set(id, null);
+    }
+
+    this.yDoc.transact(() => {
+      const changed = new Set<Y.Map<unknown>>();
+      let maxZIndex: string | null = null;
+      for (const yMap of this.yShapes) {
+        const id = yMap.get('id') as string;
+        const patch = patches.get(id);
+        if (patch) {
+          for (const [key, value] of Object.entries(patch)) {
+            if (key === 'id' || key === 'kind' || Object.is(yMap.get(key), value)) continue;
+            yMap.set(key, value);
+            changed.add(yMap);
+          }
+        }
+        if (toRaise.size > 0) {
+          if (toRaise.has(id)) toRaise.set(id, yMap);
+          const zIndex = yMap.get('zIndex');
+          if (
+            typeof zIndex === 'string' &&
+            (maxZIndex === null || compareZIndex(zIndex, maxZIndex) > 0)
+          ) {
+            maxZIndex = zIndex;
+          }
+        }
+      }
+      for (const yMap of toRaise.values()) {
+        if (!yMap) continue;
+        maxZIndex = generateKeyBetween(maxZIndex, null);
+        yMap.set('zIndex', maxZIndex);
+        changed.add(yMap);
+      }
+      for (const yMap of changed) this.setAttribution(yMap);
     }, 'local');
   }
 

@@ -113,6 +113,9 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
       map.set('status', shape.status);
       map.set('naturalWidth', shape.naturalWidth);
       map.set('naturalHeight', shape.naturalHeight);
+      // Preserve explicit false so a second flip can clear a stored true.
+      if (shape.flipX !== undefined) map.set('flipX', shape.flipX);
+      if (shape.flipY !== undefined) map.set('flipY', shape.flipY);
       break;
     case 'frame':
       map.set('width', shape.width);
@@ -302,6 +305,8 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
 
       const width = (map.get('width') as number) ?? 0;
       const height = (map.get('height') as number) ?? 0;
+      const flipX = map.get('flipX');
+      const flipY = map.get('flipY');
 
       return withZ({
         ...base,
@@ -315,6 +320,9 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
         // for anything written before these were recorded.
         naturalWidth: (map.get('naturalWidth') as number) ?? width,
         naturalHeight: (map.get('naturalHeight') as number) ?? height,
+        // Only booleans are meaningful; old or malformed values read unflipped.
+        ...(typeof flipX === 'boolean' && { flipX: flipX === true }),
+        ...(typeof flipY === 'boolean' && { flipY: flipY === true }),
       } as Shape);
     }
     case 'frame':

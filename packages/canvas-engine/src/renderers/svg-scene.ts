@@ -237,7 +237,16 @@ function imageToSvg(shape: ImageShape, dataUrl: string | undefined): string {
 
   // preserveAspectRatio="none" so the export matches the canvas, which stretches
   // the bitmap to whatever box the user dragged it to.
-  return `<image ${box} preserveAspectRatio="none" href="${escapeXml(dataUrl)}"/>`;
+  let transform = '';
+  if (shape.flipX === true || shape.flipY === true) {
+    const cx = shape.x + shape.width / 2;
+    const cy = shape.y + shape.height / 2;
+    transform =
+      ` transform="translate(${num(cx)} ${num(cy)}) ` +
+      `scale(${shape.flipX === true ? -1 : 1} ${shape.flipY === true ? -1 : 1}) ` +
+      `translate(${num(-cx)} ${num(-cy)})"`;
+  }
+  return `<image ${box}${transform} preserveAspectRatio="none" href="${escapeXml(dataUrl)}"/>`;
 }
 
 /**

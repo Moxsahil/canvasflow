@@ -9,6 +9,8 @@ import {
   Crosshair,
   Expand,
   Eye,
+  FlipHorizontal,
+  FlipVertical,
   Focus,
   Maximize,
   MessageSquare,
@@ -83,7 +85,9 @@ export type CommandId =
   | 'bringForward'
   | 'sendBackward'
   | 'bringToFront'
-  | 'sendToBack';
+  | 'sendToBack'
+  | 'flipHorizontal'
+  | 'flipVertical';
 
 /** Array order is the order the palette lists the groups in. */
 export const COMMAND_CATEGORIES = ['Tools', 'View', 'Edit', 'Arrange', 'Board', 'App'] as const;
@@ -100,6 +104,7 @@ export interface CommandContext {
   /** Read-only by choice, with the hand as the only tool. Implies `readOnly`. */
   viewMode: boolean;
   selectionCount: number;
+  canFlipSelection: boolean;
   shapeCount: number;
   canUndo: boolean;
   canRedo: boolean;
@@ -131,6 +136,7 @@ const hasSelection = (context: CommandContext) => !context.readOnly && context.s
 const hasOneSelected = (context: CommandContext) =>
   !context.readOnly && context.selectionCount === 1;
 const hasShapes = (context: CommandContext) => context.shapeCount > 0;
+const canFlipSelection = (context: CommandContext) => !context.readOnly && context.canFlipSelection;
 
 /** Extra words a tool answers to beyond its own name. */
 const TOOL_KEYWORDS: Partial<Record<Tool, readonly string[]>> = {
@@ -380,6 +386,25 @@ export const COMMANDS: readonly CommandMeta[] = [
     shortcut: 'mod+[',
     keywords: ['layer', 'bottom', 'z-order'],
     available: hasOneSelected,
+  },
+
+  {
+    id: 'flipHorizontal',
+    label: 'Flip horizontal',
+    icon: FlipHorizontal,
+    category: 'Arrange',
+    shortcut: 'shift+h',
+    keywords: ['mirror', 'reflect', 'horizontal'],
+    available: canFlipSelection,
+  },
+  {
+    id: 'flipVertical',
+    label: 'Flip vertical',
+    icon: FlipVertical,
+    category: 'Arrange',
+    shortcut: 'shift+v',
+    keywords: ['mirror', 'reflect', 'vertical'],
+    available: canFlipSelection,
   },
 
   fromMenu('open', 'Board', ['load', 'file', 'import']),
