@@ -10,34 +10,34 @@ real browser viewport.
 pnpm --filter @canvasflow/editor dev
 ```
 
-Then visit `http://localhost:3002` for the public app entry, or
+Then visit `http://localhost:3002` to open your whiteboard directly, or
 `http://localhost:3002/boards/dev-local` for the local development board.
 
-## Public entry and search discovery
+## Opening the editor
 
-Vite builds two HTML entry points. `index.html` is a lightweight, indexable
-public page containing product copy and sign-in/open links even without
-JavaScript. `editor.html` loads the React editor and declares `noindex, nofollow`
-before JavaScript runs. Board URLs are still `/boards/:boardId`, including their
-existing token fragments; Vercel rewrites them internally to `editor.html` and
-adds the matching `X-Robots-Tag` header. The Vite dev/preview middleware mirrors
-this rewrite. Unknown routes return 404 instead of opening `dev-local`.
+The root at `http://localhost:3002` and `https://app.canvasflowapp.com` redirects
+to the web app's `/open` route before sending HTML, so no intermediate page is
+displayed. Vite dev/preview uses `VITE_WEB_URL`; Vercel's redirects in
+`vercel.json` apply to the production editor hostname and use the production
+web host. Preview deployments use the silent fallback with their configured
+`VITE_WEB_URL`. The `/open` route restores
+the account session, picks the user's most recent board (or creates their first
+one), and returns to `/boards/:boardId` with a short-lived token. Signed-out
+visitors sign in first, then continue into the editor. There is no app landing
+page or preliminary profile check.
 
-The public entry checks the gateway's existing `/users/me` endpoint using the
-session cookie. A confirmed non-guest account continues to the web app's `/open`
-route. Signed-out visitors and failed checks stay on the public page. Users
-whose access cookie has expired can click **Open your whiteboard** to use the
-existing session-renewal flow. No private board data is included in this page.
+Vite builds two HTML entry points: a silent static-host fallback in
+`index.html` and the React editor in `editor.html`. Both declare `noindex,
+nofollow` before JavaScript runs. Vercel rewrites board URLs to `editor.html`;
+the Vite dev/preview middleware mirrors this rewrite. Both hosts also set the
+matching `X-Robots-Tag` header on the root and editor routes. Direct board links
+and their token fragments continue to work. If a static host serves `index.html`
+for a board URL, its fallback loads that board directly, preserving the token
+instead of redirecting back through `/open`. Unknown routes return 404.
 
-Configure `VITE_WEB_URL` and `VITE_API_URL` as before. Canonicals and sitemap URLs
-always refer to production; navigation uses `VITE_WEB_URL` when JavaScript runs.
-The root does not load the canvas bundle or require a sync connection.
-
-`public/robots.txt` allows crawling so Google can read the private shell's
-`noindex`; it is not an access control. `public/sitemap.xml` lists only the app
-root. Submit `https://app.canvasflowapp.com/sitemap.xml` after deploying the
-editor project, as described in the web README. Deploy the web project too for
-the linked guide and social preview image.
+`public/robots.txt` allows crawling so search engines can read `noindex`; it is
+not an access control. The app has no public sitemap. Marketing pages and their
+sitemap live on the web host at `https://canvasflowapp.com`.
 
 In PR #12 you should see:
 

@@ -94,17 +94,17 @@ favicon. Keep the existing custom favicon URL stable unless the image changes.
 
 ### Deploying both hosts
 
-This SEO change spans **both** the web and editor Vercel projects. Deploy the web
-project for the new guide/social image, and the editor project for its public
-entry and board rewrites. The main sitemap contains only main-site pages; the
-editor serves its own sitemap containing only `https://app.canvasflowapp.com/`.
+The web and editor are separate Vercel projects. The web project serves the
+public marketing pages, guide and social image. The editor root at
+`https://app.canvasflowapp.com/` opens the user's board through `/open`; it has
+no landing page or public sitemap.
 
-After deployment, submit both sitemap URLs in a Search Console Domain property
-covering `canvasflowapp.com`, or use separate URL-prefix properties for the two
-hosts. Inspect the homepage, guide and app root and request indexing. Check that
-public roots have no `X-Robots-Tag: noindex` header and that board pages do have
-`noindex` in their initial HTML. Check the actual production responses; preview
-deployments may intentionally send `noindex` headers.
+After deployment, submit only `https://canvasflowapp.com/sitemap.xml` in Search
+Console. Inspect the marketing homepage and guide and request indexing. Check
+that the marketing homepage has no `X-Robots-Tag: noindex` header and that the
+editor root and board pages have `noindex` in their initial HTML and response
+headers. Check the actual production responses; preview deployments may
+intentionally send `noindex` headers.
 
 Track impressions, clicks and queries in Search Console after Google recrawls.
 Use relevant questions from users to expand the guide over time. Titles,
