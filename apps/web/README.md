@@ -49,7 +49,7 @@ Next.js serves `src/app/sitemap.ts` as `/sitemap.xml` and `src/app/robots.ts` as
 fetch them without being redirected into sign-in. Do not also add files with
 these names to `public/`; the metadata routes already serve them.
 
-The sitemap lists the production URLs for the homepage, Terms, and Privacy.
+The sitemap lists the production URLs for the homepage, whiteboard guide, Terms, and Privacy.
 Add future standalone public pages to `sitemap.ts` when they launch. Keep account
 flows, board and invite URLs, APIs, query parameters, and homepage section
 anchors out of this list. Omission from a sitemap does not prevent indexing;
@@ -74,6 +74,42 @@ After deploying the web app:
 
 A sitemap helps discovery; it does not guarantee indexing or higher rankings.
 See [Google's sitemap guidance](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap).
+
+### Metadata and public pages
+
+`src/lib/seo.ts` provides `publicPageMetadata` for each indexable page. It sets a
+self-referencing production canonical, title, description, social preview and
+`index, follow`. The root layout defaults to `noindex, nofollow`, so account,
+invite and utility pages do not accidentally opt into search. When adding a
+public content page, use this helper, add its exact route to `PUBLIC_PATHS` in
+middleware, add it to the sitemap, and link to it from an existing public page.
+
+Invite pages remain crawlable so search engines can read their `noindex` tag.
+Do not use `robots.txt` as an access control or block pages whose `noindex` you
+need crawlers to see. API and board authorization remain responsible for data access.
+
+The homepage includes `WebSite` structured data for the CanvasFlow site name.
+`/opengraph-image` generates a branded social preview; it is separate from the
+favicon. Keep the existing custom favicon URL stable unless the image changes.
+
+### Deploying both hosts
+
+The web and editor are separate Vercel projects. The web project serves the
+public marketing pages, guide and social image. The editor root at
+`https://app.canvasflowapp.com/` opens the user's board through `/open`; it has
+no landing page or public sitemap.
+
+After deployment, submit only `https://canvasflowapp.com/sitemap.xml` in Search
+Console. Inspect the marketing homepage and guide and request indexing. Check
+that the marketing homepage has no `X-Robots-Tag: noindex` header and that the
+editor root and board pages have `noindex` in their initial HTML and response
+headers. Check the actual production responses; preview deployments may
+intentionally send `noindex` headers.
+
+Track impressions, clicks and queries in Search Console after Google recrawls.
+Use relevant questions from users to expand the guide over time. Titles,
+sitemaps and structured data help search engines understand the site but do
+not guarantee a particular result, position or favicon refresh time.
 
 ## What's next
 

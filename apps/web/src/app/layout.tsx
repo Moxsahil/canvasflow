@@ -9,6 +9,7 @@ import {
   JetBrains_Mono,
 } from 'next/font/google';
 import { Providers } from '@/providers';
+import { SITE_DESCRIPTION, SITE_URL } from '@/lib/seo';
 import './globals.css';
 
 const inter = Inter({
@@ -69,8 +70,13 @@ const fontVariables = [
 ].join(' ');
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  applicationName: 'CanvasFlow',
   title: 'CanvasFlow — Collaborative Whiteboard',
-  description: 'Enterprise collaborative whiteboard platform',
+  description: SITE_DESCRIPTION,
+  // Account, invite and utility pages inherit this. Public content pages
+  // explicitly opt in, with their own canonical URL, via publicPageMetadata.
+  robots: { index: false, follow: false },
   // One icon for every tab in every theme: the logo sits on its own white
   // square, so it reads on light and dark tab strips alike. The editor serves
   // the same file for its own tabs.
