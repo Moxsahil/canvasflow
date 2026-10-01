@@ -1,9 +1,27 @@
 import * as Y from 'yjs';
-import { generateKeyBetween } from 'fractional-indexing';
+import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing';
 import type { Shape } from '../shapes/shape.js';
 import { shapeToYMap, yMapToShape } from './yjs-shape.js';
 
 const UNDO_CAPTURE_TIMEOUT_MS = 1000;
+
+/**
+ * Layer keys in drawing order: by character code, the order the keys are
+ * generated in.
+ *
+ * Not `localeCompare`, which reads them as words and puts `aa` before `aA` —
+ * so past the thirty-sixth shape on a board, a new shape took a key the
+ * comparison already thought was below the top, was drawn under shapes made
+ * before it, and every shape after it was given that same key.
+ */
+function compareZIndex(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+export interface ShapeUpdate {
+  readonly id: string;
+  readonly patch: Partial<Shape>;
+}
 
 /**
  * The canonical document API for CanvasFlow boards.
@@ -139,10 +157,13 @@ export class BoardDocument {
       const shape = yMapToShape(yMap);
       if (shape) shapes.push(shape);
     }
+    // Stable, so shapes sharing a key — boards still carry them from before
+    // keys were compared by character code — keep the order they were added
+    // in, which every client agrees on.
     return shapes.sort((a, b) => {
       const az = (a as Shape & { zIndex?: string }).zIndex ?? '';
       const bz = (b as Shape & { zIndex?: string }).zIndex ?? '';
-      return az.localeCompare(bz);
+      return compareZIndex(az, bz);
     });
   }
 
@@ -150,17 +171,48 @@ export class BoardDocument {
    * Get all zIndex strings currently in use, sorted ascending.
    * Used by layer-order methods to find neighbors.
    */
-  private getSortedZIndexes(): Array<{ id: string; zIndex: string }> {
-    const items: Array<{ id: string; zIndex: string }> = [];
+  private getSortedZIndexes(): Array<{ id: string; zIndex: string; yMap: Y.Map<unknown> }> {
+    const items: Array<{ id: string; zIndex: string; yMap: Y.Map<unknown> }> = [];
     for (let i = 0; i < this.yShapes.length; i++) {
       const yMap = this.yShapes.get(i);
       const id = yMap.get('id') as string;
       const z = yMap.get('zIndex');
       if (typeof z === 'string') {
-        items.push({ id, zIndex: z });
+        items.push({ id, zIndex: z, yMap });
       }
     }
-    return items.sort((a, b) => a.zIndex.localeCompare(b.zIndex));
+    return items.sort((a, b) => compareZIndex(a.zIndex, b.zIndex));
+  }
+
+  /**
+   * The shapes in layer order, with no two sharing a key. Inside a transaction.
+   *
+   * There is no key between two equal keys, so a step forward or back through
+   * shapes that share one — as boards written before keys were compared by
+   * character code do — first gives each of them a key of its own, in the
+   * order they are drawn in and below the next key up. Only those shapes are
+   * rewritten, and only once.
+   */
+  private getDistinctZIndexes(): Array<{ id: string; zIndex: string; yMap: Y.Map<unknown> }> {
+    const sorted = this.getSortedZIndexes();
+    let i = 1;
+    while (i < sorted.length) {
+      const below = sorted[i - 1]!.zIndex;
+      if (sorted[i]!.zIndex !== below) {
+        i++;
+        continue;
+      }
+      let end = i;
+      while (end < sorted.length && sorted[end]!.zIndex === below) end++;
+      const keys = generateNKeysBetween(below, sorted[end]?.zIndex ?? null, end - i);
+      for (let j = i; j < end; j++) {
+        const zIndex = keys[j - i]!;
+        sorted[j]!.yMap.set('zIndex', zIndex);
+        sorted[j] = { ...sorted[j]!, zIndex };
+      }
+      i = end;
+    }
+    return sorted;
   }
 
   private getMaxZIndex(): string | null {
@@ -267,7 +319,7 @@ export class BoardDocument {
   bringForward(id: string): void {
     if (this.readOnly) return;
     this.yDoc.transact(() => {
-      const sorted = this.getSortedZIndexes();
+      const sorted = this.getDistinctZIndexes();
       const currentIdx = sorted.findIndex((s) => s.id === id);
       if (currentIdx === -1 || currentIdx === sorted.length - 1) return;
 
@@ -288,7 +340,7 @@ export class BoardDocument {
   sendBackward(id: string): void {
     if (this.readOnly) return;
     this.yDoc.transact(() => {
-      const sorted = this.getSortedZIndexes();
+      const sorted = this.getDistinctZIndexes();
       const currentIdx = sorted.findIndex((s) => s.id === id);
       if (currentIdx === -1 || currentIdx === 0) return;
 
