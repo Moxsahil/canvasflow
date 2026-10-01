@@ -8,6 +8,9 @@ import { ACCESS_COOKIE, accessTokenState, resumeUrl } from '@/lib/auth/gateway-s
 // destroys session state and grants nothing, so there is nothing to guard.
 const PUBLIC_PATHS = [
   '/',
+  // Crawlers fetch these without a session to discover the public site.
+  '/sitemap.xml',
+  '/robots.txt',
   '/login',
   '/logout',
   '/signup',

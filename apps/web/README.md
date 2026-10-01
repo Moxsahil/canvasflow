@@ -42,6 +42,39 @@ Then visit:
     authenticate in the handler rather than in the middleware
 - `src/lib/` — app-level utilities (env, auth, board access, CORS)
 
+## Search discovery
+
+Next.js serves `src/app/sitemap.ts` as `/sitemap.xml` and `src/app/robots.ts` as
+`/robots.txt`. Both routes are public in `src/middleware.ts`, so a crawler can
+fetch them without being redirected into sign-in. Do not also add files with
+these names to `public/`; the metadata routes already serve them.
+
+The sitemap lists the production URLs for the homepage, Terms, and Privacy.
+Add future standalone public pages to `sitemap.ts` when they launch. Keep account
+flows, board and invite URLs, APIs, query parameters, and homepage section
+anchors out of this list. Omission from a sitemap does not prevent indexing;
+authentication still protects private data, and `noindex` is a separate control
+for any public page that should not appear in search.
+
+The URLs always use `https://canvasflowapp.com`, including on preview deployments.
+There are no automatic `lastModified` dates: add one only when it tracks a real
+content update, rather than every build. Google ignores sitemap `priority` and
+`changefreq`, so they are omitted too.
+
+After deploying the web app:
+
+1. Open `https://canvasflowapp.com/sitemap.xml` and
+   `https://canvasflowapp.com/robots.txt` while signed out. Both should return
+   HTTP 200 directly, as XML and plain text respectively.
+2. In the site's Google Search Console property, open **Indexing → Sitemaps**.
+   Submit `https://canvasflowapp.com/sitemap.xml` (or just `sitemap.xml` if the
+   form already shows the site's URL prefix).
+3. Check the submission status for fetch or parsing errors. Use **URL inspection**
+   on the homepage to request indexing after a significant page or favicon update.
+
+A sitemap helps discovery; it does not guarantee indexing or higher rankings.
+See [Google's sitemap guidance](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap).
+
 ## What's next
 
 - Board rename / delete
