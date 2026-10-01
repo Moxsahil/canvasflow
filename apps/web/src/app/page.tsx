@@ -13,6 +13,23 @@ import { SiteFooter } from '@/components/marketing/sections/site-footer';
 import { SyncSection } from '@/components/marketing/sections/sync-section';
 import { UseCasesSection } from '@/components/marketing/sections/use-cases-section';
 import { WorkflowSection } from '@/components/marketing/sections/workflow-section';
+import { publicPageMetadata, SITE_DESCRIPTION, SITE_URL } from '@/lib/seo';
+
+export const metadata = publicPageMetadata(
+  'CanvasFlow — Online Whiteboard for Team Collaboration',
+  SITE_DESCRIPTION,
+  '/',
+);
+
+const website = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  '@id': `${SITE_URL}/#website`,
+  name: 'CanvasFlow',
+  alternateName: 'CanvasFlow Whiteboard',
+  url: `${SITE_URL}/`,
+  description: SITE_DESCRIPTION,
+};
 
 // The figures in SyncSection are counted from the database, so the page is
 // regenerated on a schedule rather than frozen at build: static to serve, but
@@ -30,25 +47,33 @@ export default function HomePage() {
   return (
     <div className="cf-landing bg-[#F5F4F0] text-[#111] min-h-screen font-sans antialiased">
       <Navigation />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(website).replace(/</g, '\\u003c') }}
+      />
 
-      <HeroSection />
-      <PlatformSection />
+      <main>
+        <HeroSection />
+        <PlatformSection />
 
-      {/* The page turns over here: everything from the use cases down is
+        {/* The page turns over here: everything from the use cases down is
           painted on #020204, so each section inside asks its shared parts
           (BentoCard, Tag) for their dark form. */}
+        <div className="bg-[#020204] text-[#F5F4F0]">
+          <UseCasesSection />
+          <LogoCloudSection />
+          <WorkflowSection />
+          <SyncSection />
+          {/* <IntegrationsSection /> */}
+          {/* <SecuritySection /> */}
+          {/* <DevExSection /> */}
+          {/* <CapabilitiesMarquee /> */}
+          {/* <LiveBoardsSection /> */}
+          <PricingSection />
+          <CtaSection />
+        </div>
+      </main>
       <div className="bg-[#020204] text-[#F5F4F0]">
-        <UseCasesSection />
-        <LogoCloudSection />
-        <WorkflowSection />
-        <SyncSection />
-        {/* <IntegrationsSection /> */}
-        {/* <SecuritySection /> */}
-        {/* <DevExSection /> */}
-        {/* <CapabilitiesMarquee /> */}
-        {/* <LiveBoardsSection /> */}
-        <PricingSection />
-        <CtaSection />
         <SiteFooter />
       </div>
     </div>

@@ -1,11 +1,12 @@
-import type { Metadata } from 'next';
+import { publicPageMetadata } from '@/lib/seo';
 import { LegalDocument, type LegalSection } from '@/components/legal/legal-document';
 import { CONTACT, MINIMUM_AGE, OPERATOR } from '@/lib/legal';
 
-export const metadata: Metadata = {
-  title: 'Privacy Policy — CanvasFlow',
-  description: 'What CanvasFlow collects, why, who handles it, and your rights over it.',
-};
+export const metadata = publicPageMetadata(
+  'Privacy Policy — CanvasFlow',
+  'What CanvasFlow collects, why, who handles it, and your rights over it.',
+  '/privacy',
+);
 
 /** Move this whenever the text below changes: the page tells readers it did. */
 const LAST_UPDATED = '2026-09-25';

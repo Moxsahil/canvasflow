@@ -7,6 +7,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // Omit lastModified until each page has a reliable content-update timestamp.
   return [
     { url: 'https://canvasflowapp.com/' },
+    { url: 'https://canvasflowapp.com/guides/online-whiteboard' },
     { url: 'https://canvasflowapp.com/terms' },
     { url: 'https://canvasflowapp.com/privacy' },
   ];

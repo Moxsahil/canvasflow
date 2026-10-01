@@ -1,5 +1,5 @@
 /**
- * Vite config for the editor SPA.
+ * Vite config for the public app entry and the private editor SPA.
  *
  * - React fast refresh via @vitejs/plugin-react
  * - Tailwind v4 for the menu rail's shadcn-style components; the rest of the
