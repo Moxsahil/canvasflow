@@ -16,6 +16,7 @@ import { arrowInkBounds } from '../shapes/arrow.js';
 import { arrowLabelLayout, type ArrowLabelLayout } from '../shapes/arrow-label.js';
 import { FRAME_LABEL_FONT_SIZE, FRAME_LABEL_GAP, frameLabel } from '../shapes/frame.js';
 import { readLink } from '../shapes/link.js';
+import { visibleShapes } from '../shapes/visibility.js';
 import { strokeColorFor } from '../shapes/style.js';
 import { FRAME_BORDER_WIDTH } from './draw-frame.js';
 import { frameChain } from '../frames/membership.js';
@@ -64,10 +65,12 @@ export const SVG_DOCUMENT_PREAMBLE = '<?xml version="1.0" encoding="UTF-8"?>\n';
  * size, not more pixels.
  */
 export function renderSceneToSvgString(
-  shapes: readonly Shape[],
+  allShapes: readonly Shape[],
   options: ExportSceneOptions = {},
 ): string {
   const { scale = 1, backgroundColor } = options;
+  // A hidden shape stays out of the file as it stays off the board.
+  const shapes = visibleShapes(allShapes);
 
   const region = exportRegion(shapes, options);
   const viewWidth = region.width;

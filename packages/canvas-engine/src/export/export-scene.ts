@@ -4,6 +4,7 @@ import { framesIn } from '../frames/membership.js';
 import { frameLabelBounds } from '../frames/frame-geometry.js';
 import { computeBoundingRect } from '../document/camera.js';
 import { renderStaticScene } from '../renderers/static.js';
+import { visibleShapes } from '../shapes/visibility.js';
 import type { ImageSource } from '../renderers/draw-image.js';
 
 export const DEFAULT_EXPORT_PADDING = 10;
@@ -81,13 +82,16 @@ export function exportRegion(
   // has already said where the edges go has decided that question.
   if (region) return region;
 
-  let rect = computeBoundingRect(shapes);
+  // Fitted to what will be drawn: a hidden shape at the edge of the board
+  // would otherwise leave a margin of nothing in the picture.
+  const shown = visibleShapes(shapes);
+  let rect = computeBoundingRect(shown);
   if (!rect) throw new EmptySceneError();
 
   // A frame draws its name above its own top edge, outside the bounds every
   // other part of the system knows it by. Fitted to the shapes alone the box
   // stops short and the labels come out sliced through the middle.
-  for (const frame of framesIn(shapes)) {
+  for (const frame of framesIn(shown)) {
     rect = unionRect(rect, frameLabelBounds(frame, scale));
   }
 

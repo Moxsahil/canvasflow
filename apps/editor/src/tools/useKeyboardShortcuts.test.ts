@@ -27,6 +27,7 @@ function handlers() {
     onFlipVertical: vi.fn(),
     onEditLink: vi.fn(),
     onToggleLock: vi.fn(),
+    onHide: vi.fn(),
     onDuplicate: vi.fn(),
     onZoomTo100: vi.fn(),
     onZoomToFit: vi.fn(),
@@ -259,5 +260,62 @@ describe('lock keyboard dispatch', () => {
     const typed = press({ target: { tagName: 'INPUT', type: 'text' } as unknown as EventTarget });
     expect(typed.preventDefault).not.toHaveBeenCalled();
     expect(callbacks.onToggleLock).not.toHaveBeenCalled();
+  });
+});
+
+describe('hide keyboard dispatch', () => {
+  let keydown: (event: KeyboardEvent) => void;
+  let callbacks: ReturnType<typeof handlers>;
+
+  beforeEach(() => {
+    callbacks = handlers();
+    vi.stubGlobal('window', {
+      addEventListener(type: string, listener: (event: KeyboardEvent) => void) {
+        if (type === 'keydown') keydown = listener;
+      },
+      removeEventListener: vi.fn(),
+    });
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  function press(overrides: Partial<KeyboardEvent> = {}) {
+    const event = {
+      code: 'KeyH',
+      key: 'H',
+      shiftKey: true,
+      metaKey: false,
+      ctrlKey: true,
+      altKey: false,
+      repeat: false,
+      target: null,
+      preventDefault: vi.fn(),
+      ...overrides,
+    } as unknown as KeyboardEvent;
+    keydown(event);
+    return event;
+  }
+
+  it('hides on Ctrl+Shift+H and Cmd+Shift+H, keeping the key from the browser', () => {
+    useKeyboardShortcuts(callbacks);
+    expect(press().preventDefault).toHaveBeenCalledOnce();
+    press({ ctrlKey: false, metaKey: true });
+    expect(callbacks.onHide).toHaveBeenCalledTimes(2);
+    expect(callbacks.onFlipHorizontal).not.toHaveBeenCalled();
+  });
+
+  it('leaves Shift+H to flipping, and hides once for a held key', () => {
+    useKeyboardShortcuts(callbacks);
+    press({ ctrlKey: false });
+    expect(callbacks.onFlipHorizontal).toHaveBeenCalledOnce();
+    press();
+    press({ repeat: true });
+    expect(callbacks.onHide).toHaveBeenCalledOnce();
+  });
+
+  it('leaves the combo to a text field', () => {
+    useKeyboardShortcuts(callbacks);
+    press({ target: { tagName: 'TEXTAREA' } as unknown as EventTarget });
+    expect(callbacks.onHide).not.toHaveBeenCalled();
   });
 });

@@ -13,6 +13,7 @@ import {
   framesIn,
   isFrame,
   descendantsOf,
+  hiddenShapeIds,
   lockedShapeIds,
   shapeBounds,
   type FrameShape,
@@ -102,9 +103,13 @@ export function assignmentsAfterMove(
   const frames = framesIn(shapes);
   const movedFrames = new Set(frames.filter((f) => moved.has(f.id)).map((f) => f.id));
   // A locked frame takes nothing new: whatever joined it would be locked the
-  // moment it landed there.
+  // moment it landed there. Nor does a hidden one, which would hide it.
   const locked = lockedShapeIds(shapes);
-  const destinations = locked.size === 0 ? frames : frames.filter((f) => !locked.has(f.id));
+  const hidden = hiddenShapeIds(shapes);
+  const destinations =
+    locked.size === 0 && hidden.size === 0
+      ? frames
+      : frames.filter((f) => !locked.has(f.id) && !hidden.has(f.id));
 
   const assignments: FrameAssignment[] = [];
   for (const shape of shapes) {
@@ -130,10 +135,12 @@ export function assignmentsAfterMove(
  */
 export function shapesCapturedBy(frame: FrameShape, shapes: readonly Shape[]): string[] {
   const locked = lockedShapeIds(shapes);
+  const hidden = hiddenShapeIds(shapes);
   return (
     shapes
-      // A locked shape stays where it was put, frames included.
-      .filter((shape) => shape.frameId == null && !locked.has(shape.id))
+      // A locked shape stays where it was put, frames included, and a hidden
+      // one is not there to be drawn around.
+      .filter((shape) => shape.frameId == null && !locked.has(shape.id) && !hidden.has(shape.id))
       // Frames included: drawing a big frame around two small ones is how you
       // say those belong together. The frame cannot capture itself, which is
       // the loop `frameForShape` refuses.

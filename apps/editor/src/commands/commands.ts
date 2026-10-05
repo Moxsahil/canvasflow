@@ -9,6 +9,7 @@ import {
   Crosshair,
   Expand,
   Eye,
+  EyeOff,
   FlipHorizontal,
   FlipVertical,
   Focus,
@@ -95,7 +96,9 @@ export type CommandId =
   | 'editLink'
   | 'copyLinkToSelection'
   | 'toggleLock'
-  | 'unlockAll';
+  | 'unlockAll'
+  | 'hideSelection'
+  | 'showAll';
 
 /** Array order is the order the palette lists the groups in. */
 export const COMMAND_CATEGORIES = ['Tools', 'View', 'Edit', 'Arrange', 'Board', 'App'] as const;
@@ -406,6 +409,24 @@ export const COMMANDS: readonly CommandMeta[] = [
     // Offered whenever there is something on the board, whether or not any of
     // it is locked: a row that comes and goes is one you cannot learn the
     // place of.
+    available: (context) => !context.readOnly && context.shapeCount > 0,
+  },
+  {
+    id: 'hideSelection',
+    label: 'Hide selection',
+    icon: EyeOff,
+    category: 'Edit',
+    shortcut: 'mod+shift+h',
+    keywords: ['hide', 'invisible', 'conceal', 'visibility'],
+    available: (context) => !context.readOnly && context.selectionCount > 0,
+  },
+  {
+    id: 'showAll',
+    label: 'Show hidden shapes',
+    icon: Eye,
+    category: 'Edit',
+    keywords: ['show all', 'unhide', 'reveal', 'visibility'],
+    // Like Unlock all: there whenever the board has shapes, hidden or not.
     available: (context) => !context.readOnly && context.shapeCount > 0,
   },
 

@@ -121,6 +121,20 @@ describe('availability', () => {
     }
   });
 
+  it('hides a selection, locked or not, and shows hidden shapes on any board with some', () => {
+    const lockedOnly = available({ ...editing, editableSelectionCount: 0 });
+    expect(lockedOnly).toContain('hideSelection');
+    expect(available({ ...editing, selectionCount: 0, editableSelectionCount: 0 })).not.toContain(
+      'hideSelection',
+    );
+    expect(available({ ...editing, selectionCount: 0, editableSelectionCount: 0 })).toContain(
+      'showAll',
+    );
+    const viewer = available({ ...editing, readOnly: true });
+    expect(viewer).not.toContain('hideSelection');
+    expect(viewer).not.toContain('showAll');
+  });
+
   it('keeps Unlock all for any board with shapes on it, and away from a viewer', () => {
     expect(available({ ...editing, selectionCount: 0, editableSelectionCount: 0 })).toContain(
       'unlockAll',

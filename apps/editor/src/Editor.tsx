@@ -28,9 +28,11 @@ import {
   hitTest,
   isFrame,
   isText,
+  hiddenShapeIds,
   lockedShapeIds,
   lockSourcesOf,
   shapeHandleAt,
+  visibleShapes,
   withHandlePointInserted,
   withHandlePointMoved,
   membershipAfterResize,
@@ -316,7 +318,8 @@ function arrowEndsAttached(arrow: ArrowShape, shapes: readonly Shape[]): ArrowSh
 
   // Nothing new attaches to a locked shape: an arrow attached to one is
   // locked with it, and one just drawn could not then be touched.
-  const targets = withoutLocked(shapes, lockedShapeIds(shapes));
+  // Nor to a hidden one, which nobody can see to aim at.
+  const targets = withoutLocked(visibleShapes(shapes), lockedShapeIds(shapes));
   const startTarget = bindingTargetAt(targets, start, ARROW_BIND_MARGIN, arrow.id);
   const endTarget = bindingTargetAt(targets, end, ARROW_BIND_MARGIN, arrow.id);
 
@@ -934,7 +937,17 @@ export function Editor({ boardId }: EditorProps) {
    * the gestures that pass over locked shapes: a click, a marquee, the eraser.
    */
   const lockedIds = useMemo(() => lockedShapeIds(shapes), [shapes]);
-  const unlockedShapes = useMemo(() => withoutLocked(shapes, lockedIds), [shapes, lockedIds]);
+  /**
+   * What is hidden — by its own flag or a hidden frame around it — and the
+   * board without it: what is drawn, measured, snapped to and searched.
+   */
+  const hiddenIds = useMemo(() => hiddenShapeIds(shapes), [shapes]);
+  const shownShapes = useMemo(() => visibleShapes(shapes), [shapes]);
+  /** What a click, a marquee or the eraser can take: shown, and not locked. */
+  const pickableShapes = useMemo(
+    () => withoutLocked(shownShapes, lockedIds),
+    [shownShapes, lockedIds],
+  );
   /** The selection less what is locked: what an edit can actually change. */
   const editableIds = useMemo(
     () =>
@@ -1264,8 +1277,8 @@ export function Editor({ boardId }: EditorProps) {
   );
 
   const commentTargetHere = useCallback(
-    (point: Point) => commentTargetAt(point, shapes, spatialIndex, camera.zoom),
-    [shapes, spatialIndex, camera.zoom],
+    (point: Point) => commentTargetAt(point, shownShapes, spatialIndex, camera.zoom),
+    [shownShapes, spatialIndex, camera.zoom],
   );
 
   // A comment posted is what the tool was picked up for, so it is put down.
@@ -1656,7 +1669,7 @@ export function Editor({ boardId }: EditorProps) {
       withoutShapeLink(window.location.href).href,
     );
 
-    const rect = shapeLinkRect(arrivalLink, shapes);
+    const rect = shapeLinkRect(arrivalLink, shownShapes);
     if (!rect) {
       setNotice(SHAPES_NOT_FOUND);
       return;
@@ -1666,7 +1679,7 @@ export function Editor({ boardId }: EditorProps) {
       type: 'SET_CAMERA',
       camera: fitRectToViewport(rect, { width, height }, { maxZoom: 1 }),
     });
-  }, [arrivalLink, shapes, boardSynced, width, height, actorRef]);
+  }, [arrivalLink, shapes, shownShapes, boardSynced, width, height, actorRef]);
 
   useEffect(() => {
     if (didInitialViewFitRef.current) return;
@@ -1681,11 +1694,11 @@ export function Editor({ boardId }: EditorProps) {
     }
     // Wait for both the content and a measured viewport — fitting against a
     // zero-sized canvas would put the camera somewhere meaningless.
-    if (shapes.length === 0 || width === 0 || height === 0) return;
+    if (shownShapes.length === 0 || width === 0 || height === 0) return;
 
     didInitialViewFitRef.current = true;
 
-    const rect = computeBoundingRect(shapes);
+    const rect = computeBoundingRect(shownShapes);
     if (!rect) return;
     if (rectIntersectsViewport(rect, actorRef.getSnapshot().context.camera, { width, height })) {
       return;
@@ -1694,7 +1707,7 @@ export function Editor({ boardId }: EditorProps) {
       type: 'SET_CAMERA',
       camera: fitRectToViewport(rect, { width, height }, { maxZoom: 1 }),
     });
-  }, [shapes, width, height, actorRef, restoredViewRef, arrivalLink]);
+  }, [shownShapes, width, height, actorRef, restoredViewRef, arrivalLink]);
 
   // The marquee is read on the frame it disappears, which is the frame the
   // gesture ended on. The index alone would answer with everything whose box
@@ -1705,7 +1718,7 @@ export function Editor({ boardId }: EditorProps) {
   useEffect(() => {
     if (marqueeRef.current && !marquee) {
       const finalMarquee = marqueeRef.current;
-      const ids = hitTestMarquee(unlockedShapes, spatialIndex, finalMarquee, marqueeMode).map(
+      const ids = hitTestMarquee(pickableShapes, spatialIndex, finalMarquee, marqueeMode).map(
         (s) => s.id,
       );
       if (ids.length > 0) {
@@ -1713,7 +1726,7 @@ export function Editor({ boardId }: EditorProps) {
       }
     }
     marqueeRef.current = marquee;
-  }, [marquee, unlockedShapes, spatialIndex, marqueeMode, actorRef]);
+  }, [marquee, pickableShapes, spatialIndex, marqueeMode, actorRef]);
 
   /**
    * Measure what this gesture can line up with, leaving out what it is moving.
@@ -1724,14 +1737,15 @@ export function Editor({ boardId }: EditorProps) {
    */
   const measureSnapTargets = useCallback(
     (excluded: ReadonlySet<string>) => {
+      // Nothing lines up with a shape nobody can see.
       snapTargetsRef.current = buildSnapTargets(
-        shapes,
+        shownShapes,
         excluded,
         worldViewport(camera, width, height),
         { midpoints: preferences.values.snapToMidpoints },
       );
     },
-    [shapes, camera, width, height, preferences.values.snapToMidpoints],
+    [shownShapes, camera, width, height, preferences.values.snapToMidpoints],
   );
 
   /**
@@ -1837,7 +1851,7 @@ export function Editor({ boardId }: EditorProps) {
         if (hitHandle === null && hitVertex === null) {
           // A locked shape is passed over for whatever is under it, as if it
           // were part of the board.
-          const hit = hitTest(unlockedShapes, spatialIndex, point.x, point.y, camera.zoom);
+          const hit = hitTest(pickableShapes, spatialIndex, point.x, point.y, camera.zoom);
           hitShapeId = hit?.id ?? null;
 
           if (hit) {
@@ -1863,7 +1877,7 @@ export function Editor({ boardId }: EditorProps) {
           } else if (lockedIds.size > 0 && !readOnly) {
             // Nothing that can be picked up here. If a locked shape is, the
             // release below puts up its padlock — on a click, not a drag.
-            const locked = hitTest(shapes, spatialIndex, point.x, point.y, camera.zoom);
+            const locked = hitTest(shownShapes, spatialIndex, point.x, point.y, camera.zoom);
             if (locked && lockedIds.has(locked.id)) {
               lockPressRef.current = { id: locked.id, at: screenPoint };
             }
@@ -1926,7 +1940,7 @@ export function Editor({ boardId }: EditorProps) {
       if (activeTool === 'eraser') {
         lastErasePointRef.current = point;
         const ids = shapesIntersectingSegment(
-          unlockedShapes,
+          pickableShapes,
           spatialIndex,
           [
             [point.x, point.y],
@@ -1948,7 +1962,8 @@ export function Editor({ boardId }: EditorProps) {
       isSpacePressed,
       selectedIds,
       shapes,
-      unlockedShapes,
+      shownShapes,
+      pickableShapes,
       lockedIds,
       readOnly,
       spatialIndex,
@@ -1985,7 +2000,7 @@ export function Editor({ boardId }: EditorProps) {
       }
       const press = contextPressAt(
         point,
-        shapes,
+        shownShapes,
         // Read through the actor: the commit above can have just changed it.
         actorRef.getSnapshot().context.selectedIds,
         spatialIndex,
@@ -1996,7 +2011,7 @@ export function Editor({ boardId }: EditorProps) {
       if (press.select) actorRef.send({ type: 'SELECT_ALL', shapeIds: [...press.select] });
       setContextMenuTarget(press.target);
     },
-    [actorRef, viewMode, shapes, lockedIds, spatialIndex, camera.zoom, notifyActivity],
+    [actorRef, viewMode, shownShapes, lockedIds, spatialIndex, camera.zoom, notifyActivity],
   );
 
   /**
@@ -2076,7 +2091,7 @@ export function Editor({ boardId }: EditorProps) {
         const from = lastErasePointRef.current ?? point;
         lastErasePointRef.current = point;
         const ids = shapesIntersectingSegment(
-          unlockedShapes,
+          pickableShapes,
           spatialIndex,
           [
             [from.x, from.y],
@@ -2251,7 +2266,7 @@ export function Editor({ boardId }: EditorProps) {
       isPlacingComment,
       followComment,
       doc,
-      unlockedShapes,
+      pickableShapes,
       spatialIndex,
       camera.zoom,
       preferences.values.snapToObjects,
@@ -2362,7 +2377,7 @@ export function Editor({ boardId }: EditorProps) {
       if (activeTool === 'comment' && isPlacingComment()) {
         // Where the button comes up is where the pin goes: on the shape under
         // it, or on the board.
-        settleComment(point, commentTargetAt(point, shapes, spatialIndex, camera.zoom));
+        settleComment(point, commentTargetAt(point, shownShapes, spatialIndex, camera.zoom));
         return;
       }
 
@@ -2453,6 +2468,7 @@ export function Editor({ boardId }: EditorProps) {
       isPlacingComment,
       settleComment,
       shapes,
+      shownShapes,
       spatialIndex,
       camera.zoom,
       doc,
@@ -2471,7 +2487,7 @@ export function Editor({ boardId }: EditorProps) {
       // but a shape standing just above a frame would win a plain hit test.
       // Neither a locked frame's name nor a locked shape's text opens: both
       // are edits, and a lock is there to keep them from happening.
-      const labelled = frameLabelAt(framesIn(unlockedShapes), point.x, point.y, camera.zoom);
+      const labelled = frameLabelAt(framesIn(pickableShapes), point.x, point.y, camera.zoom);
       if (labelled) {
         // Selected as well as opened, so the frame being renamed is outlined
         // while its name is in the field. Editing a label with nothing marking
@@ -2481,7 +2497,7 @@ export function Editor({ boardId }: EditorProps) {
         return;
       }
 
-      const hit = hitTest(unlockedShapes, spatialIndex, point.x, point.y, camera.zoom);
+      const hit = hitTest(pickableShapes, spatialIndex, point.x, point.y, camera.zoom);
       if (hit && isText(hit)) {
         actorRef.send({
           type: 'EDIT_TEXT_SHAPE',
@@ -2520,7 +2536,7 @@ export function Editor({ boardId }: EditorProps) {
       if (activeTool !== 'select') return;
       actorRef.send({ type: 'START_TEXT_AT', point });
     },
-    [actorRef, unlockedShapes, spatialIndex, camera.zoom, readOnly, activeTool],
+    [actorRef, pickableShapes, spatialIndex, camera.zoom, readOnly, activeTool],
   );
 
   // Moving the view yourself ends a follow. You cannot be carried and steer at
@@ -2597,8 +2613,8 @@ export function Editor({ boardId }: EditorProps) {
     // the pointer.
     if (viewMode) return;
     // Locked shapes are left out, as a marquee leaves them out.
-    actorRef.send({ type: 'SELECT_ALL', shapeIds: unlockedShapes.map((s) => s.id) });
-  }, [actorRef, unlockedShapes, viewMode]);
+    actorRef.send({ type: 'SELECT_ALL', shapeIds: pickableShapes.map((s) => s.id) });
+  }, [actorRef, pickableShapes, viewMode]);
   // handleUndo/handleRedo are defined further down, with the open-file flow —
   // they have to know about the camera an open moved.
 
@@ -2684,6 +2700,51 @@ export function Editor({ boardId }: EditorProps) {
     actorRef.send({ type: 'SELECT_ALL', shapeIds: [...activeLock] });
     setActiveLock(null);
   }, [actorRef, doc, readOnly, activeLock]);
+
+  /**
+   * Hide the selection, for everyone on the board, and let go of it: a shape
+   * nobody can see cannot stay picked. Locked shapes too — hiding says
+   * whether a shape is drawn, and leaves the shape itself as it was.
+   */
+  const handleHide = useCallback(() => {
+    const snapshot = actorRef.getSnapshot();
+    if (readOnly || !snapshot.matches('idle')) return;
+    const ids = snapshot.context.selectedIds;
+    if (ids.length === 0) return;
+    doc.breakUndoGroup();
+    doc.updateShapes(ids.map((id) => ({ id, patch: { hidden: true } })));
+    doc.breakUndoGroup();
+    setActiveLock(null);
+    actorRef.send({ type: 'SELECT_ALL', shapeIds: [] });
+  }, [actorRef, doc, readOnly]);
+
+  /**
+   * Every hidden shape shown again — the way back from Hide, there being no
+   * list of hidden shapes to pick one from — and selected, so it is plain
+   * what came back and where.
+   */
+  const handleShowAll = useCallback(() => {
+    if (readOnly) return;
+    const before = doc.getShapes();
+    const revealed = [...hiddenShapeIds(before)];
+    const updates = before
+      .filter((shape) => shape.hidden === true)
+      .map((shape) => ({ id: shape.id, patch: { hidden: false } }));
+    if (updates.length === 0) return;
+    doc.breakUndoGroup();
+    doc.updateShapes(updates);
+    doc.breakUndoGroup();
+    setActiveLock(null);
+    actorRef.send({ type: 'SELECT_ALL', shapeIds: revealed });
+  }, [actorRef, doc, readOnly]);
+
+  // A shape hidden while it is picked — by someone else on the board, or by
+  // an undo — is let go of, as hiding it here would have.
+  useEffect(() => {
+    if (hiddenIds.size === 0) return;
+    const kept = selectedIds.filter((id) => !hiddenIds.has(id));
+    if (kept.length !== selectedIds.length) actorRef.send({ type: 'SELECT_ALL', shapeIds: kept });
+  }, [hiddenIds, selectedIds, actorRef]);
 
   /** Store a link the box settled on — null takes it away — and close the field. */
   const handleSaveLink = useCallback(
@@ -2775,22 +2836,24 @@ export function Editor({ boardId }: EditorProps) {
   }, [actorRef, camera, width, height]);
 
   // Zoom to fit all shapes
+  // Fitted to what is drawn: a hidden shape far off would leave the board
+  // zoomed out around empty space.
   const handleZoomToFit = useCallback(() => {
-    const rect = computeBoundingRect(shapes);
+    const rect = computeBoundingRect(shownShapes);
     if (!rect) return; // No shapes to fit
     const newCamera = fitRectToViewport(rect, { width, height });
     actorRef.send({ type: 'SET_CAMERA', camera: newCamera });
-  }, [actorRef, shapes, width, height]);
+  }, [actorRef, shownShapes, width, height]);
 
   // Zoom to selection (falls back to zoom-to-fit if nothing selected)
   const handleZoomToSelection = useCallback(() => {
     const target =
-      selectedIds.length > 0 ? shapes.filter((s) => selectedIds.includes(s.id)) : shapes;
+      selectedIds.length > 0 ? shownShapes.filter((s) => selectedIds.includes(s.id)) : shownShapes;
     const rect = computeBoundingRect(target);
     if (!rect) return;
     const newCamera = fitRectToViewport(rect, { width, height });
     actorRef.send({ type: 'SET_CAMERA', camera: newCamera });
-  }, [actorRef, shapes, selectedIds, width, height]);
+  }, [actorRef, shownShapes, selectedIds, width, height]);
 
   // --- edits that also move the viewport ------------------------------------
   /**
@@ -2863,7 +2926,7 @@ export function Editor({ boardId }: EditorProps) {
   );
 
   const search = useCanvasSearch({
-    shapes,
+    shapes: shownShapes,
     camera,
     viewport: { width, height },
     onCameraChange: setCamera,
@@ -3019,7 +3082,7 @@ export function Editor({ boardId }: EditorProps) {
       if (!isLinkToThisBoard(link, window.location.href)) return false;
       const target = readShapeLink(link);
       if (!target) return false;
-      const rect = shapeLinkRect(target, shapes);
+      const rect = shapeLinkRect(target, shownShapes);
       if (rect) {
         actorRef.send({
           type: 'SET_CAMERA',
@@ -3030,7 +3093,7 @@ export function Editor({ boardId }: EditorProps) {
       }
       return true;
     },
-    [actorRef, shapes, width, height],
+    [actorRef, shownShapes, width, height],
   );
 
   // The notice's way to invite someone new: it gives way to the Share window.
@@ -3368,6 +3431,7 @@ export function Editor({ boardId }: EditorProps) {
     onFlipVertical: handleFlipVertical,
     onEditLink: handleEditLink,
     onToggleLock: handleToggleLock,
+    onHide: handleHide,
     onZoomTo100: handleZoomTo100,
     onZoomToFit: handleZoomToFit,
     onZoomToSelection: handleZoomToSelection,
@@ -3442,6 +3506,8 @@ export function Editor({ boardId }: EditorProps) {
       copyLinkToSelection: handleCopyLinkToSelection,
       toggleLock: handleToggleLock,
       unlockAll: handleUnlockAll,
+      hideSelection: handleHide,
+      showAll: handleShowAll,
       deleteSelection: handleDelete,
       selectAll: handleSelectAll,
       bringForward: handleBringForward,
@@ -3627,6 +3693,8 @@ export function Editor({ boardId }: EditorProps) {
                 sendToBack: editableIds.length === 1 ? handleSendToBack : null,
                 lock: selectedIds.length > 0 ? handleToggleLock : null,
                 unlockAll: shapes.length > 0 ? handleUnlockAll : null,
+                hide: selectedIds.length > 0 ? handleHide : null,
+                showAll: shapes.length > 0 ? handleShowAll : null,
                 deleteSelection: editableIds.length > 0 ? handleDelete : null,
                 selectAll: shapes.length > 0 ? handleSelectAll : null,
                 showGrid: toggleGrid,
@@ -3703,7 +3771,7 @@ export function Editor({ boardId }: EditorProps) {
                 opens its link. Under the comment pins, and still up with the
                 chrome away — a link is part of what is on the board. */}
             <LinkBadges
-              shapes={shapes}
+              shapes={shownShapes}
               camera={camera}
               board={screen}
               except={selectedIds.length === 1 ? selectedIds[0]! : null}
@@ -3896,7 +3964,7 @@ export function Editor({ boardId }: EditorProps) {
                 and view mode. A viewer may read them. */}
             {preferences.values.canvasStats && !chromeHidden && (
               <StatsPanel
-                shapes={shapes}
+                shapes={shownShapes}
                 selectedShapes={selectedShapes}
                 // A locked selection can be read here, not changed.
                 readOnly={readOnly || selectionLocked}
@@ -3940,7 +4008,7 @@ export function Editor({ boardId }: EditorProps) {
               <ZoomPanel
                 zoom={camera.zoom}
                 syncStatus={syncStatus}
-                canZoomToFit={shapes.length > 0}
+                canZoomToFit={shownShapes.length > 0}
                 canvasWidth={width}
                 onZoomIn={handleZoomIn}
                 onZoomOut={handleZoomOut}
@@ -3983,7 +4051,7 @@ export function Editor({ boardId }: EditorProps) {
             <ExportImageDialog
               open={exportOpen}
               onClose={hideExport}
-              shapes={shapes}
+              shapes={shownShapes}
               selectedShapes={selectedShapes}
               boardName={boardTitle}
               darkTheme={resolvedTheme === 'dark'}

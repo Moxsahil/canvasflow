@@ -87,6 +87,11 @@ describe('joinableFrames', () => {
     ];
     expect(joinableFrames(shapes, lockedShapeIds(shapes)).map((f) => f.id)).toEqual(['open']);
   });
+
+  it('leaves out hidden frames too', () => {
+    const shapes = [frame('hidden', { hidden: true }), frame('open')];
+    expect(joinableFrames(shapes, new Set()).map((f) => f.id)).toEqual(['open']);
+  });
 });
 
 describe('withoutLocked', () => {

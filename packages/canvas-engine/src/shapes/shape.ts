@@ -74,6 +74,17 @@ export interface BaseShape {
    * before locking existed says, which is why there is no migration.
    */
   readonly locked?: boolean;
+  /**
+   * Not drawn, not exported, and not found by a click, a marquee, a snap or
+   * an arrow, for anyone on the board — until it is shown again.
+   *
+   * Only the shape's own flag. A shape standing in a hidden frame is hidden
+   * too, but that is worked out from the frame's flag — see `hiddenShapeIds`.
+   *
+   * Absent and false both mean shown. Absent is what every shape written
+   * before hiding existed says, which is why there is no migration.
+   */
+  readonly hidden?: boolean;
 }
 
 export interface RectangleShape extends BaseShape {

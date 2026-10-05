@@ -199,3 +199,17 @@ describe('locked frames', () => {
     ]);
   });
 });
+
+describe('hidden frames', () => {
+  const hidden = { ...frame('f', 0, 0), hidden: true } as Shape;
+
+  it('take in nothing moved over them, which would vanish into them', () => {
+    expect(assignmentsAfterMove(['a'], [hidden, rect('a', 20, 20)])).toEqual([]);
+  });
+
+  it('leave hidden shapes out of a new frame drawn around them', () => {
+    const big = frame('big', -100, -100, 600, 400);
+    const hiddenBox = { ...rect('box', 300, 0), hidden: true } as Shape;
+    expect(shapesCapturedBy(big, [big, hiddenBox, rect('loose', 250, 50)])).toEqual(['loose']);
+  });
+});
