@@ -17,7 +17,11 @@ import {
 } from 'lucide-react';
 import { strokeColorFor } from '@canvasflow/canvas-engine';
 import { cn } from '@/lib/utils';
-import { menuButtonRowClasses, menuSurfaceClasses } from '@/components/ui/menu-look';
+import {
+  menuButtonRowClasses,
+  menuChipClasses,
+  menuSurfaceClasses,
+} from '@/components/ui/menu-look';
 import { ColorPickerPopover } from './color/ColorPickerPopover';
 import { haloPlacement, type ScreenRect, type Size } from './halo-placement';
 import {
@@ -53,10 +57,12 @@ interface StyleHaloProps extends StyleSurfaceProps {
   board: Size;
   /** Put away mid-gesture, while the selection is on the move. */
   hidden: boolean;
+  /**
+   * Told where the bar stands whenever that changes, and null once it is
+   * away, so what else floats by the selection can keep clear of it.
+   */
+  onPlace?: (rect: ScreenRect | null) => void;
 }
-
-const chipClasses =
-  'inline-flex h-7 min-w-7 items-center justify-center gap-1 rounded-md px-1.5 text-xs font-medium tabular-nums outline-none hover:bg-neutral-950/10 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--focus-highlight-color) aria-expanded:bg-neutral-950/10 aria-pressed:bg-neutral-950/10 dark:hover:bg-neutral-50/10 dark:aria-expanded:bg-neutral-50/10 dark:aria-pressed:bg-neutral-50/10 [&_svg]:size-4';
 
 function Separator() {
   return (
@@ -93,6 +99,7 @@ export function StyleHalo({
   anchor,
   board,
   hidden,
+  onPlace,
 }: StyleHaloProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
@@ -120,10 +127,17 @@ export function StyleHalo({
     if (hidden) setOpen(null);
   }, [hidden]);
 
+  const place = haloPlacement(anchor, size, board);
+  // Only once measured: before that the bar stands nowhere in particular.
+  const placed = !hidden && size.width > 0;
+  useLayoutEffect(() => {
+    onPlace?.(placed ? { x: place.left, y: place.top, ...size } : null);
+  }, [onPlace, placed, place.left, place.top, size]);
+  useLayoutEffect(() => () => onPlace?.(null), [onPlace]);
+
   if (hidden) return null;
 
   const show = styleSections(shapeKinds, style);
-  const place = haloPlacement(anchor, size, board);
   const paintStroke = (colour: string) => strokeColorFor(colour, darkMode);
 
   const toggle = (menu: HaloMenu) => (event: MouseEvent<HTMLButtonElement>) => {
@@ -184,7 +198,7 @@ export function StyleHalo({
           type="button"
           title={show.textOnly ? 'Text colour' : 'Stroke colour'}
           aria-label={`${show.textOnly ? 'Text colour' : 'Stroke colour'}: ${style.strokeColor}`}
-          className={chipClasses}
+          className={menuChipClasses}
           {...chipState('stroke')}
         >
           <Swatch
@@ -199,7 +213,7 @@ export function StyleHalo({
             type="button"
             title="Fill"
             aria-label={`Fill colour: ${style.fillColor ?? 'none'}`}
-            className={chipClasses}
+            className={menuChipClasses}
             {...chipState('fill')}
           >
             <Swatch
@@ -218,7 +232,7 @@ export function StyleHalo({
             type="button"
             title="Text"
             aria-label="Text style"
-            className={chipClasses}
+            className={menuChipClasses}
             {...chipState('text')}
           >
             <span style={{ fontFamily: style.fontFamily, fontSize: 13 }}>Aa</span>
@@ -230,7 +244,7 @@ export function StyleHalo({
             type="button"
             title="Line"
             aria-label="Line"
-            className={chipClasses}
+            className={menuChipClasses}
             {...chipState('line')}
           >
             <svg
@@ -260,7 +274,7 @@ export function StyleHalo({
             type="button"
             title="Look"
             aria-label="Look"
-            className={chipClasses}
+            className={menuChipClasses}
             {...chipState('look')}
           >
             {LOOK_OPTIONS.find((option) => option.value === style.roughness)?.icon}
@@ -273,7 +287,7 @@ export function StyleHalo({
             title="Rounded corners"
             aria-label="Rounded corners"
             aria-pressed={style.edges === 'round'}
-            className={chipClasses}
+            className={menuChipClasses}
             onClick={() => onStyleChange({ edges: style.edges === 'round' ? 'sharp' : 'round' })}
           >
             {style.edges === 'round' ? <RoundEdgeIcon /> : <SharpEdgeIcon />}
@@ -284,7 +298,7 @@ export function StyleHalo({
             type="button"
             title="Arrow"
             aria-label="Arrow"
-            className={chipClasses}
+            className={menuChipClasses}
             {...chipState('arrow')}
           >
             {ARROW_TYPE_OPTIONS.find((option) => option.value === style.arrowType)?.icon}
@@ -298,7 +312,7 @@ export function StyleHalo({
           type="button"
           title="Opacity"
           aria-label={`Opacity: ${style.opacity}%`}
-          className={chipClasses}
+          className={menuChipClasses}
           {...chipState('opacity')}
         >
           <span>{style.opacity}%</span>
@@ -309,7 +323,7 @@ export function StyleHalo({
             type="button"
             title="Arrange"
             aria-label="Arrange"
-            className={chipClasses}
+            className={menuChipClasses}
             {...chipState('arrange')}
           >
             <Layers aria-hidden="true" />

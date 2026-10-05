@@ -54,6 +54,16 @@ interface CanvasContextMenuProps {
   readOnly: boolean;
   actions: ContextMenuActions;
   checks: ContextMenuChecks;
+  /**
+   * A row's label where it depends on what is selected — Add link reads Edit
+   * link on a shape that has one. Rows not named here keep their own.
+   */
+  labels?: Partial<Record<ContextMenuItemId, string>>;
+  /**
+   * The menu closing, about to hand focus back to where it came from. Default
+   * prevented by a row that opened a field and wants the cursor in it.
+   */
+  onCloseAutoFocus?: (event: Event) => void;
   /** Null for someone with no workspace to list, a share-link guest. */
   moveTo: MoveToBoards | null;
   open: boolean;
@@ -73,6 +83,8 @@ export function CanvasContextMenu({
   readOnly,
   actions,
   checks,
+  labels,
+  onCloseAutoFocus,
   moveTo,
   open,
   onOpenChange,
@@ -89,6 +101,7 @@ export function CanvasContextMenu({
         container={container}
         collisionPadding={8}
         loop
+        onCloseAutoFocus={onCloseAutoFocus}
         aria-label={target === 'selection' ? 'Selection' : 'Canvas'}
         data-testid={`context-menu-${target}`}
       >
@@ -97,7 +110,14 @@ export function CanvasContextMenu({
             {index > 0 && <ContextMenuSeparator />}
             {group.map((entry) =>
               typeof entry === 'string' ? (
-                <Row key={entry} id={entry} actions={actions} checks={checks} close={close} />
+                <Row
+                  key={entry}
+                  id={entry}
+                  actions={actions}
+                  checks={checks}
+                  label={labels?.[entry]}
+                  close={close}
+                />
               ) : (
                 <Submenu
                   key={entry.submenu}
@@ -125,11 +145,15 @@ interface RowProps {
   id: ContextMenuItemId;
   actions: ContextMenuActions;
   checks: ContextMenuChecks;
+  /** In place of the row's own label. */
+  label?: string;
   close: () => void;
 }
 
-function Row({ id, actions, checks, close }: RowProps) {
-  const { label, icon: Icon, shortcut, destructive, toggle, choice, hint } = CONTEXT_MENU_ITEMS[id];
+function Row({ id, actions, checks, label: labelOverride, close }: RowProps) {
+  const meta = CONTEXT_MENU_ITEMS[id];
+  const { icon: Icon, shortcut, destructive, toggle, choice, hint } = meta;
+  const label = labelOverride ?? meta.label;
   const action = actions[id];
   // Only an unbuilt row says "Soon". A built one that does not apply to what
   // is selected is disabled and says nothing, so it never reads as missing.

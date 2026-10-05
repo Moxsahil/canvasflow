@@ -21,6 +21,14 @@ import { cn } from '@/lib/utils';
 export const menuSurfaceClasses =
   'rounded-lg border border-neutral-300 bg-neutral-50 text-neutral-950 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-50';
 
+/**
+ * A 28px button on a bar in the menu look — the floating style bar's chips,
+ * and the link box's. It lights on hover, on keyboard focus, and while the
+ * menu it opens is open or the state it stands for is on.
+ */
+export const menuChipClasses =
+  'inline-flex h-7 min-w-7 items-center justify-center gap-1 rounded-md px-1.5 text-xs font-medium tabular-nums outline-none hover:bg-neutral-950/10 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--focus-highlight-color) aria-expanded:bg-neutral-950/10 aria-pressed:bg-neutral-950/10 dark:hover:bg-neutral-50/10 dark:aria-expanded:bg-neutral-50/10 dark:aria-pressed:bg-neutral-50/10 [&_svg]:size-4';
+
 /** The surface laid out as a menu: a column of rows, sized to its longest. */
 export const menuPanelClasses = `z-(--zIndex-popup) flex w-max max-w-72 min-w-52 flex-col items-start gap-y-1 overflow-y-auto p-1 outline-none ${menuSurfaceClasses}`;
 

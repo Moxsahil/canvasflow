@@ -25,6 +25,7 @@ function handlers() {
     onSendToBack: vi.fn(),
     onFlipHorizontal: vi.fn(),
     onFlipVertical: vi.fn(),
+    onEditLink: vi.fn(),
     onDuplicate: vi.fn(),
     onZoomTo100: vi.fn(),
     onZoomToFit: vi.fn(),
@@ -136,5 +137,68 @@ describe('flip keyboard dispatch', () => {
     useKeyboardShortcuts({ ...callbacks, disabled: true });
     expect(press().preventDefault).not.toHaveBeenCalled();
     expect(callbacks.onFlipHorizontal).not.toHaveBeenCalled();
+  });
+});
+
+describe('link keyboard dispatch', () => {
+  let keydown: (event: KeyboardEvent) => void;
+  let callbacks: ReturnType<typeof handlers>;
+
+  beforeEach(() => {
+    callbacks = handlers();
+    vi.stubGlobal('window', {
+      addEventListener(type: string, listener: (event: KeyboardEvent) => void) {
+        if (type === 'keydown') keydown = listener;
+      },
+      removeEventListener: vi.fn(),
+    });
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  function press(overrides: Partial<KeyboardEvent> = {}) {
+    const event = {
+      code: 'KeyK',
+      key: 'k',
+      shiftKey: false,
+      metaKey: false,
+      ctrlKey: true,
+      altKey: false,
+      repeat: false,
+      target: null,
+      preventDefault: vi.fn(),
+      ...overrides,
+    } as unknown as KeyboardEvent;
+    keydown(event);
+    return event;
+  }
+
+  it('opens the link field on Ctrl+K and Cmd+K, keeping the key from the browser', () => {
+    useKeyboardShortcuts(callbacks);
+    expect(press().preventDefault).toHaveBeenCalledOnce();
+    expect(press({ ctrlKey: false, metaKey: true }).preventDefault).toHaveBeenCalledOnce();
+    expect(callbacks.onEditLink).toHaveBeenCalledTimes(2);
+    // Not the laser, which the bare letter picks.
+    expect(callbacks.onSelectTool).not.toHaveBeenCalled();
+  });
+
+  it('leaves the bare letter to the laser pointer', () => {
+    useKeyboardShortcuts(callbacks);
+    press({ ctrlKey: false });
+    expect(callbacks.onEditLink).not.toHaveBeenCalled();
+    expect(callbacks.onSelectTool).toHaveBeenCalledWith('laser');
+  });
+
+  it('leaves the combo to a text field being typed in', () => {
+    useKeyboardShortcuts(callbacks);
+    const event = press({ target: { tagName: 'INPUT', type: 'text' } as unknown as EventTarget });
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(callbacks.onEditLink).not.toHaveBeenCalled();
+  });
+
+  it('does not open it while editor shortcuts are disabled', () => {
+    useKeyboardShortcuts({ ...callbacks, disabled: true });
+    press();
+    expect(callbacks.onEditLink).not.toHaveBeenCalled();
   });
 });

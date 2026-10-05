@@ -6,6 +6,7 @@ import {
   createLine,
   createRectangle,
   createText,
+  readLink,
   type Shape,
 } from '@canvasflow/canvas-engine';
 import type { ExcalidrawElement } from './schema';
@@ -24,7 +25,11 @@ export function excalidrawElementsToShapes(
   const shapes: Shape[] = [];
   for (const el of elements) {
     const shape = elementToShape(el, genId);
-    if (shape) shapes.push(shape);
+    if (!shape) continue;
+    // The same check every other way onto the board makes: their links may
+    // be any address at all, and only the ones this board would open come.
+    const link = readLink(el.link);
+    shapes.push(link === null ? shape : { ...shape, link });
   }
   return shapes;
 }

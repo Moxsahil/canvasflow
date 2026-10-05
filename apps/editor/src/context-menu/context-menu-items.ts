@@ -10,8 +10,6 @@ import {
   FileCode,
   FileImage,
   Layers,
-  Link,
-  Link2,
   Lock,
   LockOpen,
   MousePointerClick,
@@ -200,8 +198,8 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   flipHorizontal: fromCommand('flipHorizontal', 'Flip horizontal'),
   flipVertical: fromCommand('flipVertical', 'Flip vertical'),
 
-  addLink: soon('Add link', Link),
-  copyLinkToSelection: soon('Copy link to selection', Link2, false),
+  addLink: fromCommand('editLink', 'Add link'),
+  copyLinkToSelection: fromCommand('copyLinkToSelection', 'Copy link to selection', false),
 
   addToLibrary: soon('Add to library', BookPlus, false),
 

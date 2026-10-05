@@ -1,4 +1,5 @@
 import * as Y from 'yjs';
+import { readLink } from '../shapes/link.js';
 import type { ArrowBinding, Shape } from '../shapes/shape.js';
 import { DEFAULT_STROKE_COLOR } from '../shapes/style.js';
 import type {
@@ -54,6 +55,13 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
   // exactly as it was before scale existed.
   if (shape.scale !== undefined && shape.scale !== 1) {
     map.set('scale', shape.scale);
+  }
+  // Checked on the way in as well as on the way out. A pasted copy arrives
+  // here without passing the sanitizer, and an address this client would
+  // refuse to open has no business being replicated to everyone else.
+  const link = readLink(shape.link);
+  if (link !== null) {
+    map.set('link', link);
   }
 
   // Shape-kind-specific fields
@@ -204,6 +212,9 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
   const lastEditedAtRaw = map.get('lastEditedAt');
   const frameIdRaw = map.get('frameId');
   const scale = readScale(map.get('scale'));
+  // Any client can write this key, and the server stores it unread. An
+  // address that fails here is shown as no link rather than opened.
+  const link = readLink(map.get('link'));
 
   // Every `??` here is the upgrade path for boards persisted before the field
   // existed; the defaults match the shape factories.
@@ -227,6 +238,7 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
     // nothing. That resolves to no frame everywhere it is read, so the stale
     // id is harmless and gets rewritten the next time the shape moves.
     ...(typeof frameIdRaw === 'string' && { frameId: frameIdRaw }),
+    ...(link !== null && { link }),
   };
 
   const edges = (map.get('edges') as Edges) ?? 'sharp';

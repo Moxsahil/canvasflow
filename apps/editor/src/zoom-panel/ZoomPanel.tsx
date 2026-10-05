@@ -99,6 +99,8 @@ export function ZoomPanel({
   return (
     <Toolbar
       aria-label="View controls"
+      // What a toast stands on: it measures where this panel is.
+      data-zoom-panel=""
       // Surface, radius, padding, gap and row alignment are the dock's, class
       // for class (see GlassDock) — including the shadow it does not have — so
       // the two bars along this edge read as one bar broken in two rather than

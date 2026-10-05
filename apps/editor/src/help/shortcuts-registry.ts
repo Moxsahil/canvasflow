@@ -53,6 +53,7 @@ export const SHORTCUTS: ShortcutCategory[] = [
       { keys: 'mod+d', description: 'Duplicate selection' },
       { keys: 'delete', altKeys: 'backspace', description: 'Delete selection' },
       { keys: 'mod+a', description: 'Select all' },
+      { keys: 'mod+k', description: 'Add or edit a link' },
       { keys: 'escape', description: 'Deselect / cancel' },
     ],
   },

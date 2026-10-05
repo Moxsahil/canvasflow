@@ -8,6 +8,7 @@ import {
   createRectangle,
   createText,
 } from '../shapes/index.js';
+import { readLink } from '../shapes/link.js';
 import type { Shape } from '../shapes/shape.js';
 
 /**
@@ -131,6 +132,15 @@ function baseStyle(raw: Raw) {
  * board rather than merely look wrong.
  */
 export function sanitizeShape(candidate: unknown, genId: () => string): Shape | null {
+  const shape = rebuildShape(candidate, genId);
+  if (!shape) return null;
+  // Every kind can carry a link, so it is read here once rather than in each
+  // case below — and through the same check the document reads it with.
+  const link = readLink((candidate as Raw).link);
+  return link === null ? shape : { ...shape, link };
+}
+
+function rebuildShape(candidate: unknown, genId: () => string): Shape | null {
   if (!isRecord(candidate)) return null;
 
   const x = finite(candidate.x);

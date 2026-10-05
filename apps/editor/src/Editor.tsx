@@ -135,6 +135,17 @@ import { SignOutDialog } from './auth/SignOutDialog';
 import { signOutTo } from './auth/sign-out';
 import { env } from './lib/env';
 import { PropertiesPanel, StyleHalo, itemStyleFromShape } from './properties';
+import type { ScreenRect } from './properties/halo-placement';
+import { LinkBadges, LinkBox } from './links';
+import {
+  isLinkToThisBoard,
+  readShapeLink,
+  shapeLinkComplete,
+  shapeLinkFor,
+  shapeLinkRect,
+  withoutShapeLink,
+  type ShapeLinkTarget,
+} from './links/shape-link';
 import { StatsPanel, membershipAfterStatsEdit, type StatsPatch, type StatsProperty } from './stats';
 import {
   TOOL_TO_SHAPE_KIND,
@@ -191,11 +202,19 @@ import { TermsNotice } from './profile/TermsNotice';
 
 import { ConfirmDialog } from './ui';
 import { NoticeDialog, type Notice } from './ui/NoticeDialog';
+import { Toast, useToast } from './ui/Toast';
 
 /** How far left of centre a thread's pin is put when the board has to be brought to it: about half the thread beside it. */
 const THREAD_LEAD = 160;
 
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+/** A link to shapes that have all gone from the board, opened or followed. */
+const SHAPES_NOT_FOUND: Notice = {
+  title: 'Shapes not found',
+  body: 'The shapes this link points to are no longer on this board. They may have been deleted.',
+  tone: 'warn',
+};
 
 /** One array, so "nothing is snapping" is the same value every time it is set. */
 const EMPTY_GUIDES: readonly SnapGuide[] = [];
@@ -484,6 +503,14 @@ export function Editor({ boardId }: EditorProps) {
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
   /** Decided on the right-button press, so it is ready by the time the menu opens. */
   const [contextMenuTarget, setContextMenuTarget] = useState<ContextMenuTarget>('canvas');
+  /**
+   * The shape whose link field is open, or null. The link box shows the link
+   * of any one linked shape selected; this is what makes it the field.
+   */
+  const [linkEditingId, setLinkEditingId] = useState<string | null>(null);
+  const linkInputRef = useRef<HTMLInputElement>(null);
+  /** Where the floating style bar stands, for the link box to keep clear of. */
+  const [haloRect, setHaloRect] = useState<ScreenRect | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
   /**
    * This session has lost the board.
@@ -516,6 +543,7 @@ export function Editor({ boardId }: EditorProps) {
   // Open, save and image notices only ever report what went wrong, or what was
   // skipped, so they carry the warning tone.
   const [notice, setNotice] = useState<Notice | null>(null);
+  const toast = useToast();
   const dismissNotice = useCallback(() => setNotice(null), []);
   const showOpenNotice = useCallback(
     (body: string) => setNotice({ title: 'Open board', body, tone: 'warn' }),
@@ -686,6 +714,7 @@ export function Editor({ boardId }: EditorProps) {
 
   const {
     status: syncStatus,
+    synced: boardSynced,
     notifyActivity,
     awareness,
     purgeCache,
@@ -1281,6 +1310,19 @@ export function Editor({ boardId }: EditorProps) {
     };
   }, [selectedShapes, camera]);
 
+  // The one shape a link box can speak for. It shows that shape's link, or
+  // the field for one, and steps aside while the shape is on the move or its
+  // text is open — view mode selects nothing, so it never shows there.
+  const linkShape = selectedShapes.length === 1 ? selectedShapes[0]! : null;
+  const linkEditing = linkShape !== null && linkEditingId === linkShape.id && !readOnly;
+  const showLinkBox =
+    linkShape !== null &&
+    selectionOnBoard !== null &&
+    !viewMode &&
+    !isReachingGesture &&
+    editingTextShapeId !== linkShape.id &&
+    (linkEditing || Boolean(linkShape.link));
+
   const handleStyleChange = useCallback(
     (patch: Partial<ItemStyle>, transient = false) => {
       // Always remember the choice, so the next shape drawn inherits it.
@@ -1510,8 +1552,48 @@ export function Editor({ boardId }: EditorProps) {
     didInitialViewFitRef.current = false;
   }, [boardId]);
 
+  /**
+   * The place this page was opened at, from a link to shapes on the board —
+   * held until it has been gone to, or found to be gone. It outranks both the
+   * view the board was left at and the fit below: someone who followed a
+   * link wants what it points at.
+   */
+  const [arrivalLink, setArrivalLink] = useState<ShapeLinkTarget | null>(() =>
+    readShapeLink(window.location.href),
+  );
+
+  useEffect(() => {
+    if (!arrivalLink || width === 0 || height === 0) return;
+    // Go as soon as every shape it names is here — usually from the copy kept
+    // on this device, before the server has answered. Short of that, wait for
+    // the board to arrive in full: only then is a missing shape really gone.
+    if (!shapeLinkComplete(arrivalLink, shapes) && !boardSynced) return;
+
+    setArrivalLink(null);
+    // Off the address once used, so a reload returns to wherever the board
+    // is left, and Copy board link copies the board rather than this place.
+    window.history.replaceState(
+      window.history.state,
+      '',
+      withoutShapeLink(window.location.href).href,
+    );
+
+    const rect = shapeLinkRect(arrivalLink, shapes);
+    if (!rect) {
+      setNotice(SHAPES_NOT_FOUND);
+      return;
+    }
+    didInitialViewFitRef.current = true;
+    actorRef.send({
+      type: 'SET_CAMERA',
+      camera: fitRectToViewport(rect, { width, height }, { maxZoom: 1 }),
+    });
+  }, [arrivalLink, shapes, boardSynced, width, height, actorRef]);
+
   useEffect(() => {
     if (didInitialViewFitRef.current) return;
+    // A link to a place on the board decides the view instead, once it can.
+    if (arrivalLink) return;
     // A board opened at the view it was left at is already looking where it
     // should be. Fitting on top of that would overrule the choice, and would
     // do it a beat late — after the content arrived, so as a visible jump.
@@ -1534,7 +1616,7 @@ export function Editor({ boardId }: EditorProps) {
       type: 'SET_CAMERA',
       camera: fitRectToViewport(rect, { width, height }, { maxZoom: 1 }),
     });
-  }, [shapes, width, height, actorRef, restoredViewRef]);
+  }, [shapes, width, height, actorRef, restoredViewRef, arrivalLink]);
 
   // The marquee is read on the frame it disappears, which is the frame the
   // gesture ended on. The index alone would answer with everything whose box
@@ -2410,6 +2492,53 @@ export function Editor({ boardId }: EditorProps) {
   const handleFlipHorizontal = useCallback(() => handleFlip('horizontal'), [handleFlip]);
   const handleFlipVertical = useCallback(() => handleFlip('vertical'), [handleFlip]);
 
+  /**
+   * Add or edit the link of the one shape selected, by opening the link box
+   * as a field. Pressed again while it is open, it puts the cursor back in it.
+   */
+  const handleEditLink = useCallback(() => {
+    const snapshot = actorRef.getSnapshot();
+    if (readOnly || !snapshot.matches('idle')) return;
+    const ids = snapshot.context.selectedIds;
+    if (ids.length !== 1) return;
+    setLinkEditingId(ids[0]!);
+    linkInputRef.current?.focus();
+  }, [actorRef, readOnly]);
+
+  /** Store a link the box settled on — null takes it away — and close the field. */
+  const handleSaveLink = useCallback(
+    (id: string, link: string | null) => {
+      setLinkEditingId((current) => (current === id ? null : current));
+      const shape = doc.getShapes().find((s) => s.id === id);
+      if (!shape || (shape.link ?? null) === link) return;
+      // A step of its own in the history, never folded into a style change
+      // made a moment before it.
+      doc.breakUndoGroup();
+      doc.updateShape(id, { link });
+      doc.breakUndoGroup();
+    },
+    [doc],
+  );
+
+  const handleCancelLink = useCallback(() => setLinkEditingId(null), []);
+
+  // The field belongs to the shape it was opened on. Selecting anything else,
+  // or losing the right to edit, closes it.
+  useEffect(() => {
+    if (linkEditingId === null) return;
+    if (readOnly || selectedIds.length !== 1 || selectedIds[0] !== linkEditingId) {
+      setLinkEditingId(null);
+    }
+  }, [linkEditingId, readOnly, selectedIds]);
+
+  // Add link leaves the cursor in the link field, rather than letting the menu
+  // put it back on the board as it closes.
+  const handleMenuCloseAutoFocus = useCallback((event: Event) => {
+    if (!linkInputRef.current) return;
+    event.preventDefault();
+    linkInputRef.current.focus();
+  }, []);
+
   const handleBringForward = useCallback(() => {
     if (selectedIds.length !== 1) return;
     doc.bringForward(selectedIds[0]!);
@@ -2675,6 +2804,54 @@ export function Editor({ boardId }: EditorProps) {
       });
     }
   }, []);
+
+  /**
+   * Copy a link that opens this board with the selection in view, for anyone
+   * who can already open the board. Said with a toast, which asks nothing and
+   * goes by itself. A copy that failed still gets the notice, which shows the
+   * link so it can be copied by hand.
+   */
+  const { show: showToast } = toast;
+  const handleCopyLinkToSelection = useCallback(async () => {
+    const selected = shapes.filter((shape) => selectedIds.includes(shape.id));
+    if (selected.length === 0) return;
+    const url = shapeLinkFor(window.location.href, selected);
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast('Link copied to clipboard');
+    } catch {
+      setNotice({
+        title: 'Couldn’t copy the link',
+        body: 'Your browser didn’t allow it. Copy the link below instead.',
+        tone: 'warn',
+        link: { url, copied: false },
+      });
+    }
+  }, [shapes, selectedIds, showToast]);
+
+  /**
+   * A link to a place on this board, followed without leaving: the view moves
+   * there, as it does when the board is opened at one. Answers whether it took
+   * the link — anything else is left to the browser to open.
+   */
+  const handleFollowLink = useCallback(
+    (link: string) => {
+      if (!isLinkToThisBoard(link, window.location.href)) return false;
+      const target = readShapeLink(link);
+      if (!target) return false;
+      const rect = shapeLinkRect(target, shapes);
+      if (rect) {
+        actorRef.send({
+          type: 'SET_CAMERA',
+          camera: fitRectToViewport(rect, { width, height }, { maxZoom: 1 }),
+        });
+      } else {
+        setNotice(SHAPES_NOT_FOUND);
+      }
+      return true;
+    },
+    [actorRef, shapes, width, height],
+  );
 
   // The notice's way to invite someone new: it gives way to the Share window.
   const shareFromNotice = useCallback(() => {
@@ -3007,6 +3184,7 @@ export function Editor({ boardId }: EditorProps) {
     onDuplicate: handleDuplicate,
     onFlipHorizontal: handleFlipHorizontal,
     onFlipVertical: handleFlipVertical,
+    onEditLink: handleEditLink,
     onZoomTo100: handleZoomTo100,
     onZoomToFit: handleZoomToFit,
     onZoomToSelection: handleZoomToSelection,
@@ -3077,6 +3255,8 @@ export function Editor({ boardId }: EditorProps) {
       duplicate: handleDuplicate,
       flipHorizontal: handleFlipHorizontal,
       flipVertical: handleFlipVertical,
+      editLink: handleEditLink,
+      copyLinkToSelection: handleCopyLinkToSelection,
       deleteSelection: handleDelete,
       selectAll: handleSelectAll,
       bringForward: handleBringForward,
@@ -3246,6 +3426,9 @@ export function Editor({ boardId }: EditorProps) {
                 duplicate: selectedIds.length > 0 ? handleDuplicate : null,
                 flipHorizontal: canFlip ? handleFlipHorizontal : null,
                 flipVertical: canFlip ? handleFlipVertical : null,
+                // A link belongs to one shape, as its box does.
+                addLink: selectedIds.length === 1 ? handleEditLink : null,
+                copyLinkToSelection: selectedIds.length > 0 ? handleCopyLinkToSelection : null,
                 exportImage: showExport,
                 // The document reorders one shape at a time, so these wait
                 // for a single selection — as the properties panel's do.
@@ -3279,6 +3462,8 @@ export function Editor({ boardId }: EditorProps) {
                 stylePanelInspector: !preferences.values.floatingStyleBar,
                 stylePanelHalo: preferences.values.floatingStyleBar,
               }}
+              labels={{ addLink: linkShape?.link ? 'Edit link' : 'Add link' }}
+              onCloseAutoFocus={handleMenuCloseAutoFocus}
             >
               {/* Filling the container, as CanvasStack did before it was
                   wrapped, so the canvas still sizes to the space it has. */}
@@ -3317,6 +3502,17 @@ export function Editor({ boardId }: EditorProps) {
                 />
               </div>
             </CanvasContextMenu>
+
+            {/* A badge on the corner of every linked shape on screen, which
+                opens its link. Under the comment pins, and still up with the
+                chrome away — a link is part of what is on the board. */}
+            <LinkBadges
+              shapes={shapes}
+              camera={camera}
+              board={screen}
+              except={selectedIds.length === 1 ? selectedIds[0]! : null}
+              onFollow={handleFollowLink}
+            />
 
             {/* Comments: a pin for every thread, and what opens from one. Drawn
                 before the laser and the cursors so both pass over the pins.
@@ -3461,10 +3657,31 @@ export function Editor({ boardId }: EditorProps) {
                   anchor={selectionOnBoard}
                   board={screen}
                   hidden={isReachingGesture}
+                  onPlace={setHaloRect}
                 />
               ) : (
                 <PropertiesPanel {...styleSurfaceProps} />
               ))}
+
+            {/* The selected shape's link, or the field to add one, by the
+                selection and clear of the floating style bar. A viewer sees
+                the link without the controls that change it. */}
+            {showLinkBox && linkShape && selectionOnBoard && (
+              <LinkBox
+                key={linkShape.id}
+                link={linkShape.link ?? null}
+                editing={linkEditing}
+                readOnly={readOnly}
+                anchor={selectionOnBoard}
+                board={screen}
+                avoid={haloRect}
+                inputRef={linkInputRef}
+                onEdit={handleEditLink}
+                onSave={(link) => handleSaveLink(linkShape.id, link)}
+                onCancel={handleCancelLink}
+                onFollow={handleFollowLink}
+              />
+            )}
 
             {/* The numbers behind the board, as a strip in the bottom-left
                 corner — the one stretch of that edge the dock and the zoom
@@ -3523,6 +3740,9 @@ export function Editor({ boardId }: EditorProps) {
                 onZoomToFit={handleZoomToFit}
               />
             )}
+
+            {/* Just above the zoom panel, or in its corner while it is away. */}
+            <Toast toast={toast.toast} />
 
             <ShortcutsModal open={helpOpen} onClose={handleCloseHelp} theme={presenceTheme} />
 

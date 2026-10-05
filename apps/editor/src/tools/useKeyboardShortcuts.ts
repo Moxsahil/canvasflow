@@ -27,6 +27,8 @@ interface UseKeyboardShortcutsOptions {
   onSendToBack: () => void;
   onFlipHorizontal: () => void;
   onFlipVertical: () => void;
+  /** Open the selected shape's link field: Cmd/Ctrl+K. */
+  onEditLink: () => void;
   onDuplicate: () => void;
   onZoomTo100: () => void;
   onZoomToFit: () => void;
@@ -80,6 +82,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onSendToBack,
     onFlipHorizontal,
     onFlipVertical,
+    onEditLink,
     onDuplicate,
     onZoomTo100,
     onZoomToFit,
@@ -257,6 +260,21 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
         return;
       }
 
+      // Add or edit a link: Cmd/Ctrl+K, kept from the browser, which would
+      // otherwise put the cursor in its own search box. Left alone in a text
+      // field, where the key belongs to whatever is being typed.
+      if (
+        mod &&
+        !event.shiftKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === 'k' &&
+        !isTypingTarget(event.target)
+      ) {
+        event.preventDefault();
+        onEditLink();
+        return;
+      }
+
       // Open a board file: Cmd/Ctrl+O. preventDefault matters twice over here
       // — the browser has its own Open dialog on this combo, and the file
       // picker needs this keydown's user activation to be allowed to appear.
@@ -429,6 +447,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onSendToBack,
     onFlipHorizontal,
     onFlipVertical,
+    onEditLink,
     onDuplicate,
     onZoomTo100,
     onZoomToFit,

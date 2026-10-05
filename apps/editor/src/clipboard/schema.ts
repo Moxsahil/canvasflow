@@ -29,6 +29,7 @@ export interface ExcalidrawElement {
   fontSize?: number;
   fontFamily?: number;
   seed?: number;
+  link?: string | null;
 }
 
 export function isCanvasFlowClipboard(x: unknown): x is CanvasFlowClipboard {
