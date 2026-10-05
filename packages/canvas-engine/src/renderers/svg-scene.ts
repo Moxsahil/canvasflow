@@ -15,6 +15,7 @@ import type { Rect } from '../math.js';
 import { arrowInkBounds } from '../shapes/arrow.js';
 import { arrowLabelLayout, type ArrowLabelLayout } from '../shapes/arrow-label.js';
 import { FRAME_LABEL_FONT_SIZE, FRAME_LABEL_GAP, frameLabel } from '../shapes/frame.js';
+import { readLink } from '../shapes/link.js';
 import { strokeColorFor } from '../shapes/style.js';
 import { FRAME_BORDER_WIDTH } from './draw-frame.js';
 import { frameChain } from '../frames/membership.js';
@@ -92,13 +93,20 @@ export function renderSceneToSvgString(
 
   const body = shapes
     .map((shape) => {
-      const svg = shapeToSvg(
+      const drawn = shapeToSvg(
         generator,
         // The same swap the canvas makes, so a dark SVG and a dark PNG of one
         // board come out as the same picture.
         { ...shape, strokeColor: strokeColorFor(shape.strokeColor, options.darkMode ?? false) },
         options.imageDataUrls,
       );
+      // A linked shape stays a link in the file, the one format that can carry
+      // one. Inside the frame clips, so only the part the board shows is live.
+      const link = readLink(shape.link);
+      const svg =
+        link === null
+          ? drawn
+          : `<a href="${escapeXml(link)}" target="_blank" rel="noopener noreferrer">${drawn}</a>`;
       if (!shape.frameId) return svg;
 
       // One group per frame in the chain, nested. A clip path does not

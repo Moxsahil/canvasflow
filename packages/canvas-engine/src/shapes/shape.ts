@@ -50,6 +50,18 @@ export interface BaseShape {
    * written before frames existed says, which is why there is no migration.
    */
   readonly frameId?: string | null;
+  /**
+   * Where the shape points: a web page or an email address, opened from the
+   * badge at its corner or from the box shown while it is selected.
+   *
+   * On the base rather than on a few kinds, so anything on the board can
+   * carry one — a box, an arrow, a scribble or a frame alike. Only ever an
+   * address `readLink` accepts; a value that is not one reads as no link.
+   *
+   * Absent and null both mean no link. Absent is what every shape written
+   * before links existed says, which is why there is no migration.
+   */
+  readonly link?: string | null;
 }
 
 export interface RectangleShape extends BaseShape {

@@ -19,6 +19,12 @@ export interface WebSocketSyncConfig {
   getToken: () => string | null;
   onAuthError?: () => void;
   onStatusChange?: (status: SyncStatus) => void;
+  /**
+   * The server's copy of the board has arrived and been merged in. Unlike
+   * `connected`, which is only the socket opening, this is the point after
+   * which a shape missing from the document is missing from the board.
+   */
+  onSynced?: () => void;
   onError?: (err: Error) => void;
   /**
    * The server changed what this session may do — a role edit landing on a
@@ -134,6 +140,9 @@ export class WebSocketSync {
       token: () => this.config.getToken() ?? '',
       // Hocuspocus defaults: initial 1s, doubles up to 30s
       onStatus: ({ status }) => this.handleStatusChange(status),
+      onSynced: ({ state }) => {
+        if (state && !this.disposed) this.config.onSynced?.();
+      },
       onStateless: ({ payload }) => this.handleStateless(payload),
       onAuthenticationFailed: ({ reason }) => {
         // Two very different failures arrive here. A lapsed token is worth

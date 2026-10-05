@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { groupByCategory, matchCommands, scoreCommand, scoreText } from './match';
-import type { CommandCategory } from './commands';
+import { COMMANDS, type CommandCategory } from './commands';
 
 const command = (label: string, category: CommandCategory, keywords?: string[]) => ({
   label,
@@ -147,5 +147,15 @@ describe('groupByCategory', () => {
   it('keeps every command exactly once', () => {
     const total = groupByCategory(scored, true).reduce((sum, g) => sum + g.items.length, 0);
     expect(total).toBe(scored.length);
+  });
+});
+
+describe('the link command', () => {
+  it('comes first for "link" with a shape selected, and is found by "add link"', () => {
+    const editing = COMMANDS.filter((command) =>
+      ['editLink', 'copyLink', 'liveCollaboration'].includes(command.id),
+    );
+    expect(matchCommands(editing, 'link')[0]?.item.id).toBe('editLink');
+    expect(matchCommands(editing, 'add link')[0]?.item.id).toBe('editLink');
   });
 });

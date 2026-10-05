@@ -21,6 +21,12 @@ interface UseBoardSyncOptions {
 
 interface UseBoardSyncResult {
   status: SyncStatus;
+  /**
+   * The server's copy of this board has arrived at least once. Stays true
+   * through reconnects: what it answers is whether the document has ever been
+   * complete, so a shape absent from it can be called gone.
+   */
+  synced: boolean;
   error: Error | null;
   notifyActivity: () => void;
   /**
@@ -70,6 +76,7 @@ export function useBoardSync(
   }: UseBoardSyncOptions,
 ): UseBoardSyncResult {
   const [status, setStatus] = useState<SyncStatus>('idle');
+  const [synced, setSynced] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [awareness, setAwareness] = useState<SyncAwareness | null>(null);
 
@@ -148,6 +155,10 @@ export function useBoardSync(
         if (cancelled) return;
         setStatus(next);
       },
+      onSynced: () => {
+        if (cancelled) return;
+        setSynced(true);
+      },
       onError: (err) => {
         if (cancelled) return;
         setError(err);
@@ -170,5 +181,5 @@ export function useBoardSync(
     wsRef.current?.notifyActivity();
   }, []);
 
-  return { status, error, notifyActivity, awareness, purgeCache };
+  return { status, synced, error, notifyActivity, awareness, purgeCache };
 }

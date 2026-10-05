@@ -12,6 +12,8 @@ import {
   FlipHorizontal,
   FlipVertical,
   Focus,
+  Link,
+  Link2,
   Maximize,
   MessageSquare,
   MoveDown,
@@ -87,7 +89,9 @@ export type CommandId =
   | 'bringToFront'
   | 'sendToBack'
   | 'flipHorizontal'
-  | 'flipVertical';
+  | 'flipVertical'
+  | 'editLink'
+  | 'copyLinkToSelection';
 
 /** Array order is the order the palette lists the groups in. */
 export const COMMAND_CATEGORIES = ['Tools', 'View', 'Edit', 'Arrange', 'Board', 'App'] as const;
@@ -349,6 +353,28 @@ export const COMMANDS: readonly CommandMeta[] = [
     keywords: ['remove', 'erase', 'clear'],
     destructive: true,
     available: hasSelection,
+  },
+
+  {
+    id: 'editLink',
+    // Short, so typing "link" reaches it ahead of Copy board link: with a
+    // shape selected it is the link that is meant.
+    label: 'Edit link',
+    icon: Link,
+    category: 'Edit',
+    shortcut: 'mod+k',
+    keywords: ['add link', 'url', 'hyperlink', 'website', 'address', 'web', 'email'],
+    // One shape: the box it opens belongs to a single shape.
+    available: hasOneSelected,
+  },
+  {
+    id: 'copyLinkToSelection',
+    label: 'Copy link to selection',
+    icon: Link2,
+    category: 'Edit',
+    keywords: ['share', 'url', 'point to', 'shapes', 'deep link', 'go to'],
+    // Copying a link changes nothing, so a viewer may do it as well.
+    available: (context) => context.selectionCount > 0,
   },
 
   {

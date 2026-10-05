@@ -47,6 +47,12 @@ describe('the two menus', () => {
     expect(idsIn(contextMenuFor('canvas', { readOnly: true }))).not.toContain('pasteHere');
   });
 
+  it('lets a viewer copy a link to the selection, but not add one', () => {
+    const ids = idsIn(contextMenuFor('selection', { readOnly: true }));
+    expect(ids).toContain('copyLinkToSelection');
+    expect(ids).not.toContain('addLink');
+  });
+
   it('ends the selection menu with Delete, on its own', () => {
     expect(SELECTION_MENU.at(-1)).toEqual(['deleteSelection']);
     expect(CONTEXT_MENU_ITEMS.deleteSelection.destructive).toBe(true);
@@ -61,6 +67,7 @@ describe('row metadata', () => {
     expect(CONTEXT_MENU_ITEMS.bringForward.shortcut).toBe(']');
     expect(CONTEXT_MENU_ITEMS.flipHorizontal.shortcut).toBe('shift+h');
     expect(CONTEXT_MENU_ITEMS.flipVertical.shortcut).toBe('shift+v');
+    expect(CONTEXT_MENU_ITEMS.addLink.shortcut).toBe('mod+k');
     expect(CONTEXT_MENU_ITEMS.exportImage.shortcut).toBe('mod+shift+e');
   });
 
