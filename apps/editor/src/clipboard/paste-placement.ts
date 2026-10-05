@@ -3,6 +3,7 @@ import {
   frameForShape,
   framesIn,
   isArrow,
+  hiddenShapeIds,
   isFrame,
   lockedShapeIds,
   type ArrowBinding,
@@ -91,9 +92,13 @@ export function shapesCentredOn(
 
   // Pasted shapes land on top, so their frames come after the board's: where
   // two overlap, the one drawn last is the one that holds what is in it.
-  // Never into a locked frame, which would lock what was just pasted.
+  // Never into a locked frame, which would lock what was just pasted, nor a
+  // hidden one, which would hide it.
   const lockedOnBoard = lockedShapeIds(board);
-  const onBoard = framesIn(board).filter((frame) => !lockedOnBoard.has(frame.id));
+  const hiddenOnBoard = hiddenShapeIds(board);
+  const onBoard = framesIn(board).filter(
+    (frame) => !lockedOnBoard.has(frame.id) && !hiddenOnBoard.has(frame.id),
+  );
   let frames = [...onBoard, ...framesIn(placed)];
 
   for (let i = 0; i < placed.length; i++) {

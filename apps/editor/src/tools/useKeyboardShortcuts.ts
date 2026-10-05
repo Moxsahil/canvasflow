@@ -31,6 +31,8 @@ interface UseKeyboardShortcutsOptions {
   onEditLink: () => void;
   /** Lock or unlock the selection: Shift+L. */
   onToggleLock: () => void;
+  /** Hide the selection: Cmd/Ctrl+Shift+H. */
+  onHide: () => void;
   onDuplicate: () => void;
   onZoomTo100: () => void;
   onZoomToFit: () => void;
@@ -86,6 +88,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onFlipVertical,
     onEditLink,
     onToggleLock,
+    onHide,
     onDuplicate,
     onZoomTo100,
     onZoomToFit,
@@ -137,6 +140,19 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
       ) {
         event.preventDefault();
         if (!event.repeat) onToggleLock();
+        return;
+      }
+      // Hide: Cmd/Ctrl+Shift+H, beside Shift+H's flip. By code, as that is,
+      // and kept from the browser, which opens the home page on it on a Mac.
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.shiftKey &&
+        !event.altKey &&
+        event.code === 'KeyH' &&
+        !isTypingTarget(event.target)
+      ) {
+        event.preventDefault();
+        if (!event.repeat) onHide();
         return;
       }
       if (event.key === 'Escape') {
@@ -467,6 +483,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onFlipVertical,
     onEditLink,
     onToggleLock,
+    onHide,
     onDuplicate,
     onZoomTo100,
     onZoomToFit,

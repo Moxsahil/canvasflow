@@ -67,6 +67,10 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
   if (shape.locked === true) {
     map.set('locked', true);
   }
+  // Likewise hidden.
+  if (shape.hidden === true) {
+    map.set('hidden', true);
+  }
 
   // Shape-kind-specific fields
   switch (shape.kind) {
@@ -246,6 +250,9 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
     // Only `true` locks. Anything else another client wrote reads as unlocked,
     // which leaves the shape editable rather than stuck.
     ...(map.get('locked') === true && { locked: true }),
+    // Only `true` hides, so nothing another client wrote can make a shape
+    // vanish by accident.
+    ...(map.get('hidden') === true && { hidden: true }),
   };
 
   const edges = (map.get('edges') as Edges) ?? 'sharp';

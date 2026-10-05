@@ -1,5 +1,6 @@
 import {
   framesIn,
+  hiddenShapeIds,
   lockSourcesOf,
   type FrameShape,
   type Shape,
@@ -50,14 +51,18 @@ export function unlockAllUpdates(shapes: readonly Shape[]): ShapeUpdate[] {
 /**
  * The frames a shape may be put in. A locked frame takes nothing new: whatever
  * joined it would be locked the moment it arrived, which is a shape someone
- * had just drawn or dragged there and could no longer touch.
+ * had just drawn or dragged there and could no longer touch. Nor does a hidden
+ * one, which would make what joined it vanish.
  */
 export function joinableFrames(
   shapes: readonly Shape[],
   lockedIds: ReadonlySet<string>,
 ): FrameShape[] {
+  const hiddenIds = hiddenShapeIds(shapes);
   const frames = framesIn(shapes);
-  return lockedIds.size === 0 ? frames : frames.filter((frame) => !lockedIds.has(frame.id));
+  return lockedIds.size === 0 && hiddenIds.size === 0
+    ? frames
+    : frames.filter((frame) => !lockedIds.has(frame.id) && !hiddenIds.has(frame.id));
 }
 
 /** The shapes nothing is holding, for the gestures that pass over locked ones. */

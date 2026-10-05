@@ -54,6 +54,15 @@ describe('the two menus', () => {
     expect(idsIn(contextMenuFor('canvas', { readOnly: false }))).toContain('unlockAll');
   });
 
+  it('offers Show all beside Unlock all, and Hide beside Lock, to editors only', () => {
+    const canvas = idsIn(contextMenuFor('canvas', { readOnly: false }));
+    expect(canvas[canvas.indexOf('unlockAll') + 1]).toBe('showAll');
+    const selection = idsIn(contextMenuFor('selection', { readOnly: false }));
+    expect(selection[selection.indexOf('lock') - 1]).toBe('hide');
+    expect(idsIn(contextMenuFor('canvas', { readOnly: true }))).not.toContain('showAll');
+    expect(idsIn(contextMenuFor('selection', { readOnly: true }))).not.toContain('hide');
+  });
+
   it('lets a viewer copy a link to the selection, but not add one', () => {
     const ids = idsIn(contextMenuFor('selection', { readOnly: true }));
     expect(ids).toContain('copyLinkToSelection');
@@ -76,6 +85,7 @@ describe('row metadata', () => {
     expect(CONTEXT_MENU_ITEMS.flipVertical.shortcut).toBe('shift+v');
     expect(CONTEXT_MENU_ITEMS.addLink.shortcut).toBe('mod+k');
     expect(CONTEXT_MENU_ITEMS.lock.shortcut).toBe('shift+l');
+    expect(CONTEXT_MENU_ITEMS.hide.shortcut).toBe('mod+shift+h');
     expect(CONTEXT_MENU_ITEMS.exportImage.shortcut).toBe('mod+shift+e');
   });
 
@@ -94,7 +104,7 @@ describe('row metadata', () => {
   });
 
   it('gives an unbuilt row no shortcut, since nothing would answer the key', () => {
-    expect(CONTEXT_MENU_ITEMS.hide.shortcut).toBeUndefined();
+    expect(CONTEXT_MENU_ITEMS.addToLibrary.shortcut).toBeUndefined();
     expect(CONTEXT_MENU_ITEMS.copyAsPng.shortcut).toBeUndefined();
   });
 });

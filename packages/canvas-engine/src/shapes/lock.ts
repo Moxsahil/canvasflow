@@ -12,6 +12,8 @@
  * on the members or the arrows to fall out of step with the first.
  */
 
+import { flaggedFramesAround } from './frame-flags.js';
+
 /** What lock depends on — every shape has these, whether as a plain object or as stored fields. */
 export interface LockFacts {
   readonly id: string;
@@ -21,9 +23,6 @@ export interface LockFacts {
   readonly startBinding?: { readonly shapeId: string } | null;
   readonly endBinding?: { readonly shapeId: string } | null;
 }
-
-/** Frames nest only so deep; a longer chain is a loop someone wrote, not a board. */
-const MAX_FRAME_DEPTH = 64;
 
 /** The shapes locked by any of the three. Empty — and cheap — on a board with no lock. */
 export function lockedShapeIds(shapes: Iterable<LockFacts>): Set<string> {
@@ -74,18 +73,7 @@ export function lockSourcesOf(ids: Iterable<string>, shapes: Iterable<LockFacts>
 
 /** The locked frames around a shape, innermost first. */
 function lockingFrames(shape: LockFacts, byId: ReadonlyMap<string, LockFacts>): LockFacts[] {
-  const frames: LockFacts[] = [];
-  const seen = new Set<string>([shape.id]);
-  let frameId = shape.frameId;
-  for (let depth = 0; frameId && depth < MAX_FRAME_DEPTH; depth++) {
-    if (seen.has(frameId)) break;
-    seen.add(frameId);
-    const frame = byId.get(frameId);
-    if (!frame) break;
-    if (frame.locked === true) frames.push(frame);
-    frameId = frame.frameId;
-  }
-  return frames;
+  return flaggedFramesAround(shape, byId, (frame) => frame.locked === true);
 }
 
 function attachedTo(arrow: LockFacts): string[] {

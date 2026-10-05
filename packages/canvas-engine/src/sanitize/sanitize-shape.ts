@@ -142,8 +142,9 @@ export function sanitizeShape(candidate: unknown, genId: () => string): Shape | 
   return {
     ...shape,
     ...(link !== null && { link }),
-    // A board file keeps what was locked on the board it came from.
+    // A board file keeps what was locked or hidden on the board it came from.
     ...(raw.locked === true && { locked: true }),
+    ...(raw.hidden === true && { hidden: true }),
   };
 }
 

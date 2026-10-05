@@ -43,10 +43,14 @@ function lockFactsOf(yMap: Y.Map<unknown>): LockFacts {
   };
 }
 
-/** A patch that does nothing but set the shape's own lock — the one change a locked shape takes. */
-function onlySetsLock(patch: Partial<Shape>): boolean {
+/**
+ * A patch that does nothing but lock, unlock, hide or show the shape — the
+ * changes a locked shape takes. They say how the shape is held and whether it
+ * is drawn, and leave the shape itself exactly as it was.
+ */
+function onlySetsLockOrVisibility(patch: Partial<Shape>): boolean {
   const keys = Object.keys(patch);
-  return keys.length > 0 && keys.every((key) => key === 'locked');
+  return keys.length > 0 && keys.every((key) => key === 'locked' || key === 'hidden');
 }
 
 /**
@@ -322,14 +326,16 @@ export class BoardDocument {
   }
 
   /**
-   * Change one shape. A locked one takes nothing but being unlocked, unless
-   * the caller vouches for the change with `allowLocked` — an arrow following
+   * Change one shape. A locked one takes nothing but being unlocked, locked,
+   * hidden or shown, unless the caller vouches for the change with
+   * `allowLocked` — an arrow following
    * the shape it is attached to, say, which is the shape moving rather than
    * the arrow being edited.
    */
   updateShape(id: string, patch: Partial<Shape>, options?: { allowLocked?: boolean }): void {
     if (this.readOnly) return;
-    if (!options?.allowLocked && !onlySetsLock(patch) && this.lockedIds().has(id)) return;
+    if (!options?.allowLocked && !onlySetsLockOrVisibility(patch) && this.lockedIds().has(id))
+      return;
     this.yDoc.transact(() => {
       for (let i = 0; i < this.yShapes.length; i++) {
         const yMap = this.yShapes.get(i);
@@ -349,7 +355,8 @@ export class BoardDocument {
    * Apply geometry and ordered layer raises in one transaction and board pass.
    *
    * Locked shapes are left out, as `updateShape` leaves them, except for a
-   * change that only sets the lock and for the ids named in `allowLocked`.
+   * change that only sets the lock or the visibility, and for the ids named
+   * in `allowLocked`.
    */
   updateShapes(
     updates: readonly ShapeUpdate[],
@@ -370,7 +377,7 @@ export class BoardDocument {
     const writable = (id: string) => !locked.has(id) || allowed.has(id);
     const patches = new Map(
       updates
-        .filter(({ id, patch }) => writable(id) || onlySetsLock(patch))
+        .filter(({ id, patch }) => writable(id) || onlySetsLockOrVisibility(patch))
         .map(({ id, patch }) => [id, patch]),
     );
     const toRaise = new Map<string, Y.Map<unknown> | null>();

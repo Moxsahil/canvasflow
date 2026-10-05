@@ -17,3 +17,4 @@ export * from './handles.js';
 export * from './flip.js';
 export * from './link.js';
 export * from './lock.js';
+export * from './visibility.js';

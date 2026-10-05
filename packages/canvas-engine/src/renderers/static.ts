@@ -2,6 +2,7 @@ import { isFrame, type FrameShape, type Shape } from '../shapes/shape.js';
 import { clearCanvas } from '../utils/canvas.js';
 import { createRoughCanvas } from '../utils/rough.js';
 import { frameChain } from '../frames/membership.js';
+import { visibleShapes } from '../shapes/visibility.js';
 import { clipToFrame, drawFrameLabel } from './draw-frame.js';
 import { drawSceneShape, type SceneShapeContext } from './draw-shape.js';
 
@@ -50,7 +51,6 @@ export function renderStaticScene(
   const {
     width,
     height,
-    shapes,
     camera,
     pendingErasureIds,
     editingFrameIds,
@@ -59,6 +59,10 @@ export function renderStaticScene(
     images,
     darkMode,
   } = opts;
+
+  // Hidden shapes are never painted, whoever is asking: the live board and
+  // every export draw through here.
+  const shapes = visibleShapes(opts.shapes);
 
   clearCanvas(ctx, width, height);
 

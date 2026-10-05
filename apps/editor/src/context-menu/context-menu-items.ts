@@ -6,7 +6,6 @@ import {
   Braces,
   CodeXml,
   Crop,
-  EyeOff,
   FileCode,
   FileImage,
   Layers,
@@ -78,6 +77,7 @@ export type ContextMenuItemId =
   | 'hide'
   | 'lock'
   | 'unlockAll'
+  | 'showAll'
   | 'deleteSelection'
   // Canvas
   | 'selectAll'
@@ -201,9 +201,10 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
 
   addToLibrary: soon('Add to library', BookPlus, false),
 
-  hide: soon('Hide', EyeOff),
+  hide: fromCommand('hideSelection', 'Hide'),
   lock: fromCommand('toggleLock', 'Lock'),
   unlockAll: fromCommand('unlockAll', 'Unlock all'),
+  showAll: fromCommand('showAll', 'Show all'),
   deleteSelection: fromCommand('deleteSelection', 'Delete'),
 
   selectAll: fromCommand('selectAll', 'Select all'),
@@ -322,7 +323,7 @@ export const SELECTION_MENU: readonly ContextMenuGroup[] = [
 export const CANVAS_MENU: readonly ContextMenuGroup[] = [
   ['paste', 'pasteHere'],
   [COPY_AS, 'exportImage'],
-  ['selectAll', 'unlockAll'],
+  ['selectAll', 'unlockAll', 'showAll'],
   ['showGrid', 'snapToObjects', 'snapToMidpoints', 'arrowBinding'],
   ['focusMode', 'viewMode', STYLE_PANEL, 'canvasStats', 'showComments'],
   ['commandPalette'],
