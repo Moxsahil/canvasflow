@@ -13,6 +13,7 @@ import {
   framesIn,
   isFrame,
   descendantsOf,
+  lockedShapeIds,
   shapeBounds,
   type FrameShape,
   type Shape,
@@ -100,6 +101,10 @@ export function assignmentsAfterMove(
   const moved = new Set(movedIds);
   const frames = framesIn(shapes);
   const movedFrames = new Set(frames.filter((f) => moved.has(f.id)).map((f) => f.id));
+  // A locked frame takes nothing new: whatever joined it would be locked the
+  // moment it landed there.
+  const locked = lockedShapeIds(shapes);
+  const destinations = locked.size === 0 ? frames : frames.filter((f) => !locked.has(f.id));
 
   const assignments: FrameAssignment[] = [];
   for (const shape of shapes) {
@@ -109,7 +114,7 @@ export function assignmentsAfterMove(
     // deep names an inner frame that is itself in the moved set.
     if (shape.frameId && movedFrames.has(shape.frameId)) continue;
 
-    const frameId = frameForShape(shape, frames);
+    const frameId = frameForShape(shape, destinations);
     if (frameId !== (shape.frameId ?? null)) assignments.push({ id: shape.id, frameId });
   }
   return assignments;
@@ -124,9 +129,11 @@ export function assignmentsAfterMove(
  * contents is not what anybody drawing a box means.
  */
 export function shapesCapturedBy(frame: FrameShape, shapes: readonly Shape[]): string[] {
+  const locked = lockedShapeIds(shapes);
   return (
     shapes
-      .filter((shape) => shape.frameId == null)
+      // A locked shape stays where it was put, frames included.
+      .filter((shape) => shape.frameId == null && !locked.has(shape.id))
       // Frames included: drawing a big frame around two small ones is how you
       // say those belong together. The frame cannot capture itself, which is
       // the loop `frameForShape` refuses.

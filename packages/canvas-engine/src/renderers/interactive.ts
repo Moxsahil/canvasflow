@@ -63,6 +63,18 @@ export interface InteractiveSceneOptions {
    * one.
    */
   readonly hoveredHandleId?: string | null;
+
+  /**
+   * Shapes that are locked. A selected one is outlined dashed and offered no
+   * handles: it can be picked out to be unlocked, and nothing more.
+   */
+  readonly lockedIds?: ReadonlySet<string>;
+
+  /**
+   * The locked shapes a click has just found, outlined in grey while the
+   * padlock that unlocks them is up.
+   */
+  readonly lockHighlightIds?: readonly string[];
 }
 
 const HANDLE_SIZE = 8; // screen pixels
@@ -92,6 +104,15 @@ const SNAP_CAP_SIZE = 4;
 const HANDLE_HOVER_FILL = 'rgba(99, 102, 241, 0.16)';
 
 /**
+ * Grey rather than the selection's colour: a locked shape someone has
+ * clicked is found, not picked, and the outline should not read as a
+ * selection that can be dragged.
+ */
+const LOCK_HIGHLIGHT_COLOR = '#a3a3a3';
+/** Dashes for a locked shape's outline, in screen pixels. */
+const LOCK_DASH = [4, 3] as const;
+
+/**
  * Geometry only, so no canvas is behind it. Kept for the life of the module
  * because a generator carries the cache that makes redrawing the same outline
  * on every frame of a drag cheap.
@@ -105,6 +126,8 @@ export function renderInteractiveScene(
 ): void {
   const { width, height, shapes, selectedIds, marquee, camera, search, snapGuides } = opts;
   const hoveredHandleId = opts.hoveredHandleId ?? null;
+  const lockedIds = opts.lockedIds;
+  const lockHighlightIds = opts.lockHighlightIds ?? [];
 
   clearCanvas(ctx, width, height);
 
@@ -129,6 +152,19 @@ export function renderInteractiveScene(
     }
   }
 
+  // --- Locked shapes a click found — beneath the selection, which is never
+  // one of them at the same time ---
+  if (lockHighlightIds.length > 0) {
+    ctx.strokeStyle = LOCK_HIGHLIGHT_COLOR;
+    ctx.lineWidth = 1.5 / zoom;
+    ctx.setLineDash(LOCK_DASH.map((n) => n / zoom));
+    const highlighted = new Set(lockHighlightIds);
+    for (const shape of shapes) {
+      if (highlighted.has(shape.id)) strokeSelectionOutline(ctx, shape, zoom);
+    }
+    ctx.setLineDash([]);
+  }
+
   // --- Selection outlines ---
   if (selectedIds.length > 0) {
     ctx.strokeStyle = SELECTION_COLOR;
@@ -138,23 +174,16 @@ export function renderInteractiveScene(
 
     const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
 
-    // A box is the right outline for a shape that fills one. A line or an
-    // arrow does not: most of the box it spans is empty, so a box around it
-    // marks out mostly board, hides which of two crossing lines is selected,
-    // and offers to resize something that is edited end by end instead. Those
-    // are outlined along themselves.
     for (const shape of selectedShapes) {
-      if (hasPointHandles(shape)) {
-        strokeShapeIndicator(ctx, shape);
-      } else {
-        const b = shapeBounds(shape);
-        const pad = 4 / zoom;
-        ctx.strokeRect(b.x - pad, b.y - pad, b.width + pad * 2, b.height + pad * 2);
-      }
+      const locked = lockedIds?.has(shape.id) ?? false;
+      ctx.setLineDash(locked ? LOCK_DASH.map((n) => n / zoom) : []);
+      strokeSelectionOutline(ctx, shape, zoom);
     }
+    ctx.setLineDash([]);
 
-    // --- Handles — only when exactly one shape is selected ---
-    if (selectedShapes.length === 1) {
+    // --- Handles — only when exactly one shape is selected, and it is not
+    // locked: a locked shape has nothing a handle could change ---
+    if (selectedShapes.length === 1 && !lockedIds?.has(selectedShapes[0]!.id)) {
       const only = selectedShapes[0]!;
       const pointHandles = visibleShapeHandles(only, zoom);
       if (pointHandles) {
@@ -209,6 +238,29 @@ export function renderInteractiveScene(
     ctx.setLineDash([]);
     ctx.restore();
   }
+}
+
+/**
+ * A shape's outline as the selection draws it.
+ *
+ * A box is the right outline for a shape that fills one. A line or an arrow
+ * does not: most of the box it spans is empty, so a box around it marks out
+ * mostly board, hides which of two crossing lines is selected, and offers to
+ * resize something that is edited end by end instead. Those are outlined
+ * along themselves.
+ */
+function strokeSelectionOutline(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  shape: Shape,
+  zoom: number,
+): void {
+  if (hasPointHandles(shape)) {
+    strokeShapeIndicator(ctx, shape);
+    return;
+  }
+  const b = shapeBounds(shape);
+  const pad = 4 / zoom;
+  ctx.strokeRect(b.x - pad, b.y - pad, b.width + pad * 2, b.height + pad * 2);
 }
 
 /**

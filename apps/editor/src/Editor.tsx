@@ -28,6 +28,8 @@ import {
   hitTest,
   isFrame,
   isText,
+  lockedShapeIds,
+  lockSourcesOf,
   shapeHandleAt,
   withHandlePointInserted,
   withHandlePointMoved,
@@ -46,6 +48,7 @@ import {
   type FlipAxis,
   type Rect,
   type Shape,
+  type ShapeUpdate,
   type SnapGuide,
 } from '@canvasflow/canvas-engine';
 import {
@@ -137,6 +140,8 @@ import { env } from './lib/env';
 import { PropertiesPanel, StyleHalo, itemStyleFromShape } from './properties';
 import type { ScreenRect } from './properties/halo-placement';
 import { LinkBadges, LinkBox } from './links';
+import { LockPadlock } from './lock/LockPadlock';
+import { joinableFrames, lockToggleFor, unlockAllUpdates, withoutLocked } from './lock/lock-ops';
 import {
   isLinkToThisBoard,
   readShapeLink,
@@ -223,6 +228,13 @@ const EMPTY_GUIDES: readonly SnapGuide[] = [];
 const EMPTY_IDS: ReadonlySet<string> = new Set();
 
 /**
+ * How far, in screen pixels, a press on a locked shape may travel and still
+ * be a click on it — which puts up its padlock — rather than the start of a
+ * marquee drawn across it.
+ */
+const LOCK_CLICK_SLOP = 4;
+
+/**
  * The screen delta of a move the pointer did not make — what an edge scroll
  * reports, having moved the board rather than the hand.
  */
@@ -302,8 +314,11 @@ function arrowEndsAttached(arrow: ArrowShape, shapes: readonly Shape[]): ArrowSh
   const start = { x: arrow.x + first[0], y: arrow.y + first[1] };
   const end = { x: arrow.x + last[0], y: arrow.y + last[1] };
 
-  const startTarget = bindingTargetAt(shapes, start, ARROW_BIND_MARGIN, arrow.id);
-  const endTarget = bindingTargetAt(shapes, end, ARROW_BIND_MARGIN, arrow.id);
+  // Nothing new attaches to a locked shape: an arrow attached to one is
+  // locked with it, and one just drawn could not then be touched.
+  const targets = withoutLocked(shapes, lockedShapeIds(shapes));
+  const startTarget = bindingTargetAt(targets, start, ARROW_BIND_MARGIN, arrow.id);
+  const endTarget = bindingTargetAt(targets, end, ARROW_BIND_MARGIN, arrow.id);
 
   if (!startTarget && !endTarget) return null;
   if (startTarget && endTarget && startTarget.id === endTarget.id) return null;
@@ -368,7 +383,9 @@ function settleBoundArrows(
 
   for (const patch of boundArrowPatches(arrows, shapesById)) {
     const geometry = { x: patch.x, y: patch.y, points: patch.points };
-    doc.updateShape(patch.id, geometry as Partial<Shape>);
+    // An arrow following what it is attached to moves even when locked: the
+    // lock holds it to that shape, and this is the shape moving it.
+    doc.updateShape(patch.id, geometry as Partial<Shape>, { allowLocked: true });
     shapesById.set(patch.id, { ...shapesById.get(patch.id)!, ...geometry } as Shape);
   }
 }
@@ -403,10 +420,13 @@ function releaseArrowsFrom(doc: BoardDocument, deletedIds: readonly string[]): v
     if (!isArrow(shape)) continue;
     const released = withBindingsCleared(shape, going);
     if (!released) continue;
-    doc.updateShape(shape.id, {
-      startBinding: released.startBinding,
-      endBinding: released.endBinding,
-    } as Partial<Shape>);
+    // Letting go of a shape that is going is bookkeeping, not an edit, and a
+    // locked arrow has to let go as much as any other.
+    doc.updateShape(
+      shape.id,
+      { startBinding: released.startBinding, endBinding: released.endBinding } as Partial<Shape>,
+      { allowLocked: true },
+    );
   }
 }
 
@@ -511,6 +531,13 @@ export function Editor({ boardId }: EditorProps) {
   const linkInputRef = useRef<HTMLInputElement>(null);
   /** Where the floating style bar stands, for the link box to keep clear of. */
   const [haloRect, setHaloRect] = useState<ScreenRect | null>(null);
+  /**
+   * The locked shapes a click has just found, whose padlock is up: the ones
+   * whose own lock is holding what was clicked. Null when none is.
+   */
+  const [activeLock, setActiveLock] = useState<readonly string[] | null>(null);
+  /** A press on a locked shape, waiting to see whether it comes up as a click. */
+  const lockPressRef = useRef<{ id: string; at: Point } | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
   /**
    * This session has lost the board.
@@ -901,9 +928,27 @@ export function Editor({ boardId }: EditorProps) {
   const isSpacePressed = useSelector(actorRef, (s) => s.context.isSpacePressed);
   const selectedIds = useSelector(actorRef, (s) => s.context.selectedIds);
   const isIdle = useSelector(actorRef, (s) => s.matches('idle'));
+  /**
+   * What is locked — by its own flag, a locked frame around it, or for an
+   * arrow a locked shape it is attached to — and the board without it, for
+   * the gestures that pass over locked shapes: a click, a marquee, the eraser.
+   */
+  const lockedIds = useMemo(() => lockedShapeIds(shapes), [shapes]);
+  const unlockedShapes = useMemo(() => withoutLocked(shapes, lockedIds), [shapes, lockedIds]);
+  /** The selection less what is locked: what an edit can actually change. */
+  const editableIds = useMemo(
+    () =>
+      withoutLocked(
+        selectedIds.map((id) => ({ id })),
+        lockedIds,
+      ).map(({ id }) => id),
+    [selectedIds, lockedIds],
+  );
+  /** Something is selected and all of it is locked — picked out by a right-click. */
+  const selectionLocked = selectedIds.length > 0 && editableIds.length === 0;
   const canFlip = useMemo(
-    () => !readOnly && isIdle && canFlipSelection(selectedIds, shapes),
-    [readOnly, isIdle, selectedIds, shapes],
+    () => !readOnly && isIdle && canFlipSelection(editableIds, shapes),
+    [readOnly, isIdle, editableIds, shapes],
   );
   const marquee = useSelector(actorRef, (s) => s.context.marquee);
   const itemStyle = useSelector(actorRef, (s) => s.context.itemStyle);
@@ -1292,8 +1337,12 @@ export function Editor({ boardId }: EditorProps) {
   // Nothing in the properties panel does anything for a viewer, and offering
   // controls that silently no-op is worse than not offering them. Focus mode
   // puts it away with the rest of the chrome.
+  //
+  // Nor for a selection that is all locked: every control would be refused.
   const showProperties =
-    !readOnly && !chromeHidden && (selectedShapes.length > 0 || toolShapeKind !== null);
+    !readOnly &&
+    !chromeHidden &&
+    (selectedShapes.length > 0 ? !selectionLocked : toolShapeKind !== null);
 
   /**
    * The selection's box in board pixels, for the floating style bar to sit
@@ -1315,6 +1364,26 @@ export function Editor({ boardId }: EditorProps) {
   // text is open — view mode selects nothing, so it never shows there.
   const linkShape = selectedShapes.length === 1 ? selectedShapes[0]! : null;
   const linkEditing = linkShape !== null && linkEditingId === linkShape.id && !readOnly;
+  // The padlock a click on a locked shape put up, for as long as what it
+  // stands for is still locked and still there to stand over. A viewer is
+  // never offered one: unlocking is an edit.
+  const padlock = useMemo(() => {
+    if (!activeLock || readOnly || viewMode) return null;
+    if (!activeLock.every((id) => lockedIds.has(id))) return null;
+    const ids = new Set(activeLock);
+    const rect = computeBoundingRect(shapes.filter((shape) => ids.has(shape.id)));
+    if (!rect) return null;
+    return {
+      ids: activeLock,
+      anchor: {
+        x: (rect.x - camera.x) * camera.zoom,
+        y: (rect.y - camera.y) * camera.zoom,
+        width: rect.width * camera.zoom,
+        height: rect.height * camera.zoom,
+      },
+    };
+  }, [activeLock, readOnly, viewMode, lockedIds, shapes, camera]);
+
   const showLinkBox =
     linkShape !== null &&
     selectionOnBoard !== null &&
@@ -1338,6 +1407,8 @@ export function Editor({ boardId }: EditorProps) {
   );
 
   const dragOriginsRef = useRef<Record<string, Shape>>({});
+  /** Locked members of a frame being dragged, which go where it goes. */
+  const carriedLockedRef = useRef<ReadonlySet<string>>(EMPTY_IDS);
   const resizeOriginRef = useRef<Shape | null>(null);
   /**
    * The line or arrow a point-drag started from, already carrying any point the
@@ -1484,7 +1555,8 @@ export function Editor({ boardId }: EditorProps) {
         // A frame drawn inside another belongs to it, exactly as any other
         // shape drawn there would. Without this the new frame lands loose on
         // the board and only ever gains contents, never a home.
-        const parentId = frameForShape(shape, framesIn(doc.getShapes()));
+        const onBoard = doc.getShapes();
+        const parentId = frameForShape(shape, joinableFrames(onBoard, lockedShapeIds(onBoard)));
         doc.addShape(parentId ? ({ ...shape, frameId: parentId } as Shape) : shape);
         // Drawing a frame around things is the plainest way to say what
         // belongs in it, so it has to take them in.
@@ -1499,7 +1571,8 @@ export function Editor({ boardId }: EditorProps) {
 
       // Drawn inside a frame is drawn into it. Assigned before the shape
       // lands so it never exists unowned, which would flash unclipped.
-      const frameId = frameForShape(shape, framesIn(doc.getShapes()));
+      const onBoard = doc.getShapes();
+      const frameId = frameForShape(shape, joinableFrames(onBoard, lockedShapeIds(onBoard)));
       const placed = frameId ? ({ ...shape, frameId } as Shape) : shape;
 
       // An arrow drawn onto a shape keeps hold of it. Decided here rather than
@@ -1520,7 +1593,12 @@ export function Editor({ boardId }: EditorProps) {
       // thing back, which is the only reading that matches deleting what
       // looks on screen like a single object.
       const current = doc.getShapes();
-      const going = withFrameMembers(emitted.ids, current);
+      // Locked shapes stay, members of a deleted frame included. Left out
+      // here as well as by the document, so no arrow lets go of a shape that
+      // is not going and no comment is lifted off one.
+      const locked = lockedShapeIds(current);
+      const going = withFrameMembers(emitted.ids, current).filter((id) => !locked.has(id));
+      if (going.length === 0) return;
       releaseArrowsFrom(doc, going);
       // A comment pinned to one of these stays on the board, where its shape
       // last was — and goes back onto the shape if the delete is undone.
@@ -1627,13 +1705,15 @@ export function Editor({ boardId }: EditorProps) {
   useEffect(() => {
     if (marqueeRef.current && !marquee) {
       const finalMarquee = marqueeRef.current;
-      const ids = hitTestMarquee(shapes, spatialIndex, finalMarquee, marqueeMode).map((s) => s.id);
+      const ids = hitTestMarquee(unlockedShapes, spatialIndex, finalMarquee, marqueeMode).map(
+        (s) => s.id,
+      );
       if (ids.length > 0) {
         actorRef.send({ type: 'SELECT_ALL', shapeIds: ids });
       }
     }
     marqueeRef.current = marquee;
-  }, [marquee, shapes, spatialIndex, marqueeMode, actorRef]);
+  }, [marquee, unlockedShapes, spatialIndex, marqueeMode, actorRef]);
 
   /**
    * Measure what this gesture can line up with, leaving out what it is moving.
@@ -1717,8 +1797,15 @@ export function Editor({ boardId }: EditorProps) {
       let hitHandle: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | null = null;
       let hitVertex: VertexGrab | null = null;
 
+      // A press anywhere puts away the padlock a click on a locked shape put
+      // up; the press below decides whether to put it back.
+      setActiveLock(null);
+      lockPressRef.current = null;
+      carriedLockedRef.current = EMPTY_IDS;
+
       if (activeTool === 'select' && !isSpacePressed && button !== 1) {
-        if (selectedIds.length === 1) {
+        // A locked shape has no handles to take hold of.
+        if (selectedIds.length === 1 && !lockedIds.has(selectedIds[0]!)) {
           const selectedShape = shapes.find((s) => s.id === selectedIds[0]);
           if (selectedShape && hasPointHandles(selectedShape)) {
             const handle = shapeHandleAt(selectedShape, point.x, point.y, camera.zoom);
@@ -1748,14 +1835,17 @@ export function Editor({ boardId }: EditorProps) {
           }
         }
         if (hitHandle === null && hitVertex === null) {
-          const hit = hitTest(shapes, spatialIndex, point.x, point.y, camera.zoom);
+          // A locked shape is passed over for whatever is under it, as if it
+          // were part of the board.
+          const hit = hitTest(unlockedShapes, spatialIndex, point.x, point.y, camera.zoom);
           hitShapeId = hit?.id ?? null;
 
           if (hit) {
-            const picked =
+            const picked = (
               shiftKey || selectedIds.includes(hit.id)
                 ? [...new Set([...selectedIds, hit.id])]
-                : [hit.id];
+                : [hit.id]
+            ).filter((id) => !lockedIds.has(id));
             // Dragging a frame drags what is standing in it. The members are
             // moved by the same loop as everything else, so the whole of
             // "a frame moves as one object" is this one expansion.
@@ -1765,6 +1855,18 @@ export function Editor({ boardId }: EditorProps) {
               if (idsToMove.has(s.id)) origins[s.id] = s;
             }
             dragOriginsRef.current = origins;
+            // A locked member goes where its frame goes. The frame is what is
+            // being moved, and the lock is on the member's place in it.
+            carriedLockedRef.current = new Set(
+              Object.keys(origins).filter((id) => lockedIds.has(id)),
+            );
+          } else if (lockedIds.size > 0 && !readOnly) {
+            // Nothing that can be picked up here. If a locked shape is, the
+            // release below puts up its padlock — on a click, not a drag.
+            const locked = hitTest(shapes, spatialIndex, point.x, point.y, camera.zoom);
+            if (locked && lockedIds.has(locked.id)) {
+              lockPressRef.current = { id: locked.id, at: screenPoint };
+            }
           }
         }
       }
@@ -1824,7 +1926,7 @@ export function Editor({ boardId }: EditorProps) {
       if (activeTool === 'eraser') {
         lastErasePointRef.current = point;
         const ids = shapesIntersectingSegment(
-          shapes,
+          unlockedShapes,
           spatialIndex,
           [
             [point.x, point.y],
@@ -1846,6 +1948,9 @@ export function Editor({ boardId }: EditorProps) {
       isSpacePressed,
       selectedIds,
       shapes,
+      unlockedShapes,
+      lockedIds,
+      readOnly,
       spatialIndex,
       camera.zoom,
       notifyActivity,
@@ -1885,11 +1990,13 @@ export function Editor({ boardId }: EditorProps) {
         actorRef.getSnapshot().context.selectedIds,
         spatialIndex,
         camera.zoom,
+        lockedIds,
       );
+      setActiveLock(null);
       if (press.select) actorRef.send({ type: 'SELECT_ALL', shapeIds: [...press.select] });
       setContextMenuTarget(press.target);
     },
-    [actorRef, viewMode, shapes, spatialIndex, camera.zoom, notifyActivity],
+    [actorRef, viewMode, shapes, lockedIds, spatialIndex, camera.zoom, notifyActivity],
   );
 
   /**
@@ -1969,7 +2076,7 @@ export function Editor({ boardId }: EditorProps) {
         const from = lastErasePointRef.current ?? point;
         lastErasePointRef.current = point;
         const ids = shapesIntersectingSegment(
-          shapes,
+          unlockedShapes,
           spatialIndex,
           [
             [from.x, from.y],
@@ -2013,13 +2120,18 @@ export function Editor({ boardId }: EditorProps) {
         }
 
         const redrawingArrows = boundArrowsRef.current.size > 0;
+        const updates: ShapeUpdate[] = [];
         for (const [id, origin] of Object.entries(dragOriginsRef.current)) {
           const moved = { x: origin.x + dx, y: origin.y + dy };
-          doc.updateShape(id, moved);
+          updates.push({ id, patch: moved });
           if (redrawingArrows) {
             gestureShapesRef.current.set(id, { ...origin, ...moved });
           }
         }
+        // One write for the lot, rather than one per shape: each write asks
+        // the document what is locked, and a frame full of shapes is a lot of
+        // asking for every frame of a drag.
+        doc.updateShapes(updates, { allowLocked: carriedLockedRef.current });
         // After the shapes have moved, not before: an arrow works out where to
         // stop from where the shapes it is attached to are now.
         if (redrawingArrows) {
@@ -2130,8 +2242,8 @@ export function Editor({ boardId }: EditorProps) {
         }
       }
     },
-    // shapes/spatialIndex/zoom feed the eraser hit-test; omitting them freezes
-    // this callback on the first render's empty document.
+    // The unlocked shapes, the index and the zoom feed the eraser hit-test;
+    // omitting them freezes this callback on the first render's empty document.
     [
       actorRef,
       activeTool,
@@ -2139,7 +2251,7 @@ export function Editor({ boardId }: EditorProps) {
       isPlacingComment,
       followComment,
       doc,
-      shapes,
+      unlockedShapes,
       spatialIndex,
       camera.zoom,
       preferences.values.snapToObjects,
@@ -2224,7 +2336,19 @@ export function Editor({ boardId }: EditorProps) {
   );
 
   const handlePointerUp = useCallback(
-    (point: Point) => {
+    (point: Point, screenPoint: Point) => {
+      // A press on a locked shape that came up where it went down was a
+      // click on it: the padlock goes up over whatever is holding it locked.
+      const lockPress = lockPressRef.current;
+      lockPressRef.current = null;
+      if (
+        lockPress &&
+        Math.hypot(screenPoint.x - lockPress.at.x, screenPoint.y - lockPress.at.y) <=
+          LOCK_CLICK_SLOP
+      ) {
+        setActiveLock(lockSourcesOf([lockPress.id], shapes));
+      }
+
       // Before anything that can return early. A frame of edge scrolling can
       // still be queued behind this, and letting it read where the pointer was
       // would carry the board on after the gesture that asked for it ended.
@@ -2306,6 +2430,7 @@ export function Editor({ boardId }: EditorProps) {
 
       actorRef.send({ type: 'POINTER_UP', point });
       dragOriginsRef.current = {};
+      carriedLockedRef.current = EMPTY_IDS;
       resizeOriginRef.current = null;
       vertexOriginRef.current = null;
       vertexReleasedRef.current = false;
@@ -2344,7 +2469,9 @@ export function Editor({ boardId }: EditorProps) {
       // Frame labels first. They sit above the frame in space that otherwise
       // belongs to the board, so nothing else is competing for the gesture —
       // but a shape standing just above a frame would win a plain hit test.
-      const labelled = frameLabelAt(framesIn(shapes), point.x, point.y, camera.zoom);
+      // Neither a locked frame's name nor a locked shape's text opens: both
+      // are edits, and a lock is there to keep them from happening.
+      const labelled = frameLabelAt(framesIn(unlockedShapes), point.x, point.y, camera.zoom);
       if (labelled) {
         // Selected as well as opened, so the frame being renamed is outlined
         // while its name is in the field. Editing a label with nothing marking
@@ -2354,7 +2481,7 @@ export function Editor({ boardId }: EditorProps) {
         return;
       }
 
-      const hit = hitTest(shapes, spatialIndex, point.x, point.y, camera.zoom);
+      const hit = hitTest(unlockedShapes, spatialIndex, point.x, point.y, camera.zoom);
       if (hit && isText(hit)) {
         actorRef.send({
           type: 'EDIT_TEXT_SHAPE',
@@ -2393,7 +2520,7 @@ export function Editor({ boardId }: EditorProps) {
       if (activeTool !== 'select') return;
       actorRef.send({ type: 'START_TEXT_AT', point });
     },
-    [actorRef, shapes, spatialIndex, camera.zoom, readOnly, activeTool],
+    [actorRef, unlockedShapes, spatialIndex, camera.zoom, readOnly, activeTool],
   );
 
   // Moving the view yourself ends a follow. You cannot be carried and steer at
@@ -2420,6 +2547,7 @@ export function Editor({ boardId }: EditorProps) {
       // the document, which would show the shape for a frame and take it back.
       if (readOnly && !VIEW_ONLY_TOOLS.has(tool)) return;
       if (viewMode && tool !== VIEW_MODE_TOOL) return;
+      setActiveLock(null);
       if (actorRef.getSnapshot().matches('editingText')) {
         const active = document.activeElement;
         if (active instanceof HTMLTextAreaElement) {
@@ -2440,6 +2568,7 @@ export function Editor({ boardId }: EditorProps) {
     [actorRef, handlePickImage, readOnly, viewMode, preferences],
   );
   const handleEscape = useCallback(() => {
+    setActiveLock(null);
     actorRef.send({ type: 'ESCAPE' });
     // The comment tool is put down by Escape, where the drawing tools stay in
     // hand: there is no half-drawn shape for the key to be cancelling instead.
@@ -2457,13 +2586,19 @@ export function Editor({ boardId }: EditorProps) {
     () => actorRef.send({ type: 'ZOOM_BY', delta: 0.8, anchor: { x: width / 2, y: height / 2 } }),
     [actorRef, width, height],
   );
-  const handleDelete = useCallback(() => actorRef.send({ type: 'DELETE_SELECTED' }), [actorRef]);
+  // Nothing to delete in a selection that is all locked — and sending the
+  // delete would still let go of the selection, as if something had gone.
+  const handleDelete = useCallback(() => {
+    if (editableIds.length === 0) return;
+    actorRef.send({ type: 'DELETE_SELECTED' });
+  }, [actorRef, editableIds]);
   const handleSelectAll = useCallback(() => {
     // Nothing is selectable in view mode, by the keyboard any more than by
     // the pointer.
     if (viewMode) return;
-    actorRef.send({ type: 'SELECT_ALL', shapeIds: shapes.map((s) => s.id) });
-  }, [actorRef, shapes, viewMode]);
+    // Locked shapes are left out, as a marquee leaves them out.
+    actorRef.send({ type: 'SELECT_ALL', shapeIds: unlockedShapes.map((s) => s.id) });
+  }, [actorRef, unlockedShapes, viewMode]);
   // handleUndo/handleRedo are defined further down, with the open-file flow —
   // they have to know about the camera an open moved.
 
@@ -2483,11 +2618,13 @@ export function Editor({ boardId }: EditorProps) {
     (axis: FlipAxis) => {
       const snapshot = actorRef.getSnapshot();
       if (readOnly || !snapshot.matches('idle')) return;
-      flipSelection(doc, snapshot.context.selectedIds, axis, ({ reflected, center }) =>
+      // Locked shapes stay as they are, and so do the comments pinned to them.
+      const ids = snapshot.context.selectedIds.filter((id) => !lockedIds.has(id));
+      flipSelection(doc, ids, axis, ({ reflected, center }) =>
         comments.store.mirrorPins(reflected, axis, center),
       );
     },
-    [actorRef, doc, readOnly, comments.store],
+    [actorRef, doc, readOnly, comments.store, lockedIds],
   );
   const handleFlipHorizontal = useCallback(() => handleFlip('horizontal'), [handleFlip]);
   const handleFlipVertical = useCallback(() => handleFlip('vertical'), [handleFlip]);
@@ -2500,10 +2637,53 @@ export function Editor({ boardId }: EditorProps) {
     const snapshot = actorRef.getSnapshot();
     if (readOnly || !snapshot.matches('idle')) return;
     const ids = snapshot.context.selectedIds;
-    if (ids.length !== 1) return;
+    if (ids.length !== 1 || lockedIds.has(ids[0]!)) return;
     setLinkEditingId(ids[0]!);
     linkInputRef.current?.focus();
-  }, [actorRef, readOnly]);
+  }, [actorRef, readOnly, lockedIds]);
+
+  /**
+   * Lock the selection, or unlock it when all of it is locked already.
+   * Locking lets go of the selection — a locked shape is not one you go on
+   * working on — and unlocking keeps it, ready to be worked on again.
+   */
+  const handleToggleLock = useCallback(() => {
+    const snapshot = actorRef.getSnapshot();
+    if (readOnly || !snapshot.matches('idle')) return;
+    const ids = snapshot.context.selectedIds;
+    const current = doc.getShapes();
+    const { unlocking, updates } = lockToggleFor(ids, current, lockedShapeIds(current));
+    if (updates.length === 0) return;
+    doc.breakUndoGroup();
+    doc.updateShapes(updates);
+    doc.breakUndoGroup();
+    setActiveLock(null);
+    if (!unlocking) actorRef.send({ type: 'SELECT_ALL', shapeIds: [] });
+  }, [actorRef, doc, readOnly]);
+
+  /** Every lock on the board taken off, and what it freed selected to show what that was. */
+  const handleUnlockAll = useCallback(() => {
+    if (readOnly) return;
+    const before = doc.getShapes();
+    const freed = [...lockedShapeIds(before)];
+    const updates = unlockAllUpdates(before);
+    if (updates.length === 0) return;
+    doc.breakUndoGroup();
+    doc.updateShapes(updates);
+    doc.breakUndoGroup();
+    setActiveLock(null);
+    actorRef.send({ type: 'SELECT_ALL', shapeIds: freed });
+  }, [actorRef, doc, readOnly]);
+
+  /** The padlock: what it stands for unlocked, and picked up ready to work on. */
+  const handleUnlockFromPadlock = useCallback(() => {
+    if (readOnly || !activeLock) return;
+    doc.breakUndoGroup();
+    doc.updateShapes(activeLock.map((id) => ({ id, patch: { locked: false } })));
+    doc.breakUndoGroup();
+    actorRef.send({ type: 'SELECT_ALL', shapeIds: [...activeLock] });
+    setActiveLock(null);
+  }, [actorRef, doc, readOnly, activeLock]);
 
   /** Store a link the box settled on — null takes it away — and close the field. */
   const handleSaveLink = useCallback(
@@ -2869,11 +3049,13 @@ export function Editor({ boardId }: EditorProps) {
     if (selectedIds.length === 0) return;
     const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
     const wroteOK = await writeShapesToClipboard(selectedShapes);
-    if (wroteOK) {
-      // Delete via same event as Delete key — one undo step
+    // Delete via same event as Delete key — one undo step. Locked shapes are
+    // copied and stay; with nothing else picked the cut is only a copy, and
+    // the selection is kept rather than let go of for nothing.
+    if (wroteOK && editableIds.length > 0) {
       actorRef.send({ type: 'DELETE_SELECTED' });
     }
-  }, [shapes, selectedIds, actorRef]);
+  }, [shapes, selectedIds, editableIds, actorRef]);
 
   /**
    * Writing off the clipboard as a text shape, in the style new text is typed
@@ -3185,6 +3367,7 @@ export function Editor({ boardId }: EditorProps) {
     onFlipHorizontal: handleFlipHorizontal,
     onFlipVertical: handleFlipVertical,
     onEditLink: handleEditLink,
+    onToggleLock: handleToggleLock,
     onZoomTo100: handleZoomTo100,
     onZoomToFit: handleZoomToFit,
     onZoomToSelection: handleZoomToSelection,
@@ -3257,6 +3440,8 @@ export function Editor({ boardId }: EditorProps) {
       flipVertical: handleFlipVertical,
       editLink: handleEditLink,
       copyLinkToSelection: handleCopyLinkToSelection,
+      toggleLock: handleToggleLock,
+      unlockAll: handleUnlockAll,
       deleteSelection: handleDelete,
       selectAll: handleSelectAll,
       bringForward: handleBringForward,
@@ -3279,6 +3464,7 @@ export function Editor({ boardId }: EditorProps) {
       readOnly,
       viewMode,
       selectionCount: selectedIds.length,
+      editableSelectionCount: editableIds.length,
       canFlipSelection: canFlip,
       shapeCount: shapes.length,
       canUndo,
@@ -3419,7 +3605,9 @@ export function Editor({ boardId }: EditorProps) {
               onOpenChange={handleContextMenuOpenChange}
               container={editorRoot}
               actions={{
-                cut: selectedIds.length > 0 ? handleCut : null,
+                // Locked shapes can be copied and duplicated — the copies come
+                // out unlocked — but nothing that would change them is offered.
+                cut: editableIds.length > 0 ? handleCut : null,
                 copy: selectedIds.length > 0 ? handleCopy : null,
                 paste: handlePaste,
                 pasteHere: handlePasteHere,
@@ -3427,16 +3615,19 @@ export function Editor({ boardId }: EditorProps) {
                 flipHorizontal: canFlip ? handleFlipHorizontal : null,
                 flipVertical: canFlip ? handleFlipVertical : null,
                 // A link belongs to one shape, as its box does.
-                addLink: selectedIds.length === 1 ? handleEditLink : null,
+                addLink:
+                  selectedIds.length === 1 && editableIds.length === 1 ? handleEditLink : null,
                 copyLinkToSelection: selectedIds.length > 0 ? handleCopyLinkToSelection : null,
                 exportImage: showExport,
                 // The document reorders one shape at a time, so these wait
                 // for a single selection — as the properties panel's do.
-                bringToFront: selectedIds.length === 1 ? handleBringToFront : null,
-                bringForward: selectedIds.length === 1 ? handleBringForward : null,
-                sendBackward: selectedIds.length === 1 ? handleSendBackward : null,
-                sendToBack: selectedIds.length === 1 ? handleSendToBack : null,
-                deleteSelection: selectedIds.length > 0 ? handleDelete : null,
+                bringToFront: editableIds.length === 1 ? handleBringToFront : null,
+                bringForward: editableIds.length === 1 ? handleBringForward : null,
+                sendBackward: editableIds.length === 1 ? handleSendBackward : null,
+                sendToBack: editableIds.length === 1 ? handleSendToBack : null,
+                lock: selectedIds.length > 0 ? handleToggleLock : null,
+                unlockAll: shapes.length > 0 ? handleUnlockAll : null,
+                deleteSelection: editableIds.length > 0 ? handleDelete : null,
                 selectAll: shapes.length > 0 ? handleSelectAll : null,
                 showGrid: toggleGrid,
                 snapToObjects: toggleSnapping,
@@ -3462,7 +3653,10 @@ export function Editor({ boardId }: EditorProps) {
                 stylePanelInspector: !preferences.values.floatingStyleBar,
                 stylePanelHalo: preferences.values.floatingStyleBar,
               }}
-              labels={{ addLink: linkShape?.link ? 'Edit link' : 'Add link' }}
+              labels={{
+                addLink: linkShape?.link ? 'Edit link' : 'Add link',
+                lock: selectionLocked ? 'Unlock' : 'Lock',
+              }}
               onCloseAutoFocus={handleMenuCloseAutoFocus}
             >
               {/* Filling the container, as CanvasStack did before it was
@@ -3496,6 +3690,8 @@ export function Editor({ boardId }: EditorProps) {
                   searchHighlights={search.highlights}
                   snapGuides={snapGuides}
                   hoveredHandleId={hoveredHandleId}
+                  lockedIds={lockedIds}
+                  lockHighlightIds={padlock ? padlock.ids : undefined}
                   peersRef={peersRef}
                   subscribePeers={subscribe}
                   onPointerHover={handlePointerHover}
@@ -3671,7 +3867,8 @@ export function Editor({ boardId }: EditorProps) {
                 key={linkShape.id}
                 link={linkShape.link ?? null}
                 editing={linkEditing}
-                readOnly={readOnly}
+                // A locked shape's link can be opened and copied, not changed.
+                readOnly={readOnly || lockedIds.has(linkShape.id)}
                 anchor={selectionOnBoard}
                 board={screen}
                 avoid={haloRect}
@@ -3683,6 +3880,16 @@ export function Editor({ boardId }: EditorProps) {
               />
             )}
 
+            {/* Over a locked shape someone has just clicked: why nothing was
+                picked, and the way back in. */}
+            {padlock && (
+              <LockPadlock
+                anchor={padlock.anchor}
+                board={screen}
+                onUnlock={handleUnlockFromPadlock}
+              />
+            )}
+
             {/* The numbers behind the board, as a strip in the bottom-left
                 corner — the one stretch of that edge the dock and the zoom
                 panel leave free. Away with the rest of the chrome in focus
@@ -3691,7 +3898,8 @@ export function Editor({ boardId }: EditorProps) {
               <StatsPanel
                 shapes={shapes}
                 selectedShapes={selectedShapes}
-                readOnly={readOnly}
+                // A locked selection can be read here, not changed.
+                readOnly={readOnly || selectionLocked}
                 boardWidth={width}
                 onEdit={handleStatsEdit}
                 onEditEnd={handleStatsEditEnd}

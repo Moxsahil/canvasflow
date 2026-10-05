@@ -191,3 +191,19 @@ describe('shapesCentredOn', () => {
     expect(after.y - before.y).toBe(byId(placed, 'a').y);
   });
 });
+
+describe('pasting and locks', () => {
+  it('brings a copy in unlocked', () => {
+    const [copy] = withFreshIds([{ ...rect('a', 0, 0), locked: true } as Shape], counter());
+    expect(copy?.locked).toBeUndefined();
+  });
+
+  it('never drops a pasted shape into a locked frame', () => {
+    const lockedFrame = {
+      ...createFrame({ id: 'f', x: 0, y: 0, width: 400, height: 400 }),
+      locked: true,
+    } as Shape;
+    const [placed] = shapesCentredOn([rect('a', 0, 0)], { x: 200, y: 200 }, [lockedFrame]);
+    expect(placed?.frameId ?? null).toBeNull();
+  });
+});

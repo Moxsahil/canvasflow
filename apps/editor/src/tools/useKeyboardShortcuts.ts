@@ -29,6 +29,8 @@ interface UseKeyboardShortcutsOptions {
   onFlipVertical: () => void;
   /** Open the selected shape's link field: Cmd/Ctrl+K. */
   onEditLink: () => void;
+  /** Lock or unlock the selection: Shift+L. */
+  onToggleLock: () => void;
   onDuplicate: () => void;
   onZoomTo100: () => void;
   onZoomToFit: () => void;
@@ -83,6 +85,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onFlipHorizontal,
     onFlipVertical,
     onEditLink,
+    onToggleLock,
     onDuplicate,
     onZoomTo100,
     onZoomToFit,
@@ -119,6 +122,21 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
           if (flipAxis === 'horizontal') onFlipHorizontal();
           else onFlipVertical();
         }
+        return;
+      }
+      // Lock: Shift+L. Ahead of the tool keys, where a bare L is the line —
+      // and by code, as the flips are, so the shifted letter on any layout
+      // still answers. Held down, it toggles once.
+      if (
+        event.shiftKey &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        event.code === 'KeyL' &&
+        !isTypingTarget(event.target)
+      ) {
+        event.preventDefault();
+        if (!event.repeat) onToggleLock();
         return;
       }
       if (event.key === 'Escape') {
@@ -448,6 +466,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onFlipHorizontal,
     onFlipVertical,
     onEditLink,
+    onToggleLock,
     onDuplicate,
     onZoomTo100,
     onZoomToFit,

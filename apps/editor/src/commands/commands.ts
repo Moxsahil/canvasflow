@@ -14,6 +14,8 @@ import {
   Focus,
   Link,
   Link2,
+  Lock,
+  LockOpen,
   Maximize,
   MessageSquare,
   MoveDown,
@@ -91,7 +93,9 @@ export type CommandId =
   | 'flipHorizontal'
   | 'flipVertical'
   | 'editLink'
-  | 'copyLinkToSelection';
+  | 'copyLinkToSelection'
+  | 'toggleLock'
+  | 'unlockAll';
 
 /** Array order is the order the palette lists the groups in. */
 export const COMMAND_CATEGORIES = ['Tools', 'View', 'Edit', 'Arrange', 'Board', 'App'] as const;
@@ -108,6 +112,11 @@ export interface CommandContext {
   /** Read-only by choice, with the hand as the only tool. Implies `readOnly`. */
   viewMode: boolean;
   selectionCount: number;
+  /**
+   * The selection less its locked shapes — what an edit can change. A locked
+   * shape can still be selected, by a right-click, to be unlocked or copied.
+   */
+  editableSelectionCount: number;
   canFlipSelection: boolean;
   shapeCount: number;
   canUndo: boolean;
@@ -135,10 +144,11 @@ export interface CommandMeta {
 }
 
 const canEdit = (context: CommandContext) => !context.readOnly;
-const hasSelection = (context: CommandContext) => !context.readOnly && context.selectionCount > 0;
+const hasSelection = (context: CommandContext) =>
+  !context.readOnly && context.editableSelectionCount > 0;
 /** The z-order operations act on one shape; the document ignores them otherwise. */
 const hasOneSelected = (context: CommandContext) =>
-  !context.readOnly && context.selectionCount === 1;
+  !context.readOnly && context.selectionCount === 1 && context.editableSelectionCount === 1;
 const hasShapes = (context: CommandContext) => context.shapeCount > 0;
 const canFlipSelection = (context: CommandContext) => !context.readOnly && context.canFlipSelection;
 
@@ -333,7 +343,9 @@ export const COMMANDS: readonly CommandMeta[] = [
     category: 'Edit',
     shortcut: 'mod+d',
     keywords: ['clone', 'copy'],
-    available: hasSelection,
+    // Locked shapes too: the copies come out unlocked, and the originals are
+    // not touched.
+    available: (context) => !context.readOnly && context.selectionCount > 0,
   },
   {
     id: 'selectAll',
@@ -375,6 +387,26 @@ export const COMMANDS: readonly CommandMeta[] = [
     keywords: ['share', 'url', 'point to', 'shapes', 'deep link', 'go to'],
     // Copying a link changes nothing, so a viewer may do it as well.
     available: (context) => context.selectionCount > 0,
+  },
+  {
+    id: 'toggleLock',
+    label: 'Toggle lock',
+    icon: Lock,
+    category: 'Edit',
+    shortcut: 'shift+l',
+    keywords: ['lock', 'unlock', 'freeze', 'protect', 'pin down'],
+    available: (context) => !context.readOnly && context.selectionCount > 0,
+  },
+  {
+    id: 'unlockAll',
+    label: 'Unlock all',
+    icon: LockOpen,
+    category: 'Edit',
+    keywords: ['lock', 'unlock', 'free', 'everything'],
+    // Offered whenever there is something on the board, whether or not any of
+    // it is locked: a row that comes and goes is one you cannot learn the
+    // place of.
+    available: (context) => !context.readOnly && context.shapeCount > 0,
   },
 
   {

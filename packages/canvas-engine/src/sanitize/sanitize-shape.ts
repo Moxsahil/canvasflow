@@ -134,10 +134,17 @@ function baseStyle(raw: Raw) {
 export function sanitizeShape(candidate: unknown, genId: () => string): Shape | null {
   const shape = rebuildShape(candidate, genId);
   if (!shape) return null;
-  // Every kind can carry a link, so it is read here once rather than in each
-  // case below — and through the same check the document reads it with.
-  const link = readLink((candidate as Raw).link);
-  return link === null ? shape : { ...shape, link };
+  // Every kind can carry a link and a lock, so both are read here once rather
+  // than in each case below — the link through the same check the document
+  // reads it with.
+  const raw = candidate as Raw;
+  const link = readLink(raw.link);
+  return {
+    ...shape,
+    ...(link !== null && { link }),
+    // A board file keeps what was locked on the board it came from.
+    ...(raw.locked === true && { locked: true }),
+  };
 }
 
 function rebuildShape(candidate: unknown, genId: () => string): Shape | null {

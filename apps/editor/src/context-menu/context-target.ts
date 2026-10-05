@@ -32,6 +32,7 @@ export function contextPressAt(
   selectedIds: readonly string[],
   index: SpatialIndex,
   zoom: number,
+  lockedIds: ReadonlySet<string> = new Set(),
 ): ContextPress {
   if (selectedIds.length > 0) {
     const selected = new Set(selectedIds);
@@ -47,7 +48,15 @@ export function contextPressAt(
     }
   }
 
-  const hit = hitTest(shapes, index, point.x, point.y, zoom);
+  // A locked shape is passed over for whatever unlocked one is under it, as
+  // a left click passes over it — and taken only when nothing else is there,
+  // because a right-click is the one way to pick a locked shape out to
+  // unlock it.
+  const unlocked =
+    lockedIds.size === 0 ? shapes : shapes.filter((shape) => !lockedIds.has(shape.id));
+  const hit =
+    hitTest(unlocked, index, point.x, point.y, zoom) ??
+    (lockedIds.size === 0 ? null : hitTest(shapes, index, point.x, point.y, zoom));
   if (hit) return { target: 'selection', select: [hit.id] };
 
   return { target: 'canvas', select: selectedIds.length > 0 ? [] : null };

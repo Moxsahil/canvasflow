@@ -62,6 +62,18 @@ export interface BaseShape {
    * before links existed says, which is why there is no migration.
    */
   readonly link?: string | null;
+  /**
+   * Kept as it is: not selected by a click or a marquee, and refused by the
+   * document for any change but being unlocked.
+   *
+   * Only the shape's own flag. A shape standing in a locked frame, or an
+   * arrow attached to a locked shape, is locked too, but that is worked out
+   * from this flag on the frame or the shape — see `lockedShapeIds`.
+   *
+   * Absent and false both mean unlocked. Absent is what every shape written
+   * before locking existed says, which is why there is no migration.
+   */
+  readonly locked?: boolean;
 }
 
 export interface RectangleShape extends BaseShape {
