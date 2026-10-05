@@ -26,6 +26,7 @@ function handlers() {
     onFlipHorizontal: vi.fn(),
     onFlipVertical: vi.fn(),
     onEditLink: vi.fn(),
+    onToggleLock: vi.fn(),
     onDuplicate: vi.fn(),
     onZoomTo100: vi.fn(),
     onZoomToFit: vi.fn(),
@@ -200,5 +201,63 @@ describe('link keyboard dispatch', () => {
     useKeyboardShortcuts({ ...callbacks, disabled: true });
     press();
     expect(callbacks.onEditLink).not.toHaveBeenCalled();
+  });
+});
+
+describe('lock keyboard dispatch', () => {
+  let keydown: (event: KeyboardEvent) => void;
+  let callbacks: ReturnType<typeof handlers>;
+
+  beforeEach(() => {
+    callbacks = handlers();
+    vi.stubGlobal('window', {
+      addEventListener(type: string, listener: (event: KeyboardEvent) => void) {
+        if (type === 'keydown') keydown = listener;
+      },
+      removeEventListener: vi.fn(),
+    });
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  function press(overrides: Partial<KeyboardEvent> = {}) {
+    const event = {
+      code: 'KeyL',
+      key: 'L',
+      shiftKey: true,
+      metaKey: false,
+      ctrlKey: false,
+      altKey: false,
+      repeat: false,
+      target: null,
+      preventDefault: vi.fn(),
+      ...overrides,
+    } as unknown as KeyboardEvent;
+    keydown(event);
+    return event;
+  }
+
+  it('locks on Shift+L instead of picking up the line tool', () => {
+    useKeyboardShortcuts(callbacks);
+    expect(press().preventDefault).toHaveBeenCalledOnce();
+    expect(callbacks.onToggleLock).toHaveBeenCalledOnce();
+    expect(callbacks.onSelectTool).not.toHaveBeenCalled();
+  });
+
+  it('toggles once for a held key', () => {
+    useKeyboardShortcuts(callbacks);
+    press();
+    press({ repeat: true });
+    press({ repeat: true });
+    expect(callbacks.onToggleLock).toHaveBeenCalledOnce();
+  });
+
+  it('leaves the bare letter to the line tool, and a capital to a text field', () => {
+    useKeyboardShortcuts(callbacks);
+    press({ key: 'l', shiftKey: false });
+    expect(callbacks.onSelectTool).toHaveBeenCalledWith('line');
+    const typed = press({ target: { tagName: 'INPUT', type: 'text' } as unknown as EventTarget });
+    expect(typed.preventDefault).not.toHaveBeenCalled();
+    expect(callbacks.onToggleLock).not.toHaveBeenCalled();
   });
 });

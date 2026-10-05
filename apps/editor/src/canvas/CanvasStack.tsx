@@ -35,6 +35,10 @@ interface CanvasStackProps {
   snapGuides?: readonly SnapGuide[];
   /** The point handle under the pointer, which reveals the hidden ones. */
   hoveredHandleId?: string | null;
+  /** Locked shapes: selected ones are outlined dashed, with no handles. */
+  lockedIds?: ReadonlySet<string>;
+  /** The locked shapes whose padlock is up, outlined in grey. */
+  lockHighlightIds?: readonly string[];
   /** Decoded image bitmaps, and a counter that changes when one lands. */
   images?: ImageSource;
   imageRevision?: number;
@@ -91,6 +95,8 @@ export function CanvasStack({
   searchHighlights,
   snapGuides,
   hoveredHandleId,
+  lockedIds,
+  lockHighlightIds,
   images,
   imageRevision,
   darkMode = false,
@@ -149,6 +155,8 @@ export function CanvasStack({
     search: searchHighlights,
     snapGuides,
     hoveredHandleId,
+    lockedIds,
+    lockHighlightIds,
   });
 
   const screenToWorldFn = useCallback(

@@ -63,6 +63,10 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
   if (link !== null) {
     map.set('link', link);
   }
+  // Written only when locked, so a shape that never was carries no key.
+  if (shape.locked === true) {
+    map.set('locked', true);
+  }
 
   // Shape-kind-specific fields
   switch (shape.kind) {
@@ -239,6 +243,9 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
     // id is harmless and gets rewritten the next time the shape moves.
     ...(typeof frameIdRaw === 'string' && { frameId: frameIdRaw }),
     ...(link !== null && { link }),
+    // Only `true` locks. Anything else another client wrote reads as unlocked,
+    // which leaves the shape editable rather than stuck.
+    ...(map.get('locked') === true && { locked: true }),
   };
 
   const edges = (map.get('edges') as Edges) ?? 'sharp';

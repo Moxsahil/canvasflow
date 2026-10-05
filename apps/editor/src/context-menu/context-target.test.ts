@@ -6,10 +6,15 @@ function rect(id: string, x: number, y: number): Shape {
   return createRectangle({ id, x, y, width: 100, height: 100 });
 }
 
-function press(point: { x: number; y: number }, shapes: Shape[], selectedIds: string[]) {
+function press(
+  point: { x: number; y: number },
+  shapes: Shape[],
+  selectedIds: string[],
+  locked: ReadonlySet<string> = new Set(),
+) {
   const index = new SpatialIndex();
   index.rebuild(shapes);
-  return contextPressAt(point, shapes, selectedIds, index, 1);
+  return contextPressAt(point, shapes, selectedIds, index, 1, locked);
 }
 
 describe('contextPressAt', () => {
@@ -53,6 +58,25 @@ describe('contextPressAt', () => {
     expect(press({ x: 200, y: 200 }, [frame], ['f'])).toEqual({
       target: 'selection',
       select: null,
+    });
+  });
+});
+
+describe('contextPressAt, with locked shapes', () => {
+  const below = rect('below', 0, 0);
+  const lockedOnTop = rect('locked', 0, 0);
+
+  it('picks out a locked shape when nothing else is under the pointer, to unlock it', () => {
+    expect(press({ x: 50, y: 50 }, [lockedOnTop], [], new Set(['locked']))).toEqual({
+      target: 'selection',
+      select: ['locked'],
+    });
+  });
+
+  it('passes over a locked shape for an unlocked one under it, as a click does', () => {
+    expect(press({ x: 50, y: 50 }, [below, lockedOnTop], [], new Set(['locked']))).toEqual({
+      target: 'selection',
+      select: ['below'],
     });
   });
 });

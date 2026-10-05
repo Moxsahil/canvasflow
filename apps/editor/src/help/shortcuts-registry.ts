@@ -68,6 +68,7 @@ export const SHORTCUTS: ShortcutCategory[] = [
       { keys: 'mod+[', description: 'Send to back' },
       { keys: 'shift+h', description: 'Flip horizontal' },
       { keys: 'shift+v', description: 'Flip vertical' },
+      { keys: 'shift+l', description: 'Lock or unlock selection' },
     ],
   },
   {

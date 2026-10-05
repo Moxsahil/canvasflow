@@ -4,6 +4,7 @@ import {
   framesIn,
   isArrow,
   isFrame,
+  lockedShapeIds,
   type ArrowBinding,
   type Shape,
 } from '@canvasflow/canvas-engine';
@@ -31,7 +32,10 @@ export function withFreshIds(shapes: readonly Shape[], genId: () => string): Sha
 
   return copies.map(({ shape, id }) => {
     const frameId = shape.frameId != null ? fresh.get(shape.frameId) : undefined;
-    const copy: Shape = frameId ? { ...shape, id, frameId } : { ...shape, id };
+    // A copy is something to work on. One that arrived locked could not even
+    // be moved off the original it was copied from.
+    const { locked: _wasLocked, ...unlocked } = shape;
+    const copy = (frameId ? { ...unlocked, id, frameId } : { ...unlocked, id }) as Shape;
     return isArrow(copy)
       ? {
           ...copy,
@@ -87,7 +91,9 @@ export function shapesCentredOn(
 
   // Pasted shapes land on top, so their frames come after the board's: where
   // two overlap, the one drawn last is the one that holds what is in it.
-  const onBoard = framesIn(board);
+  // Never into a locked frame, which would lock what was just pasted.
+  const lockedOnBoard = lockedShapeIds(board);
+  const onBoard = framesIn(board).filter((frame) => !lockedOnBoard.has(frame.id));
   let frames = [...onBoard, ...framesIn(placed)];
 
   for (let i = 0; i < placed.length; i++) {

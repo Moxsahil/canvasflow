@@ -182,3 +182,20 @@ describe('membersHiddenByTheirFrame', () => {
     expect(membersHiddenByTheirFrame(shapes)).toEqual([]);
   });
 });
+
+describe('locked frames', () => {
+  const locked = { ...frame('f', 0, 0), locked: true } as Shape;
+
+  it('take in nothing that is moved over them', () => {
+    const moved = rect('a', 20, 20);
+    expect(assignmentsAfterMove(['a'], [locked, moved])).toEqual([]);
+  });
+
+  it('are not drawn into by a new frame, and nor are locked shapes', () => {
+    const big = frame('big', -100, -100, 600, 400);
+    const lockedBox = { ...rect('box', 300, 0), locked: true } as Shape;
+    expect(shapesCapturedBy(big, [big, locked, lockedBox, rect('loose', 250, 50)])).toEqual([
+      'loose',
+    ]);
+  });
+});

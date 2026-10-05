@@ -47,6 +47,13 @@ describe('the two menus', () => {
     expect(idsIn(contextMenuFor('canvas', { readOnly: true }))).not.toContain('pasteHere');
   });
 
+  it('keeps Lock and Unlock all away from a viewer, who cannot change the board', () => {
+    expect(idsIn(contextMenuFor('selection', { readOnly: true }))).not.toContain('lock');
+    expect(idsIn(contextMenuFor('canvas', { readOnly: true }))).not.toContain('unlockAll');
+    expect(idsIn(contextMenuFor('selection', { readOnly: false }))).toContain('lock');
+    expect(idsIn(contextMenuFor('canvas', { readOnly: false }))).toContain('unlockAll');
+  });
+
   it('lets a viewer copy a link to the selection, but not add one', () => {
     const ids = idsIn(contextMenuFor('selection', { readOnly: true }));
     expect(ids).toContain('copyLinkToSelection');
@@ -68,6 +75,7 @@ describe('row metadata', () => {
     expect(CONTEXT_MENU_ITEMS.flipHorizontal.shortcut).toBe('shift+h');
     expect(CONTEXT_MENU_ITEMS.flipVertical.shortcut).toBe('shift+v');
     expect(CONTEXT_MENU_ITEMS.addLink.shortcut).toBe('mod+k');
+    expect(CONTEXT_MENU_ITEMS.lock.shortcut).toBe('shift+l');
     expect(CONTEXT_MENU_ITEMS.exportImage.shortcut).toBe('mod+shift+e');
   });
 
@@ -86,7 +94,7 @@ describe('row metadata', () => {
   });
 
   it('gives an unbuilt row no shortcut, since nothing would answer the key', () => {
-    expect(CONTEXT_MENU_ITEMS.lock.shortcut).toBeUndefined();
+    expect(CONTEXT_MENU_ITEMS.hide.shortcut).toBeUndefined();
     expect(CONTEXT_MENU_ITEMS.copyAsPng.shortcut).toBeUndefined();
   });
 });

@@ -6,6 +6,7 @@ const editing: CommandContext = {
   readOnly: false,
   viewMode: false,
   selectionCount: 1,
+  editableSelectionCount: 1,
   canFlipSelection: true,
   shapeCount: 3,
   canUndo: true,
@@ -110,8 +111,32 @@ describe('availability', () => {
     }
   });
 
+  it('withholds edits from a selection that is all locked, but not copying or unlocking it', () => {
+    const ids = available({ ...editing, editableSelectionCount: 0 });
+    for (const id of ['cut', 'deleteSelection', 'bringToFront', 'sendBackward', 'editLink']) {
+      expect(ids, id).not.toContain(id);
+    }
+    for (const id of ['copy', 'duplicate', 'copyLinkToSelection', 'toggleLock']) {
+      expect(ids, id).toContain(id);
+    }
+  });
+
+  it('keeps Unlock all for any board with shapes on it, and away from a viewer', () => {
+    expect(available({ ...editing, selectionCount: 0, editableSelectionCount: 0 })).toContain(
+      'unlockAll',
+    );
+    expect(available({ ...editing, shapeCount: 0 })).not.toContain('unlockAll');
+    expect(available({ ...editing, readOnly: true })).not.toContain('unlockAll');
+    expect(available({ ...editing, readOnly: true })).not.toContain('toggleLock');
+  });
+
   it('withholds the selection commands when nothing is selected', () => {
-    const ids = available({ ...editing, selectionCount: 0, canFlipSelection: false });
+    const ids = available({
+      ...editing,
+      selectionCount: 0,
+      editableSelectionCount: 0,
+      canFlipSelection: false,
+    });
     for (const id of [
       'cut',
       'copy',
@@ -150,7 +175,12 @@ describe('availability', () => {
   });
 
   it('withholds the commands that need shapes on an empty board', () => {
-    const ids = available({ ...editing, shapeCount: 0, selectionCount: 0 });
+    const ids = available({
+      ...editing,
+      shapeCount: 0,
+      selectionCount: 0,
+      editableSelectionCount: 0,
+    });
     expect(ids).not.toContain('zoomToFit');
     expect(ids).not.toContain('selectAll');
   });
@@ -159,8 +189,12 @@ describe('availability', () => {
     // Reset recentres the view as well as clearing, so it still does something
     // on an empty board — and a row that comes and goes with the shape count
     // is a row you cannot learn the place of.
-    expect(available({ ...editing, selectionCount: 0 })).toContain('resetCanvas');
-    expect(available({ ...editing, shapeCount: 0, selectionCount: 0 })).toContain('resetCanvas');
+    expect(available({ ...editing, selectionCount: 0, editableSelectionCount: 0 })).toContain(
+      'resetCanvas',
+    );
+    expect(
+      available({ ...editing, shapeCount: 0, selectionCount: 0, editableSelectionCount: 0 }),
+    ).toContain('resetCanvas');
   });
 
   it('withholds renaming a board this account may not retitle', () => {

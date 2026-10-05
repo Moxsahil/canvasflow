@@ -1,5 +1,6 @@
 import * as Y from 'yjs';
 import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing';
+import { lockedShapeIds, type LockFacts } from '../shapes/lock.js';
 import type { Shape } from '../shapes/shape.js';
 import { shapeToYMap, yMapToShape } from './yjs-shape.js';
 
@@ -21,6 +22,31 @@ function compareZIndex(a: string, b: string): number {
 export interface ShapeUpdate {
   readonly id: string;
   readonly patch: Partial<Shape>;
+}
+
+const NO_IDS: ReadonlySet<string> = new Set();
+
+/** The fields lock is worked out from, read straight off a stored shape. */
+function lockFactsOf(yMap: Y.Map<unknown>): LockFacts {
+  const bindingTarget = (value: unknown) => {
+    const shapeId = (value as { shapeId?: unknown } | null | undefined)?.shapeId;
+    return typeof shapeId === 'string' ? { shapeId } : null;
+  };
+  const frameId = yMap.get('frameId');
+  return {
+    id: yMap.get('id') as string,
+    kind: yMap.get('kind') as string,
+    locked: yMap.get('locked') === true,
+    frameId: typeof frameId === 'string' ? frameId : null,
+    startBinding: bindingTarget(yMap.get('startBinding')),
+    endBinding: bindingTarget(yMap.get('endBinding')),
+  };
+}
+
+/** A patch that does nothing but set the shape's own lock — the one change a locked shape takes. */
+function onlySetsLock(patch: Partial<Shape>): boolean {
+  const keys = Object.keys(patch);
+  return keys.length > 0 && keys.every((key) => key === 'locked');
 }
 
 /**
@@ -163,6 +189,26 @@ export class BoardDocument {
     this.undoManager.addToScope(type);
   }
 
+  /**
+   * The shapes locked right now, by their own flag, a locked frame around them
+   * or a locked shape they are attached to. See `lockedShapeIds`.
+   *
+   * Read from the stored fields rather than by rebuilding every shape: this
+   * runs on every write, and on a board with nothing locked it is one pass
+   * that finds no flag.
+   */
+  lockedIds(): ReadonlySet<string> {
+    let anyLocked = false;
+    for (const yMap of this.yShapes) {
+      if (yMap.get('locked') === true) {
+        anyLocked = true;
+        break;
+      }
+    }
+    if (!anyLocked) return NO_IDS;
+    return lockedShapeIds(Array.from(this.yShapes, lockFactsOf));
+  }
+
   /** Several edits as one: one sync update to everyone else, and one undo step. */
   batch(edit: () => void): void {
     if (this.readOnly) return;
@@ -275,8 +321,15 @@ export class BoardDocument {
     }, 'local');
   }
 
-  updateShape(id: string, patch: Partial<Shape>): void {
+  /**
+   * Change one shape. A locked one takes nothing but being unlocked, unless
+   * the caller vouches for the change with `allowLocked` — an arrow following
+   * the shape it is attached to, say, which is the shape moving rather than
+   * the arrow being edited.
+   */
+  updateShape(id: string, patch: Partial<Shape>, options?: { allowLocked?: boolean }): void {
     if (this.readOnly) return;
+    if (!options?.allowLocked && !onlySetsLock(patch) && this.lockedIds().has(id)) return;
     this.yDoc.transact(() => {
       for (let i = 0; i < this.yShapes.length; i++) {
         const yMap = this.yShapes.get(i);
@@ -292,18 +345,39 @@ export class BoardDocument {
     }, 'local');
   }
 
-  /** Apply geometry and ordered layer raises in one transaction and board pass. */
+  /**
+   * Apply geometry and ordered layer raises in one transaction and board pass.
+   *
+   * Locked shapes are left out, as `updateShape` leaves them, except for a
+   * change that only sets the lock and for the ids named in `allowLocked`.
+   */
   updateShapes(
     updates: readonly ShapeUpdate[],
-    options?: { readonly bringToFront?: readonly string[] },
+    options?: {
+      readonly bringToFront?: readonly string[];
+      /**
+       * Locked shapes this write may move anyway, because something else is
+       * carrying them: members of a frame being dragged, arrows following
+       * the shapes they are attached to.
+       */
+      readonly allowLocked?: ReadonlySet<string>;
+    },
   ): void {
     const raiseIds = options?.bringToFront ?? [];
     if (this.readOnly || (updates.length === 0 && raiseIds.length === 0)) return;
-    const patches = new Map(updates.map(({ id, patch }) => [id, patch]));
+    const locked = this.lockedIds();
+    const allowed = options?.allowLocked ?? NO_IDS;
+    const writable = (id: string) => !locked.has(id) || allowed.has(id);
+    const patches = new Map(
+      updates
+        .filter(({ id, patch }) => writable(id) || onlySetsLock(patch))
+        .map(({ id, patch }) => [id, patch]),
+    );
     const toRaise = new Map<string, Y.Map<unknown> | null>();
     // A frame may occur once directly and again with its parent. Keeping the
     // last occurrence leaves its descendants above it in the requested order.
     for (const id of raiseIds) {
+      if (!writable(id)) continue;
       toRaise.delete(id);
       toRaise.set(id, null);
     }
@@ -342,9 +416,11 @@ export class BoardDocument {
     }, 'local');
   }
 
+  /** Locked shapes are not deleted: a lock is there to keep the shape. */
   deleteShapes(ids: readonly string[]): void {
     if (this.readOnly) return;
-    const idSet = new Set(ids);
+    const locked = this.lockedIds();
+    const idSet = new Set(ids.filter((id) => !locked.has(id)));
     this.yDoc.transact(() => {
       for (let i = this.yShapes.length - 1; i >= 0; i--) {
         const yMap = this.yShapes.get(i);
@@ -430,7 +506,8 @@ export class BoardDocument {
   nudgeShapes(ids: readonly string[], dx: number, dy: number): void {
     if (this.readOnly) return;
     if (ids.length === 0 || (dx === 0 && dy === 0)) return;
-    const idSet = new Set(ids);
+    const locked = this.lockedIds();
+    const idSet = new Set(ids.filter((id) => !locked.has(id)));
     this.yDoc.transact(() => {
       for (let i = 0; i < this.yShapes.length; i++) {
         const yMap = this.yShapes.get(i);
@@ -474,6 +551,7 @@ export class BoardDocument {
     // Old id to new id, so a reference between two shapes copied together
     // points at the copy rather than back at the original.
     const remapped = new Map(originals.map((o) => [o.yMap.get('id') as string, o.newId]));
+    const locked = this.lockedIds();
 
     this.yDoc.transact(() => {
       let currentMax = this.getMaxZIndex();
@@ -489,8 +567,14 @@ export class BoardDocument {
           } else if (key === 'frameId') {
             // A member copied alongside its frame joins the copy. One copied
             // without its frame stays in the original — which is the frame it
-            // is still standing in, since the copy lands offset from it.
-            clone.set('frameId', remapped.get(value as string) ?? value);
+            // is still standing in, since the copy lands offset from it —
+            // unless that frame is locked, which would lock the copy with it.
+            const copiedFrame = remapped.get(value as string);
+            if (copiedFrame) clone.set('frameId', copiedFrame);
+            else if (!locked.has(value as string)) clone.set('frameId', value);
+          } else if (key === 'locked') {
+            // A copy is something to work on. One that came out locked could
+            // not even be moved off the original it was copied from.
           } else {
             clone.set(key, value);
           }

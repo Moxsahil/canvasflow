@@ -10,8 +10,6 @@ import {
   FileCode,
   FileImage,
   Layers,
-  Lock,
-  LockOpen,
   MousePointerClick,
   PanelRight,
   PenTool,
@@ -204,8 +202,8 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   addToLibrary: soon('Add to library', BookPlus, false),
 
   hide: soon('Hide', EyeOff),
-  lock: soon('Lock', Lock),
-  unlockAll: soon('Unlock all', LockOpen),
+  lock: fromCommand('toggleLock', 'Lock'),
+  unlockAll: fromCommand('unlockAll', 'Unlock all'),
   deleteSelection: fromCommand('deleteSelection', 'Delete'),
 
   selectAll: fromCommand('selectAll', 'Select all'),

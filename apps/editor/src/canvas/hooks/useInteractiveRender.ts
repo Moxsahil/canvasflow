@@ -22,6 +22,10 @@ interface UseInteractiveRenderOptions {
   snapGuides?: readonly SnapGuide[];
   /** The point handle under the pointer, which reveals the hidden ones. */
   hoveredHandleId?: string | null;
+  /** Locked shapes: selected ones are outlined dashed, with no handles. */
+  lockedIds?: ReadonlySet<string>;
+  /** The locked shapes whose padlock is up, outlined in grey. */
+  lockHighlightIds?: readonly string[];
 }
 
 export function useInteractiveRender(
@@ -39,6 +43,8 @@ export function useInteractiveRender(
     search,
     snapGuides,
     hoveredHandleId,
+    lockedIds,
+    lockHighlightIds,
   } = options;
 
   useEffect(() => {
@@ -56,6 +62,8 @@ export function useInteractiveRender(
       search,
       snapGuides,
       hoveredHandleId,
+      lockedIds,
+      lockHighlightIds,
     });
   }, [
     canvasRef,
@@ -69,5 +77,7 @@ export function useInteractiveRender(
     search,
     snapGuides,
     hoveredHandleId,
+    lockedIds,
+    lockHighlightIds,
   ]);
 }
