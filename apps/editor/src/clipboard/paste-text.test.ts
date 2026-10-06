@@ -37,6 +37,24 @@ describe('clipboardContentFrom', () => {
     });
   });
 
+  it('reads an SVG document as the picture it describes', () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect/></svg>';
+
+    for (const raw of [svg, `<?xml version="1.0" encoding="UTF-8"?>\n${svg}\n`]) {
+      const content = clipboardContentFrom(raw, counter());
+      expect(content?.kind).toBe('svg');
+      if (content?.kind !== 'svg') continue;
+      expect(content.file.type).toBe('image/svg+xml');
+      expect(content.file.name).toBe('pasted-image.svg');
+    }
+  });
+
+  it('leaves writing that only mentions an SVG as writing', () => {
+    const raw = 'Paste this: <svg width="10"></svg> into the page';
+
+    expect(clipboardContentFrom(raw, counter())).toMatchObject({ kind: 'text' });
+  });
+
   it('reads anything else as the writing it is', () => {
     expect(clipboardContentFrom('Hello, board', counter())).toEqual({
       kind: 'text',

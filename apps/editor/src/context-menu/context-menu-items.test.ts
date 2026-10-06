@@ -104,8 +104,22 @@ describe('row metadata', () => {
   });
 
   it('gives an unbuilt row no shortcut, since nothing would answer the key', () => {
-    expect(CONTEXT_MENU_ITEMS.copyAsPng.shortcut).toBeUndefined();
     expect(CONTEXT_MENU_ITEMS.flatten.shortcut).toBeUndefined();
+    expect(CONTEXT_MENU_ITEMS.cropImage.shortcut).toBeUndefined();
+  });
+
+  it('takes the Copy as rows from their commands, and leaves them to a viewer', () => {
+    expect(CONTEXT_MENU_ITEMS.copyAsPng).toMatchObject({ label: 'PNG', shortcut: 'alt+shift+c' });
+    for (const id of [
+      'copyAsPng',
+      'copyAsSvg',
+      'copyAsText',
+      'copyAsMermaid',
+      'copyAsJson',
+    ] as const) {
+      expect(CONTEXT_MENU_ITEMS[id].icon, id).toBeDefined();
+      expect(CONTEXT_MENU_ITEMS[id].edits, id).toBe(false);
+    }
   });
 });
 

@@ -33,6 +33,7 @@ function handlers() {
     onZoomToFit: vi.fn(),
     onZoomToSelection: vi.fn(),
     onCopy: vi.fn(),
+    onCopyAsPng: vi.fn(),
     onCut: vi.fn(),
     onPaste: vi.fn(),
     onShowHelp: vi.fn(),
@@ -317,5 +318,56 @@ describe('hide keyboard dispatch', () => {
     useKeyboardShortcuts(callbacks);
     press({ target: { tagName: 'TEXTAREA' } as unknown as EventTarget });
     expect(callbacks.onHide).not.toHaveBeenCalled();
+  });
+});
+
+describe('copy as PNG keyboard dispatch', () => {
+  let keydown: (event: KeyboardEvent) => void;
+  let callbacks: ReturnType<typeof handlers>;
+
+  beforeEach(() => {
+    callbacks = handlers();
+    vi.stubGlobal('window', {
+      addEventListener(type: string, listener: (event: KeyboardEvent) => void) {
+        if (type === 'keydown') keydown = listener;
+      },
+      removeEventListener: vi.fn(),
+    });
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  function press(overrides: Partial<KeyboardEvent> = {}) {
+    const event = {
+      code: 'KeyC',
+      // What a Mac types for the combo; read by code, so it doesn't matter.
+      key: 'Ç',
+      shiftKey: true,
+      metaKey: false,
+      ctrlKey: false,
+      altKey: true,
+      repeat: false,
+      target: null,
+      preventDefault: vi.fn(),
+      ...overrides,
+    } as unknown as KeyboardEvent;
+    keydown(event);
+    return event;
+  }
+
+  it('copies on Shift+Alt+C, once for a held key', () => {
+    useKeyboardShortcuts(callbacks);
+    expect(press().preventDefault).toHaveBeenCalledOnce();
+    press({ repeat: true });
+    expect(callbacks.onCopyAsPng).toHaveBeenCalledOnce();
+    expect(callbacks.onToggleComments).not.toHaveBeenCalled();
+  });
+
+  it('leaves Shift+C to the comments and the combo to a text field', () => {
+    useKeyboardShortcuts(callbacks);
+    press({ altKey: false, key: 'C' });
+    expect(callbacks.onToggleComments).toHaveBeenCalledOnce();
+    press({ target: { tagName: 'TEXTAREA' } as unknown as EventTarget });
+    expect(callbacks.onCopyAsPng).not.toHaveBeenCalled();
   });
 });

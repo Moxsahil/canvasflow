@@ -13,6 +13,10 @@ const editing: CommandContext = {
   canRedo: true,
   canRename: true,
   canUseLibrary: true,
+  canCopyAs: true,
+  canCopyAsPng: true,
+  canCopyAsText: true,
+  canCopyAsMermaid: true,
 };
 
 const available = (context: CommandContext) =>
@@ -145,6 +149,34 @@ describe('availability', () => {
     expect(available({ ...editing, selectionCount: 0, editableSelectionCount: 0 })).not.toContain(
       'addToLibrary',
     );
+  });
+
+  it('offers each Copy as format when there is something in it to copy, to a viewer too', () => {
+    const viewer = available({ ...editing, readOnly: true, editableSelectionCount: 0 });
+    for (const id of ['copyAsPng', 'copyAsSvg', 'copyAsText', 'copyAsMermaid', 'copyAsJson']) {
+      expect(viewer, id).toContain(id);
+    }
+
+    const nothing = available({
+      ...editing,
+      canCopyAs: false,
+      canCopyAsPng: false,
+      canCopyAsText: false,
+      canCopyAsMermaid: false,
+    });
+    for (const id of ['copyAsPng', 'copyAsSvg', 'copyAsText', 'copyAsMermaid', 'copyAsJson']) {
+      expect(nothing, id).not.toContain(id);
+    }
+
+    // A browser that cannot hold an image keeps the formats that are text.
+    const noImages = available({ ...editing, canCopyAsPng: false });
+    expect(noImages).not.toContain('copyAsPng');
+    expect(noImages).toContain('copyAsSvg');
+
+    const noWords = available({ ...editing, canCopyAsText: false, canCopyAsMermaid: false });
+    expect(noWords).not.toContain('copyAsText');
+    expect(noWords).not.toContain('copyAsMermaid');
+    expect(noWords).toContain('copyAsJson');
   });
 
   it('keeps Unlock all for any board with shapes on it, and away from a viewer', () => {

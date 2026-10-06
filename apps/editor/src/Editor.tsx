@@ -71,14 +71,23 @@ import {
 import {
   PASTE_HERE_NOTICE,
   PASTE_NOTICE,
+  canWriteClipboardItems,
   clipboardContentFrom,
+  copyDataFor,
+  copyJsonOf,
+  copySubjectFor,
+  copyTextOf,
+  hasFlowchart,
+  hasWords,
   isPasteNotice,
+  mermaidFlowchart,
   pastedTextWidth,
   readClipboardContent,
   readImagesFromClipboard,
   shapesCentredOn,
   withFreshIds,
   wrappedToWidth,
+  writeLateTextToClipboard,
   writeShapesToClipboard,
   type CarriedPaste,
 } from './clipboard';
@@ -199,7 +208,18 @@ import {
   useSelfPresence,
 } from './collab';
 import { useAppTheme } from './theme';
-import { useOpenBoardFile, useSaveBoardFile } from './file';
+import {
+  ExportTooLargeError,
+  canvasToPngBlob,
+  copyPngToClipboard,
+  exportScopeFor,
+  renderExportCanvas,
+  svgMarkup,
+  useOpenBoardFile,
+  useSaveBoardFile,
+  type ExportScope,
+  type ImageExportSettings,
+} from './file';
 import { ExportImageDialog } from './export';
 import { FindBar, useCanvasSearch } from './search';
 import { AccessRevokedDialog, ShareDialog } from './share';
@@ -3083,6 +3103,115 @@ export function Editor({ boardId }: EditorProps) {
     }
   }, [shapes, selectedIds, showToast]);
 
+  // --- copy as --------------------------------------------------------------
+  // Each copies the selection, or the board when nothing is selected: the
+  // shapes showing on it, as an export takes them. Nothing here changes the
+  // board, so a viewer may copy too.
+  const copyData = useMemo(
+    () => copyDataFor(shownShapes, selectedShapes),
+    [shownShapes, selectedShapes],
+  );
+  const canCopyAs = copyData.length > 0;
+  const canCopyAsPng = canCopyAs && canWriteClipboardItems();
+  const canCopyAsText = useMemo(() => hasWords(copyData), [copyData]);
+  const canCopyAsMermaid = useMemo(() => hasFlowchart(copyData), [copyData]);
+
+  /** Said once the clipboard has it: "Copied selection as PNG". */
+  const showCopied = useCallback(
+    (format: string) => showToast(`Copied ${copySubjectFor(selectedShapes)} as ${format}`),
+    [selectedShapes, showToast],
+  );
+  const showCopyFailed = useCallback(
+    (err: unknown) => {
+      // The clipboard's own refusals are DOMExceptions worded for developers;
+      // ours are worded for the person copying.
+      const ours = err instanceof Error && !(err instanceof DOMException);
+      showToast(
+        err instanceof ExportTooLargeError
+          ? 'Too large to copy as an image. Try copying less.'
+          : ours
+            ? err.message
+            : 'Couldn’t copy to the clipboard',
+        'warn',
+      );
+    },
+    [showToast],
+  );
+
+  /**
+   * An image as the screen shows it: the theme on screen and its background.
+   * Export image is where to choose otherwise.
+   */
+  const copyImageSettings = useCallback(
+    (scale: number, region: ExportScope['region']): ImageExportSettings => ({
+      scale,
+      withBackground: true,
+      dark: presenceTheme === 'dark',
+      embedScene: false,
+      backgroundColor: canvasBackgroundFor(presenceTheme),
+      region,
+    }),
+    [presenceTheme],
+  );
+
+  /**
+   * At twice the size, so it pastes sharp on a sharp screen — or once, where
+   * twice is more than a canvas holds. Handed to the clipboard before the PNG
+   * is encoded: Safari refuses a write that waits for it.
+   */
+  const handleCopyAsPng = useCallback(() => {
+    const { shapes: drawn, region } = exportScopeFor(shownShapes, selectedShapes);
+    if (drawn.length === 0 && !region) return;
+    const render = (scale: number) =>
+      renderExportCanvas(drawn, copyImageSettings(scale, region), images.cache).canvas;
+
+    let canvas: HTMLCanvasElement;
+    try {
+      try {
+        canvas = render(2);
+      } catch (err) {
+        if (!(err instanceof ExportTooLargeError)) throw err;
+        canvas = render(1);
+      }
+    } catch (err) {
+      showCopyFailed(err);
+      return;
+    }
+    copyPngToClipboard(canvasToPngBlob(canvas)).then(() => showCopied('PNG'), showCopyFailed);
+  }, [shownShapes, selectedShapes, copyImageSettings, images.cache, showCopied, showCopyFailed]);
+
+  /** The SVG element alone. Images go in as their stored bytes, so a vector stays one. */
+  const handleCopyAsSvg = useCallback(() => {
+    const { shapes: drawn, region } = exportScopeFor(shownShapes, selectedShapes);
+    if (drawn.length === 0 && !region) return;
+    const svg = images
+      .resolveDataUrls(drawn)
+      .then((dataUrls) => svgMarkup(drawn, copyImageSettings(1, region), dataUrls));
+    writeLateTextToClipboard(svg).then(() => showCopied('SVG'), showCopyFailed);
+  }, [shownShapes, selectedShapes, images, copyImageSettings, showCopied, showCopyFailed]);
+
+  const copyAsPlainText = useCallback(
+    (text: string, format: string) => {
+      const written =
+        navigator.clipboard?.writeText(text) ?? Promise.reject(new Error('No clipboard'));
+      written.then(() => showCopied(format), showCopyFailed);
+    },
+    [showCopied, showCopyFailed],
+  );
+
+  const handleCopyAsText = useCallback(() => {
+    if (canCopyAsText) copyAsPlainText(copyTextOf(copyData), 'text');
+  }, [canCopyAsText, copyData, copyAsPlainText]);
+
+  const handleCopyAsMermaid = useCallback(() => {
+    const chart = mermaidFlowchart(copyData);
+    if (chart !== null) copyAsPlainText(chart, 'Mermaid');
+  }, [copyData, copyAsPlainText]);
+
+  const handleCopyAsJson = useCallback(() => {
+    if (canCopyAs) copyAsPlainText(copyJsonOf(copyData), 'JSON');
+  }, [canCopyAs, copyData, copyAsPlainText]);
+
   /**
    * Keep the selection in the account's library, named after what it says.
    * Said with a toast either way: what went in, what had to stay out, or why
@@ -3253,6 +3382,14 @@ export function Editor({ boardId }: EditorProps) {
         ? clipboardContentFrom(carried.text, genId)
         : await readClipboardContent(genId);
       if (!content) return false;
+
+      // An SVG copied as text — from Copy as SVG or anywhere else — is the
+      // picture, not its markup.
+      if (content.kind === 'svg') {
+        if (readOnly) return false;
+        handleInsertImages([content.file], at);
+        return true;
+      }
 
       let placedShapes: Shape[];
       if (content.kind === 'text') {
@@ -3513,6 +3650,7 @@ export function Editor({ boardId }: EditorProps) {
     onZoomToFit: handleZoomToFit,
     onZoomToSelection: handleZoomToSelection,
     onCopy: handleCopy,
+    onCopyAsPng: handleCopyAsPng,
     onCut: handleCut,
     onPaste: handleKeyboardPaste,
     onShowHelp: handleShowHelp,
@@ -3581,6 +3719,11 @@ export function Editor({ boardId }: EditorProps) {
       flipVertical: handleFlipVertical,
       editLink: handleEditLink,
       copyLinkToSelection: handleCopyLinkToSelection,
+      copyAsPng: handleCopyAsPng,
+      copyAsSvg: handleCopyAsSvg,
+      copyAsText: handleCopyAsText,
+      copyAsMermaid: handleCopyAsMermaid,
+      copyAsJson: handleCopyAsJson,
       toggleLock: handleToggleLock,
       unlockAll: handleUnlockAll,
       hideSelection: handleHide,
@@ -3615,6 +3758,10 @@ export function Editor({ boardId }: EditorProps) {
       canRedo,
       canRename,
       canUseLibrary: libraryEnabled,
+      canCopyAs,
+      canCopyAsPng,
+      canCopyAsText,
+      canCopyAsMermaid,
     },
   );
 
@@ -3765,6 +3912,11 @@ export function Editor({ boardId }: EditorProps) {
                 copyLinkToSelection: selectedIds.length > 0 ? handleCopyLinkToSelection : null,
                 // The account's, not the board's: a viewer may keep things too.
                 addToLibrary: libraryEnabled && selectedIds.length > 0 ? handleAddToLibrary : null,
+                copyAsPng: canCopyAsPng ? handleCopyAsPng : null,
+                copyAsSvg: canCopyAs ? handleCopyAsSvg : null,
+                copyAsText: canCopyAsText ? handleCopyAsText : null,
+                copyAsMermaid: canCopyAsMermaid ? handleCopyAsMermaid : null,
+                copyAsJson: canCopyAs ? handleCopyAsJson : null,
                 exportImage: showExport,
                 // The document reorders one shape at a time, so these wait
                 // for a single selection — as the properties panel's do.

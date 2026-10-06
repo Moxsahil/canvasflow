@@ -2,11 +2,7 @@ import {
   ALargeSmall,
   AppWindow,
   Bookmark,
-  Braces,
-  CodeXml,
   Crop,
-  FileCode,
-  FileImage,
   Layers,
   MousePointerClick,
   PanelRight,
@@ -16,7 +12,6 @@ import {
   Spline,
   SquarePlus,
   TextCursorInput,
-  Type,
   VenetianMask,
   WrapText,
 } from 'lucide-react';
@@ -42,7 +37,7 @@ export type ContextMenuItemId =
   | 'copyAsPng'
   | 'copyAsSvg'
   | 'copyAsText'
-  | 'copyAsCode'
+  | 'copyAsMermaid'
   | 'copyAsJson'
   | 'exportImage'
   // Edit
@@ -166,11 +161,16 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   pasteHere: { label: 'Paste here', icon: MousePointerClick, edits: true },
   duplicate: fromCommand('duplicate', 'Duplicate'),
 
-  copyAsPng: soon('PNG', FileImage, false),
-  copyAsSvg: soon('SVG', FileCode, false),
-  copyAsText: soon('Text', Type, false),
-  copyAsCode: soon('Code', CodeXml, false),
-  copyAsJson: soon('JSON', Braces, false),
+  copyAsPng: fromCommand('copyAsPng', 'PNG', false),
+  copyAsSvg: fromCommand('copyAsSvg', 'SVG', false),
+  copyAsText: fromCommand('copyAsText', 'Text', false),
+  // Named for its format, as the rows around it are: "Code" alone would not
+  // say which.
+  copyAsMermaid: {
+    ...fromCommand('copyAsMermaid', 'Mermaid', false),
+    hint: 'A flowchart of the boxes and arrows, as Mermaid code',
+  },
+  copyAsJson: fromCommand('copyAsJson', 'JSON', false),
   exportImage: fromMenu('exportImage'),
 
   flatten: soon('Flatten', Layers),
@@ -257,7 +257,7 @@ export type ContextMenuGroup = readonly ContextMenuEntry[];
 const COPY_AS: ContextSubmenu = {
   submenu: 'copyAs',
   label: 'Copy as',
-  items: ['copyAsPng', 'copyAsSvg', 'copyAsText', 'copyAsCode', 'copyAsJson'],
+  items: ['copyAsPng', 'copyAsSvg', 'copyAsText', 'copyAsMermaid', 'copyAsJson'],
   compact: true,
 };
 

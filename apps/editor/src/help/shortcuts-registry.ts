@@ -48,6 +48,7 @@ export const SHORTCUTS: ShortcutCategory[] = [
       { keys: 'mod+z', description: 'Undo' },
       { keys: 'mod+shift+z', altKeys: 'ctrl+y', description: 'Redo' },
       { keys: 'mod+c', description: 'Copy selection' },
+      { keys: 'alt+shift+c', description: 'Copy as PNG' },
       { keys: 'mod+x', description: 'Cut selection' },
       { keys: 'mod+v', description: 'Paste' },
       { keys: 'mod+d', description: 'Duplicate selection' },
