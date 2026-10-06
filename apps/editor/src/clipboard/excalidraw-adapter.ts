@@ -42,6 +42,9 @@ const FONT_BY_NUMBER: Readonly<Record<number, string>> = {
   9: NORMAL, // Liberation Sans
 };
 
+/** The elements text can be bound inside of: written on an arrow, or in a shape. */
+const WORD_HOLDERS: ReadonlySet<string> = new Set(['arrow', 'rectangle', 'ellipse', 'diamond']);
+
 const ARROWHEADS: readonly Arrowhead[] = [
   'arrow',
   'bar',
@@ -66,7 +69,8 @@ const ARROWHEADS: readonly Arrowhead[] = [
  * - frames, with their names;
  * - arrow ends attached to shapes that come along, aimed at the middle of
  *   the shape;
- * - text written on an arrow, which becomes the arrow's label.
+ * - text written on an arrow, which becomes the arrow's label, and text
+ *   written in a box, an ellipse or a diamond, which becomes its words.
  *
  * Images are left out, along with deleted elements and kinds this editor has
  * no shape for.
@@ -79,12 +83,13 @@ export function excalidrawElementsToShapes(
     (el): el is ExcalidrawElement => typeof el === 'object' && el !== null && el.isDeleted !== true,
   );
 
-  // Text inside an arrow is the arrow's label here, not a shape of its own.
-  const arrowIds = new Set(live.filter((el) => el.type === 'arrow').map((el) => el.id));
-  const labels = new Map<string, string>();
+  // Text inside an arrow, a box, an ellipse or a diamond is that shape's own
+  // words here, not a shape of its own.
+  const holderIds = new Set(live.filter((el) => WORD_HOLDERS.has(el.type)).map((el) => el.id));
+  const labels = new Map<string, ExcalidrawElement>();
   for (const el of live) {
-    if (el.type === 'text' && el.containerId && arrowIds.has(el.containerId)) {
-      labels.set(el.containerId, textOf(el));
+    if (el.type === 'text' && el.containerId && holderIds.has(el.containerId)) {
+      labels.set(el.containerId, el);
     }
   }
 
@@ -128,8 +133,21 @@ export function excalidrawElementsToShapes(
 function elementToShape(
   el: ExcalidrawElement,
   genId: () => string,
-  label: string | undefined,
+  bound: ExcalidrawElement | undefined,
 ): Shape | null {
+  const label = bound ? textOf(bound) : undefined;
+  // A shape's words keep the size and font they were set in; centred, unless
+  // they were aligned to a side.
+  const words = bound
+    ? {
+        label: textOf(bound),
+        fontSize: finite(bound.fontSize) ?? 20,
+        fontFamily:
+          (typeof bound.fontFamily === 'number' ? FONT_BY_NUMBER[bound.fontFamily] : undefined) ??
+          HAND_DRAWN,
+        textAlign: oneOf(bound.textAlign, ['left', 'center', 'right'] as const) ?? 'center',
+      }
+    : {};
   const x = finite(el.x);
   const y = finite(el.y);
   if (x === undefined || y === undefined) return null;
@@ -157,13 +175,25 @@ function elementToShape(
 
   switch (el.type) {
     case 'rectangle':
-      return createRectangle({ ...common, width: width ?? 100, height: height ?? 50, edges });
+      return createRectangle({
+        ...common,
+        width: width ?? 100,
+        height: height ?? 50,
+        edges,
+        ...words,
+      });
 
     case 'ellipse':
-      return createEllipse({ ...common, width: width ?? 100, height: height ?? 50 });
+      return createEllipse({ ...common, width: width ?? 100, height: height ?? 50, ...words });
 
     case 'diamond':
-      return createDiamond({ ...common, width: width ?? 100, height: height ?? 100, edges });
+      return createDiamond({
+        ...common,
+        width: width ?? 100,
+        height: height ?? 100,
+        edges,
+        ...words,
+      });
 
     case 'line': {
       const points = pointsOf(el.points, 2, STRAIGHT);

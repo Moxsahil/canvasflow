@@ -1,4 +1,5 @@
 import type { Rect } from '../math.js';
+import { newShapeTextFields, type ShapeTextInput } from './shape-text.js';
 import type { DiamondShape } from './shape.js';
 import { resolveBaseStyle, type BaseStyleInput, type Edges } from './style.js';
 
@@ -8,14 +9,15 @@ import { resolveBaseStyle, type BaseStyleInput, type Edges } from './style.js';
  */
 
 export function createDiamond(
-  input: BaseStyleInput & {
-    id: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    edges?: Edges;
-  },
+  input: BaseStyleInput &
+    ShapeTextInput & {
+      id: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      edges?: Edges;
+    },
 ): DiamondShape {
   return {
     kind: 'diamond',
@@ -26,6 +28,7 @@ export function createDiamond(
     height: input.height,
     edges: input.edges ?? 'sharp',
     ...resolveBaseStyle(input),
+    ...newShapeTextFields(input),
   };
 }
 

@@ -87,20 +87,59 @@ class Item {
     return shape.id;
   }
 
-  rect({ x, y, w, h }: Box, style: Style = {}): string {
+  /** Words written inside a shape, in the pack's font unless told otherwise. Centred. */
+  private words(words?: string, options: TextOptions = {}) {
+    if (words === undefined) return {};
+    return {
+      label: words,
+      fontSize: options.size ?? 20,
+      fontFamily: options.font ?? this.font,
+      textAlign: options.align ?? 'center',
+    } as const;
+  }
+
+  rect({ x, y, w, h }: Box, style: Style = {}, words?: string, options?: TextOptions): string {
     return this.add(
-      createRectangle({ ...this.next(), x, y, width: w, height: h, ...this.style, ...style }),
+      createRectangle({
+        ...this.next(),
+        x,
+        y,
+        width: w,
+        height: h,
+        ...this.style,
+        ...style,
+        ...this.words(words, options),
+      }),
     );
   }
 
-  ellipse({ x, y, w, h }: Box, style: Style = {}): string {
+  ellipse({ x, y, w, h }: Box, style: Style = {}, words?: string, options?: TextOptions): string {
     const { edges: _edges, ...rest } = { ...this.style, ...style };
-    return this.add(createEllipse({ ...this.next(), x, y, width: w, height: h, ...rest }));
+    return this.add(
+      createEllipse({
+        ...this.next(),
+        x,
+        y,
+        width: w,
+        height: h,
+        ...rest,
+        ...this.words(words, options),
+      }),
+    );
   }
 
-  diamond({ x, y, w, h }: Box, style: Style = {}): string {
+  diamond({ x, y, w, h }: Box, style: Style = {}, words?: string, options?: TextOptions): string {
     return this.add(
-      createDiamond({ ...this.next(), x, y, width: w, height: h, ...this.style, ...style }),
+      createDiamond({
+        ...this.next(),
+        x,
+        y,
+        width: w,
+        height: h,
+        ...this.style,
+        ...style,
+        ...this.words(words, options),
+      }),
     );
   }
 
@@ -208,24 +247,21 @@ const flowchart = pack(
       'Start / end',
       (d) => {
         const box = { x: 0, y: 0, w: 160, h: 64 };
-        d.ellipse(box);
-        d.label(box, 'Start');
+        d.ellipse(box, {}, 'Start');
       },
     ],
     [
       'Process',
       (d) => {
         const box = { x: 0, y: 0, w: 160, h: 64 };
-        d.rect(box, { edges: 'round' });
-        d.label(box, 'Process');
+        d.rect(box, { edges: 'round' }, 'Process');
       },
     ],
     [
       'Decision',
       (d) => {
         const box = { x: 0, y: 0, w: 160, h: 110 };
-        d.diamond(box);
-        d.label(box, 'Decision?', { size: 18 });
+        d.diamond(box, {}, 'Decision?', { size: 18 });
       },
     ],
     [
@@ -262,10 +298,8 @@ const flowchart = pack(
       (d) => {
         const a = { x: 0, y: 0, w: 140, h: 60 };
         const b = { x: 220, y: 0, w: 140, h: 60 };
-        const first = d.rect(a, { edges: 'round' });
-        d.label(a, 'Step 1');
-        const second = d.rect(b, { edges: 'round' });
-        d.label(b, 'Step 2');
+        const first = d.rect(a, { edges: 'round' }, 'Step 1');
+        const second = d.rect(b, { edges: 'round' }, 'Step 2');
         d.arrow([140, 30], [220, 30], { start: first, end: second });
       },
     ],
@@ -275,12 +309,9 @@ const flowchart = pack(
         const question = { x: 0, y: 0, w: 140, h: 100 };
         const yes = { x: 240, y: 20, w: 120, h: 60 };
         const no = { x: 10, y: 180, w: 120, h: 60 };
-        const ask = d.diamond(question);
-        d.label(question, 'Ready?', { size: 18 });
-        const go = d.rect(yes, { edges: 'round' });
-        d.label(yes, 'Go');
-        const fix = d.rect(no, { edges: 'round' });
-        d.label(no, 'Fix it');
+        const ask = d.diamond(question, {}, 'Ready?', { size: 18 });
+        const go = d.rect(yes, { edges: 'round' }, 'Go');
+        const fix = d.rect(no, { edges: 'round' }, 'Fix it');
         d.arrow([140, 50], [240, 50], { start: ask, end: go, label: 'Yes' });
         d.arrow([70, 100], [70, 180], { start: ask, end: fix, label: 'No' });
       },
@@ -311,8 +342,12 @@ const wireframe = pack(
       'Button',
       (d) => {
         const box = { x: 0, y: 0, w: 120, h: 40 };
-        d.rect(box, { edges: 'round', fillColor: SKY, fillStyle: 'solid' });
-        d.label(box, 'Button', { size: 16, color: ON_FILL });
+        d.rect(
+          box,
+          { edges: 'round', fillColor: SKY, fillStyle: 'solid', strokeColor: ON_FILL },
+          'Button',
+          { size: 16 },
+        );
       },
     ],
     [
@@ -400,8 +435,9 @@ const wireframe = pack(
       'Avatar',
       (d) => {
         const box = { x: 0, y: 0, w: 48, h: 48 };
-        d.ellipse(box, { fillColor: GREEN, fillStyle: 'solid' });
-        d.label(box, 'AB', { size: 18, color: ON_FILL });
+        d.ellipse(box, { fillColor: GREEN, fillStyle: 'solid', strokeColor: ON_FILL }, 'AB', {
+          size: 18,
+        });
       },
     ],
     [
@@ -447,8 +483,12 @@ const wireframe = pack(
         d.text(405, 19, 'Pricing', { size: 15 });
         d.text(480, 19, 'About', { size: 15 });
         const button = { x: 548, y: 10, w: 80, h: 36 };
-        d.rect(button, { edges: 'round', fillColor: SKY, fillStyle: 'solid' });
-        d.label(button, 'Sign up', { size: 15, color: ON_FILL });
+        d.rect(
+          button,
+          { edges: 'round', fillColor: SKY, fillStyle: 'solid', strokeColor: ON_FILL },
+          'Sign up',
+          { size: 15 },
+        );
       },
     ],
     [
@@ -461,11 +501,14 @@ const wireframe = pack(
           color: MUTED,
         });
         const cancel = { x: 156, y: 140, w: 88, h: 36 };
-        d.rect(cancel, { edges: 'round' });
-        d.label(cancel, 'Cancel', { size: 15 });
+        d.rect(cancel, { edges: 'round' }, 'Cancel', { size: 15 });
         const confirm = { x: 256, y: 140, w: 88, h: 36 };
-        d.rect(confirm, { edges: 'round', fillColor: PINK, fillStyle: 'solid' });
-        d.label(confirm, 'Delete', { size: 15, color: ON_FILL });
+        d.rect(
+          confirm,
+          { edges: 'round', fillColor: PINK, fillStyle: 'solid', strokeColor: ON_FILL },
+          'Delete',
+          { size: 15 },
+        );
       },
     ],
     [
@@ -519,16 +562,14 @@ const notes = pack(
       'Question',
       (d) => {
         const box = { x: 0, y: 0, w: 40, h: 40 };
-        d.ellipse(box, { strokeColor: BLUE });
-        d.label(box, '?', { size: 26, color: BLUE });
+        d.ellipse(box, { strokeColor: BLUE }, '?', { size: 26 });
       },
     ],
     [
       'Callout',
       (d) => {
         const box = { x: 60, y: 0, w: 220, h: 80 };
-        const note = d.rect(box, { edges: 'round' });
-        d.label(box, 'Look here');
+        const note = d.rect(box, { edges: 'round' }, 'Look here');
         d.arrow([110, 80], [20, 150], { start: note });
       },
     ],

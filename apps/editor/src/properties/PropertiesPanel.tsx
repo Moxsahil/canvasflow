@@ -60,6 +60,8 @@ export interface StyleSurfaceProps {
   layerActions: LayerActions;
   /** Which board the swatches are previewing colours for. */
   darkMode: boolean;
+  /** Every selected shape has words written inside it, whose font can be set. */
+  hasText?: boolean;
 }
 
 /** Which popover is open, and where to anchor it. */
@@ -86,6 +88,7 @@ export function PropertiesPanel({
   onStyleChange,
   layerActions,
   darkMode,
+  hasText = false,
 }: StyleSurfaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [popover, setPopover] = useState<OpenPopover | null>(null);
@@ -102,7 +105,7 @@ export function PropertiesPanel({
   // Opens inward, into the board: the panel sits against the right edge.
   const popoverPosition = popover ? { top: popover.top, right: 'calc(100% + 0.5rem)' } : {};
 
-  const show = styleSections(shapeKinds, style);
+  const show = styleSections(shapeKinds, style, hasText);
   const paintStroke = (colour: string) => strokeColorFor(colour, darkMode);
 
   const strokeColourRow = (
@@ -134,6 +137,35 @@ export function PropertiesPanel({
     );
   };
 
+  const textRows = (
+    <>
+      <InspectorRow label="Font">
+        <SegmentedControl
+          label="Font"
+          value={style.fontFamily}
+          options={FONT_OPTIONS}
+          onChange={(fontFamily) => onStyleChange({ fontFamily })}
+        />
+      </InspectorRow>
+      <InspectorRow label="Size">
+        <SegmentedControl
+          label="Font size"
+          value={style.fontSize}
+          options={FONT_SIZE_OPTIONS}
+          onChange={(fontSize) => onStyleChange({ fontSize })}
+        />
+      </InspectorRow>
+      <InspectorRow label="Align">
+        <SegmentedControl
+          label="Text align"
+          value={style.textAlign}
+          options={ALIGN_OPTIONS}
+          onChange={(textAlign) => onStyleChange({ textAlign })}
+        />
+      </InspectorRow>
+    </>
+  );
+
   const sections: { key: string; node: ReactNode }[] = [];
 
   if (show.textOnly) {
@@ -142,30 +174,7 @@ export function PropertiesPanel({
       node: (
         <InspectorSection title="Text">
           {strokeColourRow}
-          <InspectorRow label="Font">
-            <SegmentedControl
-              label="Font"
-              value={style.fontFamily}
-              options={FONT_OPTIONS}
-              onChange={(fontFamily) => onStyleChange({ fontFamily })}
-            />
-          </InspectorRow>
-          <InspectorRow label="Size">
-            <SegmentedControl
-              label="Font size"
-              value={style.fontSize}
-              options={FONT_SIZE_OPTIONS}
-              onChange={(fontSize) => onStyleChange({ fontSize })}
-            />
-          </InspectorRow>
-          <InspectorRow label="Align">
-            <SegmentedControl
-              label="Text align"
-              value={style.textAlign}
-              options={ALIGN_OPTIONS}
-              onChange={(textAlign) => onStyleChange({ textAlign })}
-            />
-          </InspectorRow>
+          {textRows}
         </InspectorSection>
       ),
     });
@@ -288,6 +297,13 @@ export function PropertiesPanel({
           {arrowheadRow('end')}
         </InspectorSection>
       ),
+    });
+  }
+
+  if (show.shapeText) {
+    sections.push({
+      key: 'shapeText',
+      node: <InspectorSection title="Text">{textRows}</InspectorSection>,
     });
   }
 

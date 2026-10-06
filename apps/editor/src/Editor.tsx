@@ -28,6 +28,11 @@ import {
   hitTest,
   isFrame,
   isText,
+  isTextContainer,
+  fitShapeToText,
+  shapeTextLayout,
+  shapeTextOf,
+  type TextContainerShape,
   hiddenShapeIds,
   lockedShapeIds,
   lockSourcesOf,
@@ -118,6 +123,14 @@ import {
 } from './context-menu';
 import { hitTestHandles } from './selection/handles';
 import { canFlipSelection, flipSelection } from './selection/flip-selection';
+import {
+  bindablePair,
+  bindTextToShape,
+  unbindableShapes,
+  unbindTextFromShape,
+  wrappableTexts,
+  wrapTextInShape,
+} from './selection/shape-text-ops';
 import { useBoardDocument, useYjsShapes } from './document/useYjsDocument';
 import { useBoardImages, imageFilesFromDataTransfer, pickImageFiles } from './images';
 import { LaserLayer, useLaserTrails } from './laser';
@@ -906,12 +919,20 @@ export function Editor({ boardId }: EditorProps) {
   const editingTextShape = editingTextShapeId
     ? shapes.find((s) => s.id === editingTextShapeId)
     : undefined;
-  // Two shapes can be open for typing, and they keep their words in different
-  // places: a text shape is its text, an arrow only carries one.
+  // Three kinds of shape can be open for typing, and they keep their words in
+  // different places: a text shape is its text, an arrow carries a label, and
+  // a box, an ellipse or a diamond has words written inside it.
   const editingText = editingTextShape && isText(editingTextShape) ? editingTextShape : null;
   const editingArrow = editingTextShape && isArrow(editingTextShape) ? editingTextShape : null;
+  const editingContainer =
+    editingTextShape && isTextContainer(editingTextShape) ? editingTextShape : null;
   const editingTextInitialValue =
-    editingText?.text ?? (editingArrow ? arrowLabelOf(editingArrow) : undefined);
+    editingText?.text ??
+    (editingArrow
+      ? arrowLabelOf(editingArrow)
+      : editingContainer
+        ? shapeTextOf(editingContainer)
+        : undefined);
   // Bump a key whenever a new text-editing session starts (a new textEditingAt
   // reference), so <TextEditor> remounts with blank state instead of reusing
   // the previous instance — commit/re-entry into editingText happens within
@@ -1088,17 +1109,35 @@ export function Editor({ boardId }: EditorProps) {
     [collaborating, userId, presenceTheme, cursorColor],
   );
 
+  /**
+   * A shape's words as they will be once typed: what is in the overlay, set in
+   * the shape's own font — or, the first time it is given words, in the font
+   * the panel is showing, which is the one the commit writes.
+   */
+  const withTypedWords = useCallback(
+    (shape: TextContainerShape, label: string): TextContainerShape => ({
+      ...shape,
+      label,
+      ...(shape.fontFamily === undefined && { fontFamily: itemStyle.fontFamily }),
+      ...(shape.fontSize === undefined && { fontSize: itemStyle.fontSize }),
+    }),
+    [itemStyle.fontFamily, itemStyle.fontSize],
+  );
+
   // Whatever is open in the overlay is not also painted underneath it. An
-  // arrow is more than its label, though: it keeps its line, and carries what
-  // is being typed rather than what was last committed, so the gap the words
-  // sit in grows under them as they are written.
+  // arrow or a shape is more than its words, though: it keeps being drawn, and
+  // carries what is being typed rather than what was last committed — so the
+  // gap in an arrow grows under the words as they are written, and a shape
+  // grows to hold them.
   const shapesForRender = useMemo(() => {
     if (!editingTextShapeId) return shapes;
     return shapes.flatMap((shape) => {
       if (shape.id !== editingTextShapeId) return [shape];
-      return isArrow(shape) ? [{ ...shape, label: liveText }] : [];
+      if (isArrow(shape)) return [{ ...shape, label: liveText }];
+      if (isTextContainer(shape)) return [fitShapeToText(withTypedWords(shape, liveText))];
+      return [];
     });
-  }, [shapes, editingTextShapeId, liveText]);
+  }, [shapes, editingTextShapeId, liveText, withTypedWords]);
 
   // An arrow with its label open shows no selection chrome. The outline traces
   // the line, so it would run straight through the gap the caret is standing
@@ -1227,15 +1266,38 @@ export function Editor({ boardId }: EditorProps) {
   // the style the panel is set to. Either way the overlay is set the way the
   // commit will be, so nothing shifts at the moment it lands.
   const arrowLabelType = editingArrow ? arrowLabelFont(editingArrow) : null;
+  // A shape's words are laid out on the shape as it is while being typed into,
+  // grown to hold them, so the overlay stands where they will be drawn.
+  const typedContainer = editingContainer
+    ? (shapesForRender.find((shape) => shape.id === editingContainer.id) as
+        | TextContainerShape
+        | undefined)
+    : undefined;
+  const typedLayout = typedContainer ? shapeTextLayout(typedContainer, { caret: true }) : null;
   const textEditorFontSize =
-    (arrowLabelType?.fontSize ??
+    (typedLayout?.fontSize ??
+      arrowLabelType?.fontSize ??
       (editingText ? fontSizeOf(editingText) : itemStyle.fontSize * newTextScale)) * camera.zoom;
   const textEditorFontFamily =
-    arrowLabelType?.fontFamily ?? (editingText ? editingText.fontFamily : itemStyle.fontFamily);
+    typedLayout?.fontFamily ??
+    arrowLabelType?.fontFamily ??
+    (editingText ? editingText.fontFamily : itemStyle.fontFamily);
+  const textEditorWrap = typedLayout
+    ? {
+        x: (typedLayout.area.x - camera.x) * camera.zoom,
+        y: (typedLayout.area.y - camera.y) * camera.zoom,
+        width: typedLayout.area.width * camera.zoom,
+        height: typedLayout.area.height * camera.zoom,
+        textAlign: typedLayout.textAlign,
+      }
+    : undefined;
   // Resolved for the board being typed on, so the caret's text is the colour
   // the shape takes the moment it is committed.
   const textEditorColor = strokeColorFor(
-    editingArrow?.strokeColor ?? editingText?.strokeColor ?? itemStyle.strokeColor,
+    editingArrow?.strokeColor ??
+      editingContainer?.strokeColor ??
+      editingText?.strokeColor ??
+      itemStyle.strokeColor,
     resolvedTheme === 'dark',
   );
 
@@ -1353,6 +1415,11 @@ export function Editor({ boardId }: EditorProps) {
     return toolShapeKind ? [toolShapeKind] : [];
   }, [selectedShapes, toolShapeKind]);
 
+  // Every selected shape has words written inside it, so their font applies.
+  const propertyHasText =
+    selectedShapes.length > 0 &&
+    selectedShapes.every((shape) => isTextContainer(shape) && shapeTextOf(shape) !== '');
+
   const firstSelected = selectedShapes[0];
   const propertyStyle: ItemStyle = firstSelected
     ? itemStyleFromShape(firstSelected, itemStyle)
@@ -1423,6 +1490,22 @@ export function Editor({ boardId }: EditorProps) {
       if (selectedIds.length === 0) return;
       for (const id of selectedIds) {
         doc.updateShape(id, patch);
+      }
+      // A bigger or wider font can need more room than a shape's words had.
+      if (patch.fontSize !== undefined || patch.fontFamily !== undefined) {
+        const selected = new Set(selectedIds);
+        for (const shape of doc.getShapes()) {
+          if (!selected.has(shape.id) || !isTextContainer(shape)) continue;
+          const fitted = fitShapeToText(shape);
+          if (fitted !== shape) {
+            doc.updateShape(shape.id, {
+              x: fitted.x,
+              y: fitted.y,
+              width: fitted.width,
+              height: fitted.height,
+            });
+          }
+        }
       }
 
       if (!transient) doc.breakUndoGroup();
@@ -2259,7 +2342,9 @@ export function Editor({ boardId }: EditorProps) {
           } else {
             showSnapGuides(EMPTY_GUIDES);
           }
-          const resized = resizeShape(originalShape, handle, dx, dy);
+          // Never smaller than its words need.
+          const drawn = resizeShape(originalShape, handle, dx, dy);
+          const resized = isTextContainer(drawn) ? fitShapeToText(drawn) : drawn;
           doc.updateShape(originalShape.id, resized);
           if (boundArrowsRef.current.size > 0) {
             gestureShapesRef.current.set(resized.id, resized);
@@ -2487,8 +2572,57 @@ export function Editor({ boardId }: EditorProps) {
     ],
   );
 
-  // Double-pressing a text shape (with any tool active) reopens it for editing;
-  // double-pressing anywhere else, with select in hand, starts a new one there.
+  /**
+   * Open a shape's words in the overlay: a text shape's text, an arrow's
+   * label, or the words inside a box, an ellipse or a diamond. An arrow is
+   * captioned rather than covered — the overlay opens in the break in its
+   * line — and a shape's words are written in its middle, whether or not it
+   * has any yet.
+   */
+  const startEditingWords = useCallback(
+    (shape: Shape) => {
+      if (isText(shape)) {
+        actorRef.send({
+          type: 'EDIT_TEXT_SHAPE',
+          shapeId: shape.id,
+          position: { x: shape.x, y: shape.y },
+          existingText: shape.text,
+        });
+      } else if (isArrow(shape)) {
+        actorRef.send({
+          type: 'EDIT_TEXT_SHAPE',
+          shapeId: shape.id,
+          position: arrowLabelAnchor(shape),
+          existingText: arrowLabelOf(shape),
+        });
+      } else if (isTextContainer(shape)) {
+        const area = shapeBounds(shape);
+        actorRef.send({
+          type: 'EDIT_TEXT_SHAPE',
+          shapeId: shape.id,
+          position: { x: area.x + area.width / 2, y: area.y + area.height / 2 },
+          existingText: shapeTextOf(shape),
+        });
+      }
+    },
+    [actorRef],
+  );
+
+  /**
+   * Enter, with one shape selected that has words to write: open them. Says
+   * whether it did, so the key is left alone for anything else.
+   */
+  const handleEditSelectedWords = useCallback((): boolean => {
+    if (readOnly || selectedIds.length !== 1 || editableIds.length !== 1) return false;
+    const shape = shapes.find((candidate) => candidate.id === selectedIds[0]);
+    if (!shape || !(isText(shape) || isArrow(shape) || isTextContainer(shape))) return false;
+    startEditingWords(shape);
+    return true;
+  }, [readOnly, selectedIds, editableIds, shapes, startEditingWords]);
+
+  // Double-pressing a text shape (with any tool active) reopens it for editing,
+  // and an arrow or a shape that can hold words opens them; double-pressing
+  // anywhere else, with select in hand, starts a new text box there.
   const handleDoubleClick = useCallback(
     (point: Point) => {
       if (readOnly) return;
@@ -2510,34 +2644,20 @@ export function Editor({ boardId }: EditorProps) {
 
       const hit = hitTest(pickableShapes, spatialIndex, point.x, point.y, camera.zoom);
       if (hit && isText(hit)) {
-        actorRef.send({
-          type: 'EDIT_TEXT_SHAPE',
-          shapeId: hit.id,
-          position: { x: hit.x, y: hit.y },
-          existingText: hit.text,
-        });
+        startEditingWords(hit);
         return;
       }
 
-      // An arrow is captioned rather than covered: the box opens in the break
-      // in its line, centred on the same point the label will be drawn at,
-      // whether or not it has one yet.
-      if (hit && isArrow(hit)) {
-        actorRef.send({
-          type: 'EDIT_TEXT_SHAPE',
-          shapeId: hit.id,
-          position: arrowLabelAnchor(hit),
-          existingText: arrowLabelOf(hit),
-        });
+      if (hit && (isArrow(hit) || isTextContainer(hit))) {
+        startEditingWords(hit);
         return;
       }
 
       /**
-       * Everything else the gesture can land on — bare board, or anywhere
-       * inside a shape or a frame — takes a new text box at the point pressed.
-       * The box is free text sitting at that point rather than a label the
-       * shape underneath owns, so it can be moved off afterwards like any
-       * other text.
+       * Everything else the gesture can land on — bare board, the inside of a
+       * frame, a line, an image — takes a new text box at the point pressed:
+       * free text sitting at that point, which can be moved off afterwards
+       * like any other.
        *
        * Select only. Under a drawing tool the two presses have each already
        * drawn something, and putting a text box on top of that is not what the
@@ -2547,7 +2667,7 @@ export function Editor({ boardId }: EditorProps) {
       if (activeTool !== 'select') return;
       actorRef.send({ type: 'START_TEXT_AT', point });
     },
-    [actorRef, pickableShapes, spatialIndex, camera.zoom, readOnly, activeTool],
+    [actorRef, pickableShapes, spatialIndex, camera.zoom, readOnly, activeTool, startEditingWords],
   );
 
   // Moving the view yourself ends a follow. You cannot be carried and steer at
@@ -3083,6 +3203,73 @@ export function Editor({ boardId }: EditorProps) {
     }
   }, [shapes, selectedIds, showToast]);
 
+  // --- words in shapes ------------------------------------------------------
+  // What the three Edit rows would act on: only what can be changed.
+  const editableSelection = useMemo(() => {
+    const editable = new Set(editableIds);
+    return selectedShapes.filter((shape) => editable.has(shape.id));
+  }, [selectedShapes, editableIds]);
+  const bindPair = useMemo(
+    () =>
+      editableSelection.length === selectedShapes.length ? bindablePair(editableSelection) : null,
+    [editableSelection, selectedShapes.length],
+  );
+  const unbindable = useMemo(() => unbindableShapes(editableSelection), [editableSelection]);
+  const wrappable = useMemo(() => wrappableTexts(editableSelection), [editableSelection]);
+  const canBindText = !readOnly && bindPair !== null;
+  const canUnbindText = !readOnly && unbindable.length > 0;
+  const canWrapText = !readOnly && wrappable.length > 0;
+
+  /** Bind text to container: the text becomes the shape's words. One undo step. */
+  const handleBindText = useCallback(() => {
+    if (!bindPair) return;
+    const { container, removeId } = bindTextToShape(bindPair.text, bindPair.container);
+    doc.batch(() => {
+      doc.updateShape(container.id, {
+        label: container.label,
+        fontSize: container.fontSize,
+        fontFamily: container.fontFamily,
+        textAlign: container.textAlign,
+        x: container.x,
+        y: container.y,
+        width: container.width,
+        height: container.height,
+      });
+      doc.deleteShapes([removeId]);
+    });
+    actorRef.send({ type: 'SELECT_ALL', shapeIds: [container.id] });
+  }, [bindPair, doc, actorRef]);
+
+  /** Unbind text: each shape's words come out as a text shape, selected. One undo step. */
+  const handleUnbindText = useCallback(() => {
+    const made: string[] = [];
+    doc.batch(() => {
+      for (const container of unbindable) {
+        const result = unbindTextFromShape(container, genId());
+        if (!result) continue;
+        doc.updateShape(container.id, result.containerPatch);
+        doc.addShape(result.text);
+        made.push(result.text.id);
+      }
+    });
+    if (made.length > 0) actorRef.send({ type: 'SELECT_ALL', shapeIds: made });
+  }, [unbindable, doc, actorRef]);
+
+  /** Wrap text in container: a box round each text, holding it. One undo step. */
+  const handleWrapText = useCallback(() => {
+    const made: string[] = [];
+    doc.batch(() => {
+      for (const text of wrappable) {
+        const result = wrapTextInShape(text, genId(), itemStyle, doc.getShapes());
+        doc.addShape(result.container);
+        for (const arrow of result.arrows) doc.updateShape(arrow.id, arrow.patch);
+        doc.deleteShapes([result.removeId]);
+        made.push(result.container.id);
+      }
+    });
+    if (made.length > 0) actorRef.send({ type: 'SELECT_ALL', shapeIds: made });
+  }, [wrappable, doc, itemStyle, actorRef]);
+
   /**
    * Keep the selection in the account's library, named after what it says.
    * Said with a toast either way: what went in, what had to stay out, or why
@@ -3488,6 +3675,7 @@ export function Editor({ boardId }: EditorProps) {
 
   useKeyboardShortcuts({
     onSelectTool: handleToolChange,
+    onEditText: handleEditSelectedWords,
     onEscape: handleEscape,
     onSpaceDown: handleSpaceDown,
     onSpaceUp: handleSpaceUp,
@@ -3586,6 +3774,9 @@ export function Editor({ boardId }: EditorProps) {
       hideSelection: handleHide,
       showAll: handleShowAll,
       addToLibrary: handleAddToLibrary,
+      bindText: handleBindText,
+      unbindText: handleUnbindText,
+      wrapTextInContainer: handleWrapText,
       deleteSelection: handleDelete,
       selectAll: handleSelectAll,
       bringForward: handleBringForward,
@@ -3615,6 +3806,9 @@ export function Editor({ boardId }: EditorProps) {
       canRedo,
       canRename,
       canUseLibrary: libraryEnabled,
+      canBindText,
+      canUnbindText,
+      canWrapText,
     },
   );
 
@@ -3632,6 +3826,20 @@ export function Editor({ boardId }: EditorProps) {
           // space — and emptied out it leaves the arrow, which was never the
           // label's to delete.
           doc.updateShape(editingId, { label: trimmed });
+        } else if (editing && isTextContainer(editing)) {
+          // Trimmed for the same reason, and emptied out it leaves the shape.
+          // Grown, in the same write, to hold what was written; given the
+          // panel's font the first time it is written in.
+          const written = fitShapeToText(withTypedWords(editing, trimmed));
+          doc.updateShape(editingId, {
+            label: trimmed,
+            ...(editing.fontFamily === undefined && { fontFamily: written.fontFamily }),
+            ...(editing.fontSize === undefined && { fontSize: written.fontSize }),
+            x: written.x,
+            y: written.y,
+            width: written.width,
+            height: written.height,
+          });
         } else if (trimmed) {
           doc.updateShape(editingId, { text });
         } else {
@@ -3665,7 +3873,7 @@ export function Editor({ boardId }: EditorProps) {
 
       actorRef.send({ type: 'COMMIT_TEXT', text });
     },
-    [actorRef, doc],
+    [actorRef, doc, withTypedWords],
   );
 
   const handleCancelText = useCallback(() => actorRef.send({ type: 'CANCEL_TEXT' }), [actorRef]);
@@ -3674,6 +3882,7 @@ export function Editor({ boardId }: EditorProps) {
   const styleSurfaceProps = {
     style: propertyStyle,
     shapeKinds: propertyShapeKinds,
+    hasText: propertyHasText,
     canReorder: selectedIds.length === 1,
     onStyleChange: handleStyleChange,
     layerActions: {
@@ -3765,6 +3974,9 @@ export function Editor({ boardId }: EditorProps) {
                 copyLinkToSelection: selectedIds.length > 0 ? handleCopyLinkToSelection : null,
                 // The account's, not the board's: a viewer may keep things too.
                 addToLibrary: libraryEnabled && selectedIds.length > 0 ? handleAddToLibrary : null,
+                bindText: canBindText ? handleBindText : null,
+                unbindText: canUnbindText ? handleUnbindText : null,
+                wrapTextInContainer: canWrapText ? handleWrapText : null,
                 exportImage: showExport,
                 // The document reorders one shape at a time, so these wait
                 // for a single selection — as the properties panel's do.
@@ -3815,7 +4027,7 @@ export function Editor({ boardId }: EditorProps) {
                   shapes={shapesForRender}
                   pendingErasureIds={pendingErasureIds}
                   editingFrameIds={editingFrameIds}
-                  editingArrowLabelId={editingArrow?.id}
+                  editingLabelId={editingArrow?.id ?? editingContainer?.id}
                   newElement={newElement}
                   selectedIds={selectedIdsForRender}
                   marquee={marquee}
@@ -4088,6 +4300,7 @@ export function Editor({ boardId }: EditorProps) {
                 key={textEditingKeyRef.current}
                 position={textEditorScreenPosition}
                 align={editingArrow ? 'center' : 'left'}
+                wrap={textEditorWrap}
                 fontSize={textEditorFontSize}
                 fontFamily={textEditorFontFamily}
                 color={textEditorColor}

@@ -1,15 +1,17 @@
 import type { Rect } from '../math.js';
+import { newShapeTextFields, type ShapeTextInput } from './shape-text.js';
 import type { EllipseShape } from './shape.js';
 import { resolveBaseStyle, type BaseStyleInput } from './style.js';
 
 export function createEllipse(
-  input: BaseStyleInput & {
-    id: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  },
+  input: BaseStyleInput &
+    ShapeTextInput & {
+      id: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    },
 ): EllipseShape {
   return {
     kind: 'ellipse',
@@ -19,6 +21,7 @@ export function createEllipse(
     width: input.width,
     height: input.height,
     ...resolveBaseStyle(input),
+    ...newShapeTextFields(input),
   };
 }
 

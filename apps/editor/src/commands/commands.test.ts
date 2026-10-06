@@ -13,6 +13,9 @@ const editing: CommandContext = {
   canRedo: true,
   canRename: true,
   canUseLibrary: true,
+  canBindText: true,
+  canUnbindText: true,
+  canWrapText: true,
 };
 
 const available = (context: CommandContext) =>
@@ -145,6 +148,15 @@ describe('availability', () => {
     expect(available({ ...editing, selectionCount: 0, editableSelectionCount: 0 })).not.toContain(
       'addToLibrary',
     );
+  });
+
+  it('offers moving words in and out of shapes only for a selection they apply to', () => {
+    const none = { ...editing, canBindText: false, canUnbindText: false, canWrapText: false };
+    for (const id of ['bindText', 'unbindText', 'wrapTextInContainer']) {
+      expect(available(none), id).not.toContain(id);
+      expect(available(editing), id).toContain(id);
+      expect(available({ ...editing, readOnly: true }), id).not.toContain(id);
+    }
   });
 
   it('keeps Unlock all for any board with shapes on it, and away from a viewer', () => {

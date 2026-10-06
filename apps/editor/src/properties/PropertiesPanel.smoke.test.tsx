@@ -103,3 +103,24 @@ describe('PropertiesPanel', () => {
     expect(render(['rectangle'], {}, false)).not.toContain('aria-label="Bring to front"');
   });
 });
+
+describe('words written in shapes', () => {
+  it('adds a Text section, after the shape’s own, for shapes that have words', () => {
+    const html = renderToString(
+      <PropertiesPanel
+        style={DEFAULT_ITEM_STYLE}
+        shapeKinds={['rectangle']}
+        canReorder
+        onStyleChange={noop}
+        layerActions={layerActions}
+        darkMode={false}
+        hasText
+      />,
+    );
+    const drawn = sections(html);
+    expect(drawn).toContain('Text');
+    expect(drawn).toContain('Stroke');
+    expect(drawn.indexOf('Text')).toBeGreaterThan(drawn.indexOf('Stroke'));
+    expect(sections(render(['rectangle']))).not.toContain('Text');
+  });
+});

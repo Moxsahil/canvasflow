@@ -207,7 +207,7 @@ describe('painting a labelled arrow', () => {
       const canvas = new OffscreenCanvas(W, H);
       const ctx = canvas.getContext('2d') as OffscreenCanvasRenderingContext2D;
       drawSceneShape(ctx, createRoughCanvas(canvas), shape, false, {
-        editingArrowLabelId: shape.id,
+        editingLabelId: shape.id,
       });
       return ctx;
     };

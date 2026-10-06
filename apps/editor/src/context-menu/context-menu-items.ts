@@ -12,13 +12,10 @@ import {
   PanelRight,
   PenTool,
   RectangleEllipsis,
-  RemoveFormatting,
   Spline,
   SquarePlus,
-  TextCursorInput,
   Type,
   VenetianMask,
-  WrapText,
 } from 'lucide-react';
 import { COMMANDS_BY_ID, type CommandIcon, type CommandId } from '../commands/commands';
 import { MENU_ITEMS, type MenuItemId } from '../menu/menu-items';
@@ -179,9 +176,9 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   editLine: soon('Edit line points', Spline),
   cropImage: soon('Crop image', Crop),
   textAutoSize: soon('Auto-size text', ALargeSmall),
-  bindText: soon('Bind text to container', TextCursorInput),
-  unbindText: soon('Unbind text', RemoveFormatting),
-  wrapTextInContainer: soon('Wrap text in container', WrapText),
+  bindText: fromCommand('bindText', 'Bind text to container'),
+  unbindText: fromCommand('unbindText', 'Unbind text'),
+  wrapTextInContainer: fromCommand('wrapTextInContainer', 'Wrap text in container'),
   convertToEmbed: soon('Convert to embed', AppWindow),
   convertToBookmark: soon('Convert to bookmark', Bookmark),
 

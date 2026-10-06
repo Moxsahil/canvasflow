@@ -19,7 +19,7 @@ interface CanvasStackProps {
   pendingErasureIds?: ReadonlySet<string>;
   editingFrameIds?: ReadonlySet<string>;
   /** The arrow whose label is open for typing, so its line breaks for the caret. */
-  editingArrowLabelId?: string;
+  editingLabelId?: string;
   newElement: Shape | null;
   selectedIds: readonly string[];
   marquee: { x: number; y: number; width: number; height: number } | null;
@@ -86,7 +86,7 @@ export function CanvasStack({
   shapes,
   pendingErasureIds,
   editingFrameIds,
-  editingArrowLabelId,
+  editingLabelId,
   newElement,
   selectedIds,
   marquee,
@@ -133,7 +133,7 @@ export function CanvasStack({
     devicePixelRatio: dpr,
     pendingErasureIds,
     editingFrameIds,
-    editingArrowLabelId,
+    editingLabelId,
     images,
     imageRevision,
     darkMode,

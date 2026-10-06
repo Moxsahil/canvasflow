@@ -21,6 +21,11 @@ const EDGED_KINDS: ReadonlySet<Shape['kind']> = new Set(['rectangle', 'diamond',
 export interface StyleSections {
   /** Text has a section of its own in place of the stroke. */
   textOnly: boolean;
+  /**
+   * Font, size and alignment for words written inside shapes — alongside the
+   * stroke and fill, which the shapes still have. Their colour is the stroke's.
+   */
+  shapeText: boolean;
   /** Stroke weight. */
   stroke: boolean;
   /** Dash and look — the treatments a hand-drawn line isn't offered. */
@@ -42,6 +47,8 @@ export interface StyleSections {
 export function styleSections(
   shapeKinds: readonly Shape['kind'][],
   style: Pick<ItemStyle, 'fillColor'>,
+  /** Every shape being edited has words written inside it. */
+  hasText = false,
 ): StyleSections {
   const every = (predicate: (kind: Shape['kind']) => boolean) =>
     shapeKinds.length > 0 && shapeKinds.every(predicate);
@@ -55,6 +62,7 @@ export function styleSections(
 
   return {
     textOnly,
+    shapeText: hasText && !textOnly,
     stroke,
     /**
      * Roughness and corner treatment genuinely miss a hand-drawn line — a

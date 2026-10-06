@@ -9,11 +9,13 @@ import {
   type FrameShape,
   type ImageShape,
   type Shape,
+  type TextContainerShape,
   type TextShape,
 } from '../shapes/shape.js';
 import type { Rect } from '../math.js';
 import { arrowInkBounds } from '../shapes/arrow.js';
 import { arrowLabelLayout, type ArrowLabelLayout } from '../shapes/arrow-label.js';
+import { shapeTextLayout } from '../shapes/shape-text.js';
 import { FRAME_LABEL_FONT_SIZE, FRAME_LABEL_GAP, frameLabel } from '../shapes/frame.js';
 import { readLink } from '../shapes/link.js';
 import { visibleShapes } from '../shapes/visibility.js';
@@ -208,6 +210,25 @@ function arrowLabelToSvg(shape: ArrowShape, label: ArrowLabelLayout): string {
     .join('');
 }
 
+/** A shape's own words, laid out exactly as the canvas lays them out. */
+function shapeTextToSvg(shape: TextContainerShape): string {
+  const layout = shapeTextLayout(shape);
+  if (!layout) return '';
+  const lineHeight = layout.fontSize * 1.2;
+  const anchor =
+    layout.textAlign === 'center' ? 'middle' : layout.textAlign === 'right' ? 'end' : 'start';
+
+  return layout.lines
+    .map(
+      (line, index) =>
+        `<text x="${num(layout.x)}" y="${num(layout.textTop + index * lineHeight)}" ` +
+        `font-family="${escapeXml(layout.fontFamily)}" font-size="${num(layout.fontSize)}px" ` +
+        `fill="${escapeXml(shape.strokeColor)}" text-anchor="${anchor}" ` +
+        `dominant-baseline="text-before-edge" style="white-space: pre;">${escapeXml(line)}</text>`,
+    )
+    .join('');
+}
+
 function textToSvg(shape: TextShape): string {
   const lines = shape.text.split('\n');
   const fontSize = fontSizeOf(shape);
@@ -301,12 +322,15 @@ function shapeToSvg(
   switch (shape.kind) {
     case 'rectangle':
       content = drawableToSvg(generator, generateRectangleDrawable(source, shape));
+      content += shapeTextToSvg(shape);
       break;
     case 'ellipse':
       content = drawableToSvg(generator, generateEllipseDrawable(source, shape));
+      content += shapeTextToSvg(shape);
       break;
     case 'diamond':
       content = drawableToSvg(generator, generateDiamondDrawable(source, shape));
+      content += shapeTextToSvg(shape);
       break;
     case 'line':
       content = drawableToSvg(generator, generateLineDrawable(source, shape));

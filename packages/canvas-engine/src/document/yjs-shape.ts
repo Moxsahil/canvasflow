@@ -1,6 +1,7 @@
 import * as Y from 'yjs';
 import { readLink } from '../shapes/link.js';
-import type { ArrowBinding, Shape } from '../shapes/shape.js';
+import { shapeTextFields } from '../shapes/shape-text.js';
+import type { ArrowBinding, Shape, ShapeText } from '../shapes/shape.js';
 import { DEFAULT_STROKE_COLOR } from '../shapes/style.js';
 import type {
   Arrowhead,
@@ -79,10 +80,12 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
       map.set('width', shape.width);
       map.set('height', shape.height);
       map.set('edges', shape.edges);
+      writeShapeText(map, shape);
       break;
     case 'ellipse':
       map.set('width', shape.width);
       map.set('height', shape.height);
+      writeShapeText(map, shape);
       break;
     case 'line':
       map.set('points', shape.points);
@@ -141,6 +144,34 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
   }
 
   return map;
+}
+
+/**
+ * A shape's own words and their style. Each key is written only when it says
+ * something, so a shape with no words is written exactly as it was before
+ * shapes could hold them.
+ */
+function writeShapeText(map: Y.Map<unknown>, shape: ShapeText): void {
+  const fields = shapeTextFields(shape);
+  if (fields.label !== undefined) map.set('label', fields.label);
+  if (fields.fontSize !== undefined) map.set('fontSize', fields.fontSize);
+  if (fields.fontFamily !== undefined) map.set('fontFamily', fields.fontFamily);
+  if (fields.textAlign !== undefined) map.set('textAlign', fields.textAlign);
+}
+
+/**
+ * A shape's own words and their style, as stored, each checked: the words
+ * through the same coercion a text shape's are, the rest dropped back to the
+ * defaults where they are not what they should be.
+ */
+function readShapeText(map: Y.Map<unknown>): ShapeText {
+  const label = map.get('label');
+  return shapeTextFields({
+    label: label === undefined ? undefined : readTextValue(label),
+    fontSize: map.get('fontSize') as number | undefined,
+    fontFamily: map.get('fontFamily') as string | undefined,
+    textAlign: map.get('textAlign') as 'left' | 'center' | 'right' | undefined,
+  });
 }
 
 /**
@@ -269,6 +300,7 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
         width: map.get('width') as number,
         height: map.get('height') as number,
         edges,
+        ...readShapeText(map),
       } as Shape);
     case 'ellipse':
       return withZ({
@@ -276,6 +308,7 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
         kind: 'ellipse',
         width: map.get('width') as number,
         height: map.get('height') as number,
+        ...readShapeText(map),
       } as Shape);
     case 'diamond':
       return withZ({
@@ -284,6 +317,7 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
         width: map.get('width') as number,
         height: map.get('height') as number,
         edges,
+        ...readShapeText(map),
       } as Shape);
     case 'line':
       return withZ({
