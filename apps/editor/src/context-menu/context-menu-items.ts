@@ -1,7 +1,6 @@
 import {
   ALargeSmall,
   AppWindow,
-  BookPlus,
   Bookmark,
   Braces,
   CodeXml,
@@ -199,7 +198,7 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   addLink: fromCommand('editLink', 'Add link'),
   copyLinkToSelection: fromCommand('copyLinkToSelection', 'Copy link to selection', false),
 
-  addToLibrary: soon('Add to library', BookPlus, false),
+  addToLibrary: fromCommand('addToLibrary', 'Add to library', false),
 
   hide: fromCommand('hideSelection', 'Hide'),
   lock: fromCommand('toggleLock', 'Lock'),

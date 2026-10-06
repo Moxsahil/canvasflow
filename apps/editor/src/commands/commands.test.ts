@@ -12,6 +12,7 @@ const editing: CommandContext = {
   canUndo: true,
   canRedo: true,
   canRename: true,
+  canUseLibrary: true,
 };
 
 const available = (context: CommandContext) =>
@@ -133,6 +134,17 @@ describe('availability', () => {
     const viewer = available({ ...editing, readOnly: true });
     expect(viewer).not.toContain('hideSelection');
     expect(viewer).not.toContain('showAll');
+  });
+
+  it('adds a selection to the library for any account, a viewer included, but not a guest', () => {
+    expect(available(editing)).toContain('addToLibrary');
+    expect(available({ ...editing, readOnly: true, editableSelectionCount: 0 })).toContain(
+      'addToLibrary',
+    );
+    expect(available({ ...editing, canUseLibrary: false })).not.toContain('addToLibrary');
+    expect(available({ ...editing, selectionCount: 0, editableSelectionCount: 0 })).not.toContain(
+      'addToLibrary',
+    );
   });
 
   it('keeps Unlock all for any board with shapes on it, and away from a viewer', () => {

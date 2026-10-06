@@ -77,10 +77,18 @@ import {
   readClipboardContent,
   readImagesFromClipboard,
   shapesCentredOn,
+  withFreshIds,
   wrappedToWidth,
   writeShapesToClipboard,
   type CarriedPaste,
 } from './clipboard';
+import {
+  LibraryMenu,
+  libraryItemName,
+  libraryShapesFor,
+  useLibrary,
+  type LibraryEntry,
+} from './library';
 import { screenToWorld } from './pointer/coords';
 import { useLastPointerPosition } from './pointer/useLastPointerPosition';
 import { CanvasStack } from './canvas/CanvasStack';
@@ -598,6 +606,8 @@ export function Editor({ boardId }: EditorProps) {
   // menu's account row has been showing a raw UUID.
   const user = useMemo(() => (authToken ? decodeJwtUser(authToken) : null), [authToken]);
   const userId = user?.id ?? null;
+  // The account's own library, kept across boards. A guest has none.
+  const library = useLibrary({ userId, token: authToken, isGuest: user?.isGuest ?? true });
 
   // Account & Security reads the account's sign-in methods and sessions from
   // the gateway, which takes a moment. Asked for once the board has settled,
@@ -3073,6 +3083,77 @@ export function Editor({ boardId }: EditorProps) {
   }, [shapes, selectedIds, showToast]);
 
   /**
+   * Keep the selection in the account's library, named after what it says.
+   * Said with a toast either way: what went in, what had to stay out, or why
+   * none of it did.
+   */
+  const { enabled: libraryEnabled, add: addToLibrary, markUsed: markLibraryUsed } = library;
+  const handleAddToLibrary = useCallback(async () => {
+    if (!libraryEnabled || selectedIds.length === 0) return;
+    const { shapes: kept, imagesLeftOut } = libraryShapesFor(selectedIds, shapes);
+    if (kept.length === 0) {
+      showToast(
+        imagesLeftOut > 0 ? 'Images can’t go in the library yet' : 'Nothing to add',
+        'warn',
+      );
+      return;
+    }
+    try {
+      await addToLibrary(kept, libraryItemName(kept));
+      showToast(
+        imagesLeftOut === 0
+          ? 'Added to library'
+          : `Added to library, without ${imagesLeftOut === 1 ? 'the image' : `${imagesLeftOut} images`}`,
+      );
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Couldn’t add that to your library', 'warn');
+    }
+  }, [libraryEnabled, addToLibrary, selectedIds, shapes, showToast]);
+
+  /**
+   * Put a library item on the board: in the middle of the view, or where it
+   * was dropped. One undo step, and selected, as a paste is — the frames and
+   * loose shapes, which bring what stands in the frames along.
+   */
+  const placeLibraryItem = useCallback(
+    (entry: LibraryEntry, at?: Point) => {
+      if (readOnly) return;
+      const placed = shapesCentredOn(
+        withFreshIds(entry.shapes, genId),
+        at ?? viewportCentre(),
+        doc.getShapes(),
+      );
+      if (placed.length === 0) return;
+      doc.batch(() => {
+        for (const shape of placed) doc.addShape(shape);
+      });
+      const ids = new Set(placed.map((shape) => shape.id));
+      actorRef.send({
+        type: 'SELECT_ALL',
+        shapeIds: placed
+          .filter((shape) => shape.frameId == null || !ids.has(shape.frameId))
+          .map((shape) => shape.id),
+      });
+      markLibraryUsed(entry.id);
+    },
+    [readOnly, viewportCentre, doc, actorRef, markLibraryUsed],
+  );
+
+  const { items: libraryItems } = library;
+  const handleDropLibraryItem = useCallback(
+    (id: string, at: Point) => {
+      const entry = libraryItems.find((item) => item.id === id);
+      if (entry) placeLibraryItem(entry, at);
+    },
+    [libraryItems, placeLibraryItem],
+  );
+
+  const handleLibraryError = useCallback(
+    (message: string) => showToast(message, 'warn'),
+    [showToast],
+  );
+
+  /**
    * A link to a place on this board, followed without leaving: the view moves
    * there, as it does when the board is opened at one. Answers whether it took
    * the link — anything else is left to the browser to open.
@@ -3508,6 +3589,7 @@ export function Editor({ boardId }: EditorProps) {
       unlockAll: handleUnlockAll,
       hideSelection: handleHide,
       showAll: handleShowAll,
+      addToLibrary: handleAddToLibrary,
       deleteSelection: handleDelete,
       selectAll: handleSelectAll,
       bringForward: handleBringForward,
@@ -3536,6 +3618,7 @@ export function Editor({ boardId }: EditorProps) {
       canUndo,
       canRedo,
       canRename,
+      canUseLibrary: libraryEnabled,
     },
   );
 
@@ -3684,6 +3767,8 @@ export function Editor({ boardId }: EditorProps) {
                 addLink:
                   selectedIds.length === 1 && editableIds.length === 1 ? handleEditLink : null,
                 copyLinkToSelection: selectedIds.length > 0 ? handleCopyLinkToSelection : null,
+                // The account's, not the board's: a viewer may keep things too.
+                addToLibrary: libraryEnabled && selectedIds.length > 0 ? handleAddToLibrary : null,
                 exportImage: showExport,
                 // The document reorders one shape at a time, so these wait
                 // for a single selection — as the properties panel's do.
@@ -3742,6 +3827,7 @@ export function Editor({ boardId }: EditorProps) {
                   imageRevision={images.revision}
                   darkMode={resolvedTheme === 'dark'}
                   onDropFiles={readOnly ? undefined : handleInsertImages}
+                  onDropLibraryItem={readOnly ? undefined : handleDropLibraryItem}
                   activeTool={activeTool}
                   camera={camera}
                   isSpacePressed={isSpacePressed}
@@ -3839,6 +3925,18 @@ export function Editor({ boardId }: EditorProps) {
           time. ⌘F still has to land somewhere, so the search comes up on its
           own for as long as it is in use and leaves on Escape like the rest. */}
             <div className="cf-top-right-dock">
+              {!chromeHidden && libraryEnabled && (
+                <LibraryMenu
+                  library={library}
+                  darkMode={resolvedTheme === 'dark'}
+                  canAdd={selectedIds.length > 0}
+                  canPlace={!readOnly}
+                  onAdd={handleAddToLibrary}
+                  onPlace={placeLibraryItem}
+                  onError={handleLibraryError}
+                  container={editorRoot}
+                />
+              )}
               {!chromeHidden && (
                 <CommentsMenu
                   threads={comments.threads}

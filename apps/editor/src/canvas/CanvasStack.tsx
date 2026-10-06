@@ -12,6 +12,7 @@ import { usePointerEvents } from '../pointer/usePointerEvents';
 import { useWheelEvents } from '../pointer/useWheelEvents';
 import { screenToWorld, eventToCanvasScreen } from '../pointer/coords';
 import { imageFilesFromDataTransfer } from '../images';
+import { LIBRARY_DRAG_TYPE } from '../library/library-items';
 
 interface CanvasStackProps {
   shapes: readonly Shape[];
@@ -46,6 +47,8 @@ interface CanvasStackProps {
   darkMode?: boolean;
   /** Image files dropped onto the canvas, with the world point they landed on. */
   onDropFiles?: (files: File[], at: Point) => void;
+  /** A library item dragged out of the library and let go over the canvas. */
+  onDropLibraryItem?: (id: string, at: Point) => void;
   /**
    * Remote collaborators. Absent until a connection exists.
    *
@@ -103,6 +106,7 @@ export function CanvasStack({
   peersRef,
   subscribePeers,
   onDropFiles,
+  onDropLibraryItem,
   onPointerHover,
   onPointerDown,
   onPointerMove,
@@ -192,7 +196,8 @@ export function CanvasStack({
   });
 
   /**
-   * Dropped images land where they were dropped, not at the viewport centre.
+   * Dropped images, and library items, land where they were dropped, not at
+   * the viewport centre.
    *
    * `dragover` has to be cancelled as well as `drop`: without it the browser
    * treats the canvas as a non-target and navigates away to the dropped file,
@@ -200,30 +205,42 @@ export function CanvasStack({
    */
   const handleDragOver = useCallback(
     (event: React.DragEvent) => {
-      if (!onDropFiles) return;
+      // A library item is told apart by its type while still in the air —
+      // its id cannot be read until it is let go.
+      const libraryItem = event.dataTransfer.types.includes(LIBRARY_DRAG_TYPE);
+      if (libraryItem ? !onDropLibraryItem : !onDropFiles) return;
       event.preventDefault();
       event.dataTransfer.dropEffect = 'copy';
     },
-    [onDropFiles],
+    [onDropFiles, onDropLibraryItem],
   );
 
   const handleDrop = useCallback(
     (event: React.DragEvent) => {
+      // screenToWorld subtracts the canvas origin itself, so it wants the raw
+      // client coordinates rather than ones already made canvas-relative.
+      const worldPoint = () => {
+        const canvas = interactiveCanvasRef.current;
+        return canvas
+          ? screenToWorld(event.clientX, event.clientY, canvas, camera)
+          : { x: camera.x, y: camera.y };
+      };
+
+      const libraryItem = event.dataTransfer.getData(LIBRARY_DRAG_TYPE);
+      if (libraryItem) {
+        if (!onDropLibraryItem) return;
+        event.preventDefault();
+        onDropLibraryItem(libraryItem, worldPoint());
+        return;
+      }
+
       if (!onDropFiles) return;
       const files = imageFilesFromDataTransfer(event.dataTransfer);
       if (files.length === 0) return;
       event.preventDefault();
-
-      // screenToWorld subtracts the canvas origin itself, so it wants the raw
-      // client coordinates rather than ones already made canvas-relative.
-      const canvas = interactiveCanvasRef.current;
-      const at = canvas
-        ? screenToWorld(event.clientX, event.clientY, canvas, camera)
-        : { x: camera.x, y: camera.y };
-
-      onDropFiles(files, at);
+      onDropFiles(files, worldPoint());
     },
-    [onDropFiles, camera],
+    [onDropFiles, onDropLibraryItem, camera],
   );
 
   const canvasStyle: React.CSSProperties = {

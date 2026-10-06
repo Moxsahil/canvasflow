@@ -12,3 +12,4 @@ export * from './email-verification.js';
 export * from './sign-in-failures.js';
 export * from './password-reset.js';
 export * from './account-deletion.js';
+export * from './library.js';

@@ -8,6 +8,7 @@ import { auditLog } from '../schema/audit.js';
 import { boardAccessRequests, boardMembers } from '../schema/board-access.js';
 import { boards } from '../schema/boards.js';
 import { emailVerificationTokens } from '../schema/email-verification.js';
+import { libraryItems } from '../schema/library.js';
 import { passwordResetTokens } from '../schema/password-reset.js';
 import { users, type NewUserRow } from '../schema/users.js';
 import { memberships, workspaces } from '../schema/workspaces.js';
@@ -61,6 +62,7 @@ export const USER_REFERENCE_FATES = {
   'memberships.user_id': 'deleted',
   'board_members.user_id': 'deleted',
   'board_access_requests.requester_id': 'deleted',
+  'library_items.owner_id': 'deleted',
   'boards.owner_id': 'with-boards',
   'board_updates.author_id': 'kept',
   'board_versions.author_id': 'kept',
@@ -490,6 +492,8 @@ export async function purgeAccount(
     await tx.delete(authSessions).where(eq(authSessions.userId, userId));
     await tx.delete(emailVerificationTokens).where(eq(emailVerificationTokens.userId, userId));
     await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, userId));
+    // Their library is theirs alone, so it goes with the rest of them.
+    await tx.delete(libraryItems).where(eq(libraryItems.ownerId, userId));
 
     await tx.update(auditLog).set({ actorId: null }).where(eq(auditLog.actorId, userId));
 
