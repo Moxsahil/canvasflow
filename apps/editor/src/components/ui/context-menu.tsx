@@ -112,7 +112,10 @@ const ContextMenuToggleItem = React.forwardRef<
     <ContextMenuPrimitive.CheckboxItem
       ref={ref}
       checked={checked}
-      className={cn(menuRowClasses, className)}
+      // Clipped, so the box sliding out of the way stays inside its row: on the
+      // last row it would otherwise poke past the panel's edge, and the panel
+      // scrolls — a scrollbar would flash for as long as the slide lasts.
+      className={cn(menuRowClasses, 'overflow-hidden', className)}
       onSelect={(event) => {
         event.preventDefault();
         press();

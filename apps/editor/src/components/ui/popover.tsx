@@ -7,6 +7,16 @@ const Popover = PopoverPrimitive.Root;
 const PopoverTrigger = PopoverPrimitive.Trigger;
 const PopoverAnchor = PopoverPrimitive.Anchor;
 
+/**
+ * On closing, focus is not handed back to the button that opened the popup:
+ * put there by script, the browser draws it the keyboard focus ring, which
+ * then outlives the popup. One that wants focus somewhere passes its own
+ * `onCloseAutoFocus`.
+ */
+function leaveTriggerUnfocused(event: Event) {
+  event.preventDefault();
+}
+
 const PopoverContent = React.forwardRef<
   React.ElementRef<typeof PopoverPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content> & {
@@ -19,7 +29,14 @@ const PopoverContent = React.forwardRef<
     container?: HTMLElement | null;
   }
 >(function PopoverContent(
-  { className, align = 'center', sideOffset = 4, container, ...props },
+  {
+    className,
+    align = 'center',
+    sideOffset = 4,
+    container,
+    onCloseAutoFocus = leaveTriggerUnfocused,
+    ...props
+  },
   ref,
 ) {
   return (
@@ -28,6 +45,7 @@ const PopoverContent = React.forwardRef<
         ref={ref}
         align={align}
         sideOffset={sideOffset}
+        onCloseAutoFocus={onCloseAutoFocus}
         className={cn(
           'z-(--zIndex-popup) w-72 overflow-hidden rounded-lg border border-sidebar-border bg-sidebar p-4 text-sidebar-foreground shadow-lg outline-hidden data-[state=open]:animate-popup-in',
           className,
