@@ -173,6 +173,30 @@ describe('excalidrawElementsToShapes, for whole drawings', () => {
     expect(shapes[0]).toMatchObject({ kind: 'arrow', label: 'calls' });
   });
 
+  it('makes text written in a box the box’s own words, in their font', () => {
+    const shapes = excalidrawElementsToShapes(
+      [
+        { id: 'b', type: 'rectangle', x: 0, y: 0, width: 120, height: 60 },
+        {
+          id: 't',
+          type: 'text',
+          x: 30,
+          y: 20,
+          width: 60,
+          text: 'Server',
+          containerId: 'b',
+          fontSize: 16,
+          fontFamily: 2,
+          textAlign: 'center',
+        },
+      ],
+      genId,
+    );
+    expect(shapes).toHaveLength(1);
+    expect(shapes[0]).toMatchObject({ kind: 'rectangle', label: 'Server', fontSize: 16 });
+    expect((shapes[0] as { fontFamily: string }).fontFamily).toContain('Helvetica');
+  });
+
   it('places centred text by its middle, so it stays centred in its box', () => {
     const [text] = excalidrawElementsToShapes(
       [

@@ -165,11 +165,18 @@ function rebuildShape(candidate: unknown, genId: () => string): Shape | null {
       const height = finite(candidate.height);
       if (width === undefined || height === undefined) return null;
       const edges = oneOf(candidate.edges, EDGES);
+      // Words of its own, read as a text shape's are: a string or nothing.
+      const words = {
+        label: text(candidate.label),
+        fontSize: finite(candidate.fontSize),
+        fontFamily: text(candidate.fontFamily),
+        textAlign: oneOf(candidate.textAlign, TEXT_ALIGNS),
+      };
       if (candidate.kind === 'ellipse') {
-        return createEllipse({ ...common, width, height });
+        return createEllipse({ ...common, width, height, ...words });
       }
       const create = candidate.kind === 'rectangle' ? createRectangle : createDiamond;
-      return create({ ...common, width, height, edges });
+      return create({ ...common, width, height, edges, ...words });
     }
 
     case 'line':

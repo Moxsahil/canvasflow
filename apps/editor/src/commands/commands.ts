@@ -23,10 +23,13 @@ import {
   MoveDown,
   MoveUp,
   Redo2,
+  RemoveFormatting,
   Scissors,
   SunMoon,
+  TextCursorInput,
   Trash2,
   Undo2,
+  WrapText,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
@@ -100,7 +103,10 @@ export type CommandId =
   | 'unlockAll'
   | 'hideSelection'
   | 'showAll'
-  | 'addToLibrary';
+  | 'addToLibrary'
+  | 'bindText'
+  | 'unbindText'
+  | 'wrapTextInContainer';
 
 /** Array order is the order the palette lists the groups in. */
 export const COMMAND_CATEGORIES = ['Tools', 'View', 'Edit', 'Arrange', 'Board', 'App'] as const;
@@ -130,6 +136,12 @@ export interface CommandContext {
   canRename: boolean;
   /** An account to keep a library in: false for a share-link guest. */
   canUseLibrary: boolean;
+  /** One text and one shape with no words of its own, and nothing else, are selected. */
+  canBindText: boolean;
+  /** Something selected that can be changed has words written inside it. */
+  canUnbindText: boolean;
+  /** Something selected that can be changed is a text shape. */
+  canWrapText: boolean;
 }
 
 export interface CommandMeta {
@@ -442,6 +454,30 @@ export const COMMANDS: readonly CommandMeta[] = [
     // The library is the account's, not the board's, so a viewer may keep
     // something from a board they cannot change.
     available: (context) => context.canUseLibrary && context.selectionCount > 0,
+  },
+  {
+    id: 'bindText',
+    label: 'Bind text to container',
+    icon: TextCursorInput,
+    category: 'Edit',
+    keywords: ['text in shape', 'label', 'put text in box', 'container', 'attach text'],
+    available: (context) => !context.readOnly && context.canBindText,
+  },
+  {
+    id: 'unbindText',
+    label: 'Unbind text',
+    icon: RemoveFormatting,
+    category: 'Edit',
+    keywords: ['text in shape', 'label', 'take text out', 'container', 'detach text'],
+    available: (context) => !context.readOnly && context.canUnbindText,
+  },
+  {
+    id: 'wrapTextInContainer',
+    label: 'Wrap text in container',
+    icon: WrapText,
+    category: 'Edit',
+    keywords: ['text in shape', 'box around text', 'container', 'border', 'surround'],
+    available: (context) => !context.readOnly && context.canWrapText,
   },
 
   {

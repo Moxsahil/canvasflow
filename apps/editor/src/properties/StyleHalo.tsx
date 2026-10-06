@@ -96,6 +96,7 @@ export function StyleHalo({
   onStyleChange,
   layerActions,
   darkMode,
+  hasText = false,
   anchor,
   board,
   hidden,
@@ -137,7 +138,7 @@ export function StyleHalo({
 
   if (hidden) return null;
 
-  const show = styleSections(shapeKinds, style);
+  const show = styleSections(shapeKinds, style, hasText);
   const paintStroke = (colour: string) => strokeColorFor(colour, darkMode);
 
   const toggle = (menu: HaloMenu) => (event: MouseEvent<HTMLButtonElement>) => {
@@ -227,7 +228,7 @@ export function StyleHalo({
 
         <Separator />
 
-        {show.textOnly && (
+        {(show.textOnly || show.shapeText) && (
           <button
             type="button"
             title="Text"

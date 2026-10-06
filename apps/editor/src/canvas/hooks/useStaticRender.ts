@@ -17,7 +17,7 @@ interface UseStaticRenderOptions {
   pendingErasureIds?: ReadonlySet<string>;
   /** Frames whose name is open for editing: label suppressed, border highlighted. */
   editingFrameIds?: ReadonlySet<string>;
-  editingArrowLabelId?: string;
+  editingLabelId?: string;
   /** Decoded image bitmaps. */
   images?: ImageSource;
   /**
@@ -54,7 +54,7 @@ export function useStaticRender(
     devicePixelRatio,
     pendingErasureIds,
     editingFrameIds,
-    editingArrowLabelId,
+    editingLabelId,
     images,
     imageRevision,
     darkMode,
@@ -73,7 +73,7 @@ export function useStaticRender(
       camera,
       pendingErasureIds,
       editingFrameIds,
-      editingArrowLabelId,
+      editingLabelId,
       images,
       darkMode,
     });
@@ -86,7 +86,7 @@ export function useStaticRender(
     devicePixelRatio,
     pendingErasureIds,
     editingFrameIds,
-    editingArrowLabelId,
+    editingLabelId,
     images,
     imageRevision,
     darkMode,

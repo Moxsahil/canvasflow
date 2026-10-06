@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   findTextMatches,
+  isSearchable,
   isText,
   matchRects,
   shapeBounds,
+  shapeTextFont,
   type Camera,
   type Rect,
+  type SearchableShape,
   type Shape,
   type TextMatch,
-  type TextShape,
 } from '@canvasflow/canvas-engine';
 
 const SEARCH_DEBOUNCE_MS = 120;
@@ -109,9 +111,9 @@ export function useCanvasSearch({
   }, [query]);
 
   const textShapes = useMemo(() => {
-    const map = new Map<string, TextShape>();
+    const map = new Map<string, SearchableShape>();
     for (const shape of shapes) {
-      if (isText(shape)) map.set(shape.id, shape);
+      if (isSearchable(shape)) map.set(shape.id, shape);
     }
     return map;
   }, [shapes]);
@@ -194,7 +196,7 @@ export function useCanvasSearch({
     if (size.width === 0 || size.height === 0) return;
 
     const shape = textShapes.get(focused.shapeId);
-    const fontSize = shape?.fontSize ?? 16;
+    const fontSize = shape ? (isText(shape) ? shape.fontSize : shapeTextFont(shape).fontSize) : 16;
     const tooSmall = fontSize * current.zoom < LEGIBLE_FONT_PX;
 
     if (isFullyVisible(target, current, size) && !tooSmall) return;

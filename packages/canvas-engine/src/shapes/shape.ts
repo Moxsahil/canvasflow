@@ -87,25 +87,51 @@ export interface BaseShape {
   readonly hidden?: boolean;
 }
 
-export interface RectangleShape extends BaseShape {
+/**
+ * Words written inside a box, an ellipse or a diamond: the shape's own text,
+ * wrapped to fit inside it and centred in it.
+ *
+ * Part of the shape rather than a text shape standing on top of it, as an
+ * arrow's label is part of the arrow. So the words go wherever the shape goes
+ * — moved, resized, copied, locked, hidden, deleted, kept in a library — with
+ * nothing to hold the two together and nothing left behind when they part.
+ *
+ * Set in the same three fields a text shape uses, under the same names, so the
+ * panel's text controls write to either alike. The colour is the stroke's.
+ *
+ * Every field absent means no text, and the defaults for the rest. Absent is
+ * what every shape written before this existed says, which is why there is no
+ * migration.
+ */
+export interface ShapeText {
+  readonly label?: string;
+  readonly fontSize?: number;
+  readonly fontFamily?: string;
+  readonly textAlign?: 'left' | 'center' | 'right';
+}
+
+export interface RectangleShape extends BaseShape, ShapeText {
   readonly kind: 'rectangle';
   readonly width: number;
   readonly height: number;
   readonly edges: Edges;
 }
 
-export interface EllipseShape extends BaseShape {
+export interface EllipseShape extends BaseShape, ShapeText {
   readonly kind: 'ellipse';
   readonly width: number;
   readonly height: number;
 }
 
-export interface DiamondShape extends BaseShape {
+export interface DiamondShape extends BaseShape, ShapeText {
   readonly kind: 'diamond';
   readonly width: number;
   readonly height: number;
   readonly edges: Edges;
 }
+
+/** The shapes that can have words written inside them. */
+export type TextContainerShape = RectangleShape | EllipseShape | DiamondShape;
 
 // --- Linear shapes (defined by points, no closed area) ---
 
@@ -294,6 +320,11 @@ export function isEllipse(s: Shape): s is EllipseShape {
 
 export function isDiamond(s: Shape): s is DiamondShape {
   return s.kind === 'diamond';
+}
+
+/** Whether this shape can hold text of its own: a box, an ellipse or a diamond. */
+export function isTextContainer(s: Shape): s is TextContainerShape {
+  return s.kind === 'rectangle' || s.kind === 'ellipse' || s.kind === 'diamond';
 }
 
 export function isArrow(s: Shape): s is ArrowShape {

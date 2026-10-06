@@ -1,4 +1,10 @@
-import { isArrow, isFreehand, isText, type Shape } from '@canvasflow/canvas-engine';
+import {
+  isArrow,
+  isFreehand,
+  isText,
+  isTextContainer,
+  type Shape,
+} from '@canvasflow/canvas-engine';
 import type { ItemStyle } from '../machine/tool-machine.types';
 
 /**
@@ -18,9 +24,21 @@ export function itemStyleFromShape(shape: Shape, fallback: ItemStyle): ItemStyle
     roughness: shape.roughness,
     opacity: shape.opacity,
     edges: 'edges' in shape ? shape.edges : fallback.edges,
-    fontFamily: isText(shape) ? shape.fontFamily : fallback.fontFamily,
-    fontSize: isText(shape) ? shape.fontSize : fallback.fontSize,
-    textAlign: isText(shape) ? shape.textAlign : fallback.textAlign,
+    // A shape's own words are set in the same three fields as a text shape's;
+    // its alignment, when it has none, is the middle its words are drawn in.
+    fontFamily:
+      isText(shape) || isTextContainer(shape)
+        ? (shape.fontFamily ?? fallback.fontFamily)
+        : fallback.fontFamily,
+    fontSize:
+      isText(shape) || isTextContainer(shape)
+        ? (shape.fontSize ?? fallback.fontSize)
+        : fallback.fontSize,
+    textAlign: isText(shape)
+      ? shape.textAlign
+      : isTextContainer(shape)
+        ? (shape.textAlign ?? 'center')
+        : fallback.textAlign,
     arrowType: isArrow(shape) ? shape.arrowType : fallback.arrowType,
     startArrowhead: isArrow(shape) ? shape.startArrowhead : fallback.startArrowhead,
     endArrowhead: isArrow(shape) ? shape.endArrowhead : fallback.endArrowhead,

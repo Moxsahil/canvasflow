@@ -6,8 +6,10 @@ import {
   isFrame,
   isImage,
   isText,
+  isTextContainer,
   renderSceneToSvgString,
   sanitizeShape,
+  shapeTextOf,
   type ArrowBinding,
   type Shape,
 } from '@canvasflow/canvas-engine';
@@ -110,7 +112,10 @@ export function libraryItemName(shapes: readonly Shape[]): string {
   return `${shapes.length} shapes`;
 }
 
-/** What an item's words say — a frame's name, text, a caption — or null where it has none. */
+/**
+ * What an item's words say — a frame's name, text, the words in a shape, an
+ * arrow's caption — or null where it has none.
+ */
 export function wordedItemName(shapes: readonly Shape[]): string | null {
   const named = (value: string) => {
     const line = value.split('\n').find((part) => part.trim() !== '') ?? '';
@@ -123,6 +128,11 @@ export function wordedItemName(shapes: readonly Shape[]): string | null {
 
   for (const shape of shapes) {
     if (isText(shape) && shape.text.trim() !== '') return named(shape.text);
+  }
+  for (const shape of shapes) {
+    if (isTextContainer(shape) && shapeTextOf(shape).trim() !== '') {
+      return named(shapeTextOf(shape));
+    }
   }
   for (const shape of shapes) {
     if (isArrow(shape) && shape.label && shape.label.trim() !== '') return named(shape.label);
