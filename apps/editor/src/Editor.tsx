@@ -84,7 +84,6 @@ import {
 } from './clipboard';
 import {
   LibraryMenu,
-  draggedLibraryEntry,
   libraryItemName,
   libraryShapesFor,
   useLibrary,
@@ -3140,13 +3139,18 @@ export function Editor({ boardId }: EditorProps) {
     [readOnly, viewportCentre, doc, actorRef, markLibraryUsed],
   );
 
-  // Whichever library it came from, the panel holds the item being dragged.
+  const { items: libraryItems } = library;
   const handleDropLibraryItem = useCallback(
     (id: string, at: Point) => {
-      const entry = draggedLibraryEntry(id);
+      const entry = libraryItems.find((item) => item.id === id);
       if (entry) placeLibraryItem(entry, at);
     },
-    [placeLibraryItem],
+    [libraryItems, placeLibraryItem],
+  );
+
+  const handleLibraryError = useCallback(
+    (message: string) => showToast(message, 'warn'),
+    [showToast],
   );
 
   /**
@@ -3929,7 +3933,7 @@ export function Editor({ boardId }: EditorProps) {
                   canPlace={!readOnly}
                   onAdd={handleAddToLibrary}
                   onPlace={placeLibraryItem}
-                  onNotify={showToast}
+                  onError={handleLibraryError}
                   container={editorRoot}
                 />
               )}

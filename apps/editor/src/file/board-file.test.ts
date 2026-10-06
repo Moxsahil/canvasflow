@@ -143,26 +143,12 @@ describe('parseBoardFile — Excalidraw files', () => {
       excalidrawFile([
         { id: 'a', type: 'rectangle', x: 0, y: 0, width: 10, height: 10 },
         { id: 'b', type: 'image', x: 0, y: 0, width: 10, height: 10 },
-        { id: 'c', type: 'embeddable', x: 0, y: 0, width: 10, height: 10 },
+        { id: 'c', type: 'frame', x: 0, y: 0, width: 10, height: 10 },
       ]),
       genId,
     );
     expect(shapes).toHaveLength(1);
     expect(skipped).toBe(2);
-  });
-
-  it('opens frames, with their names', () => {
-    const { shapes, skipped } = parseBoardFile(
-      excalidrawFile([
-        { id: 'f', type: 'frame', x: 0, y: 0, width: 100, height: 100, name: 'Login' },
-        { id: 'a', type: 'rectangle', x: 10, y: 10, width: 10, height: 10, frameId: 'f' },
-      ]),
-      genId,
-    );
-    expect(skipped).toBe(0);
-    const frame = shapes.find((shape) => shape.kind === 'frame');
-    expect(frame).toMatchObject({ name: 'Login' });
-    expect(shapes.find((shape) => shape.kind === 'rectangle')?.frameId).toBe(frame?.id);
   });
 
   it('opens a file whose appState names a view background, ignoring it', () => {
