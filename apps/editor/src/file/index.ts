@@ -15,9 +15,13 @@ export {
   canvasToPngBlob,
   copyPngToClipboard,
   EXPORT_SCALES,
+  exportScopeFor,
   ExportTooLargeError,
   exportSvgString,
   renderExportCanvas,
+  svgMarkup,
+  withFrameMembers,
+  type ExportScope,
   type ImageExportSettings,
 } from './export-image';
 export {

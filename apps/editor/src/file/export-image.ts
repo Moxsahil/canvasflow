@@ -1,12 +1,17 @@
 import {
+  descendantsOf,
+  frameBounds,
+  isFrame,
   measureExportSize,
   renderSceneToCanvas,
   renderSceneToSvgString,
+  shapesForFrameExport,
   SVG_DOCUMENT_PREAMBLE,
   type ImageSource,
   type Rect,
   type Shape,
 } from '@canvasflow/canvas-engine';
+import { writeClipboardItem } from '../clipboard/clipboard-ops';
 
 export const EXPORT_SCALES = [1, 2, 3] as const;
 
@@ -35,6 +40,47 @@ export class ExportTooLargeError extends Error {
     super('That export is too large. Try a smaller scale.');
     this.name = 'ExportTooLargeError';
   }
+}
+
+/**
+ * The selection with everything standing in its frames, in board order.
+ *
+ * A frame is selected on its own, and every operation that treats it as one
+ * object brings its contents along — so must anything that copies or exports
+ * it. Taken from `shapes`, so a shape missing there (hidden, say) stays out.
+ */
+export function withFrameMembers(
+  selected: readonly Shape[],
+  shapes: readonly Shape[],
+): readonly Shape[] {
+  const ids = new Set(selected.map((shape) => shape.id));
+  for (const frame of selected.filter(isFrame)) {
+    for (const member of descendantsOf(frame.id, shapes)) ids.add(member.id);
+  }
+  return shapes.filter((shape) => ids.has(shape.id));
+}
+
+/** What an image of the board covers: the shapes to draw, and a crop if there is one. */
+export interface ExportScope {
+  readonly shapes: readonly Shape[];
+  /** Set when the image is one frame, cut to the frame's edge. */
+  readonly region?: Rect;
+}
+
+/**
+ * The image a selection asks for.
+ *
+ * One frame on its own is a request for that frame: the artwork inside it,
+ * cropped to its edge, without its own border and label. Anything else
+ * selected is itself, frames with their contents. Nothing selected is the
+ * whole of `shapes`.
+ */
+export function exportScopeFor(shapes: readonly Shape[], selected: readonly Shape[]): ExportScope {
+  const [only] = selected;
+  if (selected.length === 1 && only && isFrame(only)) {
+    return { shapes: shapesForFrameExport(only, shapes), region: frameBounds(only) };
+  }
+  return { shapes: selected.length > 0 ? withFrameMembers(selected, shapes) : shapes };
 }
 
 function backgroundFor(settings: ImageExportSettings): string | null {
@@ -87,33 +133,42 @@ export function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   });
 }
 
-/** SVG for the same scene, themed the same way the PNG is. */
-export function exportSvgString(
+/**
+ * The SVG element for the same scene, themed the same way the PNG is.
+ *
+ * Bare, for the clipboard: what is pasted lands in a document or an editor,
+ * where an XML declaration halfway down is noise or an error.
+ */
+export function svgMarkup(
   shapes: readonly Shape[],
   settings: ImageExportSettings,
   imageDataUrls?: ReadonlyMap<string, string>,
 ): string {
-  const svg = renderSceneToSvgString(shapes, {
+  return renderSceneToSvgString(shapes, {
     scale: settings.scale,
     region: settings.region,
     backgroundColor: backgroundFor(settings),
     imageDataUrls,
     darkMode: settings.dark,
   });
-  return SVG_DOCUMENT_PREAMBLE + svg;
+}
+
+/** The same, as a file: declared as XML, so older software parses it. */
+export function exportSvgString(
+  shapes: readonly Shape[],
+  settings: ImageExportSettings,
+  imageDataUrls?: ReadonlyMap<string, string>,
+): string {
+  return SVG_DOCUMENT_PREAMBLE + svgMarkup(shapes, settings, imageDataUrls);
 }
 
 /**
  * Put the PNG on the system clipboard.
  *
- * Firefox has no ClipboardItem by default, which surfaces as a TypeError — the
- * one failure worth naming, since the user can enable it.
+ * Takes the PNG still being encoded, and must be called before anything is
+ * awaited: Safari refuses a clipboard write that comes after one. See
+ * `writeClipboardItem`.
  */
-export async function copyPngToClipboard(blob: Blob): Promise<void> {
-  if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) {
-    throw new Error(
-      "This browser can't copy images to the clipboard. Firefox needs dom.events.asyncClipboard.clipboardItem enabled.",
-    );
-  }
-  await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+export function copyPngToClipboard(png: Promise<Blob>): Promise<void> {
+  return writeClipboardItem('image/png', png);
 }

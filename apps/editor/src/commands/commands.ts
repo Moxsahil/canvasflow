@@ -3,6 +3,7 @@ import {
   ArrowUpToLine,
   BookPlus,
   BoxSelect,
+  Braces,
   ChartColumn,
   ClipboardPaste,
   Copy,
@@ -11,6 +12,8 @@ import {
   Expand,
   Eye,
   EyeOff,
+  FileCode,
+  FileImage,
   FlipHorizontal,
   FlipVertical,
   Focus,
@@ -26,7 +29,9 @@ import {
   Scissors,
   SunMoon,
   Trash2,
+  Type,
   Undo2,
+  Workflow,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
@@ -96,6 +101,11 @@ export type CommandId =
   | 'flipVertical'
   | 'editLink'
   | 'copyLinkToSelection'
+  | 'copyAsPng'
+  | 'copyAsSvg'
+  | 'copyAsText'
+  | 'copyAsMermaid'
+  | 'copyAsJson'
   | 'toggleLock'
   | 'unlockAll'
   | 'hideSelection'
@@ -130,6 +140,14 @@ export interface CommandContext {
   canRename: boolean;
   /** An account to keep a library in: false for a share-link guest. */
   canUseLibrary: boolean;
+  /** There is something for Copy as to copy: a selection, or a board with shapes showing. */
+  canCopyAs: boolean;
+  /** That, and this browser can put an image on the clipboard. */
+  canCopyAsPng: boolean;
+  /** Among what Copy as would copy, something has words. */
+  canCopyAsText: boolean;
+  /** Among what Copy as would copy, a box or an arrow tied at both ends. */
+  canCopyAsMermaid: boolean;
 }
 
 export interface CommandMeta {
@@ -394,6 +412,49 @@ export const COMMANDS: readonly CommandMeta[] = [
     keywords: ['share', 'url', 'point to', 'shapes', 'deep link', 'go to'],
     // Copying a link changes nothing, so a viewer may do it as well.
     available: (context) => context.selectionCount > 0,
+  },
+  // Copying changes nothing, so a viewer may do all five. Each covers the
+  // selection, or the board when nothing is selected.
+  {
+    id: 'copyAsPng',
+    label: 'Copy as PNG',
+    icon: FileImage,
+    category: 'Edit',
+    shortcut: 'alt+shift+c',
+    keywords: ['image', 'picture', 'screenshot', 'bitmap', 'clipboard'],
+    available: (context) => context.canCopyAsPng,
+  },
+  {
+    id: 'copyAsSvg',
+    label: 'Copy as SVG',
+    icon: FileCode,
+    category: 'Edit',
+    keywords: ['vector', 'image', 'picture', 'markup', 'clipboard'],
+    available: (context) => context.canCopyAs,
+  },
+  {
+    id: 'copyAsText',
+    label: 'Copy as text',
+    icon: Type,
+    category: 'Edit',
+    keywords: ['words', 'plain text', 'labels', 'writing', 'clipboard'],
+    available: (context) => context.canCopyAsText,
+  },
+  {
+    id: 'copyAsMermaid',
+    label: 'Copy as Mermaid',
+    icon: Workflow,
+    category: 'Edit',
+    keywords: ['code', 'diagram', 'flowchart', 'chart', 'markdown', 'clipboard'],
+    available: (context) => context.canCopyAsMermaid,
+  },
+  {
+    id: 'copyAsJson',
+    label: 'Copy as JSON',
+    icon: Braces,
+    category: 'Edit',
+    keywords: ['data', 'code', 'shapes', 'raw', 'clipboard'],
+    available: (context) => context.canCopyAs,
   },
   {
     id: 'toggleLock',

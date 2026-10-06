@@ -38,6 +38,8 @@ interface UseKeyboardShortcutsOptions {
   onZoomToFit: () => void;
   onZoomToSelection: () => void;
   onCopy: () => void;
+  /** Copy the selection, or the board, as a PNG: Shift+Alt+C. */
+  onCopyAsPng: () => void;
   onCut: () => void;
   /**
    * Handed what the paste carried, to be read before anything is awaited: the
@@ -94,6 +96,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onZoomToFit,
     onZoomToSelection,
     onCopy,
+    onCopyAsPng,
     onCut,
     onPaste,
     onShowHelp,
@@ -232,6 +235,21 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
       if (!mod && event.altKey && event.shiftKey && event.code === 'KeyD') {
         event.preventDefault();
         onToggleTheme();
+        return;
+      }
+
+      // Copy as PNG: Shift+Alt+C. By code, as the other Alt keys are. Left to
+      // a text field, where it is a character on some layouts; and not
+      // repeated while held, which would copy the same picture over and over.
+      if (
+        !mod &&
+        event.altKey &&
+        event.shiftKey &&
+        event.code === 'KeyC' &&
+        !isTypingTarget(event.target)
+      ) {
+        event.preventDefault();
+        if (!event.repeat) onCopyAsPng();
         return;
       }
 
@@ -489,6 +507,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onZoomToFit,
     onZoomToSelection,
     onCopy,
+    onCopyAsPng,
     onCut,
     onPaste,
     onShowHelp,

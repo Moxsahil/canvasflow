@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import {
-  frameBounds,
   frameLabel,
   isFrame,
   measureExportSize,
-  shapesForFrameExport,
   type ImageSource,
   type Shape,
 } from '@canvasflow/canvas-engine';
@@ -26,6 +24,7 @@ import {
   canvasToPngBlob,
   copyPngToClipboard,
   EXPORT_SCALES,
+  exportScopeFor,
   exportSvgString,
   renderExportCanvas,
   type ImageExportSettings,
@@ -91,27 +90,17 @@ export function ExportImageDialog({
   }, [open, boardName, darkTheme, selectedShapes]);
 
   /**
-   * The one selected frame, when that is what "only selected" means.
-   *
-   * Selecting a frame and asking for the selection is already a request to
-   * export that frame, so it needs no control of its own — and a frame is the
-   * one shape whose own outline is scaffolding rather than artwork, which is
-   * why it alone changes what the export covers.
+   * What the file covers. Selecting a frame and asking for the selection is
+   * already a request to export that frame, so it needs no control of its own:
+   * a frame is the one shape whose own outline is scaffolding rather than
+   * artwork, which is why it alone changes what the export covers — cropped to
+   * the frame, so the file comes out the size the frame promised however far
+   * its contents overhang. Copy as draws the same line.
    */
-  const exportFrame = useMemo(() => {
-    if (!selectionOnly || selectedShapes.length !== 1) return null;
-    const [only] = selectedShapes;
-    return only && isFrame(only) ? only : null;
-  }, [selectionOnly, selectedShapes]);
-
-  const exported = useMemo(() => {
-    if (exportFrame) return shapesForFrameExport(exportFrame, shapes);
-    return selectionOnly && hasSelection ? selectedShapes : shapes;
-  }, [exportFrame, selectionOnly, hasSelection, selectedShapes, shapes]);
-
-  // Cropped to the frame, so the file comes out the size the frame promised
-  // however far its contents overhang.
-  const region = useMemo(() => (exportFrame ? frameBounds(exportFrame) : undefined), [exportFrame]);
+  const { shapes: exported, region } = useMemo(
+    () => exportScopeFor(shapes, selectionOnly ? selectedShapes : []),
+    [shapes, selectionOnly, selectedShapes],
+  );
 
   const settings: ImageExportSettings = useMemo(
     () => ({
@@ -216,7 +205,8 @@ export function ExportImageDialog({
     () =>
       run(async () => {
         const { canvas } = renderExportCanvas(exported, settings, images);
-        await copyPngToClipboard(await canvasToPngBlob(canvas));
+        // Handed over still encoding: awaiting it first loses Safari the click.
+        await copyPngToClipboard(canvasToPngBlob(canvas));
         onClose();
       }),
     [exported, settings, onClose, run, images],
