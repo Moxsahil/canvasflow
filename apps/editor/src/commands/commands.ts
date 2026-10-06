@@ -1,6 +1,7 @@
 import {
   ArrowDownToLine,
   ArrowUpToLine,
+  BookPlus,
   BoxSelect,
   ChartColumn,
   ClipboardPaste,
@@ -98,7 +99,8 @@ export type CommandId =
   | 'toggleLock'
   | 'unlockAll'
   | 'hideSelection'
-  | 'showAll';
+  | 'showAll'
+  | 'addToLibrary';
 
 /** Array order is the order the palette lists the groups in. */
 export const COMMAND_CATEGORIES = ['Tools', 'View', 'Edit', 'Arrange', 'Board', 'App'] as const;
@@ -126,6 +128,8 @@ export interface CommandContext {
   canRedo: boolean;
   /** False on a board this account may edit but not retitle. */
   canRename: boolean;
+  /** An account to keep a library in: false for a share-link guest. */
+  canUseLibrary: boolean;
 }
 
 export interface CommandMeta {
@@ -428,6 +432,16 @@ export const COMMANDS: readonly CommandMeta[] = [
     keywords: ['show all', 'unhide', 'reveal', 'visibility'],
     // Like Unlock all: there whenever the board has shapes, hidden or not.
     available: (context) => !context.readOnly && context.shapeCount > 0,
+  },
+  {
+    id: 'addToLibrary',
+    label: 'Add to library',
+    icon: BookPlus,
+    category: 'Edit',
+    keywords: ['library', 'save', 'keep', 'reuse', 'component', 'template', 'stencil'],
+    // The library is the account's, not the board's, so a viewer may keep
+    // something from a board they cannot change.
+    available: (context) => context.canUseLibrary && context.selectionCount > 0,
   },
 
   {

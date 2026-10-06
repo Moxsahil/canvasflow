@@ -104,8 +104,8 @@ describe('row metadata', () => {
   });
 
   it('gives an unbuilt row no shortcut, since nothing would answer the key', () => {
-    expect(CONTEXT_MENU_ITEMS.addToLibrary.shortcut).toBeUndefined();
     expect(CONTEXT_MENU_ITEMS.copyAsPng.shortcut).toBeUndefined();
+    expect(CONTEXT_MENU_ITEMS.flatten.shortcut).toBeUndefined();
   });
 });
 

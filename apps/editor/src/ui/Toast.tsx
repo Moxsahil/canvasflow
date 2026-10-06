@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
-import { Check } from 'lucide-react';
+import { Check, CircleAlert } from 'lucide-react';
 import { menuSurfaceClasses } from '@/components/ui/menu-look';
 import { cn } from '@/lib/utils';
 
@@ -16,6 +16,8 @@ export interface ToastMessage {
   /** Changes with every toast, so the same words twice still start afresh. */
   readonly id: number;
   readonly text: string;
+  /** Something did not go as asked, said as plainly as when it did. */
+  readonly tone?: 'warn';
 }
 
 /**
@@ -23,13 +25,16 @@ export interface ToastMessage {
  * `TOAST_DURATION_MS`. Showing another while one is up replaces it and starts
  * the time again, rather than stacking.
  */
-export function useToast(): { toast: ToastMessage | null; show: (text: string) => void } {
+export function useToast(): {
+  toast: ToastMessage | null;
+  show: (text: string, tone?: 'warn') => void;
+} {
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const nextId = useRef(0);
 
-  const show = useCallback((text: string) => {
+  const show = useCallback((text: string, tone?: 'warn') => {
     nextId.current += 1;
-    setToast({ id: nextId.current, text });
+    setToast(tone ? { id: nextId.current, text, tone } : { id: nextId.current, text });
   }, []);
 
   useEffect(() => {
@@ -42,9 +47,10 @@ export function useToast(): { toast: ToastMessage | null; show: (text: string) =
 }
 
 /**
- * A word that something worked, in the menus' look, just above the zoom
- * panel at the bottom-right of the board — or in that corner itself when the
- * panel is away (focus and view mode, a narrow window).
+ * A word that something worked — or, in the warning tone, that it did not —
+ * in the menus' look, just above the zoom panel at the bottom-right of the
+ * board, or in that corner itself when the panel is away (focus and view
+ * mode, a narrow window).
  *
  * For news that needs nothing back: it takes no clicks and goes by itself.
  * Anything that asks for a choice, or carries something to act on, is a
@@ -85,7 +91,14 @@ export function Toast({ toast }: { toast: ToastMessage | null }) {
               data-testid="toast"
               className={cn(menuSurfaceClasses, 'flex h-9 items-center gap-2 px-3 text-xs')}
             >
-              <Check aria-hidden="true" className="size-4 shrink-0" />
+              {toast.tone === 'warn' ? (
+                <CircleAlert
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-amber-600 dark:text-amber-400"
+                />
+              ) : (
+                <Check aria-hidden="true" className="size-4 shrink-0" />
+              )}
               <span>{toast.text}</span>
             </motion.div>
           )}

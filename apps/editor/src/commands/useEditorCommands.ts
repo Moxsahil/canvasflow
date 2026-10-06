@@ -56,6 +56,7 @@ export function useEditorCommands(
     canUndo,
     canRedo,
     canRename,
+    canUseLibrary,
   } = context;
 
   // Rebuilt from the fields rather than the object, so the editor can pass a
@@ -71,6 +72,7 @@ export function useEditorCommands(
       canUndo,
       canRedo,
       canRename,
+      canUseLibrary,
     };
 
     const commands: EditorCommand[] = [];
@@ -96,5 +98,6 @@ export function useEditorCommands(
     canUndo,
     canRedo,
     canRename,
+    canUseLibrary,
   ]);
 }

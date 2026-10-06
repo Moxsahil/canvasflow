@@ -169,6 +169,13 @@
       "when": 1790501859540,
       "tag": "0023_account_deletions",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791196530143,
+      "tag": "0024_library_items",
+      "breakpoints": true
     }
   ]
 }
