@@ -176,6 +176,13 @@
       "when": 1791196530143,
       "tag": "0024_library_items",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791275232782,
+      "tag": "0025_added_libraries",
+      "breakpoints": true
     }
   ]
 }

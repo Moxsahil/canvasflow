@@ -19,6 +19,11 @@ export const SAVE_FORMATS = {
     mimeType: 'application/json',
     description: 'CanvasFlow board',
   },
+  library: {
+    extension: '.canvasflowlib',
+    mimeType: 'application/json',
+    description: 'CanvasFlow library',
+  },
   png: { extension: '.png', mimeType: 'image/png', description: 'PNG image' },
   svg: { extension: '.svg', mimeType: 'image/svg+xml', description: 'SVG image' },
 } as const;

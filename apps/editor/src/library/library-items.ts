@@ -99,6 +99,19 @@ export function libraryShapesFor(
  * shapes is counted.
  */
 export function libraryItemName(shapes: readonly Shape[]): string {
+  const worded = wordedItemName(shapes);
+  if (worded !== null) return worded;
+
+  if (shapes.length === 1) return KIND_NAMES[shapes[0]!.kind];
+  const kinds = new Set(shapes.map((shape) => shape.kind));
+  if (kinds.size === 1 && shapes[0]) {
+    return `${shapes.length} ${KIND_NAMES[shapes[0].kind].toLowerCase()}s`;
+  }
+  return `${shapes.length} shapes`;
+}
+
+/** What an item's words say — a frame's name, text, a caption — or null where it has none. */
+export function wordedItemName(shapes: readonly Shape[]): string | null {
   const named = (value: string) => {
     const line = value.split('\n').find((part) => part.trim() !== '') ?? '';
     const clean = line.trim().replace(/\s+/g, ' ');
@@ -114,13 +127,7 @@ export function libraryItemName(shapes: readonly Shape[]): string {
   for (const shape of shapes) {
     if (isArrow(shape) && shape.label && shape.label.trim() !== '') return named(shape.label);
   }
-
-  if (shapes.length === 1) return KIND_NAMES[shapes[0]!.kind];
-  const kinds = new Set(shapes.map((shape) => shape.kind));
-  if (kinds.size === 1 && shapes[0]) {
-    return `${shapes.length} ${KIND_NAMES[shapes[0].kind].toLowerCase()}s`;
-  }
-  return `${shapes.length} shapes`;
+  return null;
 }
 
 export interface ReadLibraryShapes {

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { LibraryController } from './library.controller.js';
+import { AddedLibrariesController, LibraryController } from './library.controller.js';
 
 @Module({
-  controllers: [LibraryController],
+  controllers: [LibraryController, AddedLibrariesController],
 })
 export class LibraryModule {}

@@ -1,4 +1,13 @@
-import { index, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 
 /**
@@ -39,3 +48,38 @@ export const libraryItems = pgTable(
 );
 
 export type LibraryItemRow = typeof libraryItems.$inferSelect;
+
+/**
+ * Libraries from the public catalogue that someone has added to their own.
+ *
+ * Only which library it is, never its contents: the editor reads the items
+ * from the catalogue whenever the library is opened. A catalogue library can
+ * run to megabytes, and copying one in would fill an account's library space
+ * with things it can read for free.
+ *
+ * `source` is the library file's path in the catalogue. The editor puts it
+ * after the catalogue's own address and nowhere else, so a stored path can
+ * name a file in the catalogue and nothing more.
+ */
+export const addedLibraries = pgTable(
+  'added_libraries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** The catalogue's id for the library. */
+    catalogueId: text('catalogue_id').notNull(),
+    name: text('name').notNull(),
+    source: text('source').notNull(),
+    /** Who made it, as the catalogue credits them, shown with it. */
+    credit: text('credit').notNull().default(''),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    /** A library is added once. */
+    ownerSourceIdx: uniqueIndex('added_libraries_owner_source_idx').on(table.ownerId, table.source),
+  }),
+);
+
+export type AddedLibraryRow = typeof addedLibraries.$inferSelect;
