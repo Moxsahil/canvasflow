@@ -27,6 +27,18 @@ const InlineDropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 const InlineDropdownMenuSub = DropdownMenuPrimitive.Sub;
 const InlineDropdownMenuBadge = MenuBadge;
 
+/**
+ * On closing, focus is not handed back to the button that opened the menu.
+ *
+ * Put there by script after a menu opened with the pointer, the browser takes
+ * it for keyboard focus and draws the focus ring, which then stays on the rail
+ * long after the menu is gone. A menu that wants focus somewhere — a field,
+ * or its button inside a dialog — passes its own `onCloseAutoFocus`.
+ */
+function leaveTriggerUnfocused(event: Event) {
+  event.preventDefault();
+}
+
 /** The shared panel, capped to the room the popper reports and scrolled past it. */
 const panelClasses = cn(menuPanelClasses, 'max-h-(--radix-dropdown-menu-content-available-height)');
 
@@ -79,10 +91,18 @@ const InlineDropdownMenuContent = React.forwardRef<
      */
     container?: HTMLElement | null;
   }
->(function InlineDropdownMenuContent({ className, container, children, ...props }, ref) {
+>(function InlineDropdownMenuContent(
+  { className, container, children, onCloseAutoFocus = leaveTriggerUnfocused, ...props },
+  ref,
+) {
   return (
     <DropdownMenuPrimitive.Portal container={container ?? undefined}>
-      <DropdownMenuPrimitive.Content ref={ref} className={cn(panelClasses, className)} {...props}>
+      <DropdownMenuPrimitive.Content
+        ref={ref}
+        className={cn(panelClasses, className)}
+        onCloseAutoFocus={onCloseAutoFocus}
+        {...props}
+      >
         <MotionConfig reducedMotion="user">{children}</MotionConfig>
       </DropdownMenuPrimitive.Content>
     </DropdownMenuPrimitive.Portal>
@@ -130,7 +150,10 @@ const InlineDropdownMenuToggleItem = React.forwardRef<
     <DropdownMenuPrimitive.CheckboxItem
       ref={ref}
       checked={checked}
-      className={cn(menuRowClasses, className)}
+      // Clipped, so the box sliding out of the way stays inside its row: on the
+      // last row it would otherwise poke past the panel's edge, and the panel
+      // scrolls — a scrollbar would flash for as long as the slide lasts.
+      className={cn(menuRowClasses, 'overflow-hidden', className)}
       onSelect={(event) => {
         event.preventDefault();
         press();
