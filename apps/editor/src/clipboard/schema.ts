@@ -11,9 +11,14 @@ export interface ExcalidrawClipboard {
   elements: ExcalidrawElement[];
 }
 
+/**
+ * An element as an Excalidraw clipboard or library file holds it — only the
+ * fields this editor reads. Everything is optional past the type and the
+ * position, and nothing is trusted: these come from outside.
+ */
 export interface ExcalidrawElement {
   id: string;
-  type: string; // 'rectangle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'freedraw' | 'text' | 'image' | ...
+  type: string; // 'rectangle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'freedraw' | 'text' | 'frame' | 'image' | ...
   x: number;
   y: number;
   width?: number;
@@ -21,14 +26,28 @@ export interface ExcalidrawElement {
   angle?: number;
   strokeColor?: string;
   backgroundColor?: string;
+  fillStyle?: string;
   strokeWidth?: number;
+  strokeStyle?: string;
+  roughness?: number;
+  opacity?: number;
+  seed?: number;
+  roundness?: { type?: number } | null;
+  isDeleted?: boolean;
   points?: Array<[number, number]>;
   startArrowhead?: string | null;
   endArrowhead?: string | null;
+  startBinding?: { elementId?: string; fixedPoint?: [number, number] | null } | null;
+  endBinding?: { elementId?: string; fixedPoint?: [number, number] | null } | null;
+  elbowed?: boolean;
+  simulatePressure?: boolean;
   text?: string;
+  originalText?: string;
   fontSize?: number;
   fontFamily?: number;
-  seed?: number;
+  textAlign?: string;
+  containerId?: string | null;
+  name?: string | null;
   link?: string | null;
 }
 

@@ -27,7 +27,7 @@ export class LibraryError extends Error {
 }
 
 function request(path: string, token: string, init: RequestInit = {}) {
-  return fetch(`${env.VITE_API_URL}/library/items${path}`, {
+  return fetch(`${env.VITE_API_URL}/library${path}`, {
     ...init,
     headers: {
       ...(init.body ? { 'Content-Type': 'application/json' } : {}),
@@ -50,7 +50,7 @@ async function failure(res: Response): Promise<LibraryError> {
 }
 
 export async function fetchLibraryItems(token: string): Promise<StoredLibraryItem[]> {
-  const res = await request('', token);
+  const res = await request('/items', token);
   if (!res.ok) throw await failure(res);
   return ((await res.json()) as { data: StoredLibraryItem[] }).data;
 }
@@ -59,7 +59,7 @@ export async function createLibraryItem(
   token: string,
   input: { name: string; shapes: readonly Shape[] },
 ): Promise<StoredLibraryItem> {
-  const res = await request('', token, { method: 'POST', body: JSON.stringify(input) });
+  const res = await request('/items', token, { method: 'POST', body: JSON.stringify(input) });
   if (!res.ok) throw await failure(res);
   return ((await res.json()) as { data: StoredLibraryItem }).data;
 }
@@ -69,7 +69,7 @@ export async function renameLibraryItem(
   id: string,
   name: string,
 ): Promise<StoredLibraryItem> {
-  const res = await request(`/${encodeURIComponent(id)}`, token, {
+  const res = await request(`/items/${encodeURIComponent(id)}`, token, {
     method: 'PATCH',
     body: JSON.stringify({ name }),
   });
@@ -78,7 +78,51 @@ export async function renameLibraryItem(
 }
 
 export async function deleteLibraryItem(token: string, id: string): Promise<void> {
-  const res = await request(`/${encodeURIComponent(id)}`, token, { method: 'DELETE' });
+  const res = await request(`/items/${encodeURIComponent(id)}`, token, { method: 'DELETE' });
+  // Already gone is what was asked for.
+  if (!res.ok && res.status !== 404) throw await failure(res);
+}
+
+/** Several items at once. All of them are kept, or none (409 when there is no room). */
+export async function importLibraryItems(
+  token: string,
+  items: readonly { name: string; shapes: readonly Shape[] }[],
+): Promise<StoredLibraryItem[]> {
+  const res = await request('/items/import', token, {
+    method: 'POST',
+    body: JSON.stringify({ items }),
+  });
+  if (!res.ok) throw await failure(res);
+  return ((await res.json()) as { data: StoredLibraryItem[] }).data;
+}
+
+/** A library added from the public catalogue: which one, never what is in it. */
+export interface AddedLibrary {
+  id: string;
+  catalogueId: string;
+  name: string;
+  source: string;
+  credit: string;
+  createdAt: string;
+}
+
+export async function fetchAddedLibraries(token: string): Promise<AddedLibrary[]> {
+  const res = await request('/added', token);
+  if (!res.ok) throw await failure(res);
+  return ((await res.json()) as { data: AddedLibrary[] }).data;
+}
+
+export async function addCatalogueLibrary(
+  token: string,
+  input: { catalogueId: string; name: string; source: string; credit: string },
+): Promise<AddedLibrary> {
+  const res = await request('/added', token, { method: 'POST', body: JSON.stringify(input) });
+  if (!res.ok) throw await failure(res);
+  return ((await res.json()) as { data: AddedLibrary }).data;
+}
+
+export async function removeAddedLibrary(token: string, id: string): Promise<void> {
+  const res = await request(`/added/${encodeURIComponent(id)}`, token, { method: 'DELETE' });
   // Already gone is what was asked for.
   if (!res.ok && res.status !== 404) throw await failure(res);
 }
