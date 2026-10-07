@@ -576,6 +576,7 @@ export function Editor({ boardId }: EditorProps) {
   const {
     authToken,
     refresh: refreshAuthToken,
+    refreshNow: refreshAuthTokenNow,
     accessDenied: tokenAccessDenied,
   } = useAuthToken(boardId);
 
@@ -706,7 +707,7 @@ export function Editor({ boardId }: EditorProps) {
     // A saved name only reaches collaborators when the token carrying it is
     // reminted, so a rename asks for that at once rather than waiting for the
     // refresh already scheduled minutes out.
-    onNameSaved: refreshAuthToken,
+    onNameSaved: refreshAuthTokenNow,
     // Re-read on every remint, so a change made elsewhere — another device,
     // beyond the reach of this browser's channel — lands without a reload.
     revalidateOn: authToken,
@@ -892,7 +893,7 @@ export function Editor({ boardId }: EditorProps) {
     // The server changed our role on this live connection. Re-mint the token
     // so `readOnly` and the chrome follow within a second, rather than at the
     // next scheduled refresh up to five minutes away.
-    onAccessChanged: refreshAuthToken,
+    onAccessChanged: refreshAuthTokenNow,
     onAccessRevoked: () => {
       if (!deletingAccountRef.current) setAccessRevoked(true);
     },
