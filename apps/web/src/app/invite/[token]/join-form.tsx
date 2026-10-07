@@ -2,55 +2,62 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { LoaderCircle } from 'lucide-react';
 import { TERMS_VERSION } from '@canvasflow/types';
+import { AuthDivider, authStyles } from '@/components/auth/auth-shell';
 import { TermsAgreement } from '@/components/legal/terms-agreement';
+import { cn } from '@/lib/utils';
 import { joinAsGuest, joinAsUser } from './actions';
 
 interface JoinFormProps {
   token: string;
-  boardTitle: string;
-  role: 'owner' | 'editor' | 'viewer';
   allowGuests: boolean;
-  signedIn: boolean;
+  /** Whoever is signed in here, to say who is about to join. Null for nobody. */
+  user: { name: string | null; email: string | null } | null;
   /** Where to send someone who chooses to sign in instead. */
   signInHref: string;
 }
 
 /**
- * The two ways onto a shared board.
+ * The ways onto a shared board, in the sign-in page's own inputs and buttons —
+ * someone who signs in from here goes there and comes straight back, and the
+ * two should read as one flow.
  *
- * A signed-in visitor gets one button. Everyone else is offered the guest path
- * — which is the point of the whole feature — with signing in kept available
- * underneath, because a guest identity is disposable and someone who has an
- * account almost always wants their own.
+ * A signed-in visitor is shown who they are and gets one button. Everyone else
+ * is offered the guest path — the point of the whole feature — with signing in
+ * kept underneath, because a guest identity is disposable and someone who has
+ * an account almost always wants their own.
  */
-export function JoinForm({
-  token,
-  boardTitle,
-  role,
-  allowGuests,
-  signedIn,
-  signInHref,
-}: JoinFormProps) {
+export function JoinForm({ token, allowGuests, user, signInHref }: JoinFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const capability = role === 'viewer' ? 'view' : 'edit';
-
-  if (signedIn) {
+  if (user) {
+    const shownName = user.name || user.email || 'Your account';
     return (
-      <div className="flex flex-col gap-4">
-        <p className="text-sm text-muted-foreground">
-          You&rsquo;ll be able to {capability}{' '}
-          <strong className="font-medium text-foreground">{boardTitle}</strong>.
-        </p>
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        <Button
-          className="w-full"
-          loading={pending}
+      <div>
+        <div className="flex items-center gap-3 rounded-xl border border-white/[0.08] px-4 py-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-xs font-medium text-white/80">
+            {initialsOf(shownName)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm text-[#F5F4F0]">{shownName}</p>
+            {user.name && user.email && (
+              <p className="truncate text-xs text-white/45">{user.email}</p>
+            )}
+          </div>
+          <span className="cf-eyebrow shrink-0 font-mono text-[10px] uppercase tracking-widest text-white/35">
+            Signed in
+          </span>
+        </div>
+
+        <ErrorLine error={error} />
+
+        <button
+          type="button"
+          className={cn(authStyles.submit, 'mt-5 gap-2')}
+          disabled={pending}
+          aria-busy={pending}
           onClick={() =>
             startTransition(async () => {
               // A successful join redirects, which throws — so anything that
@@ -60,73 +67,96 @@ export function JoinForm({
             })
           }
         >
+          {pending && <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />}
           Open board
-        </Button>
+        </button>
       </div>
     );
   }
 
   if (!allowGuests) {
     return (
-      <div className="flex flex-col gap-4">
-        <p className="text-sm text-muted-foreground">
-          This board is shared with signed-in people only.
+      <div>
+        <p className="text-sm leading-relaxed text-white/55">
+          This board is shared with people who have a CanvasFlow account.
         </p>
-        <Button asChild className="w-full">
-          <Link href={signInHref}>Sign in to continue</Link>
-        </Button>
+        <Link href={signInHref} className={cn(authStyles.submit, 'mt-5')}>
+          Sign in to continue
+        </Link>
       </div>
     );
   }
 
   return (
-    <form
-      className="flex flex-col gap-4"
-      action={(formData) =>
-        startTransition(async () => {
-          const result = await joinAsGuest(token, formData);
-          if (result?.error) setError(result.error);
-        })
-      }
-    >
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="name" className="font-medium">
+    <div>
+      <form
+        action={(formData) =>
+          startTransition(async () => {
+            const result = await joinAsGuest(token, formData);
+            if (result?.error) setError(result.error);
+          })
+        }
+      >
+        <label htmlFor="name" className="mb-2 block text-xs text-white/55">
           Your name
-        </Label>
-        <Input
+        </label>
+        <input
           id="name"
           name="name"
           placeholder="Guest"
           maxLength={40}
           autoFocus
           autoComplete="name"
+          className={authStyles.field}
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="mt-2 text-xs text-white/35">
           Shown on your cursor so people know who&rsquo;s who.
         </p>
-      </div>
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+        <ErrorLine error={error} />
 
-      <Button type="submit" className="w-full" loading={pending}>
-        Join board
-      </Button>
+        <button
+          type="submit"
+          className={cn(authStyles.submit, 'mt-5 gap-2')}
+          disabled={pending}
+          aria-busy={pending}
+        >
+          {pending && <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />}
+          Join board
+        </button>
 
-      {/* Only on the guest path: a signed-in visitor agreed when their account
-          was made, and one who must sign in agrees on the sign-in page. The
-          hidden field tells the join which version this form showed. */}
-      <input type="hidden" name="termsVersion" value={TERMS_VERSION} />
-      <TermsAgreement
-        className="text-center text-xs text-muted-foreground"
-        linkClassName="text-foreground underline underline-offset-4"
-      />
+        {/* Only on the guest path: a signed-in visitor agreed when their account
+            was made, and one who must sign in agrees on the sign-in page. The
+            hidden field tells the join which version this form showed. */}
+        <input type="hidden" name="termsVersion" value={TERMS_VERSION} />
+        <TermsAgreement className={authStyles.agreement} linkClassName={authStyles.link} />
+      </form>
 
-      <p className="text-center text-xs text-muted-foreground">
-        Have an account?{' '}
-        <Link href={signInHref} className="text-foreground underline underline-offset-4">
-          Sign in instead
-        </Link>
-      </p>
-    </form>
+      <AuthDivider />
+
+      <Link href={signInHref} className={authStyles.provider}>
+        Sign in to join with your account
+      </Link>
+    </div>
   );
+}
+
+function ErrorLine({ error }: { error: string | null }) {
+  if (!error) return null;
+  return (
+    <p role="alert" className="mt-4 text-sm text-red-400">
+      {error}
+    </p>
+  );
+}
+
+function initialsOf(name: string): string {
+  const letters = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+  return letters || '?';
 }
