@@ -1,12 +1,14 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../client.js';
 import { boards, type BoardRow } from '../schema/boards.js';
+import { users } from '../schema/users.js';
 import {
   memberships,
   workspaces,
   type MembershipRow,
   type WorkspaceRow,
 } from '../schema/workspaces.js';
+import type { AvatarSource } from './users.js';
 
 /**
  * The workspace tree behind the editor's board switcher: which workspaces a
@@ -148,6 +150,68 @@ export async function isWorkspaceMember(
   workspaceId: string,
 ): Promise<boolean> {
   return (await workspaceRoleOf(db, userId, workspaceId)) !== null;
+}
+
+/** One person in a workspace, as its member list shows them. */
+export interface WorkspaceMember {
+  userId: string;
+  name: string;
+  /** Null until they choose one. */
+  username: string | null;
+  email: string;
+  role: WorkspaceRole;
+  joinedAt: Date;
+  /** What their photo is drawn from; turning it into a URL is the caller's job. */
+  avatar: AvatarSource;
+}
+
+const ROLE_RANK: Record<WorkspaceRole, number> = { owner: 0, admin: 1, member: 2 };
+
+/**
+ * The order a member list reads in: the owner, then admins, then everyone
+ * else, each by when they joined — so the list doesn't reshuffle when somebody
+ * changes their name.
+ */
+export function compareWorkspaceMembers(
+  a: Pick<WorkspaceMember, 'role' | 'joinedAt'>,
+  b: Pick<WorkspaceMember, 'role' | 'joinedAt'>,
+): number {
+  return ROLE_RANK[a.role] - ROLE_RANK[b.role] || a.joinedAt.getTime() - b.joinedAt.getTime();
+}
+
+/**
+ * Everyone in a workspace, in `compareWorkspaceMembers` order.
+ *
+ * Answers for any workspace id, deleted or not: whether the caller may see the
+ * list is the route's question, answered with `workspaceRoleOf` first, which is
+ * also what refuses a deleted workspace.
+ */
+export async function listWorkspaceMembers(
+  db: Database,
+  workspaceId: string,
+): Promise<WorkspaceMember[]> {
+  const rows = await db
+    .select({
+      userId: users.id,
+      name: users.name,
+      username: users.username,
+      email: users.email,
+      role: memberships.role,
+      joinedAt: memberships.joinedAt,
+      fileId: users.avatarFileId,
+      mimeType: users.avatarMimeType,
+      externalUrl: users.avatarUrl,
+    })
+    .from(memberships)
+    .innerJoin(users, eq(users.id, memberships.userId))
+    .where(eq(memberships.workspaceId, workspaceId));
+
+  return rows
+    .map(({ fileId, mimeType, externalUrl, ...member }) => ({
+      ...member,
+      avatar: { fileId, mimeType, externalUrl },
+    }))
+    .sort(compareWorkspaceMembers);
 }
 
 /**

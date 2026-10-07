@@ -7,7 +7,7 @@ import { NotificationsPane } from './NotificationsPane';
 import { PrivacyPane } from './PrivacyPane';
 import { ProfilePane } from './ProfilePane';
 import { SettingsDialog } from './SettingsDialog';
-import { WorkspacePane } from './WorkspacePane';
+import { WorkspacePane, type WorkspaceSettingsSource } from './WorkspacePane';
 import { SETTINGS_INDEX, SETTINGS_SECTIONS, searchSettings } from './settings-sections';
 import { PRESENCE_PALETTE } from '@canvasflow/canvas-engine';
 import type { AvatarState, Profile, ProfileState } from '../profile';
@@ -54,6 +54,24 @@ function avatarStub(url: string | null = null): AvatarState {
 
 const USER = { name: 'Sahil Barak', email: 'sahil@example.com' };
 
+/** A workspace the sidebar has loaded, with the caller in it as `role`. */
+function workspaceSource(
+  role: 'owner' | 'admin' | 'member' = 'owner',
+): Extract<WorkspaceSettingsSource, { status: 'ready' }> {
+  return {
+    status: 'ready',
+    workspace: {
+      id: 'w1',
+      name: 'Studio Boards',
+      slug: 'studio-boards',
+      plan: 'free',
+      logoUrl: null,
+      role,
+      boardCount: 3,
+    },
+  };
+}
+
 /**
  * One tab's page on its own. The window shows the selected one and keeps that
  * choice to itself, so a page is reached here directly rather than through a
@@ -63,7 +81,7 @@ function renderPane(id: string) {
   const panes: Record<string, JSX.Element> = {
     profile: <ProfilePane user={null} account={accountStub()} avatar={avatarStub()} theme="dark" />,
     account: <AccountPane token={null} user={USER} account={accountStub(SAVED)} />,
-    workspace: <WorkspacePane />,
+    workspace: <WorkspacePane source={workspaceSource()} onRename={async () => {}} />,
     notifications: <NotificationsPane />,
     billing: <BillingPane />,
     privacy: <PrivacyPane deleteAccount={async () => {}} />,
@@ -162,6 +180,40 @@ describe('SettingsDialog', () => {
       'delete-account',
     );
     expect(searchSettings('e').length).toBeLessThanOrEqual(6);
+  });
+
+  it('shows the workspace the sidebar names, and lets its owner rename it', () => {
+    const pane = renderPane('workspace');
+    expect(pane).toContain('value="Studio Boards"');
+    expect(pane).toContain('Owner');
+    expect(pane).toContain('Full control, including deleting the workspace');
+    expect(pane).toContain('Can edit');
+    // Who else is in it is asked for once the page is on screen.
+    expect(pane).toContain('Loading…');
+    expect(pane).not.toContain('4 members');
+  });
+
+  it('shows a member the name without a field, and Leave as not built yet', () => {
+    const pane = renderToString(<WorkspacePane source={workspaceSource('member')} />);
+    expect(pane).not.toContain('value="Studio Boards"');
+    expect(pane).toContain('Studio Boards');
+    expect(pane).toContain('Only the owner or an admin can rename it');
+    expect(pane).toContain('Member');
+    expect(pane).toContain('Coming soon');
+  });
+
+  it('waits for the workspace list rather than inventing a workspace', () => {
+    const pane = renderToString(<WorkspacePane source={{ status: 'loading' }} />);
+    expect(pane).toContain('data-setting="workspace-name"');
+    expect(pane).not.toContain('Sahil Barak');
+  });
+
+  it('tells a guest they are in no workspace, and search offers them none of its rows', () => {
+    const pane = renderToString(<WorkspacePane source={{ status: 'none' }} />);
+    expect(pane).toContain('No workspace');
+    expect(pane).not.toContain('Leave workspace');
+    expect(searchSettings('members', { isGuest: true })).toEqual([]);
+    expect(searchSettings('members').map((entry) => entry.id)).toContain('members');
   });
 
   it('links to both legal pages from Data & Privacy, and says which terms were agreed to', () => {

@@ -232,6 +232,7 @@ import {
   requestAccountDeletion,
   takeDeletionResume,
   type DeletionInput,
+  type WorkspaceSettingsSource,
 } from './settings';
 import { warmAccountSecurity } from './settings/account-security-api';
 import { usePreferences } from './preferences';
@@ -774,6 +775,35 @@ export function Editor({ boardId }: EditorProps) {
   // sidebar's "Rename board" row means.
   const { beginRename, canRename } = boardSwitcher;
   const handleRenameBoard = useCallback(() => beginRename(), [beginRename]);
+
+  // Settings → Workspace is about the workspace the sidebar header names: the
+  // one being browsed, else the open board's own.
+  const settingsWorkspace = useMemo<WorkspaceSettingsSource>(() => {
+    if (user?.isGuest || !boardSwitcher.available) return { status: 'none' };
+    const shownId = boardSwitcher.browsedWorkspaceId ?? boardSwitcher.workspaceId;
+    const workspace = boardSwitcher.workspaces?.find((candidate) => candidate.id === shownId);
+    return workspace ? { status: 'ready', workspace } : { status: 'loading' };
+  }, [
+    user?.isGuest,
+    boardSwitcher.available,
+    boardSwitcher.browsedWorkspaceId,
+    boardSwitcher.workspaceId,
+    boardSwitcher.workspaces,
+  ]);
+  const { renameWorkspace, dismissError: dismissSwitcherError } = boardSwitcher;
+  const renameWorkspaceFromSettings = useCallback(
+    async (workspaceId: string, name: string) => {
+      try {
+        await renameWorkspace(workspaceId, name);
+      } catch (err) {
+        // Settings says why itself; the sidebar's menu shouldn't say it again
+        // the next time it opens.
+        dismissSwitcherError();
+        throw err;
+      }
+    },
+    [renameWorkspace, dismissSwitcherError],
+  );
 
   const doc = useBoardDocument(boardId, userId);
 
@@ -4515,6 +4545,8 @@ export function Editor({ boardId }: EditorProps) {
                   isGuest={user?.isGuest ?? false}
                   resumeDeletion={resumeDeletion}
                   deleteAccount={deleteAccount}
+                  workspace={settingsWorkspace}
+                  renameWorkspace={renameWorkspaceFromSettings}
                   onClose={hideSettings}
                 />
               )}

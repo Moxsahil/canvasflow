@@ -119,23 +119,46 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     terms: 'devices log out',
   },
 
-  { id: 'workspace-name', title: 'Workspace name', section: 'workspace', group: 'Workspace' },
-  { id: 'role', title: 'Your role', section: 'workspace', group: 'Workspace', terms: 'owner' },
+  // A guest is in no workspace, so search offers them none of these.
+  {
+    id: 'workspace-name',
+    title: 'Workspace name',
+    section: 'workspace',
+    group: 'Workspace',
+    terms: 'rename team',
+    accountOnly: true,
+  },
+  {
+    id: 'role',
+    title: 'Your role',
+    section: 'workspace',
+    group: 'Workspace',
+    terms: 'owner admin member',
+    accountOnly: true,
+  },
   {
     id: 'members',
     title: 'Members',
     section: 'workspace',
     group: 'People',
-    terms: 'invite people',
+    terms: 'invite people team',
+    accountOnly: true,
   },
   {
     id: 'board-access',
     title: 'Default board access',
     section: 'workspace',
     group: 'People',
-    terms: 'sharing',
+    terms: 'sharing edit',
+    accountOnly: true,
   },
-  { id: 'leave-workspace', title: 'Leave workspace', section: 'workspace', group: 'People' },
+  {
+    id: 'leave-workspace',
+    title: 'Leave workspace',
+    section: 'workspace',
+    group: 'People',
+    accountOnly: true,
+  },
 
   {
     id: 'board-shared',
