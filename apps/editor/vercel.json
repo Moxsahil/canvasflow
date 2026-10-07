@@ -1,4 +1,36 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "redirects": [
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "app.canvasflowapp.com" }],
+      "destination": "https://canvasflowapp.com/open",
+      "permanent": false
+    },
+    {
+      "source": "/index.html",
+      "has": [{ "type": "host", "value": "app.canvasflowapp.com" }],
+      "destination": "https://canvasflowapp.com/open",
+      "permanent": false
+    }
+  ],
+  "rewrites": [{ "source": "/boards/:path*", "destination": "/editor.html" }],
+  "headers": [
+    {
+      "source": "/",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    },
+    {
+      "source": "/index.html",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    },
+    {
+      "source": "/boards/:path*",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    },
+    {
+      "source": "/editor.html",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    }
+  ]
 }

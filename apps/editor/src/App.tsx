@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom';
 import { Editor } from './Editor';
 
 export function App() {
@@ -6,7 +6,14 @@ export function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/boards/:boardId" element={<EditorRoute />} />
-        <Route path="*" element={<Navigate to="/boards/dev-local" replace />} />
+        <Route
+          path="*"
+          element={
+            <p>
+              Invalid board link. <a href="/">Return to CanvasFlow</a>.
+            </p>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

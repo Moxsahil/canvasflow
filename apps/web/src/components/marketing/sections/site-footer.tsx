@@ -1,19 +1,20 @@
+import { APP_URL } from '@/lib/seo';
+
 // Rooted at `/` for the same reason as the nav's links: the legal pages end in
 // this footer too.
 const SECTION_LINKS = [
   { label: 'Platform', href: '/#platform' },
   { label: 'Use cases', href: '/#use-cases' },
   { label: 'Workflow', href: '/#workflow' },
-  { label: 'Integrations', href: '/#integrations' },
-  { label: 'Live', href: '/#live' },
   { label: 'Pricing', href: '/#pricing' },
+  { label: 'Whiteboard guide', href: '/guides/online-whiteboard' },
+  { label: 'CanvasFlow app', href: `${APP_URL}/` },
 ];
 
 const LEGAL_LINKS = [
   { label: 'Privacy', href: '/privacy' },
   { label: 'Terms', href: '/terms' },
-  { label: 'Docs', href: '#' },
-  { label: 'GitHub', href: '#' },
+  { label: 'GitHub', href: 'https://github.com/Moxsahil/canvasflow' },
 ];
 
 export function SiteFooter() {
