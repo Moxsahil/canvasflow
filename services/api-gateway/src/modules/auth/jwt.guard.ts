@@ -44,18 +44,10 @@ declare module 'express' {
  * rather than failing the request: the board token is short-lived, and a
  * signed-in person whose token has just expired is still signed in.
  *
- * A valid signature is not the whole answer. Any token that names a session
- * (`sid`) is honoured only while that session still stands, so signing out,
- * signing out everywhere or resetting a password takes effect on the very next
- * request instead of whenever the token in somebody's browser expires. A
- * guest's board token names no session and is judged on its signature alone,
- * as before.
+ * What a token must prove beyond its signature is up to each guard below.
  */
-@Injectable()
-export class JwtAuthGuard implements CanActivate {
+abstract class TokenGuard implements CanActivate {
   private readonly secret = new TextEncoder().encode(parseEnv().AUTH_SECRET);
-
-  constructor(private readonly database: DatabaseService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
@@ -86,7 +78,10 @@ export class JwtAuthGuard implements CanActivate {
    * with, signed by something else — because the caller has another candidate
    * to try and telling the failures apart would only invite reporting which.
    */
-  private async read(token: string): Promise<AuthenticatedUser | null> {
+  protected abstract read(token: string): Promise<AuthenticatedUser | null>;
+
+  /** Who a token names, on its signature alone. Asks nothing of the database. */
+  protected async verify(token: string): Promise<AuthenticatedUser | null> {
     let payload: JWTPayload;
     try {
       ({ payload } = await jwtVerify(token, this.secret));
@@ -99,16 +94,8 @@ export class JwtAuthGuard implements CanActivate {
     // Both are read so neither credential has to be reissued.
     const id = typeof payload.sub === 'string' ? payload.sub : payload.id;
     if (typeof id !== 'string' || id.length === 0) return null;
-
-    // One primary-key read, after the signature, so a forged or expired token
-    // never costs a query. Deliberately outside the try above: a database that
-    // cannot answer is an outage and surfaces as a 500, not as "not signed in"
-    // — the editor treats repeated 401s as a session that has ended and sends
-    // the person to sign in, which a blip must not do.
-    if (payload.sid !== undefined) {
-      if (typeof payload.sid !== 'string') return null;
-      if (!(await isSessionLive(this.database.db, payload.sid))) return null;
-    }
+    const sid = payload.sid;
+    if (sid !== undefined && typeof sid !== 'string') return null;
 
     return {
       id,
@@ -117,8 +104,57 @@ export class JwtAuthGuard implements CanActivate {
       // changes it. Whatever needs the profile reads the row.
       email: typeof payload.email === 'string' ? payload.email : '',
       name: typeof payload.name === 'string' ? payload.name : undefined,
-      sessionId: typeof payload.sid === 'string' ? payload.sid : undefined,
+      sessionId: sid,
     };
+  }
+}
+
+/**
+ * The guard for anything that acts on an account or says something about it.
+ *
+ * A valid signature is not the whole answer. Any token that names a session
+ * (`sid`) is honoured only while that session still stands, so signing out,
+ * signing out everywhere or resetting a password takes effect on the very next
+ * request instead of whenever the token in somebody's browser expires. A
+ * guest's board token names no session and is judged on its signature alone,
+ * as before.
+ */
+@Injectable()
+export class JwtAuthGuard extends TokenGuard {
+  constructor(private readonly database: DatabaseService) {
+    super();
+  }
+
+  protected async read(token: string): Promise<AuthenticatedUser | null> {
+    const user = await this.verify(token);
+    if (!user) return null;
+
+    // One primary-key read, after the signature, so a forged or expired token
+    // never costs a query. Deliberately outside the verification: a database
+    // that cannot answer is an outage and surfaces as a 500, not as "not signed
+    // in" — the editor treats repeated 401s as a session that has ended and
+    // sends the person to sign in, which a blip must not do.
+    if (user.sessionId !== undefined && !(await isSessionLive(this.database.db, user.sessionId))) {
+      return null;
+    }
+    return user;
+  }
+}
+
+/**
+ * The guard for reads that neither act on the account nor reveal anything
+ * about it, where asking whether the session still stands would cost a
+ * database round trip to protect nothing. Whether a username is free is the
+ * case in point: it is what any account could find out.
+ *
+ * The signature alone, so a session signed out in the last fifteen minutes
+ * still passes. That is exactly why nothing that changes or discloses an
+ * account may use this — those take `JwtAuthGuard`.
+ */
+@Injectable()
+export class SignedTokenGuard extends TokenGuard {
+  protected read(token: string): Promise<AuthenticatedUser | null> {
+    return this.verify(token);
   }
 }
 

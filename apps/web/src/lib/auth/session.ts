@@ -49,22 +49,6 @@ export async function currentSession(): Promise<CurrentSession | null> {
 }
 
 /**
- * Whose token this is, by its signature alone — no database.
- *
- * Only for reads that neither act on the account nor reveal anything about
- * it, where asking whether the session still stands would cost a round trip
- * to protect nothing. Whether a username is free is the case in point: it is
- * what any account could find out. A session signed out in the last fifteen
- * minutes still passes here, which is exactly why nothing that changes or
- * discloses an account may use it — those go through `currentSession`.
- */
-export async function tokenUserId(): Promise<string | null> {
-  const jar = await cookies();
-  const session = await readAccessToken(jar.get(ACCESS_COOKIE)?.value);
-  return session?.userId ?? null;
-}
-
-/**
  * The same answer, with the profile attached.
  *
  * Separate from `currentSession` because it costs a query: the access token

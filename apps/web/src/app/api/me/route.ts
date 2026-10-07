@@ -1,11 +1,5 @@
 import { isCursorColor } from '@canvasflow/types';
-import {
-  createClient,
-  getProfile,
-  parseUsername,
-  updateProfile,
-  type ProfileChanges,
-} from '@canvasflow/db';
+import { createClient, getProfile, updateProfile, type ProfileChanges } from '@canvasflow/db';
 import { env } from '@/lib/env';
 import { corsJson, corsPreflight } from '@/lib/api/cors';
 import { currentSession } from '@/lib/auth/session';
@@ -34,9 +28,12 @@ export async function GET() {
   return corsJson({ data: profile });
 }
 
+/**
+ * The display name and cursor colour. The username is the API gateway's, at
+ * `users/me/username`, with the rest of what says who somebody is.
+ */
 interface Patchbody {
   name?: unknown;
-  username?: unknown;
   cursorColor?: unknown;
 }
 
@@ -66,12 +63,6 @@ export async function PATCH(request: NextRequest) {
     changes.name = name;
   }
 
-  if (body.username !== undefined) {
-    const parsed = parseUsername(body.username);
-    if (!parsed.ok) return corsJson({ error: parsed.error }, { status: 400 });
-    changes.username = parsed.username;
-  }
-
   if (body.cursorColor !== undefined) {
     const color = body.cursorColor;
     if (color !== null && !isCursorColor(color)) {
@@ -80,20 +71,11 @@ export async function PATCH(request: NextRequest) {
     changes.cursorColor = color;
   }
 
-  if (Object.keys(changes).length === 0) {
+  if (changes.name === undefined && changes.cursorColor === undefined) {
     return corsJson({ error: 'Nothing to change.' }, { status: 400 });
   }
 
-  // The session read above, then this one write: a guest choosing a username
-  // is refused inside it rather than by a read before it.
   const saved = await updateProfile(db, userId, changes);
-  if (saved.ok) return corsJson({ data: saved.profile });
-  switch (saved.reason) {
-    case 'username-taken':
-      return corsJson({ error: 'That username is taken.' }, { status: 409 });
-    case 'guest':
-      return corsJson({ error: 'Create an account to choose a username.' }, { status: 403 });
-    case 'no-account':
-      return corsJson({ error: 'Not authenticated' }, { status: 401 });
-  }
+  if (!saved.ok) return corsJson({ error: 'Not authenticated' }, { status: 401 });
+  return corsJson({ data: saved.profile });
 }

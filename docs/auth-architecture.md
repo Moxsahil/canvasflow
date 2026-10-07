@@ -119,7 +119,11 @@ A revoked session stops working on its very next request everywhere, not when
 its token happens to expire:
 
 - The gateway's `JwtAuthGuard` and session renewal check that the session named
-  in the token (`sid`) is still live: one primary-key read.
+  in the token (`sid`) is still live: one primary-key read. The one exception
+  is `SignedTokenGuard`, which checks the signature alone, for reads that
+  neither act on nor reveal anything about the account — today only whether a
+  username is free. Anything that changes or discloses an account takes
+  `JwtAuthGuard`.
 - The web app's `currentSession()` and `currentUser()` do the same. The
   middleware only checks signatures, which is enough to decide whether to
   render a page.

@@ -91,6 +91,10 @@ async function bootstrap(): Promise<void> {
   app.enableCors({
     origin: origins,
     credentials: true,
+    // How long a browser may reuse a preflight's answer. Without it most keep
+    // one for five seconds, so nearly every write from the editor paid for an
+    // extra round trip first. Ten minutes; the answer only changes on deploy.
+    maxAge: 600,
   });
 
   await app.listen(env.PORT);
