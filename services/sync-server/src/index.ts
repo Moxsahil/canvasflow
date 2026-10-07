@@ -20,6 +20,10 @@ import {
   isInternalCaller,
 } from './security/internal-auth.js';
 import { announceWorkspaceChanged } from './workspace/workspace-changed.js';
+import {
+  PRESENCE_RENEW_INTERVAL_MS,
+  startPresenceKeepalive,
+} from './presence/presence-keepalive.js';
 import { createFanOutExtensions } from './scaling/redis-fan-out.js';
 import * as Y from 'yjs';
 import {
@@ -500,6 +504,7 @@ app.post('/internal/workspace-changed', express.json({ limit: '4kb' }), async (r
 });
 
 let stopReauthorize: (() => void) | null = null;
+let stopPresenceKeepalive: (() => void) | null = null;
 
 async function bootstrap(): Promise<void> {
   await hocuspocus.listen();
@@ -511,6 +516,11 @@ async function bootstrap(): Promise<void> {
   // person is actually in.
   stopReauthorize = startReauthorizeLoop({ server: hocuspocus, db, log });
   log.info('re-authorization sweep started', { intervalMs: REAUTHORIZE_INTERVAL_MS });
+
+  // Keeps a board in a background tab on everyone's list of who is here; see
+  // presence-keepalive.ts for why a timer in that tab cannot.
+  stopPresenceKeepalive = startPresenceKeepalive(hocuspocus);
+  log.info('presence keepalive started', { intervalMs: PRESENCE_RENEW_INTERVAL_MS });
 
   app.listen(env.PORT_HTTP, () => {
     log.info('HTTP (health) listening', { port: env.PORT_HTTP });
@@ -538,6 +548,7 @@ bootstrap().catch((err) => {
 process.on('SIGTERM', async () => {
   log.info('SIGTERM received, shutting down');
   stopReauthorize?.();
+  stopPresenceKeepalive?.();
   await hocuspocus.destroy();
   process.exit(0);
 });
