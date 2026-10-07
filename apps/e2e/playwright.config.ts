@@ -23,7 +23,7 @@ export default defineConfig({
       // Password recovery, account security, the legal pages and account
       // deletion run in their own projects, below.
       testIgnore:
-        /(password-reset|account-security|legal|account-deletion(-request|-ui)?|account-purge|account-restore)\.spec\.ts/,
+        /(password-reset|account-security|legal|account-deletion(-request|-ui)?|account-purge|account-restore|username)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         // Every test in this project starts already signed in, from the file
@@ -46,6 +46,14 @@ export default defineConfig({
     {
       name: 'account',
       testMatch: /account-security\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // Settings → Profile → Username, with two throwaway accounts of its own:
+    // one to claim names, one to hold a name the first cannot have. Run on its
+    // own with `--project=username`.
+    {
+      name: 'username',
+      testMatch: /username\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
     // The terms and the lines pointing at them, as someone who has never signed

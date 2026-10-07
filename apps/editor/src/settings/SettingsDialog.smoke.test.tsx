@@ -18,6 +18,7 @@ const noop = () => {};
 const SAVED: Profile = {
   id: 'u1',
   name: 'Sahil Saved',
+  username: 'sahil.saved',
   email: 'sahil@example.com',
   avatarUrl: null,
   isGuest: false,
@@ -277,10 +278,27 @@ describe('SettingsDialog', () => {
   });
 
   it('marks the unbuilt rows rather than letting them look ready', () => {
-    const profile = render(undefined, 'dark', accountStub(SAVED));
-    expect(profile.match(/Coming soon/g)).toHaveLength(1);
-    expect(profile).toContain('aria-label="Username"');
+    expect(render(undefined, 'dark', accountStub(SAVED))).not.toContain('Coming soon');
     expect(renderPane('account').match(/Coming soon/g)).toHaveLength(1);
+  });
+
+  it('shows the saved username after its @, ready to change', () => {
+    const html = render(undefined, 'dark', accountStub(SAVED));
+    expect(html).toMatch(/<label for="[^"]+"[^>]*>Username<\/label>/);
+    expect(html).toContain('value="sahil.saved"');
+    expect(html).toContain('Yours alone across Canvasflow');
+    // Nothing typed, so nothing to save or cancel yet.
+    expect(html).not.toContain('aria-label="Save"');
+  });
+
+  it('keeps the username from a guest, who has no account to hold one', () => {
+    const guest = render(
+      undefined,
+      'dark',
+      accountStub({ ...SAVED, username: null, isGuest: true }),
+    );
+    expect(guest).toContain('Create an account to choose a username');
+    expect(guest).toMatch(/placeholder="username"[^>]*disabled=""/);
   });
 
   it('disables the live fields for a guest, who has no profile to save to', () => {

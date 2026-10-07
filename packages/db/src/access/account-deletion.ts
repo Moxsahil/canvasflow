@@ -12,6 +12,7 @@ import { addedLibraries, libraryItems } from '../schema/library.js';
 import { passwordResetTokens } from '../schema/password-reset.js';
 import { users, type NewUserRow } from '../schema/users.js';
 import { memberships, workspaces } from '../schema/workspaces.js';
+import { isUniqueViolation } from './pg-errors.js';
 
 /**
  * Deleting an account, in two steps.
@@ -90,6 +91,8 @@ export function anonymizedAccount(userId: string, now: Date) {
   return {
     email: `deleted-${userId}@deleted.invalid`,
     name: DELETED_USER_NAME,
+    // Free for somebody else from here on, as an address is.
+    username: null,
     avatarUrl: null,
     avatarFileId: null,
     avatarMimeType: null,
@@ -519,10 +522,4 @@ export async function purgeAccount(
 
     return { ok: true, deletedBoardIds: deleted.map((board) => board.id) } as const;
   });
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === 'object' && error !== null && (error as { code?: string }).code === '23505'
-  );
 }

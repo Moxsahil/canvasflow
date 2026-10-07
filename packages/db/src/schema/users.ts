@@ -1,81 +1,100 @@
-import { boolean, jsonb, pgTable, uuid, timestamp, text } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { boolean, check, jsonb, pgTable, uuid, timestamp, text } from 'drizzle-orm/pg-core';
 import { DEFAULT_USER_PREFERENCES, type UserPreferences } from '@canvasflow/types';
 
-export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  /**
-   * Guests get a synthetic address (`guest-<id>@guests.invalid`) because this
-   * column is unique and not null. It is never delivered to.
-   */
-  email: text('email').notNull().unique(),
-  name: text('name').notNull(),
-  /**
-   * Someone who arrived through a share link without an account.
-   *
-   * They get a real row rather than a special case because `board_updates`,
-   * `audit_log` and `board_grants` all reference `users.id` — a guest without
-   * one could sync to peers in memory but would fail every persistence write.
-   * The flag is what lets sign-in, listings and cleanup tell them apart.
-   */
-  isGuest: boolean('is_guest').notNull().default(false),
-  /**
-   * A photo from whoever they signed in with, when there is one.
-   *
-   * Someone else's URL on someone else's origin, which is why an uploaded
-   * photo does not go here: those live in our own object storage and are named
-   * by the two columns below.
-   */
-  avatarUrl: text('avatar_url'),
-  /**
-   * The sha256 of an uploaded photo, which is also its object key under
-   * `avatars/<user id>/`. Null for anyone who has not uploaded one.
-   */
-  avatarFileId: text('avatar_file_id'),
-  /** Pinned into the signature of every URL issued for that object. */
-  avatarMimeType: text('avatar_mime_type'),
-  passwordHash: text('password_hash'),
-  /**
-   * When the password was last replaced, by a reset link or from Settings.
-   * Null for a password set at signup and never changed, and for accounts
-   * that have no password at all.
-   *
-   * Drives "Last changed" in Settings, and lets a reset link be refused if it
-   * was issued before the most recent change — a link sent before somebody
-   * took their account back must not work afterwards.
-   */
-  passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }),
-  emailVerifiedAt: timestamp('email_verified_at', {
-    withTimezone: true,
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /**
+     * Guests get a synthetic address (`guest-<id>@guests.invalid`) because this
+     * column is unique and not null. It is never delivered to.
+     */
+    email: text('email').notNull().unique(),
+    name: text('name').notNull(),
+    /**
+     * The name somebody chose to be found by, unique across every account.
+     *
+     * Null until they choose one — nobody is given one — and always null for a
+     * guest. Stored the way it is written, in lower case, so uniqueness here is
+     * uniqueness however it was typed. The rules for one are in
+     * `@canvasflow/types`; the check below holds the part of them a database can.
+     *
+     * Held until the account is purged rather than when deletion is asked for,
+     * so an account restored within its grace period still has it.
+     */
+    username: text('username').unique(),
+    /**
+     * Someone who arrived through a share link without an account.
+     *
+     * They get a real row rather than a special case because `board_updates`,
+     * `audit_log` and `board_grants` all reference `users.id` — a guest without
+     * one could sync to peers in memory but would fail every persistence write.
+     * The flag is what lets sign-in, listings and cleanup tell them apart.
+     */
+    isGuest: boolean('is_guest').notNull().default(false),
+    /**
+     * A photo from whoever they signed in with, when there is one.
+     *
+     * Someone else's URL on someone else's origin, which is why an uploaded
+     * photo does not go here: those live in our own object storage and are named
+     * by the two columns below.
+     */
+    avatarUrl: text('avatar_url'),
+    /**
+     * The sha256 of an uploaded photo, which is also its object key under
+     * `avatars/<user id>/`. Null for anyone who has not uploaded one.
+     */
+    avatarFileId: text('avatar_file_id'),
+    /** Pinned into the signature of every URL issued for that object. */
+    avatarMimeType: text('avatar_mime_type'),
+    passwordHash: text('password_hash'),
+    /**
+     * When the password was last replaced, by a reset link or from Settings.
+     * Null for a password set at signup and never changed, and for accounts
+     * that have no password at all.
+     *
+     * Drives "Last changed" in Settings, and lets a reset link be refused if it
+     * was issued before the most recent change — a link sent before somebody
+     * took their account back must not work afterwards.
+     */
+    passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }),
+    emailVerifiedAt: timestamp('email_verified_at', {
+      withTimezone: true,
+    }),
+    /**
+     * Set when an account is barred from signing in. Null means it may.
+     *
+     * A timestamp rather than a boolean, because knowing when somebody was
+     * barred is the first question anybody asks afterwards, and a flag throws
+     * that away.
+     *
+     * Nothing writes it yet. Sign-in reads it, so barring an account is an
+     * update to this column and takes effect on the next attempt.
+     */
+    disabledAt: timestamp('disabled_at', { withTimezone: true }),
+    /**
+     * When this person agreed to the Terms of Service, and which version they
+     * agreed to — the `TERMS_VERSION` the page they continued from was showing.
+     *
+     * Written where an account begins: signup, a first sign-in through Google or
+     * GitHub, and a guest joining by link. Both null when there is no agreement
+     * on record, which includes every account made before these columns were.
+     */
+    termsAcceptedAt: timestamp('terms_accepted_at', { withTimezone: true }),
+    termsVersion: text('terms_version'),
+    preferences: jsonb('preferences')
+      .$type<UserPreferences>()
+      .notNull()
+      .default(DEFAULT_USER_PREFERENCES),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+  },
+  (table) => ({
+    usernameFormat: check('users_username_format', sql`${table.username} ~ '^[a-z0-9_.]{3,30}$'`),
   }),
-  /**
-   * Set when an account is barred from signing in. Null means it may.
-   *
-   * A timestamp rather than a boolean, because knowing when somebody was
-   * barred is the first question anybody asks afterwards, and a flag throws
-   * that away.
-   *
-   * Nothing writes it yet. Sign-in reads it, so barring an account is an
-   * update to this column and takes effect on the next attempt.
-   */
-  disabledAt: timestamp('disabled_at', { withTimezone: true }),
-  /**
-   * When this person agreed to the Terms of Service, and which version they
-   * agreed to — the `TERMS_VERSION` the page they continued from was showing.
-   *
-   * Written where an account begins: signup, a first sign-in through Google or
-   * GitHub, and a guest joining by link. Both null when there is no agreement
-   * on record, which includes every account made before these columns were.
-   */
-  termsAcceptedAt: timestamp('terms_accepted_at', { withTimezone: true }),
-  termsVersion: text('terms_version'),
-  preferences: jsonb('preferences')
-    .$type<UserPreferences>()
-    .notNull()
-    .default(DEFAULT_USER_PREFERENCES),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
-});
+);
 
 export type UserRow = typeof users.$inferSelect;
 export type NewUserRow = typeof users.$inferInsert;

@@ -1,14 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { Check, X } from 'lucide-react';
 import { PRESENCE_PALETTE, type PresenceTheme } from '@canvasflow/canvas-engine';
-import type { CursorColor } from '@canvasflow/types';
+import {
+  normalizeUsername,
+  USERNAME_MAX_LENGTH,
+  usernameProblem,
+  type CursorColor,
+} from '@canvasflow/types';
 import { initialsOf } from '@/lib/initials';
 import { cn } from '@/lib/utils';
-import type { AvatarState, Profile, ProfileState } from '../profile';
+import {
+  checkUsernames,
+  type AvatarState,
+  type Profile,
+  type ProfileState,
+  type UsernameCheck,
+} from '../profile';
+import { usernameCandidates } from '../profile/username-suggestions';
 import { PhotoDialog } from './PhotoDialog';
-import { useBand } from './settings-frame';
+import { useBand, useEscape } from './settings-frame';
 import {
   Band,
-  ComingSoonTag,
+  INLINE_ACTION,
   InlineTextField,
   ROW_INPUT,
   SettingRow,
@@ -31,9 +44,8 @@ interface ProfilePaneProps {
 /**
  * Profile: how you appear to the people you share a board with.
  *
- * The name saves when its own Save is pressed, the colour the moment it is
- * picked, and the photo once it has been positioned. The username has nowhere
- * to be saved yet and says so.
+ * The name and the username save when their own Save is pressed, the colour
+ * the moment it is picked, and the photo once it has been positioned.
  *
  * A guest has no profile to write to, so the live fields are disabled rather
  * than offering a save that would be refused.
@@ -114,31 +126,284 @@ export function ProfilePane({ user, account, avatar, theme }: ProfilePaneProps) 
           }}
         />
 
-        {/* It says what it is for once it exists, and that it does not yet. */}
-        <StackedField
-          setting="username"
-          label="Username"
-          htmlFor="settings-username"
-          badge={<ComingSoonTag />}
-          hint="Will name you in @mentions and shorter board links"
-        >
-          <input
-            id="settings-username"
-            type="text"
-            value=""
-            placeholder="username"
-            aria-label="Username"
-            disabled
-            readOnly
-            className={ROW_INPUT}
-          />
-        </StackedField>
+        <UsernameField profile={profile} error={error} save={save} />
       </Band>
 
       <Band title="Presence">
         <CursorColour profile={profile} save={save} theme={theme} editable={editable} />
       </Band>
     </SettingsPage>
+  );
+}
+
+/** How long typing has to pause before the field asks whether a name is free. */
+const USERNAME_CHECK_DELAY_MS = 350;
+
+/**
+ * How long an answer about a name is trusted. Long enough that typing back to
+ * a name answers at once and asks nothing; short enough that a name somebody
+ * has since claimed does not read as free for long. The save decides anyway.
+ */
+const USERNAME_ANSWER_TTL_MS = 30_000;
+
+interface RememberedAnswer {
+  /** Why it cannot be had, or null for free. */
+  problem: string | null;
+  at: number;
+}
+
+/** Keep what the server said about each name it answered for. */
+function rememberAnswers(answers: Map<string, RememberedAnswer>, results: UsernameCheck[]) {
+  const at = Date.now();
+  for (const result of results) {
+    if (!result.username) continue;
+    answers.set(result.username, {
+      problem: result.available ? null : (result.problem ?? 'That username is taken.'),
+      at,
+    });
+  }
+}
+
+/** What was said about a name, if it was said recently enough to go on. */
+function recallAnswer(
+  answers: Map<string, RememberedAnswer>,
+  name: string,
+): RememberedAnswer | null {
+  const known = answers.get(name);
+  return known && Date.now() - known.at < USERNAME_ANSWER_TTL_MS ? known : null;
+}
+
+/**
+ * The username: a pill with the @ already in it, saved by its own tick.
+ *
+ * It is stored in lower case, so it is typed in lower case too: what is in the
+ * field is what will be saved. Once typing pauses the field says whether the
+ * name can be had — a rule it breaks, taken, or available. That answer is only
+ * advice; the save is what decides, and says so if somebody took the name in
+ * between.
+ *
+ * With none chosen yet, it starts with one made from their name or address, so
+ * claiming a name can be a single press. Nobody is given one without pressing.
+ *
+ * Every answer is remembered for a while, so going back to a name already
+ * checked costs nothing; the suggestion's fallbacks are asked about in the
+ * same request as the suggestion, and remembered with it.
+ */
+function UsernameField({
+  profile,
+  error,
+  save,
+}: {
+  profile: Profile | null;
+  /** Why the last save failed, from the profile. Shown only for this field's own save. */
+  error: string | null;
+  save: ProfileState['save'];
+}) {
+  const id = useId();
+  const band = useBand();
+  const saved = profile?.username ?? '';
+  const isGuest = profile?.isGuest ?? false;
+  const editable = profile !== null && !isGuest;
+  const personName = profile?.name ?? '';
+  const personEmail = profile?.email ?? null;
+
+  const [draft, setDraft] = useState(saved);
+  const [suggested, setSuggested] = useState<string | null>(null);
+  /** What was last found out about a name, and which name it was. */
+  const [check, setCheck] = useState<{ name: string; problem: string | null } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [refused, setRefused] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const touched = useRef(false);
+  const answers = useRef(new Map<string, RememberedAnswer>());
+
+  // Follows the account when it changes elsewhere, until somebody types.
+  useEffect(() => {
+    if (!touched.current) setDraft(saved);
+  }, [saved]);
+
+  // Somebody with no username yet starts with the first free one of a few,
+  // all asked about in one request.
+  useEffect(() => {
+    if (saved || !editable) return;
+    const candidates = usernameCandidates({ name: personName, email: personEmail });
+    if (candidates.length === 0) return;
+    const controller = new AbortController();
+    checkUsernames(candidates, controller.signal)
+      .then((results) => {
+        rememberAnswers(answers.current, results);
+        const free = results.find((result) => result.available)?.username;
+        if (touched.current || !free) return;
+        setSuggested(free);
+        setDraft(free);
+      })
+      // An empty field asks for nothing; it is only missing a head start.
+      .catch(() => {});
+    return () => controller.abort();
+  }, [saved, editable, personName, personEmail]);
+
+  const name = normalizeUsername(draft);
+  const dirty = name !== saved;
+  // A username can be changed but not taken away again.
+  const ruleBroken = dirty ? (name ? usernameProblem(name) : 'Username is required.') : null;
+
+  useEffect(() => {
+    if (!dirty || !editable) return;
+    // Already asked, and recently: answered at once, with no request.
+    const known = ruleBroken ? null : recallAnswer(answers.current, name);
+    if (known) {
+      setCheck({ name, problem: known.problem });
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      if (ruleBroken) {
+        setCheck({ name, problem: ruleBroken });
+        return;
+      }
+      checkUsernames([name], controller.signal)
+        .then((results) => {
+          rememberAnswers(answers.current, results);
+          const answered = recallAnswer(answers.current, name);
+          if (answered) setCheck({ name, problem: answered.problem });
+        })
+        // Offline or overtaken by the next keystroke: the save will still say.
+        .catch(() => {});
+    }, USERNAME_CHECK_DELAY_MS);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [name, dirty, editable, ruleBroken]);
+
+  // Only an answer about the name in the field now. Until one comes, the hint.
+  const answer = dirty && check?.name === name ? check : null;
+
+  const revert = () => {
+    touched.current = false;
+    setDraft(saved);
+    setRefused(false);
+  };
+
+  const claim = async () => {
+    if (busy || !dirty || !editable || answer?.problem) return;
+    if (ruleBroken) {
+      setCheck({ name, problem: ruleBroken });
+      return;
+    }
+    setBusy(true);
+    band?.clear();
+    const kept = await save({ username: name });
+    setBusy(false);
+    setRefused(!kept);
+    // Whatever was remembered about it was wrong, or is now; ask again next time.
+    if (!kept) {
+      answers.current.delete(name);
+      return;
+    }
+    touched.current = false;
+    setDraft(name);
+    band?.saved();
+  };
+
+  useEscape(focused && dirty && !busy ? revert : null);
+
+  const problem = refused ? error : (answer?.problem ?? null);
+  const hint = problem ? (
+    <span role="alert" className="text-[var(--surface-danger)]">
+      {problem}
+    </span>
+  ) : answer ? (
+    <span className="text-[var(--surface-ok)]">
+      {name === suggested ? 'Suggested for you, and available' : 'Available'}
+    </span>
+  ) : isGuest ? (
+    'Create an account to choose a username'
+  ) : (
+    'Yours alone across Canvasflow'
+  );
+
+  return (
+    <StackedField setting="username" label="Username" htmlFor={id} hint={hint}>
+      <span className="relative inline-flex items-center">
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute left-[12px] text-[12.5px] text-[var(--surface-fg-muted)]"
+        >
+          @
+        </span>
+        <input
+          id={id}
+          type="text"
+          value={draft}
+          placeholder="username"
+          disabled={!editable}
+          maxLength={USERNAME_MAX_LENGTH}
+          autoComplete="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          aria-invalid={problem ? true : undefined}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onChange={(event) => {
+            const field = event.target;
+            const typed = field.value;
+            const next = typed.replace(/^@+/, '').toLowerCase();
+            if (next !== typed) {
+              // Written into the field here, caret and all, so that React finds
+              // it already says this and leaves the caret where it was rather
+              // than sending it to the end.
+              const at = Math.max(
+                0,
+                (field.selectionStart ?? typed.length) - (typed.length - next.length),
+              );
+              field.value = next;
+              field.setSelectionRange(at, at);
+            }
+            touched.current = true;
+            setDraft(next);
+            setSuggested(null);
+            setRefused(false);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              void claim();
+            }
+          }}
+          className={cn(
+            ROW_INPUT,
+            'pl-[25px]',
+            dirty && editable && 'pr-[60px]',
+            problem && 'border-[var(--surface-danger-border)]',
+          )}
+        />
+        {dirty && editable && (
+          <span className="absolute right-[4px] flex gap-[2px]">
+            <button
+              type="button"
+              aria-label="Cancel"
+              title="Cancel"
+              disabled={busy}
+              onClick={revert}
+              className={INLINE_ACTION}
+            >
+              <X className="size-[14px]" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              aria-label={busy ? 'Saving…' : 'Save'}
+              title="Save"
+              disabled={busy || ruleBroken !== null || Boolean(answer?.problem)}
+              onClick={() => void claim()}
+              className={cn(INLINE_ACTION, 'text-[var(--surface-accent)]')}
+            >
+              <Check className="size-[14px]" aria-hidden="true" />
+            </button>
+          </span>
+        )}
+      </span>
+    </StackedField>
   );
 }
 

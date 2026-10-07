@@ -164,7 +164,7 @@ const CONTROLS = cn(
 );
 
 /** The cross and tick inside a pill field that has been changed. */
-const INLINE_ACTION =
+export const INLINE_ACTION =
   'flex h-[22px] w-[26px] items-center justify-center rounded-full text-[var(--surface-fg-muted)] transition-colors hover:bg-[var(--surface-wash)] hover:text-[var(--surface-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] disabled:opacity-50';
 
 /** A text field in a row: a pill at the end of it. */

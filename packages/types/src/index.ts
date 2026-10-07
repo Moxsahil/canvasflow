@@ -6,3 +6,4 @@ export * from './board.js';
 export * from './audit.js';
 export * from './password.js';
 export * from './legal.js';
+export * from './username.js';
