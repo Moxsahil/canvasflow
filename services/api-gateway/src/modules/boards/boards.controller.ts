@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   NotFoundException,
   Param,
@@ -12,7 +13,14 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { BoardsService } from './boards.service.js';
-import type { BoardRow } from '@canvasflow/db';
+import {
+  boardOverview,
+  resolveBoardAccess,
+  type BoardOverview,
+  type BoardRow,
+  type BoardRole,
+} from '@canvasflow/db';
+import { DatabaseService } from '../../infra/database/database.service.js';
 import { JwtAuthGuard } from '../auth/jwt.guard.js';
 import type { AuthenticatedUser } from '../auth/jwt.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -26,7 +34,10 @@ const createBoardSchema = z.object({
 @Controller('boards')
 @UseGuards(JwtAuthGuard)
 export class BoardsController {
-  constructor(private readonly boards: BoardsService) {}
+  constructor(
+    private readonly boards: BoardsService,
+    private readonly database: DatabaseService,
+  ) {}
 
   @Get()
   async list(@CurrentUser() user: AuthenticatedUser): Promise<{ data: BoardRow[] }> {
@@ -65,5 +76,27 @@ export class BoardsController {
       throw new NotFoundException(`Board ${id} not found`);
     }
     return { data };
+  }
+
+  /**
+   * The board's name, tag colour and owner, and the caller's own role on it —
+   * what the Share window shows someone who is not the owner.
+   *
+   * Anyone who can open the board may read it, including a guest with only the
+   * editor's own token: it says nothing they cannot already see on the board,
+   * apart from whose it is. Everyone else gets 404, as for a board that does
+   * not exist.
+   */
+  @Get(':id/overview')
+  @Header('Cache-Control', 'private, no-store')
+  async overview(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ data: BoardOverview & { role: BoardRole } }> {
+    const db = this.database.db;
+    const access = await resolveBoardAccess(db, user.id, id);
+    const board = access && (await boardOverview(db, id));
+    if (!access || !board) throw new NotFoundException(`Board ${id} not found`);
+    return { data: { ...board, role: access.role } };
   }
 }

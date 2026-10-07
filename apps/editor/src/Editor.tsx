@@ -226,6 +226,7 @@ import {
 import { ExportImageDialog } from './export';
 import { FindBar, useCanvasSearch } from './search';
 import { AccessRevokedDialog, ShareDialog } from './share';
+import { useBoardOverview } from './share/useBoardOverview';
 import {
   SettingsDialog,
   accountDeletedUrl,
@@ -771,7 +772,13 @@ export function Editor({ boardId }: EditorProps) {
     boardId,
     workspaceId: authToken ? decodeJwtWorkspaceId(authToken) : null,
   });
-  const boardTitle = boardSwitcher.title;
+  // Someone outside the board's workspace — let in by a share link — has no
+  // board list to name it from, and the sidebar falls back to the id. The
+  // gateway names it for anyone on the board, and says whose it is, which the
+  // Share window tells a non-owner.
+  const overview = useBoardOverview(boardId, authToken, user !== null && user.role !== 'owner');
+  const boardTitle =
+    boardSwitcher.title === boardId && overview ? overview.title : boardSwitcher.title;
   // With no argument it targets the board on screen, which is what the
   // sidebar's "Rename board" row means.
   const { beginRename, canRename } = boardSwitcher;
@@ -4446,6 +4453,10 @@ export function Editor({ boardId }: EditorProps) {
               presenceKey={presenceKey}
               authToken={authToken}
               theme={presenceTheme}
+              viewerRole={user?.role ?? null}
+              ownerName={overview?.ownerName ?? null}
+              ownerId={overview?.ownerId ?? null}
+              roster={roster}
             />
 
             <ConfirmDialog

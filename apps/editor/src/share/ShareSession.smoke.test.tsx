@@ -1,6 +1,7 @@
 import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
+  ShareCollaboratorPanel,
   ShareSessionPanel,
   liveFor,
   type SharePerson,
@@ -191,5 +192,59 @@ describe('liveFor', () => {
   });
   it('never counts backwards', () => {
     expect(liveFor(STARTED, at('2026-09-29T09:59:00Z'))).toBe('0:00');
+  });
+});
+
+describe('ShareCollaboratorPanel', () => {
+  const here = [
+    { id: 'u2', name: 'Priya Nair', photo: null, you: true, isOwner: false },
+    { id: 'u1', name: 'Sahil', photo: null, you: false, isOwner: true },
+  ];
+
+  function renderCollaborator(
+    overrides: Partial<Parameters<typeof ShareCollaboratorPanel>[0]> = {},
+  ) {
+    return renderToString(
+      <ShareCollaboratorPanel
+        boardName="Product launch plan"
+        role="editor"
+        ownerName="Sahil"
+        link="https://app.example.com/boards/b1"
+        here={here}
+        copied={false}
+        onCopy={async () => true}
+        onClose={noop}
+        {...overrides}
+      />,
+    );
+  }
+
+  it('says what you can do, who can invite, and offers the board link', () => {
+    const html = renderCollaborator();
+    expect(html).toContain('You can edit this board');
+    expect(html).toContain('Only Sahil can invite people or change who has access.');
+    expect(html).toContain('value="https://app.example.com/boards/b1"');
+    expect(html).toContain('data-testid="share-copy-board-link"');
+    expect(html).toContain('Copy link');
+  });
+
+  it('lists who is here, marking you and the owner', () => {
+    const html = renderCollaborator();
+    expect(html).toContain('2 here now');
+    expect(html).toContain('Priya Nair<span');
+    expect(html).toContain('(you)');
+    expect(html).toContain('Owner');
+  });
+
+  it('offers none of the owner’s controls, and no error', () => {
+    const html = renderCollaborator({ role: 'viewer' });
+    expect(html).toContain('You can view this board');
+    expect(html).not.toContain('Start session');
+    expect(html).not.toContain('Allow guests');
+    expect(html).not.toContain('role="alert"');
+  });
+
+  it('falls back to "the owner" before the owner’s name has arrived', () => {
+    expect(renderCollaborator({ ownerName: null })).toContain('Only the owner can invite people');
   });
 });

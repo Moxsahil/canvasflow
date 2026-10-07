@@ -18,11 +18,15 @@ import {
 } from './share-api';
 import { QRCode } from './QRCode';
 import {
+  ShareCollaboratorPanel,
   ShareSessionPanel,
+  type HerePerson,
   type LiveSession,
   type RemovedPerson,
   type SharePerson,
 } from './ShareSession';
+import type { RosterEntry } from '../collab/usePeerPresence';
+import type { EditorRole } from '../auth/token';
 
 /**
  * The design is set in Inter. Nothing in the app loads it, so this names it
@@ -62,6 +66,17 @@ interface ShareDialogProps {
   authToken: string | null;
   /** The theme on screen — the window carries its own palette for each. */
   theme: SurfaceTheme;
+  /**
+   * What the person looking may do on this board. Only the owner manages
+   * sharing; anyone else gets the smaller window, and nothing only the owner
+   * may read is ever asked for on their behalf. Null until the token says.
+   */
+  viewerRole?: EditorRole | null;
+  /** Whose board it is, for the line saying who can invite people. */
+  ownerName?: string | null;
+  ownerId?: string | null;
+  /** Who is on the board right now, for the smaller window's list. */
+  roster?: readonly RosterEntry[];
 }
 
 /**
@@ -94,7 +109,12 @@ export function ShareDialog({
   presenceKey,
   authToken,
   theme,
+  viewerRole = null,
+  ownerName = null,
+  ownerId = null,
+  roster = [],
 }: ShareDialogProps) {
+  const isOwner = viewerRole === 'owner';
   const [links, setLinks] = useState<ShareLinkSummary[]>([]);
   const [members, setMembers] = useState<BoardMember[]>([]);
   const [role, setRole] = useState<ShareRole>('editor');
@@ -187,16 +207,16 @@ export function ShareDialog({
    * and that one speaks up.
    */
   useEffect(() => {
-    void refresh({ quiet: true });
-  }, [refresh]);
+    if (isOwner) void refresh({ quiet: true });
+  }, [refresh, isOwner]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !isOwner) return;
     setError(null);
     // Whatever the prefetch found is already on screen, so this is a silent
     // correction rather than a load: nothing is cleared while it runs.
     void refresh();
-  }, [open, refresh]);
+  }, [open, refresh, isOwner]);
 
   /**
    * Re-read when the people on the board change.
@@ -209,15 +229,15 @@ export function ShareDialog({
   useEffect(() => {
     const changed = lastPresenceKey.current !== presenceKey;
     lastPresenceKey.current = presenceKey;
-    if (!open || !changed) return;
+    if (!open || !changed || !isOwner) return;
     void refresh({ quiet: true });
-  }, [open, presenceKey, refresh]);
+  }, [open, presenceKey, refresh, isOwner]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !isOwner) return;
     const timer = window.setInterval(() => void refresh({ quiet: true }), REFRESH_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [open, refresh]);
+  }, [open, refresh, isOwner]);
 
   // "Joined" is for a moment, not a label to keep.
   useEffect(() => {
@@ -336,6 +356,25 @@ export function ShareDialog({
     }
   };
 
+  // The board's own address, which is all a collaborator can pass on: the
+  // session's link is the owner's, and exists only in the browser that made it.
+  const boardLink =
+    typeof window === 'undefined'
+      ? `/boards/${boardId}`
+      : `${window.location.origin}/boards/${boardId}`;
+
+  const handleCopyBoardLink = async (): Promise<boolean> => {
+    try {
+      await navigator.clipboard.writeText(boardLink);
+      setCopied(true);
+      if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
+      copyTimer.current = window.setTimeout(() => setCopied(false), 2000);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleRoleChange = async (memberId: string, next: ShareRole) => {
     setError(null);
     // Optimistic: the request is a single indexed update, and the list snapping
@@ -399,11 +438,31 @@ export function ShareDialog({
   const photos = useAvatarUrls({
     boardId,
     token: authToken,
-    subjects: useMemo(
-      () => (open ? active.map((member) => ({ id: member.userId })) : []),
-      [open, active],
-    ),
+    subjects: useMemo(() => {
+      if (!open) return [];
+      if (isOwner) return active.map((member) => ({ id: member.userId }));
+      // Not the owner: the faces are whoever presence says is here, and only
+      // those with a photo of their own, as the peer stack draws them.
+      return roster
+        .filter((entry) => entry.avatarVersion !== null)
+        .map((entry) => ({ id: entry.userId, version: entry.avatarVersion }));
+    }, [open, isOwner, active, roster]),
   });
+
+  const here = useMemo<HerePerson[]>(
+    () =>
+      // You first, then everyone else in the order they arrived.
+      [...roster]
+        .sort((a, b) => Number(b.isSelf) - Number(a.isSelf))
+        .map((entry) => ({
+          id: entry.userId,
+          name: entry.name,
+          photo: photos[entry.userId] ?? null,
+          you: entry.isSelf,
+          isOwner: entry.userId === ownerId,
+        })),
+    [roster, photos, ownerId],
+  );
 
   const people = useMemo<SharePerson[]>(
     () =>
@@ -473,32 +532,45 @@ export function ShareDialog({
               data-theme-variant={theme}
               className="flex max-h-full w-[520px] max-w-full flex-col overflow-hidden rounded-[16px] border border-[var(--surface-border)] bg-[var(--surface-panel)] shadow-[var(--surface-shadow)] outline-none"
             >
-              <ShareSessionPanel
-                boardName={name}
-                people={people}
-                session={live}
-                url={url}
-                role={role}
-                allowGuests={allowGuests}
-                onRoleChange={setRole}
-                onAllowGuestsChange={setAllowGuests}
-                busy={busy}
-                copied={copied}
-                error={error}
-                onStart={() => void handleStart()}
-                onStop={() => void handleStop()}
-                onCopy={() => void handleCopy()}
-                onClose={onClose}
-                onMemberRole={(id, next) => void handleRoleChange(id, next)}
-                onRemoveMember={(id) => void handleRemove(id)}
-                removed={removed}
-                onAddBack={(id) => void handleAddBack(id)}
-                menuContainer={overlay}
-                onMenuOpenChange={(isOpen) => {
-                  menuOpen.current = isOpen;
-                }}
-                qr={url ? <QRCode value={url} size={96} /> : undefined}
-              />
+              {isOwner ? (
+                <ShareSessionPanel
+                  boardName={name}
+                  people={people}
+                  session={live}
+                  url={url}
+                  role={role}
+                  allowGuests={allowGuests}
+                  onRoleChange={setRole}
+                  onAllowGuestsChange={setAllowGuests}
+                  busy={busy}
+                  copied={copied}
+                  error={error}
+                  onStart={() => void handleStart()}
+                  onStop={() => void handleStop()}
+                  onCopy={() => void handleCopy()}
+                  onClose={onClose}
+                  onMemberRole={(id, next) => void handleRoleChange(id, next)}
+                  onRemoveMember={(id) => void handleRemove(id)}
+                  removed={removed}
+                  onAddBack={(id) => void handleAddBack(id)}
+                  menuContainer={overlay}
+                  onMenuOpenChange={(isOpen) => {
+                    menuOpen.current = isOpen;
+                  }}
+                  qr={url ? <QRCode value={url} size={96} /> : undefined}
+                />
+              ) : (
+                <ShareCollaboratorPanel
+                  boardName={name}
+                  role={viewerRole === 'editor' || viewerRole === 'viewer' ? viewerRole : null}
+                  ownerName={ownerName}
+                  link={boardLink}
+                  here={here}
+                  copied={copied}
+                  onCopy={handleCopyBoardLink}
+                  onClose={onClose}
+                />
+              )}
             </motion.div>
           </motion.div>
         )}
