@@ -1,11 +1,20 @@
-import { isCursorColor, TERMS_VERSION, type CursorColor } from '@canvasflow/types';
+import {
+  isCursorColor,
+  normalizeUsername,
+  TERMS_VERSION,
+  usernameProblem,
+  type CursorColor,
+} from '@canvasflow/types';
 import { users, type NewUserRow, type UserRow } from '../schema/users.js';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../client.js';
+import { isUniqueViolation } from './pg-errors.js';
 
 export interface Profile {
   id: string;
   name: string;
+  /** Null until they choose one, and always for a guest. */
+  username: string | null;
   email: string | null;
   avatarUrl: string | null;
   isGuest: boolean;
@@ -53,12 +62,20 @@ export interface AvatarSource {
 
 export interface ProfileChanges {
   name?: string;
+  /** Already through `parseUsername`. There is no way back to having none. */
+  username?: string;
   cursorColor?: CursorColor | null;
 }
+
+/** A profile saved, or why it was not. */
+export type ProfileUpdate =
+  | { ok: true; profile: Profile }
+  | { ok: false; reason: 'no-account' | 'guest' | 'username-taken' };
 
 const PROFILE_COLUMNS = {
   id: users.id,
   name: users.name,
+  username: users.username,
   email: users.email,
   avatarUrl: users.avatarUrl,
   avatarFileId: users.avatarFileId,
@@ -87,6 +104,7 @@ function toProfile(row: ProfileRow): Profile {
   return {
     id: row.id,
     name: row.name,
+    username: row.username,
     email: row.isGuest ? null : row.email,
     avatarUrl: row.avatarUrl,
     isGuest: row.isGuest,
@@ -113,24 +131,85 @@ export async function updateProfile(
   db: Database,
   userId: string,
   changes: ProfileChanges,
-): Promise<Profile | null> {
-  const [row] = await db
-    .update(users)
-    .set({
-      ...(changes.name !== undefined ? { name: changes.name } : {}),
-      ...(changes.cursorColor !== undefined
-        ? {
-            preferences: sql`${users.preferences} || ${JSON.stringify({
-              cursorColor: changes.cursorColor,
-            })} :: jsonb`,
-          }
-        : {}),
-      updatedAt: new Date(),
-    })
-    .where(eq(users.id, userId))
-    .returning(PROFILE_COLUMNS);
+): Promise<ProfileUpdate> {
+  const choosingUsername = changes.username !== undefined;
+  try {
+    const [row] = await db
+      .update(users)
+      .set({
+        ...(changes.name !== undefined ? { name: changes.name } : {}),
+        ...(choosingUsername ? { username: changes.username } : {}),
+        ...(changes.cursorColor !== undefined
+          ? {
+              preferences: sql`${users.preferences} || ${JSON.stringify({
+                cursorColor: changes.cursorColor,
+              })} :: jsonb`,
+            }
+          : {}),
+        updatedAt: new Date(),
+      })
+      // A guest's row goes when they do, and a name it held would be held by
+      // nobody. Refused in the same statement, so the usual save is one
+      // round trip rather than a read and then a write.
+      .where(
+        choosingUsername
+          ? and(eq(users.id, userId), eq(users.isGuest, false))
+          : eq(users.id, userId),
+      )
+      .returning(PROFILE_COLUMNS);
 
-  return row ? toProfile(row) : null;
+    if (row) return { ok: true, profile: toProfile(row) };
+  } catch (error) {
+    // Somebody took the name between the field saying it was free and this
+    // write. The address is unique too, but nothing here changes it.
+    if (choosingUsername && isUniqueViolation(error)) {
+      return { ok: false, reason: 'username-taken' };
+    }
+    throw error;
+  }
+
+  // Nothing was written: no such account, or a guest. Only this rare path
+  // pays for the read that tells them apart.
+  if (!choosingUsername) return { ok: false, reason: 'no-account' };
+  const [account] = await db
+    .select({ isGuest: users.isGuest })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return { ok: false, reason: account?.isGuest ? 'guest' : 'no-account' };
+}
+
+/** A username as sent: normalized, and held to the rules, or why it cannot be had. */
+export function parseUsername(
+  value: unknown,
+): { ok: true; username: string } | { ok: false; error: string } {
+  if (typeof value !== 'string') return { ok: false, error: 'Username is required.' };
+  const username = normalizeUsername(value);
+  if (!username) return { ok: false, error: 'Username is required.' };
+  const problem = usernameProblem(username);
+  return problem ? { ok: false, error: problem } : { ok: true, username };
+}
+
+/**
+ * Who holds each of these usernames, in one read: name to account id, for the
+ * ones somebody holds. Names nobody holds are simply absent.
+ *
+ * One query however many are asked about — the unique index answers each — so
+ * the field can ask about a suggestion and its fallbacks in a single trip.
+ *
+ * An account waiting out its deletion grace period still holds its name, so it
+ * reads as held until the purge lets it go.
+ */
+export async function usernameHolders(
+  db: Database,
+  usernames: readonly string[],
+): Promise<Map<string, string>> {
+  if (usernames.length === 0) return new Map();
+  const rows = await db
+    .select({ username: users.username, id: users.id })
+    .from(users)
+    .where(inArray(users.username, [...usernames]));
+  return new Map(rows.flatMap((row) => (row.username ? [[row.username, row.id] as const] : [])));
 }
 
 /** What a photo is stored as, for the caller that signs a URL for it. */
