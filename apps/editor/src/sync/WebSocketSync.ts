@@ -45,6 +45,11 @@ export interface WebSocketSyncConfig {
    * this session, so the caller sends the person to sign in.
    */
   onSessionEnded?: () => void;
+  /**
+   * Something about one of the person's workspaces changed — its name, its
+   * boards, who is in it. Carries only the id; the caller re-reads.
+   */
+  onWorkspaceChanged?: (workspaceId: string) => void;
 }
 
 /**
@@ -101,6 +106,11 @@ export class WebSocketSync {
 
   /** After this many consecutive failed reconnect attempts, we call it offline. */
   private static readonly OFFLINE_THRESHOLD = 5;
+  /**
+   * A presence record younger than this is not renewed again on the server's
+   * request: the server asks every ten seconds, and a record keeps for thirty.
+   */
+  private static readonly PRESENCE_FRESH_MS = 8_000;
 
   /** Consecutive failed reconnect attempts since last successful connect. */
   private consecutiveFailures = 0;
@@ -206,7 +216,8 @@ export class WebSocketSync {
    * Used for permission changes: the re-authorization sweep flips the
    * connection's read-only flag server-side and then says so here, so the
    * client can update its own chrome immediately instead of discovering the
-   * change when its five-minute token next refreshes.
+   * change when its five-minute token next refreshes. And for workspace
+   * changes, which arrive on whatever board the person has open.
    */
   private handleStateless(payload: string): void {
     if (this.disposed) return;
@@ -222,6 +233,13 @@ export class WebSocketSync {
       }
       if (message.type === 'session-ended') {
         this.handleSessionEnded();
+      }
+      if (message.type === 'presence-renew') {
+        this.renewPresence();
+      }
+      const { workspaceId } = message as { workspaceId?: unknown };
+      if (message.type === 'workspace-changed' && typeof workspaceId === 'string') {
+        this.config.onWorkspaceChanged?.(workspaceId);
       }
     } catch {
       // A malformed stateless payload is not worth breaking the session over.
@@ -292,6 +310,26 @@ export class WebSocketSync {
 
       this.forceReconnect();
     }
+  }
+
+  /**
+   * Re-announce this client's presence, when the server asks.
+   *
+   * Awareness renews itself on a timer, and a background tab's timers are
+   * slowed to about once a minute — too seldom for the thirty seconds a record
+   * is kept, so the person kept dropping off everyone else's list of who is
+   * here. A message from the server still arrives promptly, so the renewal
+   * rides on that. A record renewed lately is left alone; a visible tab's own
+   * timer is usually there first.
+   */
+  private renewPresence(): void {
+    const awareness = this.provider?.awareness;
+    if (!awareness) return;
+    const local = awareness.getLocalState();
+    if (local === null) return;
+    const renewedAt = awareness.meta.get(awareness.clientID)?.lastUpdated ?? 0;
+    if (Date.now() - renewedAt < WebSocketSync.PRESENCE_FRESH_MS) return;
+    awareness.setLocalState(local);
   }
 
   private installVisibilityListener(): void {

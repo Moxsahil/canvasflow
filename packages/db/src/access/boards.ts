@@ -1,6 +1,7 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import type { Database } from '../client.js';
 import { boards } from '../schema/boards.js';
+import { users } from '../schema/users.js';
 import { toBoardSummary, type BoardSummary } from './workspaces.js';
 
 /**
@@ -71,4 +72,36 @@ export async function softDeleteBoard(db: Database, boardId: string): Promise<Bo
     .returning();
 
   return board ? toBoardSummary(board) : null;
+}
+
+/** What anyone on a board may know about it, whoever they are. */
+export interface BoardOverview {
+  title: string;
+  color: BoardSummary['color'];
+  ownerId: string;
+  ownerName: string;
+}
+
+/**
+ * A board's name, tag colour and owner, for people who can open it but are not
+ * in its workspace — someone let in by a share link has no board list to read
+ * these from, and saw the board's id where its name belongs.
+ *
+ * Null for a board that doesn't exist or is soft-deleted. Whether the caller
+ * may see it at all is decided before this, as everywhere else here.
+ */
+export async function boardOverview(db: Database, boardId: string): Promise<BoardOverview | null> {
+  const [row] = await db
+    .select({
+      title: boards.title,
+      color: boards.color,
+      ownerId: boards.ownerId,
+      ownerName: users.name,
+    })
+    .from(boards)
+    .innerJoin(users, eq(users.id, boards.ownerId))
+    .where(and(eq(boards.id, boardId), isNull(boards.deletedAt)))
+    .limit(1);
+
+  return row ?? null;
 }

@@ -3,6 +3,7 @@ import { createBoardInWorkspace, createClient, listWorkspaceBoards } from '@canv
 import { env } from '@/lib/env';
 import { currentSession } from '@/lib/auth/session';
 import { corsJson, corsPreflight } from '@/lib/api/cors';
+import { notifyWorkspaceChanged } from '@/lib/sync/internal';
 
 /**
  * The boards in one workspace — the panel that opens beside a workspace in the
@@ -74,6 +75,8 @@ export async function POST(
     title: title || undefined,
   });
   if (!board) return corsJson({ error: 'Workspace not found' }, { status: 404 });
+
+  await notifyWorkspaceChanged(workspaceId);
 
   return corsJson({ data: board }, { status: 201 });
 }

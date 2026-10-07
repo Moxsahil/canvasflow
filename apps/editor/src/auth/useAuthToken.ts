@@ -29,6 +29,14 @@ const MIN_REFRESH_INTERVAL_MS = 5_000;
  */
 const MAX_UNAUTHORIZED = 3;
 
+/**
+ * How long to wait before trying again when a mint asked for by `refreshNow`
+ * fails. A change the server reported must not be lost to one network blip —
+ * waiting for the scheduled refresh would leave the board in the old state
+ * for minutes. After the last of these, the scheduled refresh takes over.
+ */
+const RETRY_AFTER_MS = [1_000, 3_000, 10_000];
+
 interface AuthTokenState {
   token: string | null;
   expiresAt: number | null;
@@ -87,6 +95,12 @@ export function useAuthToken(boardId: string): {
   authToken: string | null;
   refresh: () => Promise<void>;
   /**
+   * Re-mint now, past the retry throttle: the server has just said something
+   * the token carries has changed — a role, a name — and a token that misses
+   * it stays wrong until the next scheduled refresh, minutes away.
+   */
+  refreshNow: () => Promise<void>;
+  /**
    * The web app says this account cannot open this board — removed from it, or
    * the board is gone. Distinct from every other refresh failure, which are
    * worth retrying; this one never is.
@@ -100,11 +114,12 @@ export function useAuthToken(boardId: string): {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAttemptRef = useRef(0);
   const unauthorizedRef = useRef(0);
+  // One mint at a time, and whether another was asked for while it ran.
+  const inFlightRef = useRef(false);
+  const againRef = useRef(false);
 
-  const refresh = useCallback(async () => {
-    const now = Date.now();
-    if (now - lastAttemptRef.current < MIN_REFRESH_INTERVAL_MS) return;
-    lastAttemptRef.current = now;
+  /** Resolves true once there is nothing left to try: minted, or refused for good. */
+  const mint = useCallback(async (): Promise<boolean> => {
     try {
       // The token in hand says whether this is an account or a guest, which
       // decides who can mint the next one. Read through a ref so a new token
@@ -113,6 +128,7 @@ export function useAuthToken(boardId: string): {
       unauthorizedRef.current = 0;
       window.sessionStorage.setItem(storageKeyFor(boardId), next.token);
       setState({ token: next.token, expiresAt: next.expiresAt });
+      return true;
     } catch (err) {
       // A refusal that will be repeated forever is not a transient failure,
       // and leaving it to the console is what let a removed collaborator sit
@@ -120,7 +136,7 @@ export function useAuthToken(boardId: string): {
       // blip, a lapsed web session — keeps the existing quiet retry.
       if (err instanceof TokenRefreshError && err.accessDenied) {
         setAccessDenied(true);
-        return;
+        return true;
       }
 
       // No session behind this board any more. Hand the browser to the
@@ -131,13 +147,64 @@ export function useAuthToken(boardId: string): {
         unauthorizedRef.current += 1;
         if (unauthorizedRef.current >= MAX_UNAUTHORIZED) {
           window.location.href = sessionResumeUrl();
-          return;
+          return true;
         }
       }
 
       console.error('Failed to refresh editor auth token:', err);
+      return false;
     }
   }, [boardId]);
+
+  /**
+   * Mint, and once more afterwards if `refreshNow` was asked for meanwhile.
+   *
+   * The second mint matters: a role changed back while the first was in
+   * flight may be answered with the role from before, and only a mint that
+   * starts after the change is sure to carry it.
+   */
+  const run = useCallback(async (): Promise<boolean> => {
+    inFlightRef.current = true;
+    let settled: boolean;
+    try {
+      do {
+        againRef.current = false;
+        settled = await mint();
+      } while (againRef.current);
+    } finally {
+      inFlightRef.current = false;
+    }
+    return settled;
+  }, [mint]);
+
+  const refresh = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastAttemptRef.current < MIN_REFRESH_INTERVAL_MS) return;
+    // The mint already under way will do.
+    if (inFlightRef.current) return;
+    lastAttemptRef.current = now;
+    await run();
+  }, [run]);
+
+  // Not throttled: the throttle is there for failures that repeat, and these
+  // come one per change the server reports. Dropping one is what left a
+  // collaborator switched to viewer and straight back stuck on "View only".
+  // A failure is tried again shortly, for the same reason.
+  const refreshNow = useCallback(async () => {
+    for (let attempt = 0; ; attempt += 1) {
+      lastAttemptRef.current = Date.now();
+      if (inFlightRef.current) {
+        // The mint under way runs once more when it finishes, and that one
+        // starts after this change.
+        againRef.current = true;
+        return;
+      }
+      if (await run()) return;
+      const wait = RETRY_AFTER_MS[attempt];
+      if (wait === undefined) return;
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+  }, [run]);
 
   // When boardId changes, re-read initial token for the new board
   useEffect(() => {
@@ -175,5 +242,5 @@ export function useAuthToken(boardId: string): {
     };
   }, [state.expiresAt, refresh]);
 
-  return { authToken: state.token, refresh, accessDenied };
+  return { authToken: state.token, refresh, refreshNow, accessDenied };
 }

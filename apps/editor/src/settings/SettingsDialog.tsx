@@ -14,7 +14,7 @@ import { BillingPane } from './BillingPane';
 import { NotificationsPane } from './NotificationsPane';
 import { PrivacyPane } from './PrivacyPane';
 import { ProfilePane } from './ProfilePane';
-import { WorkspacePane } from './WorkspacePane';
+import { WorkspacePane, type WorkspaceSettingsSource } from './WorkspacePane';
 import { surfaceThemeVars, type SurfaceTheme } from '../ui/surface-palette';
 import type { AvatarState, ProfileState } from '../profile';
 import {
@@ -35,6 +35,8 @@ import { warmAccountSecurity } from './account-security-api';
  * webfont for one window.
  */
 const FONT_STACK = 'Inter, "Segoe UI", system-ui, -apple-system, sans-serif';
+
+const LOADING_WORKSPACE: WorkspaceSettingsSource = { status: 'loading' };
 
 /** How much shorter the header gets once it folds away to just its tabs. */
 const TUCK = 60;
@@ -60,6 +62,10 @@ interface SettingsDialogProps {
   resumeDeletion?: boolean;
   /** Ask for the account to be deleted, and leave once it is. */
   deleteAccount?: (input: DeletionInput) => Promise<void>;
+  /** The workspace the sidebar is showing, for the Workspace tab. */
+  workspace?: WorkspaceSettingsSource;
+  /** Resolves once the name is kept; rejects with why it was not. */
+  renameWorkspace?: (workspaceId: string, name: string) => Promise<void>;
   onClose: () => void;
 }
 
@@ -86,6 +92,8 @@ export function SettingsDialog({
   isGuest = false,
   resumeDeletion = false,
   deleteAccount,
+  workspace = LOADING_WORKSPACE,
+  renameWorkspace,
   onClose,
 }: SettingsDialogProps) {
   const [section, setSection] = useState<SettingsSectionId>(resumeDeletion ? 'privacy' : 'profile');
@@ -302,7 +310,7 @@ export function SettingsDialog({
       case 'account':
         return <AccountPane token={token} user={user} account={account} />;
       case 'workspace':
-        return <WorkspacePane />;
+        return <WorkspacePane source={workspace} userId={userId} onRename={renameWorkspace} />;
       case 'notifications':
         return <NotificationsPane />;
       case 'billing':

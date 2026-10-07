@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Server } from '@hocuspocus/server';
 import express from 'express';
-import { createClient, canEdit, isSessionLive } from '@canvasflow/db';
+import { createClient, canEdit, isSessionLive, workspaceMemberIds } from '@canvasflow/db';
 import { parseEnv } from './config/env.js';
 import { createLogger } from './logging/logger.js';
 import { verifyEditorToken } from './auth/verify-token.js';
@@ -14,7 +14,16 @@ import {
   REAUTHORIZE_INTERVAL_MS,
 } from './auth/reauthorize.js';
 import { getAllowedOrigins, isOriginAllowed } from './security/allowed-origins.js';
-import { INTERNAL_AUTH_HEADER, isInternalCaller } from './security/internal-auth.js';
+import {
+  INTERNAL_AUTH_HEADER,
+  WORKSPACE_CHANGED_PURPOSE,
+  isInternalCaller,
+} from './security/internal-auth.js';
+import { announceWorkspaceChanged } from './workspace/workspace-changed.js';
+import {
+  PRESENCE_RENEW_INTERVAL_MS,
+  startPresenceKeepalive,
+} from './presence/presence-keepalive.js';
 import { createFanOutExtensions } from './scaling/redis-fan-out.js';
 import * as Y from 'yjs';
 import {
@@ -442,7 +451,60 @@ app.post('/internal/board-access', express.json({ limit: '1kb' }), async (req, r
   }
 });
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * "Something about this workspace changed — tell the people in it."
+ *
+ * Called by the web app after a workspace is renamed or deleted, or a board in
+ * it is added, renamed, deleted or shared. Like the route above it carries no
+ * authority: the message it fans out names the workspace and nothing more,
+ * and each editor re-reads through routes that check who is asking. A forged
+ * call can only make editors re-read what they were allowed to see anyway.
+ *
+ * The audience is the workspace's members, read here, plus any `userIds` the
+ * caller adds — the people a change has just taken out of it, who are no
+ * longer members to be found.
+ */
+app.post('/internal/workspace-changed', express.json({ limit: '4kb' }), async (req, res) => {
+  if (
+    !isInternalCaller(req.headers[INTERNAL_AUTH_HEADER], env.AUTH_SECRET, WORKSPACE_CHANGED_PURPOSE)
+  ) {
+    log.warn('rejected internal call: bad or missing credential');
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
+
+  const body = req.body as { workspaceId?: unknown; userIds?: unknown };
+  const workspaceId =
+    typeof body.workspaceId === 'string' && UUID.test(body.workspaceId) ? body.workspaceId : null;
+  const extra = Array.isArray(body.userIds)
+    ? body.userIds.filter((id): id is string => typeof id === 'string' && UUID.test(id))
+    : [];
+
+  if (!workspaceId) {
+    res.status(400).json({ error: 'workspaceId is required' });
+    return;
+  }
+
+  try {
+    const audience = new Set([...(await workspaceMemberIds(db, workspaceId)), ...extra]);
+    const told = announceWorkspaceChanged(hocuspocus, workspaceId, audience);
+    log.info('workspace change announced', { workspaceId, people: audience.size, told });
+    res.json({ ok: true, told });
+  } catch (err) {
+    // Advisory, like the route above: an editor that misses this re-reads the
+    // next time its window comes back into focus.
+    log.error('workspace change announcement failed', {
+      workspaceId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ error: 'Announcement failed' });
+  }
+});
+
 let stopReauthorize: (() => void) | null = null;
+let stopPresenceKeepalive: (() => void) | null = null;
 
 async function bootstrap(): Promise<void> {
   await hocuspocus.listen();
@@ -454,6 +516,11 @@ async function bootstrap(): Promise<void> {
   // person is actually in.
   stopReauthorize = startReauthorizeLoop({ server: hocuspocus, db, log });
   log.info('re-authorization sweep started', { intervalMs: REAUTHORIZE_INTERVAL_MS });
+
+  // Keeps a board in a background tab on everyone's list of who is here; see
+  // presence-keepalive.ts for why a timer in that tab cannot.
+  stopPresenceKeepalive = startPresenceKeepalive(hocuspocus);
+  log.info('presence keepalive started', { intervalMs: PRESENCE_RENEW_INTERVAL_MS });
 
   app.listen(env.PORT_HTTP, () => {
     log.info('HTTP (health) listening', { port: env.PORT_HTTP });
@@ -481,6 +548,7 @@ bootstrap().catch((err) => {
 process.on('SIGTERM', async () => {
   log.info('SIGTERM received, shutting down');
   stopReauthorize?.();
+  stopPresenceKeepalive?.();
   await hocuspocus.destroy();
   process.exit(0);
 });

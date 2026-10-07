@@ -1,5 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { clearAvatar, getAvatarSource, resolveBoardAccess, setAvatar } from '@canvasflow/db';
+import {
+  clearAvatar,
+  getAvatarSource,
+  resolveBoardAccess,
+  setAvatar,
+  type AvatarSource,
+} from '@canvasflow/db';
 import { DatabaseService } from '../../infra/database/database.service.js';
 import { StorageService } from '../../infra/storage/storage.service.js';
 import {
@@ -140,8 +146,18 @@ export class AvatarsService {
     }
 
     const source = await getAvatarSource(this.database.db, subjectId);
-    if (!source) throw new NotFoundException('No photo for that person');
+    const resolved = source && (await this.urlFor(subjectId, source));
+    if (!resolved) throw new NotFoundException('No photo for that person');
+    return resolved;
+  }
 
+  /**
+   * A URL for somebody's photo, or null when they have none.
+   *
+   * Decides nothing about who may see it — every caller has already settled
+   * that, through a board or a workspace the two people share.
+   */
+  async urlFor(subjectId: string, source: AvatarSource): Promise<ResolvedAvatar | null> {
     if (source.fileId && source.mimeType) {
       const presigned = await this.storage.presignDownload({
         key: avatarObjectKey(subjectId, source.fileId),
@@ -156,6 +172,6 @@ export class AvatarsService {
     // from one place this app controls.
     if (source.externalUrl) return { url: source.externalUrl, expiresIn: null };
 
-    throw new NotFoundException('No photo for that person');
+    return null;
   }
 }

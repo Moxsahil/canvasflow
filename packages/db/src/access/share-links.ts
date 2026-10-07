@@ -123,9 +123,35 @@ export async function lookupShareLink(db: Database, token: string): Promise<Shar
   return { ok: true, link };
 }
 
+/**
+ * Why redeeming refused, beyond the link itself: a link that needs an account,
+ * or a person the board's owner removed — the link may be fine, they are not
+ * let back in by it.
+ */
 export type RedeemOutcome =
   | { ok: true; boardId: string; role: BoardRole; userId: string }
-  | { ok: false; reason: ShareLinkRejection | 'guests-not-allowed' };
+  | { ok: false; reason: ShareLinkRejection | 'guests-not-allowed' | 'removed' };
+
+/**
+ * Whether the board's owner removed this person from it.
+ *
+ * Removal is kept as a revoked `board_members` row, and no share link lets
+ * them back — only the owner adding them back does. The invite page asks this
+ * first, so a removed person is told so rather than offered a button that
+ * cannot work.
+ */
+export async function wasRemovedFromBoard(
+  db: Database,
+  boardId: string,
+  userId: string,
+): Promise<boolean> {
+  const rows = await db
+    .select({ status: boardMembers.status })
+    .from(boardMembers)
+    .where(and(eq(boardMembers.boardId, boardId), eq(boardMembers.userId, userId)))
+    .limit(1);
+  return rows[0]?.status === 'revoked';
+}
 
 /**
  * Redeem a link for a signed-in user: grant them this board, and only this
@@ -165,8 +191,10 @@ export async function redeemShareLink(
     const shouldWrite =
       !current || (current.status === 'active' && rank(link.role) > rank(current.role));
 
+    // Told apart from a link that was turned off: the link is fine, and the
+    // person needs the owner to add them back, not a new link.
     if (current?.status === 'revoked') {
-      return { ok: false as const, reason: 'revoked' as const };
+      return { ok: false as const, reason: 'removed' as const };
     }
 
     if (shouldWrite) {

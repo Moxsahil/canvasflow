@@ -1,12 +1,15 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import type { Database } from '../client.js';
+import { boardMembers, type BoardRole } from '../schema/board-access.js';
 import { boards, type BoardRow } from '../schema/boards.js';
+import { users } from '../schema/users.js';
 import {
   memberships,
   workspaces,
   type MembershipRow,
   type WorkspaceRow,
 } from '../schema/workspaces.js';
+import type { AvatarSource } from './users.js';
 
 /**
  * The workspace tree behind the editor's board switcher: which workspaces a
@@ -148,6 +151,167 @@ export async function isWorkspaceMember(
   workspaceId: string,
 ): Promise<boolean> {
   return (await workspaceRoleOf(db, userId, workspaceId)) !== null;
+}
+
+/**
+ * Everyone to tell when a workspace changes: its members' ids.
+ *
+ * Deleted workspaces answer too — their membership rows are kept — so the
+ * people in one hear that it has gone.
+ */
+export async function workspaceMemberIds(db: Database, workspaceId: string): Promise<string[]> {
+  const rows = await db
+    .select({ userId: memberships.userId })
+    .from(memberships)
+    .where(eq(memberships.workspaceId, workspaceId));
+  return rows.map((row) => row.userId);
+}
+
+/** One person in a workspace, as its member list shows them. */
+export interface WorkspaceMember {
+  userId: string;
+  name: string;
+  /** Null until they choose one. */
+  username: string | null;
+  email: string;
+  role: WorkspaceRole;
+  joinedAt: Date;
+  /** What their photo is drawn from; turning it into a URL is the caller's job. */
+  avatar: AvatarSource;
+}
+
+const ROLE_RANK: Record<WorkspaceRole, number> = { owner: 0, admin: 1, member: 2 };
+
+/**
+ * The order a member list reads in: the owner, then admins, then everyone
+ * else, each by when they joined — so the list doesn't reshuffle when somebody
+ * changes their name.
+ */
+export function compareWorkspaceMembers(
+  a: Pick<WorkspaceMember, 'role' | 'joinedAt'>,
+  b: Pick<WorkspaceMember, 'role' | 'joinedAt'>,
+): number {
+  return ROLE_RANK[a.role] - ROLE_RANK[b.role] || a.joinedAt.getTime() - b.joinedAt.getTime();
+}
+
+/**
+ * Everyone in a workspace, in `compareWorkspaceMembers` order.
+ *
+ * Answers for any workspace id, deleted or not: whether the caller may see the
+ * list is the route's question, answered with `workspaceRoleOf` first, which is
+ * also what refuses a deleted workspace.
+ */
+export async function listWorkspaceMembers(
+  db: Database,
+  workspaceId: string,
+): Promise<WorkspaceMember[]> {
+  const rows = await db
+    .select({
+      userId: users.id,
+      name: users.name,
+      username: users.username,
+      email: users.email,
+      role: memberships.role,
+      joinedAt: memberships.joinedAt,
+      fileId: users.avatarFileId,
+      mimeType: users.avatarMimeType,
+      externalUrl: users.avatarUrl,
+    })
+    .from(memberships)
+    .innerJoin(users, eq(users.id, memberships.userId))
+    .where(eq(memberships.workspaceId, workspaceId));
+
+  return rows
+    .map(({ fileId, mimeType, externalUrl, ...member }) => ({
+      ...member,
+      avatar: { fileId, mimeType, externalUrl },
+    }))
+    .sort(compareWorkspaceMembers);
+}
+
+/** One board a guest was let onto, and what they may do there. */
+export interface GuestBoard {
+  boardId: string;
+  title: string;
+  role: BoardRole;
+}
+
+/**
+ * Somebody on one or more of a workspace's boards without being in the
+ * workspace — let in by a share link, so their access is to those boards only.
+ */
+export interface WorkspaceGuest {
+  userId: string;
+  name: string;
+  username: string | null;
+  email: string;
+  /** Joined by link without an account; their address is a placeholder. */
+  isGuest: boolean;
+  avatar: AvatarSource;
+  /** In the order they were let onto them. */
+  boards: GuestBoard[];
+}
+
+/**
+ * Everyone with access to a board in this workspace who is not a member of it.
+ *
+ * Only standing access counts: a revoked grant, or a board that has been
+ * deleted, gives nothing and so lists nobody. Members are left out even when
+ * they also hold a grant of their own — they are already in the member list,
+ * and the workspace reaches further than any one board.
+ */
+export async function listWorkspaceGuests(
+  db: Database,
+  workspaceId: string,
+): Promise<WorkspaceGuest[]> {
+  const rows = await db
+    .select({
+      userId: users.id,
+      name: users.name,
+      username: users.username,
+      email: users.email,
+      isGuest: users.isGuest,
+      fileId: users.avatarFileId,
+      mimeType: users.avatarMimeType,
+      externalUrl: users.avatarUrl,
+      boardId: boards.id,
+      title: boards.title,
+      role: boardMembers.role,
+    })
+    .from(boardMembers)
+    .innerJoin(boards, eq(boards.id, boardMembers.boardId))
+    .innerJoin(users, eq(users.id, boardMembers.userId))
+    .leftJoin(
+      memberships,
+      and(
+        eq(memberships.workspaceId, boards.workspaceId),
+        eq(memberships.userId, boardMembers.userId),
+      ),
+    )
+    .where(
+      and(
+        eq(boards.workspaceId, workspaceId),
+        isNull(boards.deletedAt),
+        eq(boardMembers.status, 'active'),
+        isNull(memberships.id),
+        // A board's owner needs no grant, and one left over would list them
+        // as a guest on their own board.
+        ne(boardMembers.userId, boards.ownerId),
+      ),
+    )
+    .orderBy(asc(boardMembers.createdAt));
+
+  const guests = new Map<string, WorkspaceGuest>();
+  for (const { boardId, title, role, fileId, mimeType, externalUrl, ...person } of rows) {
+    const guest = guests.get(person.userId) ?? {
+      ...person,
+      avatar: { fileId, mimeType, externalUrl },
+      boards: [],
+    };
+    guest.boards.push({ boardId, title, role });
+    guests.set(person.userId, guest);
+  }
+  return [...guests.values()];
 }
 
 /**

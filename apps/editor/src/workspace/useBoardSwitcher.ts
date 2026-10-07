@@ -16,6 +16,8 @@ import {
   type BoardSummary,
   type WorkspaceSummary,
 } from './workspace-api';
+import { mergeBoards } from './merge-boards';
+import { useWorkspaceChanges } from './workspace-events';
 
 /** One workspace's board list, as far as it has got. */
 export type WorkspaceBoards =
@@ -273,6 +275,60 @@ export function useBoardSwitcher({
   useEffect(() => {
     if (workspaceId) loadBoards(workspaceId);
   }, [workspaceId, loadBoards]);
+
+  // Which re-read of each list is the latest, so an answer that arrives after
+  // a newer one does not put the older state back.
+  const rereadRef = useRef<Map<string, number>>(new Map());
+
+  /**
+   * Re-read what changed, quietly: the lists on screen stay as they are until
+   * the new ones arrive, and a failure leaves them alone — the next change, or
+   * the window coming back into focus, tries again.
+   *
+   * Null re-reads everything this sidebar has listed.
+   */
+  const reread = useCallback((changed: string | null) => {
+    listWorkspaces()
+      .then((list) => {
+        remembered.workspaces = list;
+        setWorkspaces(list);
+      })
+      .catch(() => {});
+
+    const ids = changed ? [changed] : [...requestedRef.current];
+    for (const id of ids) {
+      // Only lists already asked for: one nobody has opened is read when it is.
+      if (!requestedRef.current.has(id)) continue;
+      const turn = (rereadRef.current.get(id) ?? 0) + 1;
+      rereadRef.current.set(id, turn);
+      listWorkspaceBoards(id)
+        .then((fresh) => {
+          if (rereadRef.current.get(id) !== turn) return;
+          setBoards((prev) => {
+            const entry = prev[id];
+            const shown = entry?.status === 'ready' ? entry.boards : [];
+            return { ...prev, [id]: { status: 'ready', boards: mergeBoards(shown, fresh) } };
+          });
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  // Somebody — here or elsewhere — renamed a workspace, changed a board in
+  // it, or let someone onto one.
+  useWorkspaceChanges(null, reread);
+
+  // A workspace being browsed that has gone — deleted, or left — is no longer
+  // anything to show; the sidebar goes home to the open board's own.
+  useEffect(() => {
+    if (
+      browsedWorkspaceId &&
+      workspaces &&
+      !workspaces.some((it) => it.id === browsedWorkspaceId)
+    ) {
+      setBrowsedWorkspaceId(null);
+    }
+  }, [browsedWorkspaceId, workspaces]);
 
   // The open board's own row, which is where the header's title and dot come
   // from. Its id stands in for the title until the list arrives.

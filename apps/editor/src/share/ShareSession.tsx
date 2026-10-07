@@ -53,6 +53,16 @@ export interface SharePerson {
   justJoined: boolean;
 }
 
+/** Someone the owner removed. No share link lets them back; Add back does. */
+export interface RemovedPerson {
+  id: string;
+  name: string;
+  email: string;
+  isGuest: boolean;
+  /** What they could do before, and will again if added back. */
+  role: ShareRole;
+}
+
 /** The session that is live, when one is. Its terms were fixed when it started. */
 export interface LiveSession {
   role: ShareRole;
@@ -81,6 +91,9 @@ export interface ShareSessionPanelProps {
   onClose: () => void;
   onMemberRole: (userId: string, role: ShareRole) => void;
   onRemoveMember: (userId: string) => void;
+  /** People removed from the board, listed out of the way so they can be added back. */
+  removed?: RemovedPerson[];
+  onAddBack?: (userId: string) => void;
   /** Where a role menu portals: the dialog's backdrop, which carries the palette. */
   menuContainer: HTMLElement | null;
   /** A role menu opened or closed, so Escape can close it before the dialog. */
@@ -143,6 +156,9 @@ export function ShareSessionPanel(props: ShareSessionPanelProps) {
             <span className="text-[11.5px] text-[var(--surface-fg-muted)]">{members}</span>
           </div>
           <PeopleList {...props} />
+          {props.removed && props.onAddBack && (
+            <RemovedList removed={props.removed} onAddBack={props.onAddBack} />
+          )}
         </section>
       </div>
 
@@ -175,6 +191,185 @@ export function ShareSessionPanel(props: ShareSessionPanelProps) {
             {props.busy ? 'Starting…' : 'Start session'}
           </SettingsButton>
         )}
+      </footer>
+    </>
+  );
+}
+
+/** Someone on the board right now, as the collaborator's window lists them. */
+export interface HerePerson {
+  id: string;
+  name: string;
+  photo: string | null;
+  /** The person looking at this dialog. */
+  you: boolean;
+  isOwner: boolean;
+}
+
+export interface ShareCollaboratorPanelProps {
+  boardName: string;
+  /** What the person looking may do here; null until their token says. */
+  role: ShareRole | null;
+  /** Whose board it is, once the gateway has said. */
+  ownerName: string | null;
+  /** The board's own address — what they can pass on. */
+  link: string;
+  here: HerePerson[];
+  copied: boolean;
+  /** Resolves false when the clipboard refused, and the field is selected instead. */
+  onCopy: () => Promise<boolean>;
+  onClose: () => void;
+}
+
+/**
+ * The Share window for someone who is not the board's owner.
+ *
+ * Sharing is the owner's to do, so this is the honest smaller version of their
+ * window: what you can do here, the board's address to pass on, and who is on
+ * the board now. It asks the server for nothing the owner alone may read — the
+ * people listed come from presence, already on this board's socket — so it
+ * has no way to end up showing an error about permissions it never needed.
+ */
+export function ShareCollaboratorPanel({
+  boardName,
+  role,
+  ownerName,
+  link,
+  here,
+  copied,
+  onCopy,
+  onClose,
+}: ShareCollaboratorPanelProps) {
+  const count = here.length === 1 ? '1 here now' : `${here.length} here now`;
+  const Icon = role === 'editor' ? Pencil : Eye;
+  const linkField = useRef<HTMLInputElement>(null);
+  const owner = ownerName ?? 'the owner';
+
+  return (
+    <>
+      <header className="flex shrink-0 items-start gap-[12px] px-[20px] pt-[18px] pr-[16px]">
+        <span
+          aria-hidden="true"
+          className="flex size-[36px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-accent)] text-[12px] font-semibold text-[var(--surface-on-accent)]"
+        >
+          {initialsOf(boardName)}
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
+          <h2 className="truncate text-[16px] font-semibold tracking-[-0.01em]">{boardName}</h2>
+          <p className="flex items-center gap-[5px] text-[12px] text-[var(--surface-fg-muted)]">
+            <Users className="size-[12px]" aria-hidden="true" />
+            {count}
+          </p>
+        </div>
+        <CloseButton label="Close" onClick={onClose} />
+      </header>
+
+      <div className="flex min-h-0 flex-col gap-[16px] px-[20px] pt-[14px]">
+        <div className={HERO}>
+          <div className="flex items-center gap-[12px]">
+            <span
+              aria-hidden="true"
+              className="flex size-[36px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-panel)] text-[var(--surface-fg-muted)]"
+            >
+              <Icon className="size-[16px]" />
+            </span>
+            <div className="flex min-w-0 flex-1 flex-col gap-[1px]">
+              <p className="text-[13.5px] font-semibold" data-testid="share-your-access">
+                {role === 'editor'
+                  ? 'You can edit this board'
+                  : role === 'viewer'
+                    ? 'You can view this board'
+                    : 'You’re on this board'}
+              </p>
+              <p className="text-[11.5px] text-[var(--surface-fg-muted)]">
+                {`Only ${owner} can invite people or change who has access.`}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-[8px]">
+            <div className="flex gap-[6px]">
+              <input
+                ref={linkField}
+                readOnly
+                value={link}
+                aria-label="Board link"
+                onFocus={(event) => event.currentTarget.select()}
+                className={cn(INPUT, 'min-w-0 flex-1')}
+              />
+              <SettingsButton
+                variant="primary"
+                className="h-[32px] px-[14px] text-[12.5px]"
+                onClick={() =>
+                  void onCopy().then((ok) => {
+                    // The clipboard said no: the link is selected, a keystroke away.
+                    if (!ok) linkField.current?.select();
+                  })
+                }
+                data-testid="share-copy-board-link"
+              >
+                {copied ? (
+                  <Check className="size-[14px]" aria-hidden="true" />
+                ) : (
+                  <Copy className="size-[14px]" aria-hidden="true" />
+                )}
+                {copied ? 'Copied' : 'Copy link'}
+              </SettingsButton>
+            </div>
+            <p className="text-[11.5px] text-[var(--surface-fg-muted)]">
+              Opens the board for people who already have access to it.
+            </p>
+          </div>
+        </div>
+
+        <section aria-label="Here now" className="flex min-h-0 flex-col gap-[2px]">
+          <div className="flex items-baseline justify-between">
+            <h3 className="text-[12px] font-semibold">Here now</h3>
+            <span className="text-[11.5px] text-[var(--surface-fg-muted)]">{count}</span>
+          </div>
+          {here.length <= 1 ? (
+            <p className="py-[10px] text-[12px] text-[var(--surface-fg-muted)]">
+              Only you, for now.
+            </p>
+          ) : (
+            <ul className={cn('max-h-[150px] overflow-y-auto pr-[2px]', SCROLLBAR)}>
+              {here.map((person) => (
+                <li
+                  key={person.id}
+                  data-testid={`share-here-${person.id}`}
+                  className="flex h-[46px] shrink-0 items-center gap-[11px] border-t border-[var(--surface-line)] first:border-t-0"
+                >
+                  <PersonAvatar
+                    url={person.photo}
+                    name={person.name}
+                    className="size-[28px] text-[11px]"
+                  />
+                  <p className="min-w-0 flex-1 truncate text-[12.5px] font-medium">
+                    {person.name}
+                    {person.you && (
+                      <span className="font-normal text-[var(--surface-fg-muted)]"> (you)</span>
+                    )}
+                  </p>
+                  {person.isOwner && (
+                    <span className="inline-flex h-[24px] shrink-0 items-center gap-[5px] rounded-[7px] border border-[var(--surface-border)] px-[8px] text-[11px] text-[var(--surface-fg-muted)]">
+                      <Crown className="size-[12px]" aria-hidden="true" />
+                      Owner
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      <footer className="flex shrink-0 items-center justify-end gap-[8px] px-[20px] pt-[16px] pb-[18px]">
+        <SettingsButton
+          variant="ghost"
+          className="h-[32px] px-[14px] text-[12.5px]"
+          onClick={onClose}
+        >
+          Done
+        </SettingsButton>
       </footer>
     </>
   );
@@ -458,6 +653,65 @@ function PeopleList({
         </motion.li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * The people the owner removed, folded away under one line.
+ *
+ * Kept off the main list, which is who is on the board now, but not hidden:
+ * a removed person cannot get back in with any link, so this is the only way
+ * back for them, and it should be findable without being in the way.
+ */
+function RemovedList({
+  removed,
+  onAddBack,
+}: {
+  removed: RemovedPerson[];
+  onAddBack: (userId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (removed.length === 0) return null;
+
+  return (
+    <div className="mt-[4px] border-t border-[var(--surface-line)] pt-[4px]">
+      <button
+        type="button"
+        aria-expanded={open}
+        data-testid="share-removed-toggle"
+        onClick={() => setOpen((was) => !was)}
+        className="flex w-full items-center justify-between rounded-[6px] py-[5px] text-[11.5px] text-[var(--surface-fg-muted)] transition-colors hover:text-[var(--surface-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]"
+      >
+        <span>{`Removed · ${removed.length}`}</span>
+        <ChevronDown
+          className={cn('size-[13px] transition-transform', open && 'rotate-180')}
+          aria-hidden="true"
+        />
+      </button>
+      {open && (
+        <ul className={cn('max-h-[120px] overflow-y-auto pr-[2px]', SCROLLBAR)}>
+          {removed.map((person) => (
+            <li
+              key={person.id}
+              data-testid={`share-removed-${person.id}`}
+              className="flex h-[42px] shrink-0 items-center gap-[10px]"
+            >
+              {/* No photo: it is read through the board, which they are no longer on. */}
+              <PersonAvatar url={null} name={person.name} className="size-[26px] text-[10px]" />
+              <div className="flex min-w-0 flex-1 flex-col gap-[1px]">
+                <p className="truncate text-[12px] font-medium text-[var(--surface-fg-muted)]">
+                  {person.name}
+                </p>
+                <p className="truncate text-[11px] text-[var(--surface-fg-faint)]">
+                  {`${person.isGuest ? 'No account' : person.email} · ${PERMISSIONS[person.role].label}`}
+                </p>
+              </div>
+              <SettingsButton onClick={() => onAddBack(person.id)}>Add back</SettingsButton>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

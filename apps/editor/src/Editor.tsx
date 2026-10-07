@@ -199,7 +199,7 @@ import {
   decodeJwtWorkspaceId,
   sessionResumeUrl,
 } from './auth/token';
-import { useBoardSwitcher } from './workspace';
+import { announceWorkspaceChanged, useBoardSwitcher } from './workspace';
 import {
   CursorLayer,
   FollowingChip,
@@ -226,12 +226,14 @@ import {
 import { ExportImageDialog } from './export';
 import { FindBar, useCanvasSearch } from './search';
 import { AccessRevokedDialog, ShareDialog } from './share';
+import { useBoardOverview } from './share/useBoardOverview';
 import {
   SettingsDialog,
   accountDeletedUrl,
   requestAccountDeletion,
   takeDeletionResume,
   type DeletionInput,
+  type WorkspaceSettingsSource,
 } from './settings';
 import { warmAccountSecurity } from './settings/account-security-api';
 import { usePreferences } from './preferences';
@@ -575,6 +577,7 @@ export function Editor({ boardId }: EditorProps) {
   const {
     authToken,
     refresh: refreshAuthToken,
+    refreshNow: refreshAuthTokenNow,
     accessDenied: tokenAccessDenied,
   } = useAuthToken(boardId);
 
@@ -705,7 +708,7 @@ export function Editor({ boardId }: EditorProps) {
     // A saved name only reaches collaborators when the token carrying it is
     // reminted, so a rename asks for that at once rather than waiting for the
     // refresh already scheduled minutes out.
-    onNameSaved: refreshAuthToken,
+    onNameSaved: refreshAuthTokenNow,
     // Re-read on every remint, so a change made elsewhere — another device,
     // beyond the reach of this browser's channel — lands without a reload.
     revalidateOn: authToken,
@@ -769,11 +772,46 @@ export function Editor({ boardId }: EditorProps) {
     boardId,
     workspaceId: authToken ? decodeJwtWorkspaceId(authToken) : null,
   });
-  const boardTitle = boardSwitcher.title;
+  // Someone outside the board's workspace — let in by a share link — has no
+  // board list to name it from, and the sidebar falls back to the id. The
+  // gateway names it for anyone on the board, and says whose it is, which the
+  // Share window tells a non-owner.
+  const overview = useBoardOverview(boardId, authToken, user !== null && user.role !== 'owner');
+  const boardTitle =
+    boardSwitcher.title === boardId && overview ? overview.title : boardSwitcher.title;
   // With no argument it targets the board on screen, which is what the
   // sidebar's "Rename board" row means.
   const { beginRename, canRename } = boardSwitcher;
   const handleRenameBoard = useCallback(() => beginRename(), [beginRename]);
+
+  // Settings → Workspace is about the workspace the sidebar header names: the
+  // one being browsed, else the open board's own.
+  const settingsWorkspace = useMemo<WorkspaceSettingsSource>(() => {
+    if (user?.isGuest || !boardSwitcher.available) return { status: 'none' };
+    const shownId = boardSwitcher.browsedWorkspaceId ?? boardSwitcher.workspaceId;
+    const workspace = boardSwitcher.workspaces?.find((candidate) => candidate.id === shownId);
+    return workspace ? { status: 'ready', workspace } : { status: 'loading' };
+  }, [
+    user?.isGuest,
+    boardSwitcher.available,
+    boardSwitcher.browsedWorkspaceId,
+    boardSwitcher.workspaceId,
+    boardSwitcher.workspaces,
+  ]);
+  const { renameWorkspace, dismissError: dismissSwitcherError } = boardSwitcher;
+  const renameWorkspaceFromSettings = useCallback(
+    async (workspaceId: string, name: string) => {
+      try {
+        await renameWorkspace(workspaceId, name);
+      } catch (err) {
+        // Settings says why itself; the sidebar's menu shouldn't say it again
+        // the next time it opens.
+        dismissSwitcherError();
+        throw err;
+      }
+    },
+    [renameWorkspace, dismissSwitcherError],
+  );
 
   const doc = useBoardDocument(boardId, userId);
 
@@ -862,7 +900,7 @@ export function Editor({ boardId }: EditorProps) {
     // The server changed our role on this live connection. Re-mint the token
     // so `readOnly` and the chrome follow within a second, rather than at the
     // next scheduled refresh up to five minutes away.
-    onAccessChanged: refreshAuthToken,
+    onAccessChanged: refreshAuthTokenNow,
     onAccessRevoked: () => {
       if (!deletingAccountRef.current) setAccessRevoked(true);
     },
@@ -873,6 +911,9 @@ export function Editor({ boardId }: EditorProps) {
       if (deletingAccountRef.current) return;
       window.location.href = sessionResumeUrl();
     },
+    // Someone renamed a workspace, changed a board in it, or let someone onto
+    // one: the sidebar and Settings re-read it.
+    onWorkspaceChanged: announceWorkspaceChanged,
   });
 
   // The same conclusion reached the slow way: the token route refuses to mint
@@ -4412,6 +4453,10 @@ export function Editor({ boardId }: EditorProps) {
               presenceKey={presenceKey}
               authToken={authToken}
               theme={presenceTheme}
+              viewerRole={user?.role ?? null}
+              ownerName={overview?.ownerName ?? null}
+              ownerId={overview?.ownerId ?? null}
+              roster={roster}
             />
 
             <ConfirmDialog
@@ -4515,6 +4560,8 @@ export function Editor({ boardId }: EditorProps) {
                   isGuest={user?.isGuest ?? false}
                   resumeDeletion={resumeDeletion}
                   deleteAccount={deleteAccount}
+                  workspace={settingsWorkspace}
+                  renameWorkspace={renameWorkspaceFromSettings}
                   onClose={hideSettings}
                 />
               )}

@@ -8,3 +8,4 @@ export {
   type RenameBoardTarget,
 } from './useBoardSwitcher';
 export type { BoardColor, BoardSummary, WorkspaceSummary } from './workspace-api';
+export { announceWorkspaceChanged, useWorkspaceChanges } from './workspace-events';

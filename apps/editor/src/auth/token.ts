@@ -255,11 +255,25 @@ export function sessionResumeUrl(): string {
   return url.toString();
 }
 
+/**
+ * How long a mint may take before it is given up on.
+ *
+ * A request that never answers — the server behind it restarted mid-request —
+ * would otherwise hold the editor's one-at-a-time minting for good, and every
+ * later refresh would wait behind it until the token expired and the board's
+ * connection could not come back. Abandoned, it fails like any network blip
+ * and the next mint goes ahead.
+ */
+const MINT_TIMEOUT_MS = 10_000;
+
 async function mintFrom(origin: string, path: string, boardId: string): Promise<RefreshedToken> {
   const url = new URL(path, origin);
   url.searchParams.set('boardId', boardId);
 
-  const res = await fetch(url.toString(), { credentials: 'include' });
+  const res = await fetch(url.toString(), {
+    credentials: 'include',
+    signal: AbortSignal.timeout(MINT_TIMEOUT_MS),
+  });
   if (!res.ok) {
     throw new TokenRefreshError(res.status);
   }

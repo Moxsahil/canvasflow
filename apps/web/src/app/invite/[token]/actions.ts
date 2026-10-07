@@ -12,6 +12,7 @@ import { currentUser } from '@/lib/auth/session';
 import { editorUrlFor, mintEditorToken } from '@/lib/auth/editor-token';
 import { setGuestSession } from '@/lib/auth/guest-session';
 import { checkBoardAccess } from '@/lib/boards/access';
+import { notifyWorkspaceChanged } from '@/lib/sync/internal';
 
 const db = createClient(env.DATABASE_URL);
 
@@ -43,6 +44,9 @@ export async function joinAsGuest(token: string, formData: FormData): Promise<Jo
   // for them puts a lie in a signed credential.
   const access = await resolveBoardAccess(db, outcome.userId, outcome.boardId);
   if (!access) return { error: 'That board is no longer available.' };
+
+  // The workspace's members see a new guest on its boards.
+  await notifyWorkspaceChanged(access.workspaceId);
 
   // Without this the guest's board stops syncing five minutes from now: editor
   // tokens are short-lived by design, and the silent re-mint needs something to
@@ -79,6 +83,8 @@ export async function joinAsUser(token: string): Promise<JoinResult> {
   const access = await checkBoardAccess(user.id, outcome.boardId);
   if (!access) return { error: 'That board is no longer available.' };
 
+  await notifyWorkspaceChanged(access.workspaceId);
+
   const minted = await mintEditorToken(
     {
       id: user.id,
@@ -97,6 +103,8 @@ function describeRejection(reason: string): string {
   switch (reason) {
     case 'revoked':
       return 'This link has been turned off by the board owner.';
+    case 'removed':
+      return 'The board owner removed you from this board. Ask them to add you back.';
     case 'expired':
       return 'This link has expired.';
     case 'exhausted':

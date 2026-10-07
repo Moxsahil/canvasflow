@@ -11,6 +11,7 @@ import { env } from '@/lib/env';
 import { currentSession } from '@/lib/auth/session';
 import { checkBoardAccess } from '@/lib/boards/access';
 import { corsJson, corsPreflight } from '@/lib/api/cors';
+import { notifyWorkspaceChanged } from '@/lib/sync/internal';
 
 /**
  * The board's own record — its name, its tag colour, and deleting it.
@@ -149,6 +150,8 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ board
   // between — the same answer as a board that was never there.
   if (!board) return corsJson({ error: 'Board not found' }, { status: 404 });
 
+  await notifyWorkspaceChanged(board.workspaceId);
+
   return corsJson({ data: board });
 }
 
@@ -160,6 +163,8 @@ export async function DELETE(_request: NextRequest, ctx: { params: Promise<{ boa
   const board = await softDeleteBoard(db, boardId);
   // Already gone by the time the write landed — a double-submit, most likely.
   if (!board) return corsJson({ error: 'Board not found' }, { status: 404 });
+
+  await notifyWorkspaceChanged(board.workspaceId);
 
   return corsJson({ data: board });
 }
