@@ -5,7 +5,6 @@ import {
   ContextMenuBadge,
   ContextMenuChoiceItem,
   ContextMenuContent,
-  ContextMenuHoldItem,
   ContextMenuItem,
   ContextMenuLabel,
   ContextMenuRadioGroup,
@@ -16,6 +15,7 @@ import {
   ContextMenuToggleItem,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import { menuDangerRowClasses } from '@/components/ui/menu-look';
 import { ariaKeyShortcut } from '../help/platform';
 import { BoardTitle } from '../workspace/board-presentation';
 import type { WorkspaceBoards } from '../workspace/useBoardSwitcher';
@@ -92,7 +92,6 @@ export function CanvasContextMenu({
   children,
 }: CanvasContextMenuProps) {
   const groups = useMemo(() => contextMenuFor(target, { readOnly }), [target, readOnly]);
-  const close = () => onOpenChange(false);
 
   return (
     <ContextMenu open={open} onOpenChange={onOpenChange}>
@@ -116,7 +115,6 @@ export function CanvasContextMenu({
                   actions={actions}
                   checks={checks}
                   label={labels?.[entry]}
-                  close={close}
                 />
               ) : (
                 <Submenu
@@ -125,7 +123,6 @@ export function CanvasContextMenu({
                   actions={actions}
                   checks={checks}
                   moveTo={moveTo}
-                  close={close}
                   container={container}
                 />
               ),
@@ -147,10 +144,9 @@ interface RowProps {
   checks: ContextMenuChecks;
   /** In place of the row's own label. */
   label?: string;
-  close: () => void;
 }
 
-function Row({ id, actions, checks, label: labelOverride, close }: RowProps) {
+function Row({ id, actions, checks, label: labelOverride }: RowProps) {
   const meta = CONTEXT_MENU_ITEMS[id];
   const { icon: Icon, shortcut, destructive, toggle, choice, hint } = meta;
   const label = labelOverride ?? meta.label;
@@ -190,25 +186,11 @@ function Row({ id, actions, checks, label: labelOverride, close }: RowProps) {
     );
   }
 
-  if (destructive && action) {
-    return (
-      <ContextMenuHoldItem
-        label={label}
-        icon={Icon && <Icon />}
-        onConfirm={() => {
-          action();
-          close();
-        }}
-        aria-keyshortcuts={keyshortcuts}
-        data-testid={`context-menu-${id}`}
-      />
-    );
-  }
-
   return (
     <ContextMenuItem
       disabled={!action}
       onSelect={action ?? undefined}
+      className={destructive ? menuDangerRowClasses : undefined}
       icon={Icon && <Icon />}
       badge={badge}
       aria-keyshortcuts={keyshortcuts}
@@ -224,18 +206,16 @@ function Submenu({
   actions,
   checks,
   moveTo,
-  close,
   container,
 }: {
   submenu: ContextSubmenu;
   actions: ContextMenuActions;
   checks: ContextMenuChecks;
   moveTo: MoveToBoards | null;
-  close: () => void;
   container: HTMLElement | null;
 }) {
   const rows = submenu.items.map((id) => (
-    <Row key={id} id={id} actions={actions} checks={checks} close={close} />
+    <Row key={id} id={id} actions={actions} checks={checks} />
   ));
   // A submenu of choices is one radio group: the row in effect is the one
   // ticked, and picking a row runs its action.

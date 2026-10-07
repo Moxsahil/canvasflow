@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { ContextMenu as ContextMenuPrimitive } from 'radix-ui';
-import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
+import { MotionConfig } from 'framer-motion';
 import { Check, ChevronRight } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -13,7 +13,6 @@ import {
   menuPanelClasses,
   menuRowClasses,
   menuSeparatorClasses,
-  menuSlide,
   menuSubTriggerClasses,
   useMenuPress,
 } from './menu-look';
@@ -188,121 +187,6 @@ const ContextMenuChoiceItem = React.forwardRef<
   );
 });
 
-/** How long a destructive row has to be held before it runs. */
-const HOLD_MS = 1000;
-
-type HoldItemProps = Omit<
-  React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Item>,
-  'onSelect' | 'children'
-> & {
-  label: string;
-  /** Replaces the label for as long as the row is held. */
-  holdingLabel?: string;
-  icon?: React.ReactNode;
-  /** Runs once the hold completes. The caller closes the menu. */
-  onConfirm: () => void;
-};
-
-/**
- * A row that runs only after being held down, with a bar filling behind it.
- * Enter and Space hold it the same way a press does. A click does nothing,
- * so it can't be run by a slip.
- */
-const ContextMenuHoldItem = React.forwardRef<
-  React.ElementRef<typeof ContextMenuPrimitive.Item>,
-  HoldItemProps
->(function ContextMenuHoldItem(
-  {
-    className,
-    label,
-    holdingLabel = 'Hold to confirm',
-    icon,
-    onConfirm,
-    onPointerDown,
-    onPointerUp,
-    onPointerLeave,
-    onKeyDown,
-    onKeyUp,
-    ...props
-  },
-  ref,
-) {
-  const [holding, setHolding] = React.useState(false);
-  // Read when the fill finishes, which is after the render that started it.
-  const holdingRef = React.useRef(false);
-  const confirmedRef = React.useRef(false);
-
-  const start = () => {
-    holdingRef.current = true;
-    confirmedRef.current = false;
-    setHolding(true);
-  };
-  const end = () => {
-    holdingRef.current = false;
-    setHolding(false);
-  };
-
-  return (
-    <ContextMenuPrimitive.Item
-      ref={ref}
-      textValue={label}
-      className={cn(
-        menuRowClasses,
-        'group h-7 justify-end overflow-hidden text-red-400 data-[highlighted]:bg-red-500/5 dark:data-[highlighted]:bg-red-500/20',
-        className,
-      )}
-      // A click would otherwise close the menu having done nothing.
-      onSelect={(event) => event.preventDefault()}
-      onPointerDown={(event) => {
-        onPointerDown?.(event);
-        if (event.button === 0) start();
-      }}
-      onPointerUp={(event) => {
-        onPointerUp?.(event);
-        ignoreSecondaryRelease(event);
-        end();
-      }}
-      onPointerLeave={(event) => {
-        onPointerLeave?.(event);
-        end();
-      }}
-      onKeyDown={(event) => {
-        onKeyDown?.(event);
-        if ((event.key === 'Enter' || event.key === ' ') && !event.repeat) start();
-      }}
-      onKeyUp={(event) => {
-        onKeyUp?.(event);
-        if (event.key === 'Enter' || event.key === ' ') end();
-      }}
-      {...props}
-    >
-      <AnimatePresence>
-        <motion.span
-          key={holding ? 'holding' : 'idle'}
-          {...menuSlide}
-          className="absolute left-0 ml-2 select-none"
-        >
-          {holding ? holdingLabel : label}
-        </motion.span>
-      </AnimatePresence>
-      {icon && <MenuRowIcon>{icon}</MenuRowIcon>}
-      <div className="absolute left-0 hidden h-full w-full bg-red-500/10 transition-colors group-data-[highlighted]:block dark:bg-red-500/25">
-        <motion.div
-          className="h-full bg-red-500/25"
-          initial={{ width: 0 }}
-          animate={{ width: holding ? '100%' : 0 }}
-          transition={holding ? { duration: HOLD_MS / 1000, ease: 'linear' } : { duration: 0 }}
-          onAnimationComplete={() => {
-            if (!holdingRef.current || confirmedRef.current) return;
-            confirmedRef.current = true;
-            onConfirm();
-          }}
-        />
-      </div>
-    </ContextMenuPrimitive.Item>
-  );
-});
-
 const ContextMenuSubTrigger = React.forwardRef<
   React.ElementRef<typeof ContextMenuPrimitive.SubTrigger>,
   React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.SubTrigger>
@@ -378,7 +262,6 @@ export {
   ContextMenuToggleItem,
   ContextMenuRadioGroup,
   ContextMenuChoiceItem,
-  ContextMenuHoldItem,
   ContextMenuLabel,
   ContextMenuSeparator,
   ContextMenuBadge,
