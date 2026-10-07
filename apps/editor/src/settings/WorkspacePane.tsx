@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { WorkspaceRole, WorkspaceSummary } from '../workspace/workspace-api';
-import { useWorkspaceMembers } from '../workspace/useWorkspaceMembers';
+import { useWorkspacePeople } from '../workspace/useWorkspacePeople';
 import { MembersDialog, ROLE_LABELS } from './WorkspaceDialogs';
 import {
   Band,
@@ -33,8 +33,11 @@ function canRename(role: WorkspaceRole): boolean {
   return role === 'owner' || role === 'admin';
 }
 
-function memberCount(count: number): string {
-  return count === 1 ? 'Just you' : `${count} members`;
+/** "Just you", "3 members", and the guests after them when there are any. */
+function peopleCount(members: number, guests: number): string {
+  const inside = members === 1 ? 'Just you' : `${members} members`;
+  if (guests === 0) return inside;
+  return `${inside} · ${guests === 1 ? '1 guest' : `${guests} guests`}`;
 }
 
 interface WorkspacePaneProps {
@@ -86,7 +89,7 @@ function ReadyPane({
   userId: string | null;
   onRename?: (workspaceId: string, name: string) => Promise<void>;
 }) {
-  const members = useWorkspaceMembers(workspace?.id ?? null);
+  const people = useWorkspacePeople(workspace?.id ?? null);
   const [renameError, setRenameError] = useState<string | null>(null);
   const [showingMembers, setShowingMembers] = useState(false);
 
@@ -109,10 +112,10 @@ function ReadyPane({
   };
 
   const membersHint =
-    members.status === 'ready'
-      ? memberCount(members.members.length)
-      : members.status === 'error'
-        ? members.error
+    people.status === 'ready'
+      ? peopleCount(people.members.length, people.guests.length)
+      : people.status === 'error'
+        ? people.error
         : 'Loading…';
 
   return (
@@ -121,11 +124,11 @@ function ReadyPane({
       dialog={
         showingMembers &&
         workspace &&
-        members.status === 'ready' && (
+        people.status === 'ready' && (
           <MembersDialog
             key="members"
             workspaceName={workspace.name}
-            members={members.members}
+            people={people}
             userId={userId}
             onClose={() => setShowingMembers(false)}
           />
@@ -162,7 +165,7 @@ function ReadyPane({
       <Band title="People">
         <SettingRow setting="members" title="Members" hint={membersHint}>
           <SettingsButton
-            disabled={members.status !== 'ready'}
+            disabled={people.status !== 'ready'}
             onClick={() => setShowingMembers(true)}
           >
             View

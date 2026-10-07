@@ -25,8 +25,37 @@ export interface WorkspaceMember {
   photo: string | null;
 }
 
-function membersUrl(workspaceId: string): URL {
-  return new URL(`/workspaces/${workspaceId}/members`, env.VITE_API_URL);
+/** What a share link let somebody do on one board. */
+export type GuestBoardRole = 'owner' | 'editor' | 'viewer';
+
+export interface GuestBoard {
+  boardId: string;
+  title: string;
+  role: GuestBoardRole;
+}
+
+/** Somebody on some of the workspace's boards by share link, without being in it. */
+export interface WorkspaceGuest {
+  userId: string;
+  name: string;
+  username: string | null;
+  /** As for members, and always null for someone with no account. */
+  email: string | null;
+  /** Joined by link without an account. */
+  isGuest: boolean;
+  photo: string | null;
+  boards: GuestBoard[];
+}
+
+export interface WorkspacePeople {
+  /** The owner first, then admins, then members. */
+  members: WorkspaceMember[];
+  /** In the order they were first let onto a board. */
+  guests: WorkspaceGuest[];
+}
+
+function peopleUrl(workspaceId: string): URL {
+  return new URL(`/workspaces/${workspaceId}/people`, env.VITE_API_URL);
 }
 
 async function failureMessage(res: Response): Promise<string> {
@@ -44,13 +73,13 @@ async function failureMessage(res: Response): Promise<string> {
   return `Something went wrong (${res.status}).`;
 }
 
-/** Everyone in the workspace: the owner first, then admins, then members. */
-export async function listWorkspaceMembers(
+/** Everyone in the workspace, and everyone else on its boards. */
+export async function listWorkspacePeople(
   workspaceId: string,
   signal?: AbortSignal,
-): Promise<WorkspaceMember[]> {
-  const res = await fetch(membersUrl(workspaceId), { credentials: 'include', signal });
+): Promise<WorkspacePeople> {
+  const res = await fetch(peopleUrl(workspaceId), { credentials: 'include', signal });
   if (!res.ok) throw new Error(await failureMessage(res));
-  const body = (await res.json()) as { data: WorkspaceMember[] };
+  const body = (await res.json()) as { data: WorkspacePeople };
   return body.data;
 }

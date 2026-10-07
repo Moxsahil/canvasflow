@@ -1,5 +1,6 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import type { Database } from '../client.js';
+import { boardMembers, type BoardRole } from '../schema/board-access.js';
 import { boards, type BoardRow } from '../schema/boards.js';
 import { users } from '../schema/users.js';
 import {
@@ -212,6 +213,91 @@ export async function listWorkspaceMembers(
       avatar: { fileId, mimeType, externalUrl },
     }))
     .sort(compareWorkspaceMembers);
+}
+
+/** One board a guest was let onto, and what they may do there. */
+export interface GuestBoard {
+  boardId: string;
+  title: string;
+  role: BoardRole;
+}
+
+/**
+ * Somebody on one or more of a workspace's boards without being in the
+ * workspace — let in by a share link, so their access is to those boards only.
+ */
+export interface WorkspaceGuest {
+  userId: string;
+  name: string;
+  username: string | null;
+  email: string;
+  /** Joined by link without an account; their address is a placeholder. */
+  isGuest: boolean;
+  avatar: AvatarSource;
+  /** In the order they were let onto them. */
+  boards: GuestBoard[];
+}
+
+/**
+ * Everyone with access to a board in this workspace who is not a member of it.
+ *
+ * Only standing access counts: a revoked grant, or a board that has been
+ * deleted, gives nothing and so lists nobody. Members are left out even when
+ * they also hold a grant of their own — they are already in the member list,
+ * and the workspace reaches further than any one board.
+ */
+export async function listWorkspaceGuests(
+  db: Database,
+  workspaceId: string,
+): Promise<WorkspaceGuest[]> {
+  const rows = await db
+    .select({
+      userId: users.id,
+      name: users.name,
+      username: users.username,
+      email: users.email,
+      isGuest: users.isGuest,
+      fileId: users.avatarFileId,
+      mimeType: users.avatarMimeType,
+      externalUrl: users.avatarUrl,
+      boardId: boards.id,
+      title: boards.title,
+      role: boardMembers.role,
+    })
+    .from(boardMembers)
+    .innerJoin(boards, eq(boards.id, boardMembers.boardId))
+    .innerJoin(users, eq(users.id, boardMembers.userId))
+    .leftJoin(
+      memberships,
+      and(
+        eq(memberships.workspaceId, boards.workspaceId),
+        eq(memberships.userId, boardMembers.userId),
+      ),
+    )
+    .where(
+      and(
+        eq(boards.workspaceId, workspaceId),
+        isNull(boards.deletedAt),
+        eq(boardMembers.status, 'active'),
+        isNull(memberships.id),
+        // A board's owner needs no grant, and one left over would list them
+        // as a guest on their own board.
+        ne(boardMembers.userId, boards.ownerId),
+      ),
+    )
+    .orderBy(asc(boardMembers.createdAt));
+
+  const guests = new Map<string, WorkspaceGuest>();
+  for (const { boardId, title, role, fileId, mimeType, externalUrl, ...person } of rows) {
+    const guest = guests.get(person.userId) ?? {
+      ...person,
+      avatar: { fileId, mimeType, externalUrl },
+      boards: [],
+    };
+    guest.boards.push({ boardId, title, role });
+    guests.set(person.userId, guest);
+  }
+  return [...guests.values()];
 }
 
 /**

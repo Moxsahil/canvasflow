@@ -8,6 +8,8 @@ import { PrivacyPane } from './PrivacyPane';
 import { ProfilePane } from './ProfilePane';
 import { SettingsDialog } from './SettingsDialog';
 import { WorkspacePane, type WorkspaceSettingsSource } from './WorkspacePane';
+import { MembersDialog } from './WorkspaceDialogs';
+import type { WorkspacePeople } from '../workspace/people-api';
 import { SETTINGS_INDEX, SETTINGS_SECTIONS, searchSettings } from './settings-sections';
 import { PRESENCE_PALETTE } from '@canvasflow/canvas-engine';
 import type { AvatarState, Profile, ProfileState } from '../profile';
@@ -214,6 +216,69 @@ describe('SettingsDialog', () => {
     expect(pane).not.toContain('Leave workspace');
     expect(searchSettings('members', { isGuest: true })).toEqual([]);
     expect(searchSettings('members').map((entry) => entry.id)).toContain('members');
+  });
+
+  it('lists members, and keeps people let onto boards by link apart as guests', () => {
+    const people: WorkspacePeople = {
+      members: [
+        {
+          userId: 'u1',
+          name: 'Sahil',
+          username: 'sahil',
+          email: 'sahil@example.com',
+          role: 'owner',
+          joinedAt: '2026-10-01T00:00:00.000Z',
+          photo: null,
+        },
+      ],
+      guests: [
+        {
+          userId: 'u2',
+          name: 'Ravi',
+          username: null,
+          email: 'ravi@example.com',
+          isGuest: false,
+          photo: null,
+          boards: [{ boardId: 'b1', title: 'Roadmap', role: 'editor' }],
+        },
+        {
+          userId: 'u3',
+          name: 'Guest 4821',
+          username: null,
+          email: null,
+          isGuest: true,
+          photo: null,
+          boards: [
+            { boardId: 'b1', title: 'Roadmap', role: 'viewer' },
+            { boardId: 'b2', title: 'Launch', role: 'editor' },
+            { boardId: 'b3', title: 'Hiring', role: 'viewer' },
+          ],
+        },
+      ],
+    };
+    const html = renderToString(
+      <MembersDialog workspaceName="Studio" people={people} userId="u1" onClose={noop} />,
+    );
+    expect(html).toContain('Members · 1');
+    expect(html).toContain('Guests on boards · 2');
+    expect(html).toContain('Sahil<span');
+    expect(html).toContain('(you)');
+    expect(html).toContain('On Roadmap · ravi@example.com');
+    expect(html).toContain('Can edit');
+    expect(html).toContain('No account');
+    expect(html).toContain('On Roadmap and 2 more boards');
+    expect(html).toContain('Mixed access');
+
+    const alone = renderToString(
+      <MembersDialog
+        workspaceName="Studio"
+        people={{ members: people.members, guests: [] }}
+        userId="u1"
+        onClose={noop}
+      />,
+    );
+    expect(alone).toContain('Everyone in Studio.');
+    expect(alone).not.toContain('Guests on boards');
   });
 
   it('links to both legal pages from Data & Privacy, and says which terms were agreed to', () => {

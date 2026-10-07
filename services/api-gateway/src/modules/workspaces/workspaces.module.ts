@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AvatarsModule } from '../avatars/avatars.module.js';
-import { WorkspaceMembersController } from './workspace-members.controller.js';
+import { WorkspacePeopleController } from './workspace-people.controller.js';
 
 /**
  * Running a workspace: who is in it, and — as it grows — inviting people,
@@ -9,6 +9,6 @@ import { WorkspaceMembersController } from './workspace-members.controller.js';
  */
 @Module({
   imports: [AvatarsModule],
-  controllers: [WorkspaceMembersController],
+  controllers: [WorkspacePeopleController],
 })
 export class WorkspacesModule {}
