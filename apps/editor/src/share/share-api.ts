@@ -146,6 +146,21 @@ export async function setMemberRole(
   if (!res.ok) throw new Error(await failureMessage(res));
 }
 
+/**
+ * Let someone the owner removed back onto the board, with the access they had.
+ *
+ * The same request as a role change, which the server treats as making the
+ * person active again — a removal is kept as a row precisely so it can be
+ * undone like this, and so no share link can undo it instead.
+ */
+export async function addMemberBack(
+  boardId: string,
+  userId: string,
+  role: 'editor' | 'viewer',
+): Promise<void> {
+  await setMemberRole(boardId, userId, role);
+}
+
 /** Remove someone from the board entirely. Their socket is closed on the next sweep. */
 export async function removeMember(boardId: string, userId: string): Promise<void> {
   const res = await fetch(`${membersUrl(boardId)}/${userId}`, {

@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { boards, createClient, lookupShareLink } from '@canvasflow/db';
+import { boards, createClient, lookupShareLink, wasRemovedFromBoard } from '@canvasflow/db';
 import { eq } from 'drizzle-orm';
-import { Edit3, Eye, Link2Off } from 'lucide-react';
+import { Edit3, Eye, Link2Off, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { env } from '@/lib/env';
@@ -49,6 +49,19 @@ export default async function InvitePage({ params }: InvitePageProps) {
   const boardTitle = boardRows[0]?.title ?? 'Untitled board';
   const session = await currentSession();
 
+  // The link works, but not for someone the owner removed: say so now rather
+  // than offer a button that will refuse them.
+  if (session?.user?.id && (await wasRemovedFromBoard(db, found.link.boardId, session.user.id))) {
+    return (
+      <InviteShell
+        title="You were removed from this board"
+        message={`The owner of “${boardTitle}” removed you from it. Ask them to add you back.`}
+        // The link is fine; it is the person who is turned away.
+        icon={<UserX size={20} />}
+      />
+    );
+  }
+
   return (
     <InviteShell title={boardTitle} role={found.link.role}>
       <JoinForm
@@ -90,10 +103,13 @@ function InviteShell({
   title,
   message,
   role,
+  icon = <Link2Off size={20} />,
   children,
 }: {
   title: string;
   message?: string;
+  /** In the badge's place when the link does not work for this visitor. */
+  icon?: React.ReactNode;
   /** Present only for a link that still works — it decides the whole header. */
   role?: 'owner' | 'editor' | 'viewer';
   children?: React.ReactNode;
@@ -112,7 +128,7 @@ function InviteShell({
                 </span>
               ) : (
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                  <Link2Off size={20} />
+                  {icon}
                 </span>
               )}
             </div>

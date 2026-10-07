@@ -103,6 +103,8 @@ function describeRejection(reason: string): string {
   switch (reason) {
     case 'revoked':
       return 'This link has been turned off by the board owner.';
+    case 'removed':
+      return 'The board owner removed you from this board. Ask them to add you back.';
     case 'expired':
       return 'This link has expired.';
     case 'exhausted':

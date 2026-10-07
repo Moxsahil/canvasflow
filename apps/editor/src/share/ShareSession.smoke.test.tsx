@@ -74,6 +74,27 @@ function render(overrides: Partial<ShareSessionPanelProps> = {}) {
 }
 
 describe('ShareSessionPanel', () => {
+  it('folds removed people under one line, out of the people list', () => {
+    const html = render({
+      people: [OWNER, JONAH],
+      removed: [
+        { id: 'u9', name: 'Ravi Kumar', email: 'ravi@example.com', isGuest: false, role: 'editor' },
+      ],
+      onAddBack: noop,
+    });
+    expect(html).toContain('data-testid="share-removed-toggle"');
+    expect(html).toContain('Removed · 1');
+    expect(html).toContain('aria-expanded="false"');
+    // Folded until asked for, so the list of who is on the board stays that.
+    expect(html).not.toContain('Ravi Kumar');
+    expect(html).not.toContain('Add back');
+  });
+
+  it('has no Removed line when nobody was removed', () => {
+    expect(render({ removed: [], onAddBack: noop })).not.toContain('Removed ·');
+    expect(render()).not.toContain('Removed ·');
+  });
+
   it('says the board is not being shared, and asks what people who join may do', () => {
     const html = render();
     expect(html).toContain('Not sharing yet');

@@ -53,6 +53,16 @@ export interface SharePerson {
   justJoined: boolean;
 }
 
+/** Someone the owner removed. No share link lets them back; Add back does. */
+export interface RemovedPerson {
+  id: string;
+  name: string;
+  email: string;
+  isGuest: boolean;
+  /** What they could do before, and will again if added back. */
+  role: ShareRole;
+}
+
 /** The session that is live, when one is. Its terms were fixed when it started. */
 export interface LiveSession {
   role: ShareRole;
@@ -81,6 +91,9 @@ export interface ShareSessionPanelProps {
   onClose: () => void;
   onMemberRole: (userId: string, role: ShareRole) => void;
   onRemoveMember: (userId: string) => void;
+  /** People removed from the board, listed out of the way so they can be added back. */
+  removed?: RemovedPerson[];
+  onAddBack?: (userId: string) => void;
   /** Where a role menu portals: the dialog's backdrop, which carries the palette. */
   menuContainer: HTMLElement | null;
   /** A role menu opened or closed, so Escape can close it before the dialog. */
@@ -143,6 +156,9 @@ export function ShareSessionPanel(props: ShareSessionPanelProps) {
             <span className="text-[11.5px] text-[var(--surface-fg-muted)]">{members}</span>
           </div>
           <PeopleList {...props} />
+          {props.removed && props.onAddBack && (
+            <RemovedList removed={props.removed} onAddBack={props.onAddBack} />
+          )}
         </section>
       </div>
 
@@ -458,6 +474,65 @@ function PeopleList({
         </motion.li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * The people the owner removed, folded away under one line.
+ *
+ * Kept off the main list, which is who is on the board now, but not hidden:
+ * a removed person cannot get back in with any link, so this is the only way
+ * back for them, and it should be findable without being in the way.
+ */
+function RemovedList({
+  removed,
+  onAddBack,
+}: {
+  removed: RemovedPerson[];
+  onAddBack: (userId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (removed.length === 0) return null;
+
+  return (
+    <div className="mt-[4px] border-t border-[var(--surface-line)] pt-[4px]">
+      <button
+        type="button"
+        aria-expanded={open}
+        data-testid="share-removed-toggle"
+        onClick={() => setOpen((was) => !was)}
+        className="flex w-full items-center justify-between rounded-[6px] py-[5px] text-[11.5px] text-[var(--surface-fg-muted)] transition-colors hover:text-[var(--surface-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]"
+      >
+        <span>{`Removed · ${removed.length}`}</span>
+        <ChevronDown
+          className={cn('size-[13px] transition-transform', open && 'rotate-180')}
+          aria-hidden="true"
+        />
+      </button>
+      {open && (
+        <ul className={cn('max-h-[120px] overflow-y-auto pr-[2px]', SCROLLBAR)}>
+          {removed.map((person) => (
+            <li
+              key={person.id}
+              data-testid={`share-removed-${person.id}`}
+              className="flex h-[42px] shrink-0 items-center gap-[10px]"
+            >
+              {/* No photo: it is read through the board, which they are no longer on. */}
+              <PersonAvatar url={null} name={person.name} className="size-[26px] text-[10px]" />
+              <div className="flex min-w-0 flex-1 flex-col gap-[1px]">
+                <p className="truncate text-[12px] font-medium text-[var(--surface-fg-muted)]">
+                  {person.name}
+                </p>
+                <p className="truncate text-[11px] text-[var(--surface-fg-faint)]">
+                  {`${person.isGuest ? 'No account' : person.email} · ${PERMISSIONS[person.role].label}`}
+                </p>
+              </div>
+              <SettingsButton onClick={() => onAddBack(person.id)}>Add back</SettingsButton>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

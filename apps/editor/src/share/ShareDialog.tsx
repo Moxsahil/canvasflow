@@ -8,6 +8,7 @@ import {
   createShareLink,
   listMembers,
   listShareLinks,
+  addMemberBack,
   removeMember,
   revokeShareLink,
   setMemberRole,
@@ -16,7 +17,12 @@ import {
   type ShareRole,
 } from './share-api';
 import { QRCode } from './QRCode';
-import { ShareSessionPanel, type LiveSession, type SharePerson } from './ShareSession';
+import {
+  ShareSessionPanel,
+  type LiveSession,
+  type RemovedPerson,
+  type SharePerson,
+} from './ShareSession';
 
 /**
  * The design is set in Inter. Nothing in the app loads it, so this names it
@@ -353,7 +359,36 @@ export function ShareDialog({
     }
   };
 
+  const handleAddBack = async (memberId: string) => {
+    setError(null);
+    const member = members.find((m) => m.userId === memberId);
+    if (!member) return;
+    // Optimistic, like a role change: one update, and a failure re-reads.
+    setMembers((current) =>
+      current.map((m) => (m.userId === memberId ? { ...m, status: 'active' } : m)),
+    );
+    try {
+      await addMemberBack(boardId, memberId, member.role === 'viewer' ? 'viewer' : 'editor');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not add that person back.');
+      await refresh();
+    }
+  };
+
   const active = useMemo(() => members.filter((member) => member.status === 'active'), [members]);
+  const removed = useMemo<RemovedPerson[]>(
+    () =>
+      members
+        .filter((member) => member.status === 'revoked' && !member.isOwner)
+        .map((member) => ({
+          id: member.userId,
+          name: member.name,
+          email: member.email,
+          isGuest: member.isGuest,
+          role: member.role === 'viewer' ? 'viewer' : 'editor',
+        })),
+    [members],
+  );
 
   // Photos are read through the board, which is what authorizes seeing one —
   // membership comes from the web app, which knows nothing about storage.
@@ -456,6 +491,8 @@ export function ShareDialog({
                 onClose={onClose}
                 onMemberRole={(id, next) => void handleRoleChange(id, next)}
                 onRemoveMember={(id) => void handleRemove(id)}
+                removed={removed}
+                onAddBack={(id) => void handleAddBack(id)}
                 menuContainer={overlay}
                 onMenuOpenChange={(isOpen) => {
                   menuOpen.current = isOpen;
