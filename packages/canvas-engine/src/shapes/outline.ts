@@ -2,6 +2,7 @@ import type { Segment, Vec2 } from '../geometry/segment.js';
 import { diamondPoints } from './diamond.js';
 import { shapeBounds } from './bounds.js';
 import { isPathALoop } from '../utils/simplify.js';
+import { polygonCornerCut, roundedRectRadius } from './corners.js';
 import type { Shape } from './shape.js';
 
 /** Segment count used to approximate an ellipse. Fine at practical zoom levels. */
@@ -74,6 +75,92 @@ export function shapeOutlineSegments(shape: Shape): Segment[] {
     case 'arrow':
     case 'freehand':
       return polylineSegments(absolutePoints(shape), false);
+  }
+}
+
+/** Points along each rounded corner's curve, the corner's own ends included. */
+const CORNER_SAMPLES = 8;
+
+/** Points around an ellipse, for an outline something has to land on. */
+const EXACT_ELLIPSE_SAMPLES = 96;
+
+/**
+ * A closed polygon with its corners rounded off as the renderer rounds them:
+ * cut back along both edges and bridged by a quadratic through the corner.
+ */
+function roundedPolygon(
+  points: readonly Vec2[],
+  cutFor: (prevLength: number, nextLength: number) => number,
+): Vec2[] {
+  const n = points.length;
+  const outline: Vec2[] = [];
+  for (let i = 0; i < n; i++) {
+    const prev = points[(i - 1 + n) % n]!;
+    const corner = points[i]!;
+    const next = points[(i + 1) % n]!;
+    const prevLength = Math.hypot(prev[0] - corner[0], prev[1] - corner[1]) || 1;
+    const nextLength = Math.hypot(next[0] - corner[0], next[1] - corner[1]) || 1;
+    const cut = cutFor(prevLength, nextLength);
+    const start: Vec2 = [
+      corner[0] + ((prev[0] - corner[0]) / prevLength) * cut,
+      corner[1] + ((prev[1] - corner[1]) / prevLength) * cut,
+    ];
+    const end: Vec2 = [
+      corner[0] + ((next[0] - corner[0]) / nextLength) * cut,
+      corner[1] + ((next[1] - corner[1]) / nextLength) * cut,
+    ];
+    for (let k = 0; k <= CORNER_SAMPLES; k++) {
+      const t = k / CORNER_SAMPLES;
+      const a = (1 - t) * (1 - t);
+      const b = 2 * (1 - t) * t;
+      const c = t * t;
+      outline.push([
+        a * start[0] + b * corner[0] + c * end[0],
+        a * start[1] + b * corner[1] + c * end[1],
+      ]);
+    }
+  }
+  return outline;
+}
+
+/**
+ * A closed shape's outline exactly as it is drawn — rounded corners on their
+ * curves, an ellipse finely sampled — as the points of a closed polygon. For
+ * what has to land on the outline rather than near it: an arrow attached to
+ * a shape. Null for the kinds that have no closed outline.
+ */
+export function shapeExactOutline(shape: Shape): Vec2[] | null {
+  switch (shape.kind) {
+    case 'rectangle': {
+      const corners = rectCorners(shape.x, shape.y, shape.width, shape.height);
+      if (shape.edges !== 'round') return corners;
+      const radius = roundedRectRadius(shape.width, shape.height);
+      return roundedPolygon(corners, () => radius);
+    }
+    case 'diamond': {
+      const points = diamondPoints(shape) as Vec2[];
+      return shape.edges === 'round' ? roundedPolygon(points, polygonCornerCut) : points;
+    }
+    case 'ellipse': {
+      const cx = shape.x + shape.width / 2;
+      const cy = shape.y + shape.height / 2;
+      const points: Vec2[] = [];
+      for (let i = 0; i < EXACT_ELLIPSE_SAMPLES; i++) {
+        const t = (i / EXACT_ELLIPSE_SAMPLES) * Math.PI * 2;
+        points.push([cx + (Math.cos(t) * shape.width) / 2, cy + (Math.sin(t) * shape.height) / 2]);
+      }
+      return points;
+    }
+    case 'text':
+    case 'image':
+    case 'frame': {
+      const b = shapeBounds(shape);
+      return rectCorners(b.x, b.y, b.width, b.height);
+    }
+    case 'line':
+    case 'arrow':
+    case 'freehand':
+      return null;
   }
 }
 

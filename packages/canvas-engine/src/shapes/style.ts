@@ -38,6 +38,16 @@ export const ARROWHEAD_GEOMETRY: Record<
   diamond_outline: { size: 12, angle: 25, lengthRatio: 0.25 },
 };
 
+/**
+ * The radius of a circle arrowhead `length` long along the shaft.
+ *
+ * Shared by the renderers, which draw it, and by binding, which has to know how
+ * far past the arrow's end it reaches.
+ */
+export function circleArrowheadRadius(length: number, strokeWidth: number): number {
+  return (length + strokeWidth - 2) / 2;
+}
+
 export const DEFAULT_STROKE_COLOR = '#1e1e1e';
 
 /**

@@ -2,6 +2,7 @@ import { useEffect, type RefObject } from 'react';
 import {
   renderInteractiveScene,
   setupCanvas,
+  type BindingHint,
   type Rect,
   type Shape,
   type SnapGuide,
@@ -26,6 +27,9 @@ interface UseInteractiveRenderOptions {
   lockedIds?: ReadonlySet<string>;
   /** The locked shapes whose padlock is up, outlined in grey. */
   lockHighlightIds?: readonly string[];
+  /** Where an arrow end being dragged would attach, outlined and marked. */
+  bindingHint?: BindingHint | null;
+  darkMode?: boolean;
 }
 
 export function useInteractiveRender(
@@ -45,6 +49,8 @@ export function useInteractiveRender(
     hoveredHandleId,
     lockedIds,
     lockHighlightIds,
+    bindingHint,
+    darkMode,
   } = options;
 
   useEffect(() => {
@@ -64,6 +70,8 @@ export function useInteractiveRender(
       hoveredHandleId,
       lockedIds,
       lockHighlightIds,
+      bindingHint,
+      darkMode,
     });
   }, [
     canvasRef,
@@ -79,5 +87,7 @@ export function useInteractiveRender(
     hoveredHandleId,
     lockedIds,
     lockHighlightIds,
+    bindingHint,
+    darkMode,
   ]);
 }
