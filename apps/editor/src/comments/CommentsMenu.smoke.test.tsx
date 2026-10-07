@@ -28,6 +28,7 @@ function thread(
       id: `${id}-c${i}`,
       authorId: `u-${author.toLowerCase()}`,
       authorName: author,
+      authorUsername: null,
       createdAt: now - minutesAgo * 60_000,
       editedAt: null,
       body,

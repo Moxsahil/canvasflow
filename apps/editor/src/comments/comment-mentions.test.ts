@@ -7,12 +7,18 @@ import {
   mentionsIn,
   splitMentions,
 } from './comment-mentions';
-import type { CommentThread } from './comment-model';
+import type { CommentAuthor, CommentThread } from './comment-model';
 
 const ada = { id: 'u-ada', name: 'Ada Lovelace' };
 const adam = { id: 'u-adam', name: 'Adam' };
 const grace = { id: 'u-grace', name: 'Grace Hopper' };
 const people = [ada, adam, grace];
+
+/** A mention of someone, as the words after the @ read in the body. */
+const named = (person: CommentAuthor, written = person.name) => ({ person, written });
+
+const moksh = { id: 'u-moksh', name: 'Moksh Kumar', username: 'moksshhh_.20' };
+const linus = { id: 'u-linus', name: 'Linus', username: 'ada' };
 
 describe('mentionQueryAt', () => {
   const at = (text: string) => mentionQueryAt(text, text.length);
@@ -52,6 +58,13 @@ describe('mentionCandidates', () => {
     expect(mentionCandidates('ADA', people)).toEqual([ada, adam]);
   });
 
+  it('finds people by the start of their username too, alongside names', () => {
+    expect(mentionCandidates('moks', [ada, moksh])).toEqual([moksh]);
+    // A username matching ranks with a name matching, not after it.
+    expect(mentionCandidates('ada', [ada, adam, linus])).toEqual([ada, adam, linus]);
+    expect(mentionCandidates('moksshhh_.', [moksh])).toEqual([moksh]);
+  });
+
   it('offers nobody for a name nobody has', () => {
     expect(mentionCandidates('zed', people)).toEqual([]);
   });
@@ -79,18 +92,39 @@ describe('splitMentions', () => {
   it('cuts a body at the people it names', () => {
     expect(splitMentions('Ask @Grace Hopper, then @Adam.', people)).toEqual([
       'Ask ',
-      grace,
+      named(grace),
       ', then ',
-      adam,
+      named(adam),
       '.',
     ]);
   });
 
   it('takes the longest name that fits, and not a name inside a longer word', () => {
     const shortAda = { id: 'u-a', name: 'Ada' };
-    expect(splitMentions('@Ada Lovelace', [shortAda, ada])).toEqual([ada]);
+    expect(splitMentions('@Ada Lovelace', [shortAda, ada])).toEqual([named(ada)]);
     expect(splitMentions('@Adam', [shortAda])).toEqual(['@Adam']);
-    expect(splitMentions('@Ada!', [shortAda])).toEqual([shortAda, '!']);
+    expect(splitMentions('@Ada!', [shortAda])).toEqual([named(shortAda), '!']);
+  });
+
+  it('knows a username typed out, however it was cased, and keeps it as written', () => {
+    expect(splitMentions('Over to @moksshhh_.20 now', [moksh])).toEqual([
+      'Over to ',
+      named(moksh, 'moksshhh_.20'),
+      ' now',
+    ]);
+    expect(splitMentions('@Moksshhh_.20', [moksh])).toEqual([named(moksh, 'Moksshhh_.20')]);
+  });
+
+  it('reads a period after a username as the end of a sentence, not more of the name', () => {
+    expect(splitMentions('Thanks @ada.', [linus])).toEqual(['Thanks ', named(linus, 'ada'), '.']);
+    // More username after the period: somebody else's, not this one's.
+    expect(splitMentions('@ada.l', [linus])).toEqual(['@ada.l']);
+    expect(splitMentions('@ada_l', [linus])).toEqual(['@ada_l']);
+  });
+
+  it('takes the name over a username spelled the same, as the list writes names', () => {
+    const shortAda = { id: 'u-a', name: 'ada' };
+    expect(splitMentions('@ada', [linus, shortAda])).toEqual([named(shortAda)]);
   });
 
   it('leaves a body that names nobody as it is', () => {
@@ -108,6 +142,10 @@ describe('mentionsIn', () => {
     ]);
     expect(mentionsIn('Nobody here', people)).toEqual([]);
   });
+
+  it('records somebody named by username as themselves, name and all', () => {
+    expect(mentionsIn('@moksshhh_.20 and @Moksh Kumar', [moksh])).toEqual([moksh]);
+  });
 });
 
 describe('mentionablePeople', () => {
@@ -122,6 +160,7 @@ describe('mentionablePeople', () => {
         id: 'c1',
         authorId: 'u-grace',
         authorName: 'Grace H',
+        authorUsername: null,
         createdAt: 1,
         editedAt: null,
         body: 'Over to @Adam',
@@ -141,6 +180,33 @@ describe('mentionablePeople', () => {
 
   it('takes the name someone has now over the one on an old comment', () => {
     expect(mentionablePeople([grace], [thread], null)).toContainEqual(grace);
+  });
+
+  it('carries usernames, from comments and from whoever is here now', () => {
+    const written = {
+      ...thread,
+      comments: [
+        {
+          ...thread.comments[0]!,
+          authorUsername: 'grace_h',
+          mentions: [{ ...adam, username: 'adam' }],
+        },
+      ],
+    };
+    expect(mentionablePeople([], [written], null)).toEqual([
+      { ...adam, username: 'adam' },
+      { id: 'u-grace', name: 'Grace H', username: 'grace_h' },
+    ]);
+    // Here now, with a newer username, wins.
+    expect(mentionablePeople([{ ...grace, username: 'hopper' }], [written], null)).toContainEqual({
+      ...grace,
+      username: 'hopper',
+    });
+    // Here now on an older build that publishes none: the known one stands.
+    expect(mentionablePeople([grace], [written], null)).toContainEqual({
+      ...grace,
+      username: 'grace_h',
+    });
   });
 
   it('leaves out whoever is asking', () => {

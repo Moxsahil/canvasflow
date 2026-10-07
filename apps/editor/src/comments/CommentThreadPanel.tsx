@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Check, Pencil, RotateCcw, Trash2, X } from 'lucide-react';
+import { Check, Ellipsis, Pencil, Reply, RotateCcw, Trash2, X } from 'lucide-react';
 import type { PresenceTheme } from '@canvasflow/canvas-engine';
 import { cn } from '@/lib/utils';
-import { menuSurfaceClasses } from '@/components/ui/menu-look';
+import { menuDangerButtonClasses, menuSurfaceClasses } from '@/components/ui/menu-look';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CommentAvatar } from './CommentAvatar';
 import { CommentBody } from './CommentBody';
 import { CommentComposer } from './CommentComposer';
 import { CommentReactions } from './CommentReactions';
+import { useCommentEnvironment } from './comment-environment';
+import { EmojiPopover } from './EmojiPicker';
 import { clearCommentDraft, commentDraft, saveCommentDraft } from './comment-drafts';
 import {
   canDeleteThread,
@@ -71,7 +74,13 @@ export function CommentThreadPanel({
   onDeleteThread,
   onClose,
 }: CommentThreadPanelProps) {
+  const { people } = useCommentEnvironment();
   const [reply, setReply] = useState(() => commentDraft(thread.id));
+  // Who the reply has been pointed at from a comment's Reply, so their name
+  // in it counts even if they could not otherwise be picked; and a nudge to
+  // put the caret back in the field once their name is in it.
+  const [replyingTo, setReplyingTo] = useState<CommentAuthor[]>([]);
+  const [replyFocus, setReplyFocus] = useState(0);
   const [editing, setEditing] = useState<{ id: string; body: string } | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -91,7 +100,33 @@ export function CommentThreadPanel({
   const send = (mentions: CommentAuthor[]) => {
     onReply(reply, mentions);
     setReply('');
+    setReplyingTo([]);
     clearCommentDraft(thread.id);
+  };
+
+  const mayReply = canComment && user !== null && !resolved;
+
+  /**
+   * Answer a comment: its author named at the end of the reply, as a chat's
+   * reply does, and the caret after them. Named by the name the board has for
+   * them now, which is what a mention is matched against; not added twice.
+   */
+  const replyTo = (comment: Comment) => {
+    const author = people.find((person) => person.id === comment.authorId) ?? {
+      id: comment.authorId,
+      name: comment.authorName || 'Someone',
+      ...(comment.authorUsername ? { username: comment.authorUsername } : {}),
+    };
+    const mention = `@${author.name}`;
+    const next = reply.includes(mention)
+      ? reply
+      : `${reply.trim() ? `${reply.trimEnd()} ` : ''}${mention} `;
+    setReply(next);
+    saveCommentDraft(thread.id, next);
+    setReplyingTo((named) =>
+      named.some((person) => person.id === author.id) ? named : [...named, author],
+    );
+    setReplyFocus((n) => n + 1);
   };
 
   // The comment straight above the reply field, if it is this person's to edit.
@@ -208,30 +243,24 @@ export function CommentThreadPanel({
               userId={userId}
               canReact={canComment && user !== null}
               onReact={(emoji) => onReact(comment.id, emoji)}
-              actions={
-                canComment && canEditComment(comment, userId) ? (
-                  <>
-                    <CardButton
-                      label="Edit"
-                      onClick={() => setEditing({ id: comment.id, body: comment.body })}
-                    >
-                      <Pencil aria-hidden="true" />
-                    </CardButton>
-                    <CardButton label="Delete" onClick={() => onDeleteComment(comment.id)}>
-                      <Trash2 aria-hidden="true" />
-                    </CardButton>
-                  </>
-                ) : null
-              }
+              onReply={mayReply && comment.authorId !== userId ? () => replyTo(comment) : undefined}
+              {...(canComment && canEditComment(comment, userId)
+                ? {
+                    onEdit: () => setEditing({ id: comment.id, body: comment.body }),
+                    onDelete: () => onDeleteComment(comment.id),
+                  }
+                : {})}
             />
           ),
         )}
       </div>
 
-      {canComment && user && !resolved && (
+      {mayReply && user && (
         <CommentComposer
           className={cn('border-t px-3 py-2', hairline)}
           value={reply}
+          named={replyingTo}
+          focusSignal={replyFocus}
           onChange={(body) => {
             setReply(body);
             saveCommentDraft(thread.id, body);
@@ -256,7 +285,21 @@ export function CommentThreadPanel({
   );
 }
 
-/** One comment: who, when, what they said, and what others made of it. */
+/** The look of a button in a comment's actions, as the emoji button has it. */
+const actionButton = cn(
+  'grid size-6 shrink-0 place-items-center rounded-md hover:bg-neutral-950/10 hover:text-neutral-950 data-[state=open]:bg-neutral-950/10 data-[state=open]:text-neutral-950 dark:hover:bg-neutral-50/10 dark:hover:text-neutral-50 dark:data-[state=open]:bg-neutral-50/10 dark:data-[state=open]:text-neutral-50 [&_svg]:size-3.5',
+  mutedText,
+  focusRing,
+);
+
+/**
+ * One comment, as a message: the author's face beside the bubble, and under
+ * the bubble, from its edge, who and when.
+ *
+ * Your own sit on the right, filled in the opposite shade to the panel, and
+ * everyone else's on the left in a grey one, so who said what reads at a
+ * glance down the thread. The face lines up with the bubble's first line.
+ */
 function CommentCard({
   comment,
   photo,
@@ -264,7 +307,9 @@ function CommentCard({
   userId,
   canReact,
   onReact,
-  actions,
+  onReply,
+  onEdit,
+  onDelete,
 }: {
   comment: Comment;
   photo?: string;
@@ -273,50 +318,205 @@ function CommentCard({
   userId: string | null;
   canReact: boolean;
   onReact: (emoji: string) => void;
-  actions: ReactNode;
+  /** Answer this comment, naming its author. Absent on your own, and where no reply can be written. */
+  onReply?: () => void;
+  /** Both present only on your own. */
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
   const name = comment.authorName || 'Someone';
   const you = comment.authorId === userId;
   return (
     <article
-      className="group/card relative flex gap-2 px-3 py-2"
+      className={cn('group/card flex items-start gap-2 px-3 py-1.5', you && 'flex-row-reverse')}
       data-testid="comment-card"
       data-comment-id={comment.id}
+      data-side={you ? 'end' : 'start'}
     >
       <CommentAvatar
         userId={comment.authorId}
         name={name}
         photo={photo}
         theme={theme}
-        className="size-6 text-[11px]"
+        className="size-7 shrink-0 text-[11px]"
       />
-      <div className="min-w-0 flex-1">
-        <div className="flex min-h-6 items-center gap-1.5">
-          <span className="truncate font-medium">{you ? `${name} (you)` : name}</span>
-          <time className={cn('shrink-0', mutedText)} title={fullDateTime(comment.createdAt)}>
+      {/* As wide as the widest of the bubble and the line under it. The bubble
+          keeps to the face's side; the line starts where the bubble does when
+          the bubble is the wider, as a messenger lays them out. */}
+      <div
+        className={cn(
+          'grid max-w-[80%] min-w-0',
+          you ? 'justify-items-end' : 'justify-items-start',
+        )}
+      >
+        <div
+          className={cn(
+            'min-h-7 max-w-full rounded-lg px-2.5 py-1.5',
+            you
+              ? 'bg-neutral-900 text-neutral-50 dark:bg-neutral-100 dark:text-neutral-950'
+              : // A step off the panel, which is itself the menu surface, so the
+                // bubble shows on it in either theme.
+                'bg-neutral-200/60 text-neutral-950 dark:bg-neutral-700/60 dark:text-neutral-50',
+          )}
+        >
+          <CommentBody body={comment.body} mentions={comment.mentions} />
+        </div>
+        <div
+          className={cn(
+            'mt-0.5 flex min-h-6 max-w-full items-center gap-1 justify-self-start text-[11px]',
+            mutedText,
+          )}
+        >
+          {!you && (
+            <>
+              <span className="truncate font-medium">{name}</span>
+              <span aria-hidden="true">·</span>
+            </>
+          )}
+          <time className="shrink-0" title={fullDateTime(comment.createdAt)}>
             {relativeTime(comment.createdAt)}
             {comment.editedAt !== null && <span className="italic"> · edited</span>}
           </time>
+          <CommentActions
+            name={name}
+            canReact={canReact && !you}
+            onReact={onReact}
+            onReply={onReply}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
         </div>
-        <CommentBody body={comment.body} mentions={comment.mentions} userId={userId} />
         <CommentReactions
           reactions={comment.reactions}
           userId={userId}
           canReact={canReact}
           onToggle={onReact}
+          align={you ? 'end' : 'start'}
         />
       </div>
-      {actions && (
-        <div
-          className={cn(
-            menuSurfaceClasses,
-            'absolute top-1.5 right-2 flex gap-0.5 rounded-md p-0.5 opacity-0 group-focus-within/card:opacity-100 group-hover/card:opacity-100',
-          )}
-        >
-          {actions}
-        </div>
-      )}
     </article>
+  );
+}
+
+/**
+ * What can be done to one comment, after its time, shown while it is pointed
+ * at or has the focus. On someone else's: give an emoji, and answer them. On
+ * your own: the three dots, which open a small bubble holding Edit and Delete.
+ *
+ * Held in place while the picker or the bubble is open, so what they hang from
+ * does not vanish under them. Its room is kept while hidden, so the line does
+ * not move when it appears.
+ */
+function CommentActions({
+  name,
+  canReact,
+  onReact,
+  onReply,
+  onEdit,
+  onDelete,
+}: {
+  /** Whose comment, for what Reply says to a screen reader. */
+  name: string;
+  canReact: boolean;
+  onReact: (emoji: string) => void;
+  onReply?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}) {
+  const { container } = useCommentEnvironment();
+  const [open, setOpen] = useState(false);
+  if (!canReact && !onReply && !onEdit && !onDelete) return null;
+
+  return (
+    <div
+      role="toolbar"
+      aria-label="Comment actions"
+      className="flex shrink-0 items-center opacity-0 transition-opacity group-focus-within/card:opacity-100 group-hover/card:opacity-100 has-[[data-state=open]]:opacity-100"
+      data-testid="comment-actions"
+    >
+      {canReact && <EmojiPopover label="Add reaction" onPick={onReact} testId="comment-react" />}
+      {onReply && (
+        <button
+          type="button"
+          aria-label={`Reply to ${name}`}
+          title="Reply"
+          className={actionButton}
+          onClick={onReply}
+          data-testid="comment-reply"
+        >
+          <Reply aria-hidden="true" />
+        </button>
+      )}
+      {(onEdit || onDelete) && (
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label="More actions"
+              title="More actions"
+              className={actionButton}
+              data-testid="comment-more"
+            >
+              <Ellipsis aria-hidden="true" />
+            </button>
+          </PopoverTrigger>
+          {/* Beside the dots, on their line, rather than over the next comment;
+              lifted off the panel it shares a surface with. */}
+          <PopoverContent
+            container={container}
+            side="right"
+            align="center"
+            sideOffset={4}
+            collisionPadding={8}
+            className={cn(
+              menuSurfaceClasses,
+              'flex w-auto gap-0.5 p-0.5 shadow-md data-[state=open]:animate-none',
+            )}
+            // Part of the thread it opened from: a press in here is not a
+            // press away from the thread.
+            data-comment-panel
+            data-comment-popup
+          >
+            {onEdit && (
+              <button
+                type="button"
+                aria-label="Edit"
+                title="Edit"
+                className={cn(actionButton, 'text-neutral-700 dark:text-neutral-200')}
+                onClick={() => {
+                  setOpen(false);
+                  onEdit();
+                }}
+                data-testid="comment-edit"
+              >
+                <Pencil aria-hidden="true" />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                aria-label="Delete"
+                title="Delete"
+                // Red in both themes: the muted grey's dark variant would
+                // otherwise outrank the danger red, which has none.
+                className={cn(
+                  actionButton,
+                  menuDangerButtonClasses,
+                  'dark:text-red-400 dark:hover:text-red-400',
+                )}
+                onClick={() => {
+                  setOpen(false);
+                  onDelete();
+                }}
+                data-testid="comment-delete"
+              >
+                <Trash2 aria-hidden="true" />
+              </button>
+            )}
+          </PopoverContent>
+        </Popover>
+      )}
+    </div>
   );
 }
 
@@ -344,31 +544,6 @@ function HeaderButton({
       )}
       onClick={onClick}
       data-testid={testId}
-    >
-      {children}
-    </button>
-  );
-}
-
-function CardButton({
-  label,
-  onClick,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      className={cn(
-        'grid size-5 place-items-center rounded hover:bg-neutral-950/10 dark:hover:bg-neutral-50/10 [&_svg]:size-3',
-        focusRing,
-      )}
-      onClick={onClick}
     >
       {children}
     </button>

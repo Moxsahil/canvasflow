@@ -1,4 +1,4 @@
-import { isCursorColor, type CursorColor } from '@canvasflow/types';
+import { isCursorColor, isUsername, type CursorColor } from '@canvasflow/types';
 import { sanitizeShape } from '../sanitize/sanitize-shape.js';
 import type { Shape } from '../shapes/shape.js';
 
@@ -50,6 +50,13 @@ export interface PresenceUser {
    * generated avatar is not a picture of anyone, and an initial says more.
    */
   readonly avatar?: string | null;
+  /**
+   * The username this peer chose, so others can find them by it in the @
+   * list. Account data the token does not carry, published like the colour.
+   *
+   * Absent from a peer on an older build, null for anyone without one.
+   */
+  readonly username?: string | null;
 }
 
 export interface PresenceState {
@@ -57,10 +64,11 @@ export interface PresenceState {
    * Id and name are taken from the verified editor token, never asserted by
    * the client.
    *
-   * The colour is the one exception, because it is account data the token does
-   * not carry. Nothing rests on it — the worst a forged value does is draw that
-   * peer's own cursor in a different palette colour — and it is checked against
-   * the palette on arrival regardless.
+   * The colour, photo and username are the exceptions, because they are
+   * account data the token does not carry. Little rests on them — a forged
+   * colour draws that peer's own cursor differently, and a forged username
+   * only labels that peer's own row in the @ list, whose mention still binds
+   * to their id — and each is checked on arrival regardless.
    */
   readonly user: PresenceUser;
   /**
@@ -205,7 +213,7 @@ export function parsePresenceState(raw: unknown): PresenceState | null {
 
   const candidate = raw as Record<string, unknown>;
   const user = candidate.user as
-    | { id?: unknown; name?: unknown; color?: unknown; avatar?: unknown }
+    | { id?: unknown; name?: unknown; color?: unknown; avatar?: unknown; username?: unknown }
     | undefined;
   if (!user || typeof user.id !== 'string' || user.id.length === 0) return null;
 
@@ -222,6 +230,7 @@ export function parsePresenceState(raw: unknown): PresenceState | null {
       // is also what a peer on an older build sends.
       color: isCursorColor(user.color) ? user.color : null,
       avatar: isAvatarVersion(user.avatar) ? user.avatar : null,
+      username: isUsername(user.username) ? user.username : null,
     },
     cursor: parsePoint(candidate.cursor),
     selection: Array.isArray(candidate.selection)

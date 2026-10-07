@@ -32,6 +32,11 @@ interface CommentComposerProps {
    */
   named?: readonly CommentAuthor[];
   autoFocus?: boolean;
+  /**
+   * Changes whenever something outside wants the caret here, at the end of
+   * what is written — a reply to someone, which has just put their name in.
+   */
+  focusSignal?: number;
   className?: string;
 }
 
@@ -57,7 +62,8 @@ const toolButton =
  * usually a sentence, and reaching for the mouse to post one is a tax on the
  * common case.
  *
- * Typing an @ offers the people who can be named, narrowed by what follows it.
+ * Typing an @ offers the people who can be named, narrowed by what follows it:
+ * the start of their name, or of their username, shown beside it.
  * While that list is up the keys that would move the caret or send the comment
  * choose from it instead.
  */
@@ -72,6 +78,7 @@ export function CommentComposer({
   leading,
   named,
   autoFocus,
+  focusSignal,
   className,
 }: CommentComposerProps) {
   const { container, people, photos, theme } = useCommentEnvironment();
@@ -130,6 +137,14 @@ export function CommentComposer({
     field.focus({ preventScroll: true });
     field.setSelectionRange(field.value.length, field.value.length);
   }, [autoFocus]);
+
+  // Asked for from outside, after the text it asked about has landed.
+  useEffect(() => {
+    const field = fieldRef.current;
+    if (!focusSignal || !field) return;
+    field.focus({ preventScroll: true });
+    field.setSelectionRange(field.value.length, field.value.length);
+  }, [focusSignal]);
 
   /** Put text where the caret is, over whatever is selected. */
   const insert = (text: string) => {
@@ -317,7 +332,17 @@ export function CommentComposer({
                 theme={theme}
                 className="size-[18px] text-[9px]"
               />
-              <span className="min-w-0 truncate">{person.name}</span>
+              {/* The name keeps its width, up to most of the row, and the
+                  username, muted, has what is left: the name is who they are,
+                  the username how else to find them. */}
+              <span className={cn('min-w-0 truncate', person.username && 'max-w-[60%] shrink-0')}>
+                {person.name}
+              </span>
+              {person.username && (
+                <span className="min-w-0 flex-1 truncate text-right text-neutral-500 dark:text-neutral-400">
+                  @{person.username}
+                </span>
+              )}
             </button>
           ))}
         </PopoverContent>

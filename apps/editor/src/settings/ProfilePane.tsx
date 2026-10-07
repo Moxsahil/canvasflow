@@ -320,7 +320,7 @@ function UsernameField({
   ) : isGuest ? (
     'Create an account to choose a username'
   ) : (
-    'Yours alone across Canvasflow'
+    'Lets people find you in @mentions'
   );
 
   return (

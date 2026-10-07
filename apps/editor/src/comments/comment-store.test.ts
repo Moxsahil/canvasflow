@@ -42,6 +42,7 @@ describe('CommentStore', () => {
             id: 'comment-2',
             authorId: 'u-ada',
             authorName: 'Ada',
+            authorUsername: null,
             createdAt: 2000,
             editedAt: null,
             body: 'Is this the final colour?',
@@ -261,6 +262,32 @@ describe('who a comment names', () => {
     const b = board();
     Y.applyUpdate(b.doc, Y.encodeStateAsUpdate(a.doc));
     expect(b.store.getThreads()[0]!.comments[0]!.mentions).toEqual([grace]);
+  });
+
+  it('keeps usernames with the author and the people named, for when they have left', () => {
+    const { store } = board();
+    const graceH = { ...grace, username: 'grace_h' };
+    store.addThread(onBoard(0, 0), { ...ada, username: 'ada.l' }, 'Over to @grace_h', [graceH]);
+
+    const comment = store.getThreads()[0]!.comments[0]!;
+    expect(comment.authorUsername).toBe('ada.l');
+    expect(comment.mentions).toEqual([graceH]);
+  });
+
+  it('drops a username another browser wrote that is not one', () => {
+    const a = board();
+    const id = a.store.addThread(onBoard(0, 0), ada, 'Over to @Grace', [grace])!;
+    const comment = (
+      a.doc.getMap<Y.Map<unknown>>('comments').get(id)!.get('comments') as Y.Array<Y.Map<unknown>>
+    ).get(0);
+    comment.set('authorUsername', 'Not A Username');
+    comment.set('mentions', [{ ...grace, username: 'admin' }]);
+
+    const b = board();
+    Y.applyUpdate(b.doc, Y.encodeStateAsUpdate(a.doc));
+    const read = b.store.getThreads()[0]!.comments[0]!;
+    expect(read.authorUsername).toBeNull();
+    expect(read.mentions).toEqual([grace]);
   });
 });
 
