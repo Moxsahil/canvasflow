@@ -59,7 +59,10 @@ export interface Profile {
 
 export interface ProfileChanges {
   name?: string;
-  /** Normalized as the field shows it. The route holds it to the rules again. */
+  /**
+   * Normalized as the field shows it. Saved by the API gateway rather than
+   * the web app's route — see username-api — but through the same `save`.
+   */
   username?: string;
   /** Null goes back to the automatic colour. */
   cursorColor?: CursorColor | null;
@@ -126,35 +129,5 @@ export async function saveProfile(changes: ProfileChanges): Promise<Profile> {
   });
   if (!res.ok) throw new Error(await failureMessage(res));
   const body = (await res.json()) as { data: Profile };
-  return body.data;
-}
-
-/** What the username route says about one name it was asked about. */
-export interface UsernameCheck {
-  /** The name as it was asked about. */
-  name: string;
-  /** As it would be stored. Null when it breaks a rule. */
-  username: string | null;
-  available: boolean;
-  /** Why it cannot be had: a rule it breaks, or that somebody has it. */
-  problem: string | null;
-}
-
-/**
- * Ask whether these names are free, in one request answered by one read.
- *
- * One name for the field as it is typed; a suggestion and its fallbacks
- * together. Answers come back in the order asked. They are only for the field
- * to show — the save is what decides.
- */
-export async function checkUsernames(
-  names: readonly string[],
-  signal?: AbortSignal,
-): Promise<UsernameCheck[]> {
-  const url = new URL(`${profileUrl()}/username`);
-  for (const name of names) url.searchParams.append('name', name);
-  const res = await fetch(url, { credentials: 'include', signal });
-  if (!res.ok) throw new Error(await failureMessage(res));
-  const body = (await res.json()) as { data: UsernameCheck[] };
   return body.data;
 }

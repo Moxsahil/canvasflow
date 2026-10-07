@@ -6,6 +6,7 @@ import {
   type Profile,
   type ProfileChanges,
 } from './profile-api';
+import { claimUsername } from './username-api';
 
 /**
  * The signed-in account's own profile, held for the life of the board.
@@ -181,7 +182,12 @@ export function useProfile(enabled: boolean, options: UseProfileOptions = {}): P
       setSaving(true);
       setError(null);
       try {
-        const next = await saveProfile(changes);
+        // The username is the gateway's and the rest the web app's. The field
+        // sends one or the other, never both; were both sent, the web app's
+        // answer comes last and is the whole profile either way.
+        const { username, ...rest } = changes;
+        let next = username !== undefined ? await claimUsername(username) : null;
+        if (next === null || Object.keys(rest).length > 0) next = await saveProfile(rest);
         apply(next);
         channelRef.current?.postMessage(next);
         // Only for a name. The colour travels on the presence record and is

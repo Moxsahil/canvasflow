@@ -12,6 +12,7 @@ import { PasswordResetModule } from './modules/password-reset/password-reset.mod
 import { AccountSecurityModule } from './modules/account-security/account-security.module.js';
 import { AccountDeletionModule } from './modules/account-deletion/account-deletion.module.js';
 import { LibraryModule } from './modules/library/library.module.js';
+import { UsernamesModule } from './modules/usernames/usernames.module.js';
 import { AppController } from './app.controller.js';
 import { ThrottlerModule } from '@nestjs/throttler';
 
@@ -43,6 +44,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     AccountDeletionModule,
     LibraryModule,
     UsersModule,
+    UsernamesModule,
   ],
   controllers: [AppController],
 })

@@ -81,7 +81,7 @@ function watchChecks(page: Page): string[][] {
   const checks: string[][] = [];
   page.on('requestfinished', (request) => {
     const url = new URL(request.url());
-    if (request.method() === 'GET' && url.pathname === '/api/me/username') {
+    if (request.method() === 'GET' && url.pathname === '/users/me/username') {
       checks.push(url.searchParams.getAll('name'));
     }
   });
@@ -192,18 +192,18 @@ test('will not give out a name somebody else holds', async ({ browser }) => {
   await expect(row.getByText('That username is taken.')).toBeVisible();
   await expect(row.getByRole('button', { name: 'Save' })).toBeDisabled();
 
-  // Past the field, the route still refuses: the save is what decides.
+  // Past the field, the gateway still refuses: the save is what decides.
   const status = await page.evaluate(
-    async ({ web, name }) =>
+    async ({ gateway, name }) =>
       (
-        await fetch(`${web}/api/me`, {
+        await fetch(`${gateway}/users/me/username`, {
           method: 'PATCH',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: name }),
         })
       ).status,
-    { web: WEB, name: HELD.toUpperCase() },
+    { gateway: GATEWAY, name: HELD.toUpperCase() },
   );
   expect(status).toBe(409);
   expect(await usernameOf(CLAIMER.email)).toBe(SUGGESTED);
