@@ -17,6 +17,8 @@ interface UseBoardSyncOptions {
   onAccessRevoked?: () => void;
   /** The signed-in session has ended. The connection is down and stays down. */
   onSessionEnded?: () => void;
+  /** One of the person's workspaces changed; whatever shows it should re-read. */
+  onWorkspaceChanged?: (workspaceId: string) => void;
 }
 
 interface UseBoardSyncResult {
@@ -73,6 +75,7 @@ export function useBoardSync(
     onAccessChanged,
     onAccessRevoked,
     onSessionEnded,
+    onWorkspaceChanged,
   }: UseBoardSyncOptions,
 ): UseBoardSyncResult {
   const [status, setStatus] = useState<SyncStatus>('idle');
@@ -95,6 +98,7 @@ export function useBoardSync(
   const onAccessChangedRef = useRef(onAccessChanged);
   const onAccessRevokedRef = useRef(onAccessRevoked);
   const onSessionEndedRef = useRef(onSessionEnded);
+  const onWorkspaceChangedRef = useRef(onWorkspaceChanged);
 
   const { hydrated: cacheHydrated, purge: purgeCache } = useOfflineCache(doc, boardId, userId);
 
@@ -117,6 +121,10 @@ export function useBoardSync(
   useEffect(() => {
     onSessionEndedRef.current = onSessionEnded;
   }, [onSessionEnded]);
+
+  useEffect(() => {
+    onWorkspaceChangedRef.current = onWorkspaceChanged;
+  }, [onWorkspaceChanged]);
 
   const hasToken = authToken !== null;
 
@@ -151,6 +159,7 @@ export function useBoardSync(
       onAccessRevoked: () => onAccessRevokedRef.current?.(),
       // Likewise ungated: the teardown is what it is reporting.
       onSessionEnded: () => onSessionEndedRef.current?.(),
+      onWorkspaceChanged: (workspaceId) => onWorkspaceChangedRef.current?.(workspaceId),
       onStatusChange: (next) => {
         if (cancelled) return;
         setStatus(next);

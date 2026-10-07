@@ -45,6 +45,11 @@ export interface WebSocketSyncConfig {
    * this session, so the caller sends the person to sign in.
    */
   onSessionEnded?: () => void;
+  /**
+   * Something about one of the person's workspaces changed — its name, its
+   * boards, who is in it. Carries only the id; the caller re-reads.
+   */
+  onWorkspaceChanged?: (workspaceId: string) => void;
 }
 
 /**
@@ -206,7 +211,8 @@ export class WebSocketSync {
    * Used for permission changes: the re-authorization sweep flips the
    * connection's read-only flag server-side and then says so here, so the
    * client can update its own chrome immediately instead of discovering the
-   * change when its five-minute token next refreshes.
+   * change when its five-minute token next refreshes. And for workspace
+   * changes, which arrive on whatever board the person has open.
    */
   private handleStateless(payload: string): void {
     if (this.disposed) return;
@@ -222,6 +228,10 @@ export class WebSocketSync {
       }
       if (message.type === 'session-ended') {
         this.handleSessionEnded();
+      }
+      const { workspaceId } = message as { workspaceId?: unknown };
+      if (message.type === 'workspace-changed' && typeof workspaceId === 'string') {
+        this.config.onWorkspaceChanged?.(workspaceId);
       }
     } catch {
       // A malformed stateless payload is not worth breaking the session over.

@@ -10,6 +10,7 @@ import {
 import { env } from '@/lib/env';
 import { currentSession } from '@/lib/auth/session';
 import { corsJson, corsPreflight } from '@/lib/api/cors';
+import { notifyWorkspaceChanged } from '@/lib/sync/internal';
 
 /**
  * The workspace's own record — renaming it, and deleting it outright.
@@ -87,6 +88,8 @@ export async function PATCH(
   // same answer as one that was never there.
   if (!workspace) return corsJson({ error: 'Workspace not found' }, { status: 404 });
 
+  await notifyWorkspaceChanged(workspaceId);
+
   return corsJson({ data: workspace });
 }
 
@@ -104,6 +107,9 @@ export async function DELETE(
 
   const result = await deleteWorkspace(db, workspaceId);
   if (!result) return corsJson({ error: 'Workspace not found' }, { status: 404 });
+
+  // Members keep their rows past a delete, so they are still found and told.
+  await notifyWorkspaceChanged(workspaceId);
 
   return corsJson({ data: result });
 }

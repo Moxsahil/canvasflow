@@ -199,7 +199,7 @@ import {
   decodeJwtWorkspaceId,
   sessionResumeUrl,
 } from './auth/token';
-import { useBoardSwitcher } from './workspace';
+import { announceWorkspaceChanged, useBoardSwitcher } from './workspace';
 import {
   CursorLayer,
   FollowingChip,
@@ -903,6 +903,9 @@ export function Editor({ boardId }: EditorProps) {
       if (deletingAccountRef.current) return;
       window.location.href = sessionResumeUrl();
     },
+    // Someone renamed a workspace, changed a board in it, or let someone onto
+    // one: the sidebar and Settings re-read it.
+    onWorkspaceChanged: announceWorkspaceChanged,
   });
 
   // The same conclusion reached the slow way: the token route refuses to mint

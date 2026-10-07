@@ -153,6 +153,20 @@ export async function isWorkspaceMember(
   return (await workspaceRoleOf(db, userId, workspaceId)) !== null;
 }
 
+/**
+ * Everyone to tell when a workspace changes: its members' ids.
+ *
+ * Deleted workspaces answer too — their membership rows are kept — so the
+ * people in one hear that it has gone.
+ */
+export async function workspaceMemberIds(db: Database, workspaceId: string): Promise<string[]> {
+  const rows = await db
+    .select({ userId: memberships.userId })
+    .from(memberships)
+    .where(eq(memberships.workspaceId, workspaceId));
+  return rows.map((row) => row.userId);
+}
+
 /** One person in a workspace, as its member list shows them. */
 export interface WorkspaceMember {
   userId: string;

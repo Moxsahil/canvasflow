@@ -3,6 +3,7 @@ import { createClient, createWorkspaceForUser, listWorkspacesForUser } from '@ca
 import { env } from '@/lib/env';
 import { currentSession } from '@/lib/auth/session';
 import { corsJson, corsPreflight } from '@/lib/api/cors';
+import { notifyWorkspaceChanged } from '@/lib/sync/internal';
 
 /**
  * The workspaces the caller belongs to, and a way to add one.
@@ -55,6 +56,9 @@ export async function POST(request: NextRequest) {
     userId: session.user.id,
     name: name.slice(0, MAX_WORKSPACE_NAME),
   });
+
+  // The creator's other tabs list it too.
+  await notifyWorkspaceChanged(workspace.id);
 
   return corsJson({ data: workspace }, { status: 201 });
 }

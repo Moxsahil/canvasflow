@@ -10,7 +10,7 @@ import { env } from '@/lib/env';
 import { currentSession } from '@/lib/auth/session';
 import { checkBoardAccess } from '@/lib/boards/access';
 import { corsJson, corsPreflight } from '@/lib/api/cors';
-import { notifyBoardAccessChanged } from '@/lib/sync/internal';
+import { notifyBoardAccessChanged, notifyWorkspaceChanged } from '@/lib/sync/internal';
 
 /**
  * Change or remove one person's access to a board.
@@ -49,7 +49,7 @@ async function authorize(boardId: string, userId: string) {
     return { error: corsJson({ error: 'Not allowed to manage this board' }, { status: 403 }) };
   }
 
-  return { actorId: session.user.id };
+  return { actorId: session.user.id, workspaceId: access.workspaceId };
 }
 
 export async function PATCH(
@@ -86,6 +86,8 @@ export async function PATCH(
   }
 
   await notifyBoardAccessChanged(boardId, userId);
+  // The workspace's guest list shows what each guest may do.
+  await notifyWorkspaceChanged(authorized.workspaceId);
 
   return corsJson({ ok: true, role: outcome.role });
 }
@@ -115,6 +117,7 @@ export async function DELETE(
   // they removed is still drawing. It cannot fail the request — see
   // notifyBoardAccessChanged — and gives up after two seconds.
   await notifyBoardAccessChanged(boardId, userId);
+  await notifyWorkspaceChanged(authorized.workspaceId);
 
   return corsJson({ ok: true });
 }
