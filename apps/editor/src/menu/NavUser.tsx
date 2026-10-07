@@ -35,6 +35,8 @@ import {
 export interface SidebarUser {
   name: string;
   email: string | null;
+  /** Shown under the name in place of the address once they have one. */
+  username?: string | null;
   /** Their photo, already resolved to a URL this browser may load. */
   avatarUrl?: string | null;
 }
@@ -54,6 +56,9 @@ interface NavUserProps {
 export function NavUser({ user, actions, portalContainer }: NavUserProps) {
   const name = user?.name?.trim() || 'Account';
   const email = user?.email ?? null;
+  // The username is what collaborators find you by, so it is the second line
+  // once there is one; the address is still in the menu's caption above.
+  const detail = user?.username ? `@${user.username}` : email;
 
   return (
     <SidebarMenuItem>
@@ -66,7 +71,7 @@ export function NavUser({ user, actions, portalContainer }: NavUserProps) {
         >
           <Identity
             name={name}
-            email={email}
+            detail={detail}
             avatarUrl={user?.avatarUrl ?? null}
             className={identityDetailClasses}
           />
@@ -206,12 +211,13 @@ function LearnMoreRow({ item, actions }: { item: LearnMoreItem; actions?: MenuAc
 
 function Identity({
   name,
-  email,
+  detail,
   avatarUrl,
   className,
 }: {
   name: string;
-  email: string | null;
+  /** The line under the name: their username, else their address. */
+  detail: string | null;
   avatarUrl?: string | null;
   className?: string;
 }) {
@@ -222,7 +228,7 @@ function Identity({
       <InitialBadge label={name} src={avatarUrl} person />
       <span className={cn('grid min-w-0 flex-1 text-left text-sm leading-tight', className)}>
         <span className="truncate font-medium">{name}</span>
-        {email && <span className="truncate text-xs opacity-70">{email}</span>}
+        {detail && <span className="truncate text-xs opacity-70">{detail}</span>}
       </span>
     </>
   );

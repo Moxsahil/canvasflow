@@ -1,4 +1,5 @@
 import * as Y from 'yjs';
+import { isUsername } from '@canvasflow/types';
 import {
   cleanCommentBody,
   isCommentEmpty,
@@ -279,6 +280,7 @@ export class CommentStore {
     comment.set('id', this.newId('comment'));
     comment.set('authorId', author.id);
     comment.set('authorName', author.name);
+    if (author.username) comment.set('authorUsername', author.username);
     comment.set('createdAt', at);
     comment.set('body', body);
     writeMentions(comment, mentions);
@@ -317,7 +319,9 @@ function isReactionEmoji(mark: string): boolean {
 }
 
 function writeMentions(comment: Y.Map<unknown>, mentions: readonly CommentAuthor[]): void {
-  const named = new Map(mentions.map(({ id, name }) => [id, { id, name }]));
+  const named = new Map(
+    mentions.map(({ id, name, username }) => [id, { id, name, ...(username ? { username } : {}) }]),
+  );
   if (named.size === 0) comment.delete('mentions');
   else comment.set('mentions', [...named.values()].slice(0, MOST_MENTIONS));
 }
@@ -348,8 +352,10 @@ function readMentions(value: unknown): CommentAuthor[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry: unknown) => {
     if (typeof entry !== 'object' || entry === null) return [];
-    const { id, name } = entry as Record<string, unknown>;
-    return typeof id === 'string' && typeof name === 'string' && name !== '' ? [{ id, name }] : [];
+    const { id, name, username } = entry as Record<string, unknown>;
+    if (typeof id !== 'string' || typeof name !== 'string' || name === '') return [];
+    // Written by another browser, so held to the rules like a peer's presence.
+    return [isUsername(username) ? { id, name, username } : { id, name }];
   });
 }
 
@@ -390,11 +396,13 @@ function readComment(value: unknown): Comment | null {
   const createdAt = finite(value.get('createdAt'));
   const body = text(value.get('body'));
   if (!id || !authorId || createdAt === null || body === null) return null;
+  const authorUsername = value.get('authorUsername');
 
   return {
     id,
     authorId,
     authorName: text(value.get('authorName')) ?? '',
+    authorUsername: isUsername(authorUsername) ? authorUsername : null,
     createdAt,
     editedAt: finite(value.get('editedAt')),
     body,

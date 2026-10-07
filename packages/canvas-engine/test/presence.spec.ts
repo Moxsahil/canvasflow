@@ -18,7 +18,7 @@ const SCREEN = { width: 1000, height: 800 };
 
 describe('parsePresenceState', () => {
   const valid = {
-    user: { id: 'u1', name: 'Sahil', color: null, avatar: null },
+    user: { id: 'u1', name: 'Sahil', color: null, avatar: null, username: null },
     cursor: { x: 10, y: 20 },
     selection: ['s1'],
     lasering: true,
@@ -32,6 +32,19 @@ describe('parsePresenceState', () => {
 
   it('accepts a well-formed record', () => {
     expect(parsePresenceState(valid)).toEqual(valid);
+  });
+
+  it('keeps a username as stored, and drops anything that is not one', () => {
+    const named = (username: unknown) =>
+      parsePresenceState({ ...valid, user: { ...valid.user, username } })?.user.username;
+    expect(named('ada.lovelace')).toBe('ada.lovelace');
+    // Older builds send nothing, which reads as no username.
+    expect(named(undefined)).toBeNull();
+    // Not as this app would store one: capitals, too long, a reserved name,
+    // spaces, or not text at all.
+    for (const forged of ['Ada', 'a'.repeat(31), 'admin', 'ada lovelace', 42, { x: 1 }]) {
+      expect(named(forged)).toBeNull();
+    }
   });
 
   it.each([null, undefined, 7, 'nope', {}, { user: {} }, { user: { id: '' } }])(
@@ -91,7 +104,7 @@ describe('parsePresenceState', () => {
         lastActive: 'soon',
       }),
     ).toEqual({
-      user: { id: 'u1', name: '', color: null, avatar: null },
+      user: { id: 'u1', name: '', color: null, avatar: null, username: null },
       cursor: null,
       selection: [],
       lasering: false,

@@ -286,7 +286,7 @@ describe('SettingsDialog', () => {
     const html = render(undefined, 'dark', accountStub(SAVED));
     expect(html).toMatch(/<label for="[^"]+"[^>]*>Username<\/label>/);
     expect(html).toContain('value="sahil.saved"');
-    expect(html).toContain('Yours alone across Canvasflow');
+    expect(html).toContain('Lets people find you in @mentions');
     // Nothing typed, so nothing to save or cancel yet.
     expect(html).not.toContain('aria-label="Save"');
   });

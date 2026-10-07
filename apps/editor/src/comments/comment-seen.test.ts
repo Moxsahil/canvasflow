@@ -31,6 +31,7 @@ function thread(id: string, comments: [authorId: string, at: number][], resolved
       id: `${id}-c${i}`,
       authorId,
       authorName: authorId,
+      authorUsername: null,
       createdAt,
       editedAt: null,
       body: 'Said',

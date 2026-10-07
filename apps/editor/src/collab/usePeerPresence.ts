@@ -19,6 +19,8 @@ export interface RosterEntry {
   readonly color: CursorColor | null;
   /** Their uploaded photo's version, or null to draw their initial instead. */
   readonly avatarVersion: string | null;
+  /** The username they chose, for the @ list. Null without one, or on an older build. */
+  readonly username: string | null;
 }
 
 /** This client's own identity in the roster, as the editor knows it. */
@@ -27,6 +29,7 @@ export interface RosterSelf {
   readonly name: string;
   readonly color: CursorColor | null;
   readonly avatarVersion: string | null;
+  readonly username: string | null;
 }
 
 export interface PeerPresence {
@@ -63,6 +66,7 @@ function buildRoster(
       isSelf: true,
       color: self.color,
       avatarVersion: self.avatarVersion,
+      username: self.username,
     });
   }
 
@@ -81,6 +85,7 @@ function buildRoster(
       isSelf: false,
       color: peer.user.color ?? null,
       avatarVersion: peer.user.avatar ?? null,
+      username: peer.user.username ?? null,
     });
   }
 
@@ -105,7 +110,9 @@ function rosterEquals(a: readonly RosterEntry[], b: readonly RosterEntry[]): boo
       // Their avatar is drawn from both, so a colour or a photo changed
       // mid-session has to get past this guard to be repainted.
       entry.color === other.color &&
-      entry.avatarVersion === other.avatarVersion
+      entry.avatarVersion === other.avatarVersion &&
+      // Not drawn, but the @ list reads it from here.
+      entry.username === other.username
     );
   });
 }

@@ -1,20 +1,20 @@
-import { cn } from '@/lib/utils';
 import { splitMentions } from './comment-mentions';
 import type { CommentAuthor } from './comment-model';
 
 /**
- * What a comment says, with the people it names marked out. A mention of
- * whoever is reading is marked more strongly than the rest: it is the one
- * addressed to them.
+ * What a comment says, with the people it names marked out. Each reads as it
+ * was written — by name, or by username.
+ *
+ * Every mention looks the same, whoever wrote it and whoever it names: blue
+ * text, and nothing behind it. The one blue reads on every bubble a thread
+ * has — dark or light, yours or someone else's — in either theme.
  */
 export function CommentBody({
   body,
   mentions,
-  userId,
 }: {
   body: string;
   mentions: readonly CommentAuthor[];
-  userId: string | null;
 }) {
   return (
     // Selectable, unlike the rest of the board's chrome: a comment is
@@ -24,17 +24,8 @@ export function CommentBody({
         typeof part === 'string' ? (
           part
         ) : (
-          <span
-            key={index}
-            className={cn(
-              'rounded-sm px-0.5 font-medium',
-              part.id === userId
-                ? 'bg-(--color-primary)/20 dark:bg-(--color-primary)/35'
-                : 'bg-neutral-950/10 dark:bg-neutral-50/10',
-            )}
-            data-mention={part.id}
-          >
-            @{part.name}
+          <span key={index} className="font-medium text-blue-500" data-mention={part.person.id}>
+            @{part.written}
           </span>
         ),
       )}

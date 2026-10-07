@@ -536,7 +536,12 @@ interface EditorProps {
  * one to name. Opening a board from the sidebar would otherwise blank the
  * account row for that moment on every switch.
  */
-let lastChromeUser: { name: string; email: string | null; avatarUrl: string | null } | null = null;
+let lastChromeUser: {
+  name: string;
+  email: string | null;
+  avatarUrl: string | null;
+  username: string | null;
+} | null = null;
 
 export function Editor({ boardId }: EditorProps) {
   /** The editor root. Every popup portals here, for the theme tokens on it. */
@@ -716,6 +721,9 @@ export function Editor({ boardId }: EditorProps) {
    */
   const publishedAvatar = account.profile?.avatarUploaded ? account.profile.avatarVersion : null;
 
+  /** The username this account chose, published so others can @ it by name. */
+  const ownUsername = account.profile?.username ?? null;
+
   /**
    * The account as this window shows it — the token's copy, and only that.
    *
@@ -742,8 +750,11 @@ export function Editor({ boardId }: EditorProps) {
   });
 
   const chromeUser = useMemo(
-    () => (user ? { name: user.name, email: user.email, avatarUrl: avatar.url } : lastChromeUser),
-    [user, avatar.url],
+    () =>
+      user
+        ? { name: user.name, email: user.email, avatarUrl: avatar.url, username: ownUsername }
+        : lastChromeUser,
+    [user, avatar.url, ownUsername],
   );
   // A guest's identity is the share link's, not an account worth carrying to
   // the next board.
@@ -1097,6 +1108,7 @@ export function Editor({ boardId }: EditorProps) {
     user,
     cursorColor,
     avatarVersion: publishedAvatar,
+    username: ownUsername,
     activity,
     camera,
     screen,
@@ -1110,9 +1122,15 @@ export function Editor({ boardId }: EditorProps) {
   const rosterSelf = useMemo(
     () =>
       user
-        ? { id: user.id, name: user.name, color: cursorColor, avatarVersion: publishedAvatar }
+        ? {
+            id: user.id,
+            name: user.name,
+            color: cursorColor,
+            avatarVersion: publishedAvatar,
+            username: ownUsername,
+          }
         : null,
-    [user, cursorColor, publishedAvatar],
+    [user, cursorColor, publishedAvatar, ownUsername],
   );
 
   const { peersRef, subscribe, roster } = usePeerPresence({
@@ -1334,7 +1352,14 @@ export function Editor({ boardId }: EditorProps) {
   // --- comments -----------------------------------------------------------
   // Who a comment written here is signed by: the token's copy of the account,
   // as the rest of this window shows it.
-  const commentAuthor = useMemo(() => (user ? { id: user.id, name: user.name } : null), [user]);
+  // The username comes from the profile, as the one on the presence record does.
+  const commentAuthor = useMemo(
+    () =>
+      user
+        ? { id: user.id, name: user.name, ...(ownUsername ? { username: ownUsername } : {}) }
+        : null,
+    [user, ownUsername],
+  );
 
   // Who a comment here can name with an @: whoever is on the board now, and
   // whoever has written or been named on it before. The full list of a board's
@@ -1342,7 +1367,11 @@ export function Editor({ boardId }: EditorProps) {
   const mentionable = useMemo(
     () =>
       mentionablePeople(
-        roster.map((entry) => ({ id: entry.userId, name: entry.name })),
+        roster.map((entry) => ({
+          id: entry.userId,
+          name: entry.name,
+          ...(entry.username ? { username: entry.username } : {}),
+        })),
         comments.threads,
         userId,
       ),

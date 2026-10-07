@@ -107,3 +107,16 @@ export function usernameProblem(username: string): string | null {
   }
   return null;
 }
+
+/**
+ * Whether something that arrived from elsewhere — a peer's presence record, a
+ * comment another browser wrote — is a username as this app stores them.
+ * Anything else is treated as no username at all.
+ */
+export function isUsername(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value === normalizeUsername(value) &&
+    usernameProblem(value) === null
+  );
+}

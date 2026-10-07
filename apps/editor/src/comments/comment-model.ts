@@ -18,6 +18,12 @@ import type { Point } from '../machine/tool-machine.types';
 export interface CommentAuthor {
   readonly id: string;
   readonly name: string;
+  /**
+   * The username they had when this was written, so the @ list can offer them
+   * by it once they have left the board. Absent for anyone without one, and
+   * on anything written before usernames were kept.
+   */
+  readonly username?: string;
 }
 
 /**
@@ -48,6 +54,8 @@ export interface Comment {
    * be shown for someone who is no longer on the board to ask.
    */
   readonly authorName: string;
+  /** Their username as it was when they wrote, or null. */
+  readonly authorUsername: string | null;
   readonly createdAt: number;
   /** Null until the comment is first edited. */
   readonly editedAt: number | null;
