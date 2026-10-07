@@ -1,23 +1,68 @@
 import type { Point } from '../math.js';
 import type { Segment } from '../geometry/segment.js';
 import { shapeBounds } from './bounds.js';
-import { shapeOutlineSegments } from './outline.js';
-import { assertNever, isArrow, type ArrowBinding, type ArrowShape, type Shape } from './shape.js';
+import { shapeExactOutline } from './outline.js';
+import {
+  assertNever,
+  isArrow,
+  shapeScale,
+  strokeWidthOf,
+  type ArrowBinding,
+  type ArrowShape,
+  type Shape,
+} from './shape.js';
+import { ARROWHEAD_GEOMETRY, circleArrowheadRadius, type Arrowhead } from './style.js';
 
 /**
- * How far short of a bound shape an arrow stops, in world units.
+ * How far past an arrow's end the head drawn there reaches.
  *
- * Without it the head sits on the outline and reads as touching the shape
- * rather than pointing at it, and at any real stroke width the two overlap.
+ * Every head but the circle has its tip on the end point and is drawn with
+ * round joins, so it reaches half the stroke past it. A circle is centred on
+ * the end point and reaches its radius, and half the stroke more when it is
+ * only an outline. A bare end is drawn with a flat cap and reaches nothing.
  */
-export const BOUND_ARROW_GAP = 8;
+function headReach(arrow: ArrowShape, head: Arrowhead): number {
+  if (head === 'none') return 0;
+  const stroke = strokeWidthOf(arrow);
+  if (head === 'circle' || head === 'circle_outline') {
+    const length = ARROWHEAD_GEOMETRY[head].size * shapeScale(arrow);
+    const radius = circleArrowheadRadius(length, stroke);
+    return head === 'circle' ? radius : radius + stroke / 2;
+  }
+  return stroke / 2;
+}
+
+/**
+ * How much of a shape's stroke lies outside its outline: half of it, for the
+ * kinds drawn with one. Text and images have none, and a frame's border is a
+ * hairline drawn the same width at every zoom.
+ */
+function strokeOutside(shape: Shape): number {
+  switch (shape.kind) {
+    case 'rectangle':
+    case 'ellipse':
+    case 'diamond':
+      return strokeWidthOf(shape) / 2;
+    default:
+      return 0;
+  }
+}
+
+/**
+ * How far short of a bound shape's outline an arrow's end stops, in world
+ * units: just far enough that what is drawn at that end meets the shape's
+ * stroke, edge to edge — touching, with no gap between and no overlap.
+ */
+export function boundArrowGap(arrow: ArrowShape, head: Arrowhead, target: Shape): number {
+  return strokeOutside(target) + headReach(arrow, head);
+}
 
 /**
  * The shortest a bound arrow is allowed to become.
  *
- * Two shapes close enough together leave less room between them than the gap
- * above wants on both sides, and the arrow would turn inside out. It keeps this
- * much length in its original direction instead.
+ * Two shapes close enough together leave less room between them than the gaps
+ * want on both sides, and the arrow would turn inside out. It keeps this much
+ * length in its original direction instead.
  */
 const MIN_BOUND_ARROW_LENGTH = 8;
 
@@ -52,7 +97,10 @@ export function normalizedAnchorFor(shape: Shape, point: Point): { x: number; y:
   };
 }
 
-/** The world point a binding aims at, before it is pulled back to the outline. */
+/**
+ * The world point a binding aims at: its anchor for a fixed binding, which is
+ * where the end sits, and the middle of the shape for one that aims there.
+ */
 function aimPointFor(binding: ArrowBinding, target: Shape): Point {
   const bounds = shapeBounds(target);
   const anchor = binding.precise ? binding.anchor : { x: 0.5, y: 0.5 };
@@ -82,7 +130,7 @@ function outlineCrossing(target: Shape, from: Point, to: Point): Point | null {
   let nearest: Point | null = null;
   let nearestDistanceSq = Infinity;
 
-  for (const edge of shapeOutlineSegments(target)) {
+  for (const edge of outlineEdges(target)) {
     const hit = segmentCrossing(segment, edge);
     if (!hit) continue;
 
@@ -94,6 +142,69 @@ function outlineCrossing(target: Shape, from: Point, to: Point): Point | null {
   }
 
   return nearest;
+}
+
+/**
+ * The outline an arrow lands on, as segments: the shape exactly as drawn, so
+ * an end attached at a rounded corner meets the curve, not the box around it.
+ */
+function outlineEdges(target: Shape): Segment[] {
+  const points = shapeExactOutline(target) ?? [];
+  return points.map((point, i): Segment => [point, points[(i + 1) % points.length]!]);
+}
+
+/** The point on a shape's outline nearest to `point`, and how far that is. */
+function nearestOnOutline(target: Shape, point: Point): { at: Point; distance: number } | null {
+  let best: { at: Point; distance: number } | null = null;
+  for (const [[ax, ay], [bx, by]] of outlineEdges(target)) {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const lengthSq = dx * dx + dy * dy;
+    const t =
+      lengthSq === 0
+        ? 0
+        : Math.max(0, Math.min(1, ((point.x - ax) * dx + (point.y - ay) * dy) / lengthSq));
+    const at = { x: ax + t * dx, y: ay + t * dy };
+    const distance = Math.hypot(point.x - at.x, point.y - at.y);
+    if (!best || distance < best.distance) best = { at, distance };
+  }
+  return best;
+}
+
+/** Whether a point lies inside a shape's outline as drawn. */
+function insideOutline(target: Shape, point: Point): boolean {
+  const points = shapeExactOutline(target) ?? [];
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const [xi, yi] = points[i]!;
+    const [xj, yj] = points[j]!;
+    if (yi > point.y !== yj > point.y && point.x < ((xj - xi) * (point.y - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/**
+ * A binding for an end let go at `point` over `target`, fixed at the spot of
+ * the outline it was let go at.
+ *
+ * On or near the outline — outside it, or within `reach` of it inside — that
+ * is the nearest point of the outline, so the end can be attached anywhere
+ * along it: at a corner, at the middle of a side, or anywhere between.
+ *
+ * Further inside, the end is taken to be aimed at where it was let go: it
+ * attaches where the line from the other end, `from`, to that point first
+ * meets the outline — the side the arrow comes in by — and at the nearest
+ * point of the outline when that line never meets it.
+ */
+export function bindingAt(target: Shape, point: Point, from: Point, reach: number): ArrowBinding {
+  const nearest = nearestOnOutline(target, point);
+  let spot = nearest?.at ?? point;
+  if (nearest && nearest.distance > reach && insideOutline(target, point)) {
+    spot = outlineCrossing(target, from, point) ?? nearest.at;
+  }
+  return { shapeId: target.id, anchor: normalizedAnchorFor(target, spot), precise: true };
 }
 
 /** The point two segments meet at, or null if they miss or are parallel. */
@@ -151,10 +262,17 @@ function boundTarget(
 /**
  * Where an arrow's ends actually are, given whatever it is attached to.
  *
- * Both ends aim first, then stop: the line is drawn between the two aim points,
- * and each bound end is pulled back to where that line crosses its shape. Doing
- * it in that order is what makes an imprecise binding follow the shape around —
- * the crossing moves to whichever edge now faces the other end.
+ * A fixed binding holds its end on its anchor, the spot on the shape it was
+ * attached at, and the end goes wherever that spot goes — the line pivots
+ * about it rather than sliding round to whichever edge faces the other end.
+ *
+ * A binding that aims at the middle of its shape, as every one did before
+ * bindings were fixed, aims first and then stops: the line is drawn between
+ * the two aim points, and the end is pulled back to where that line crosses
+ * the shape. The editor pins those where they stand — see `withPinnedBindings`.
+ *
+ * Either way the end then stops short by the gap, so what is drawn there meets
+ * the shape's edge.
  */
 export function resolveArrowTerminals(
   arrow: ArrowShape,
@@ -180,12 +298,16 @@ export function resolveArrowTerminals(
   let end = endAim;
 
   if (endTarget) {
-    const crossing = outlineCrossing(endTarget, startAim, endAim);
-    if (crossing) end = backOff(startAim, crossing, BOUND_ARROW_GAP);
+    const gap = boundArrowGap(arrow, arrow.endArrowhead, endTarget);
+    const meets = arrow.endBinding!.precise ? endAim : outlineCrossing(endTarget, startAim, endAim);
+    if (meets) end = backOff(startAim, meets, gap);
   }
   if (startTarget) {
-    const crossing = outlineCrossing(startTarget, endAim, startAim);
-    if (crossing) start = backOff(endAim, crossing, BOUND_ARROW_GAP);
+    const gap = boundArrowGap(arrow, arrow.startArrowhead, startTarget);
+    const meets = arrow.startBinding!.precise
+      ? startAim
+      : outlineCrossing(startTarget, endAim, startAim);
+    if (meets) start = backOff(endAim, meets, gap);
   }
 
   return keepApart(start, end, startAim, endAim);
@@ -218,6 +340,69 @@ function keepApart(start: Point, end: Point, startAim: Point, endAim: Point) {
     start: { x: midX - halfX, y: midY - halfY },
     end: { x: midX + halfX, y: midY + halfY },
   };
+}
+
+/**
+ * The arrow with each end that aims at the middle of its shape fixed instead,
+ * to the spot where it meets that shape now — so nothing moves on screen, and
+ * from here on the end stays on that spot of the shape wherever it goes.
+ *
+ * How a binding made by attaching an end is finished: the end is first aimed
+ * at the middle, which finds the edge facing the other end, and is fixed
+ * there. The same turns a board's older bindings, which all aim at the
+ * middle, into fixed ones. An end whose line never crosses its shape — the
+ * other end is inside it — is fixed where it stands.
+ *
+ * Returns the very arrow it was given when no end needed fixing.
+ */
+export function withPinnedBindings(
+  arrow: ArrowShape,
+  shapesById: ReadonlyMap<string, Shape>,
+): ArrowShape {
+  const startTarget = boundTarget(arrow.startBinding, shapesById);
+  const endTarget = boundTarget(arrow.endBinding, shapesById);
+  const pinStart = startTarget !== null && !arrow.startBinding!.precise;
+  const pinEnd = endTarget !== null && !arrow.endBinding!.precise;
+  if (!pinStart && !pinEnd) return arrow;
+  // Both ends on one shape is left as drawn by `resolveArrowTerminals`.
+  if (startTarget && endTarget && startTarget.id === endTarget.id) return arrow;
+
+  const stored = storedTerminals(arrow);
+  const startAim = startTarget ? aimPointFor(arrow.startBinding!, startTarget) : stored.start;
+  const endAim = endTarget ? aimPointFor(arrow.endBinding!, endTarget) : stored.end;
+
+  let { startBinding, endBinding } = arrow;
+  if (pinEnd) {
+    const meets = outlineCrossing(endTarget!, startAim, endAim) ?? stored.end;
+    endBinding = {
+      ...arrow.endBinding!,
+      anchor: normalizedAnchorFor(endTarget!, meets),
+      precise: true,
+    };
+  }
+  if (pinStart) {
+    const meets = outlineCrossing(startTarget!, endAim, startAim) ?? stored.start;
+    startBinding = {
+      ...arrow.startBinding!,
+      anchor: normalizedAnchorFor(startTarget!, meets),
+      precise: true,
+    };
+  }
+  return { ...arrow, startBinding, endBinding };
+}
+
+/**
+ * The spot on its shape a fixed binding holds its end to, in world space. Null
+ * for a binding that aims at the middle, which has no one spot, and for one
+ * whose shape is gone.
+ */
+export function bindingPointOf(
+  binding: ArrowBinding | null,
+  shapesById: ReadonlyMap<string, Shape>,
+): Point | null {
+  if (!binding?.precise) return null;
+  const target = boundTarget(binding, shapesById);
+  return target ? aimPointFor(binding, target) : null;
 }
 
 /** Whether an arrow is attached to any of these shapes. */

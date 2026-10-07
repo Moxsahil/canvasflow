@@ -12,6 +12,7 @@ import {
   arrowheadMarks,
   createRoughGenerator,
   generateIndicatorDrawable,
+  generateOutlineDrawable,
   traceArrowheadMark,
   traceDrawable,
 } from '../utils/rough.js';
@@ -34,6 +35,15 @@ export type SnapGuide =
       readonly from: Point;
       readonly to: Point;
     };
+
+/**
+ * Where the end of an arrow being drawn or dragged would attach if it were let
+ * go now: the shape, and the spot on its outline.
+ */
+export interface BindingHint {
+  readonly shapeId: string;
+  readonly point: Point;
+}
 
 export interface InteractiveSceneOptions {
   readonly width: number;
@@ -75,6 +85,12 @@ export interface InteractiveSceneOptions {
    * padlock that unlocks them is up.
    */
   readonly lockHighlightIds?: readonly string[];
+
+  /** The shape an arrow end being dragged would attach to, outlined, and where. */
+  readonly bindingHint?: BindingHint | null;
+
+  /** Which theme the board is in, for the colours that differ between the two. */
+  readonly darkMode?: boolean;
 }
 
 const HANDLE_SIZE = 8; // screen pixels
@@ -111,6 +127,22 @@ const HANDLE_HOVER_FILL = 'rgba(99, 102, 241, 0.16)';
 const LOCK_HIGHLIGHT_COLOR = '#a3a3a3';
 /** Dashes for a locked shape's outline, in screen pixels. */
 const LOCK_DASH = [4, 3] as const;
+
+/**
+ * The outline that says an arrow end will attach here: a light blue, deepened
+ * on a dark board so it does not glare there — to the editor's dark focus
+ * blue, which still stands out from the board at about 5:1. Not the
+ * selection's colour: the shape is being offered, not picked.
+ */
+const BINDING_HINT_COLOR = 'rgb(106, 189, 252)';
+const BINDING_HINT_COLOR_DARK = '#228be6';
+/** The outline's weight follows the shape's own stroke, within these, in screen pixels. */
+const BINDING_HINT_MIN_WIDTH = 1.75;
+const BINDING_HINT_MAX_WIDTH = 4;
+/** The dot on the spot the end will attach at, in screen pixels. */
+const BINDING_POINT_RADIUS = 4.5;
+const BINDING_POINT_FILL = 'rgba(255, 255, 255, 0.9)';
+const BINDING_POINT_RING = 'rgba(99, 102, 241, 0.6)';
 
 /**
  * Geometry only, so no canvas is behind it. Kept for the life of the module
@@ -163,6 +195,15 @@ export function renderInteractiveScene(
       if (highlighted.has(shape.id)) strokeSelectionOutline(ctx, shape, zoom);
     }
     ctx.setLineDash([]);
+  }
+
+  // --- Where an arrow end would attach — beneath the selection, since the
+  // shape is offered rather than picked, and an arrow drawn over it stays
+  // readable ---
+  if (opts.bindingHint) {
+    const { shapeId, point } = opts.bindingHint;
+    const target = shapes.find((shape) => shape.id === shapeId);
+    if (target) drawBindingHint(ctx, target, point, zoom, opts.darkMode ?? false);
   }
 
   // --- Selection outlines ---
@@ -261,6 +302,49 @@ function strokeSelectionOutline(
   const b = shapeBounds(shape);
   const pad = 4 / zoom;
   ctx.strokeRect(b.x - pad, b.y - pad, b.width + pad * 2, b.height + pad * 2);
+}
+
+/**
+ * A shape outlined along itself, in the hint's blue, with a dot on the spot an
+ * arrow end will attach at.
+ *
+ * The outline is the shape's own — its rounded corners, its ellipse — traced
+ * cleanly; a kind with no outline of its own is outlined by its box.
+ */
+function drawBindingHint(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  shape: Shape,
+  point: Point,
+  zoom: number,
+  darkMode: boolean,
+): void {
+  ctx.save();
+  ctx.setLineDash([]);
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = darkMode ? BINDING_HINT_COLOR_DARK : BINDING_HINT_COLOR;
+  const weight = Math.min(
+    BINDING_HINT_MAX_WIDTH,
+    Math.max(BINDING_HINT_MIN_WIDTH, shape.strokeWidth),
+  );
+  ctx.lineWidth = weight / zoom;
+  ctx.beginPath();
+  const outline = generateOutlineDrawable(indicatorSource, shape);
+  if (outline) {
+    traceDrawable(ctx, outline);
+  } else {
+    const b = shapeBounds(shape);
+    ctx.rect(b.x, b.y, b.width, b.height);
+  }
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(point.x, point.y, BINDING_POINT_RADIUS / zoom, 0, Math.PI * 2);
+  ctx.fillStyle = BINDING_POINT_FILL;
+  ctx.fill();
+  ctx.strokeStyle = BINDING_POINT_RING;
+  ctx.lineWidth = 1 / zoom;
+  ctx.stroke();
+  ctx.restore();
 }
 
 /**

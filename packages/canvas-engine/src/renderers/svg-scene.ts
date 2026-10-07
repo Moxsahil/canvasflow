@@ -327,9 +327,11 @@ function shapeToSvg(
           continue;
         }
         const d = pointsToPath(mark.points, mark.kind === 'closed');
+        // A solid head is stroked as well as filled, as the canvas draws it, so
+        // it covers the end of the line under its tip.
         content +=
           mark.kind === 'closed' && mark.filled
-            ? `<path d="${d}" fill="${escapeXml(shape.strokeColor)}" stroke="none"/>`
+            ? `<path d="${d}" fill="${escapeXml(shape.strokeColor)}" ${common}/>`
             : `<path d="${d}" fill="none" ${common}/>`;
       }
 

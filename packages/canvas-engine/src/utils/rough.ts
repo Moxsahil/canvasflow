@@ -10,10 +10,12 @@ import type {
   ArrowShape,
   FreehandShape,
   BaseShape,
+  Shape,
 } from '../shapes/shape.js';
 import { shapeScale, strokeWidthOf } from '../shapes/shape.js';
+import { polygonCornerCut, roundedRectRadius } from '../shapes/corners.js';
 import type { Arrowhead, StrokeStyle } from '../shapes/style.js';
-import { ARROWHEAD_GEOMETRY } from '../shapes/style.js';
+import { ARROWHEAD_GEOMETRY, circleArrowheadRadius } from '../shapes/style.js';
 import { diamondPoints } from '../shapes/diamond.js';
 import { isPathALoop, simplifyPoints } from './simplify.js';
 
@@ -36,11 +38,6 @@ export function createRoughCanvas(canvas: HTMLCanvasElement | OffscreenCanvas): 
   // the shared canvas API, so OffscreenCanvas works at runtime.
   return rough.canvas(canvas as HTMLCanvasElement);
 }
-
-/** Largest corner radius a rounded shape will use, however big it grows. */
-const MAX_CORNER_RADIUS = 32;
-/** Fraction of the shorter side used as the corner radius below that cap. */
-const CORNER_RADIUS_RATIO = 0.25;
 
 /**
  * Dash pattern for a stroke style. Both patterns scale with stroke width so a
@@ -79,17 +76,13 @@ function baseOptions(shape: BaseShape): Options {
   };
 }
 
-function cornerRadius(width: number, height: number): number {
-  return Math.min(Math.abs(width), Math.abs(height)) * CORNER_RADIUS_RATIO;
-}
-
 /** SVG path for a rectangle with rounded corners, tolerant of negative sizes. */
 function roundedRectPath(x: number, y: number, width: number, height: number): string {
   const left = width < 0 ? x + width : x;
   const top = height < 0 ? y + height : y;
   const w = Math.abs(width);
   const h = Math.abs(height);
-  const r = Math.min(cornerRadius(w, h), MAX_CORNER_RADIUS);
+  const r = roundedRectRadius(w, h);
   const right = left + w;
   const bottom = top + h;
 
@@ -129,7 +122,7 @@ function roundedPolygonPath(points: ReadonlyArray<readonly [number, number]>): s
     const nextLen = Math.hypot(toNext[0], toNext[1]) || 1;
 
     // Never cut back past the midpoint of an edge, or adjacent corners collide.
-    const r = Math.min(MAX_CORNER_RADIUS, prevLen / 2, nextLen / 2, prevLen * CORNER_RADIUS_RATIO);
+    const r = polygonCornerCut(prevLen, nextLen);
 
     const start = [curr[0] + (toPrev[0] / prevLen) * r, curr[1] + (toPrev[1] / prevLen) * r];
     const end = [curr[0] + (toNext[0] / nextLen) * r, curr[1] + (toNext[1] / nextLen) * r];
@@ -202,6 +195,38 @@ export function generateDiamondDrawable(rc: RoughDrawableSource, shape: DiamondS
   return rc.generator.polygon(points as Array<[number, number]>, baseOptions(shape));
 }
 
+/**
+ * A closed shape's outline as one clean pass: the very path the shape is drawn
+ * along — its rounded corners, its ellipse — with none of the wobble, for
+ * chrome that traces a shape rather than a box around it. Null for the kinds
+ * whose outline is simply their box.
+ */
+export function generateOutlineDrawable(rc: RoughDrawableSource, shape: Shape): Drawable | null {
+  const clean: Options = { seed: shape.seed, roughness: 0, disableMultiStroke: true };
+  switch (shape.kind) {
+    case 'rectangle':
+      return shape.edges === 'round'
+        ? rc.generator.path(roundedRectPath(shape.x, shape.y, shape.width, shape.height), clean)
+        : rc.generator.rectangle(shape.x, shape.y, shape.width, shape.height, clean);
+    case 'ellipse':
+      return rc.generator.ellipse(
+        shape.x + shape.width / 2,
+        shape.y + shape.height / 2,
+        shape.width,
+        shape.height,
+        clean,
+      );
+    case 'diamond': {
+      const points = diamondPoints(shape);
+      return shape.edges === 'round'
+        ? rc.generator.path(roundedPolygonPath(points), clean)
+        : rc.generator.polygon(points as Array<[number, number]>, clean);
+    }
+    default:
+      return null;
+  }
+}
+
 export function generateLineDrawable(rc: RoughDrawableSource, shape: LineShape): Drawable {
   const absPoints = absolutePoints(shape);
   const options = baseOptions(shape);
@@ -238,11 +263,21 @@ export function generateFreehandFillDrawable(
   });
 }
 
+/**
+ * An arrow's line, its points kept exactly where they are.
+ *
+ * Left to itself rough moves each end of a line by a random couple of units,
+ * which is the hand-drawn look everywhere else. Here the ends are where the
+ * head is drawn and where a bound arrow meets its shape, and a wandering end
+ * either pokes out past the head's tip or stops short of the shape. The line
+ * still bows between them.
+ */
 export function generateArrowDrawable(rc: RoughDrawableSource, shape: ArrowShape): Drawable {
   const absPoints = arrowRenderPoints(shape);
+  const options: Options = { ...baseOptions(shape), preserveVertices: true };
   return shape.arrowType === 'curved'
-    ? rc.generator.curve(absPoints, baseOptions(shape))
-    : rc.generator.linearPath(absPoints, baseOptions(shape));
+    ? rc.generator.curve(absPoints, options)
+    : rc.generator.linearPath(absPoints, options);
 }
 
 export function generateFreehandDrawable(rc: RoughDrawableSource, shape: FreehandShape): Drawable {
@@ -285,9 +320,11 @@ export function generateIndicatorDrawable(
 
   if (shape.kind === 'arrow') {
     const points = arrowRenderPoints(shape);
+    // Ends kept in place, as the arrow's own line keeps them.
+    const pinned: Options = { ...options, preserveVertices: true };
     return shape.arrowType === 'curved'
-      ? rc.generator.curve(points, options)
-      : rc.generator.linearPath(points, options);
+      ? rc.generator.curve(points, pinned)
+      : rc.generator.linearPath(points, pinned);
   }
 
   const points = absolutePoints(shape);
@@ -483,7 +520,7 @@ function arrowheadMark(
   const by = ty - ny * minSize;
 
   if (arrowhead === 'circle' || arrowhead === 'circle_outline') {
-    const radius = (Math.hypot(by - ty, bx - tx) + strokeWidthOf(shape) - 2) / 2;
+    const radius = circleArrowheadRadius(minSize, strokeWidthOf(shape));
     if (radius <= 0) return null;
     return { kind: 'circle', cx: tx, cy: ty, radius, filled: arrowhead === 'circle' };
   }
@@ -573,8 +610,12 @@ export function drawArrowheads(
     }
 
     ctx.closePath();
+    // A solid head is stroked as well as filled, with the shaft's width and
+    // round joins. The line runs to the tip, where the head comes to a point
+    // and the line does not: filled alone, the head leaves the line's end
+    // showing either side of its tip on a thick arrow.
     if (mark.filled) ctx.fill();
-    else ctx.stroke();
+    ctx.stroke();
   }
 
   ctx.restore();

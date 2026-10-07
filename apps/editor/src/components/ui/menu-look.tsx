@@ -38,8 +38,7 @@ export const menuRowClasses =
 
 /**
  * A row that deletes or discards, as the context menu's Delete draws it: red
- * text, and on highlight the two reds that row stacks (a tint and an overlay)
- * as one — 14.5% in light, 40% in dark.
+ * text, and a red highlight — 14.5% in light, 40% in dark.
  */
 export const menuDangerRowClasses =
   'text-red-400 data-[highlighted]:bg-red-500/[14.5%] dark:data-[highlighted]:bg-red-500/40';

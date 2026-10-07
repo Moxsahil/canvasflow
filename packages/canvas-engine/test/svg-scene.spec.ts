@@ -100,8 +100,9 @@ describe('renderSceneToSvgString', () => {
       }),
     ]);
     expect(svg).toContain('<circle');
-    // The filled triangle marker.
-    expect(svg).toMatch(/<path d="M [^"]+ Z" fill="#/);
+    // The filled triangle marker, stroked as well as filled so it covers the
+    // end of the line beneath its tip.
+    expect(svg).toMatch(/<path d="M [^"]+ Z" fill="#[0-9a-f]+" stroke="#[0-9a-f]+" stroke-width/);
   });
 
   describe('a labelled arrow', () => {

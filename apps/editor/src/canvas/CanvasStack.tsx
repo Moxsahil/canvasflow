@@ -1,5 +1,12 @@
 import { useCallback, useRef } from 'react';
-import type { ImageSource, Peer, Rect, Shape, SnapGuide } from '@canvasflow/canvas-engine';
+import type {
+  BindingHint,
+  ImageSource,
+  Peer,
+  Rect,
+  Shape,
+  SnapGuide,
+} from '@canvasflow/canvas-engine';
 import type { Camera, Point } from '../machine/tool-machine.types';
 import type { Tool } from '../tools/tool';
 import { Grid } from './Grid';
@@ -40,6 +47,8 @@ interface CanvasStackProps {
   lockedIds?: ReadonlySet<string>;
   /** The locked shapes whose padlock is up, outlined in grey. */
   lockHighlightIds?: readonly string[];
+  /** Where an arrow end being drawn or dragged would attach: outlined and marked. */
+  bindingHint?: BindingHint | null;
   /** Decoded image bitmaps, and a counter that changes when one lands. */
   images?: ImageSource;
   imageRevision?: number;
@@ -100,6 +109,7 @@ export function CanvasStack({
   hoveredHandleId,
   lockedIds,
   lockHighlightIds,
+  bindingHint,
   images,
   imageRevision,
   darkMode = false,
@@ -161,6 +171,8 @@ export function CanvasStack({
     hoveredHandleId,
     lockedIds,
     lockHighlightIds,
+    bindingHint,
+    darkMode,
   });
 
   const screenToWorldFn = useCallback(

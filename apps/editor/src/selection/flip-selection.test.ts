@@ -245,14 +245,18 @@ describe('arrow bindings', () => {
       y: 50,
       points: [
         [0, 0],
-        [92, 0],
+        [98, 0],
       ],
-      endBinding: bound('a'),
+      // Fixed to the middle of a's left edge, where an arrow from the left
+      // would have been attached.
+      endBinding: bound('a', 0, 0.5),
     });
     const result = flipped([a, b, arrow], ['a', 'b'], 'horizontal');
+    // The head meets b's left edge: half of b's stroke and half of the
+    // arrow's own short of its outline at x=300.
     expect(terminals(result[2]!)).toEqual([
       { x: -100, y: 50 },
-      { x: 292, y: 50 },
+      { x: 298, y: 50 },
     ]);
     expect((result[2] as ArrowShape).endBinding).toEqual(arrow.endBinding);
   });

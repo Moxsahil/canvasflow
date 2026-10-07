@@ -1,10 +1,13 @@
 import * as Y from 'yjs';
 import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing';
 import { lockedShapeIds, type LockFacts } from '../shapes/lock.js';
-import type { Shape } from '../shapes/shape.js';
+import type { ArrowShape, Shape } from '../shapes/shape.js';
 import { shapeToYMap, yMapToShape } from './yjs-shape.js';
 
 const UNDO_CAPTURE_TIMEOUT_MS = 1000;
+
+/** The origin bindings are fixed under: synced like any edit, but not one to undo. */
+const PIN_ORIGIN = 'binding-pin';
 
 /**
  * Layer keys in drawing order: by character code, the order the keys are
@@ -323,6 +326,30 @@ export class BoardDocument {
         this.yShapes.push([yMap]);
       }
     }, 'local');
+  }
+
+  /**
+   * Fix arrows' bindings in place — see `withPinnedBindings` — without it
+   * counting as an edit.
+   *
+   * Nothing on the board moves, so there is nothing to undo: written under an
+   * origin of its own, it stays out of the undo history, and an undo cannot
+   * put back a binding that re-aims. Nobody's name goes on the arrows either,
+   * since nobody edited them. Locked arrows take it too, for the same reason.
+   */
+  pinArrowBindings(
+    pins: ReadonlyArray<Pick<ArrowShape, 'id' | 'startBinding' | 'endBinding'>>,
+  ): void {
+    if (this.readOnly || pins.length === 0) return;
+    const byId = new Map(pins.map((pin) => [pin.id, pin]));
+    this.yDoc.transact(() => {
+      for (const yMap of this.yShapes) {
+        const pin = byId.get(yMap.get('id') as string);
+        if (!pin) continue;
+        if (pin.startBinding) yMap.set('startBinding', pin.startBinding);
+        if (pin.endBinding) yMap.set('endBinding', pin.endBinding);
+      }
+    }, PIN_ORIGIN);
   }
 
   /**

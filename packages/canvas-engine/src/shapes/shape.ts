@@ -128,12 +128,14 @@ export interface ArrowBinding {
   /** 0–1 within the bound shape's bounds; (0.5, 0.5) is its centre. */
   readonly anchor: { readonly x: number; readonly y: number };
   /**
-   * Whether the anchor is where the arrow aims.
+   * Whether the end is fixed to the anchor.
    *
-   * False — the usual case — means the arrow aims at the middle of the shape
-   * and stops at whichever edge it meets on the way in, so it re-aims itself as
-   * the shape moves around it. True pins it to the anchor, for an arrow
-   * deliberately placed at one spot.
+   * True — every binding made now — holds the end on the anchor, the spot on
+   * the shape it was attached at, wherever the shape goes. False is how every
+   * binding was made before: the arrow aims at the middle of the shape and
+   * stops at whichever edge it meets on the way in, re-aiming as things move.
+   * The editor fixes those where they stand when it comes across them — see
+   * `withPinnedBindings`.
    */
   readonly precise: boolean;
 }

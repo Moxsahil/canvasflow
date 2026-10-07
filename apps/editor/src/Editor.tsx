@@ -3,8 +3,11 @@ import { AnimatePresence } from 'framer-motion';
 import { useActorRef, useSelector } from '@xstate/react';
 import {
   arrowsAffectedBy,
-  bindingFor,
+  bindingAt,
+  bindingPointOf,
   bindingTargetAt,
+  withPinnedBindings,
+  type BindingHint,
   boundArrowPatches,
   computeBoundingRect,
   createText,
@@ -320,18 +323,52 @@ function attachArrowEnds(arrow: ArrowShape, shapes: readonly Shape[]): ArrowShap
 }
 
 /**
- * The same, for an end that has been dragged somewhere new.
+ * The same, for one end that has been dragged somewhere new.
  *
- * The difference is what happens when an end lands on nothing: here that is an
- * answer — the end was pulled off whatever it was attached to and should let
- * go — where for a freshly drawn arrow it is simply nothing to say.
+ * That end takes hold of whatever it is let go over — or lets go, which for a
+ * dragged end is an answer, where for a freshly drawn arrow landing on nothing
+ * it is simply nothing to say. The other end keeps hold of what it had, at the
+ * very spot it had it: an end stays where it was attached.
  */
-function reattachArrowEnds(arrow: ArrowShape, shapes: readonly Shape[]): ArrowShape {
+function reattachArrowEnd(arrow: ArrowShape, index: number, shapes: readonly Shape[]): ArrowShape {
   // An arrow with a bend in it is routed by hand and never attaches to
-  // anything, here or anywhere else — see `arrowsAffectedBy`. Left alone,
-  // rather than told to let go of attachments it does not have.
-  if (arrow.points.length !== 2) return arrow;
-  return arrowEndsAttached(arrow, shapes) ?? { ...arrow, startBinding: null, endBinding: null };
+  // anything, here or anywhere else — see `arrowsAffectedBy`.
+  if (arrow.points.length !== 2 || (index !== 0 && index !== 1)) return arrow;
+
+  const atStart = index === 0;
+  const [px, py] = arrow.points[index]!;
+  const point = { x: arrow.x + px, y: arrow.y + py };
+  const [ox, oy] = arrow.points[1 - index]!;
+  const otherPoint = { x: arrow.x + ox, y: arrow.y + oy };
+  // As for an arrow just drawn: nothing locked or hidden takes hold of it.
+  const targets = withoutLocked(visibleShapes(shapes), lockedShapeIds(shapes));
+  const target = bindingTargetAt(targets, point, ARROW_BIND_MARGIN, arrow.id);
+  // Nor the shape the other end holds: there is no line between a shape and
+  // itself to stop at either end of.
+  const other = atStart ? arrow.endBinding : arrow.startBinding;
+  const binding =
+    target && target.id !== other?.shapeId
+      ? bindingAt(target, point, otherPoint, ARROW_BIND_MARGIN)
+      : null;
+
+  return atStart ? { ...arrow, startBinding: binding } : { ...arrow, endBinding: binding };
+}
+
+/**
+ * What to show while the end at `index` of an arrow is being drawn or dragged:
+ * the shape it would attach to and the spot it would take, read off the arrow
+ * as release would attach it — so the hint never promises what release will
+ * not do.
+ */
+function bindingHintAt(
+  attached: ArrowShape | null,
+  index: number,
+  shapes: readonly Shape[],
+): BindingHint | null {
+  const binding = attached ? (index === 0 ? attached.startBinding : attached.endBinding) : null;
+  if (!binding) return null;
+  const point = bindingPointOf(binding, new Map(shapes.map((shape) => [shape.id, shape])));
+  return point ? { shapeId: binding.shapeId, point } : null;
 }
 
 /**
@@ -355,10 +392,12 @@ function arrowEndsAttached(arrow: ArrowShape, shapes: readonly Shape[]): ArrowSh
   if (!startTarget && !endTarget) return null;
   if (startTarget && endTarget && startTarget.id === endTarget.id) return null;
 
+  // Each end fixed at the spot of the outline it was let go at — see
+  // `bindingAt` — and from now on it stays on that spot.
   return {
     ...arrow,
-    startBinding: startTarget ? bindingFor(startTarget, start) : null,
-    endBinding: endTarget ? bindingFor(endTarget, end) : null,
+    startBinding: startTarget ? bindingAt(startTarget, start, end, ARROW_BIND_MARGIN) : null,
+    endBinding: endTarget ? bindingAt(endTarget, end, start, ARROW_BIND_MARGIN) : null,
   };
 }
 
@@ -761,6 +800,29 @@ export function Editor({ boardId }: EditorProps) {
     doc.setReadOnly(readOnly);
   }, [doc, readOnly]);
   const shapes = useYjsShapes(doc);
+
+  // Arrows attached the old way, aiming at the middle of their shape and
+  // re-aiming whenever anything moves, are fixed where they stand: as this
+  // board opens for editing, and whenever one arrives later — a paste, a
+  // library item, a collaborator on an older version. Nothing moves, and it is
+  // not an undo step. See withPinnedBindings.
+  useEffect(() => {
+    if (readOnly) return;
+    let byId: Map<string, Shape> | null = null;
+    const pinned: ArrowShape[] = [];
+    for (const shape of shapes) {
+      if (!isArrow(shape)) continue;
+      const aiming =
+        (shape.startBinding && !shape.startBinding.precise) ||
+        (shape.endBinding && !shape.endBinding.precise);
+      if (!aiming) continue;
+      byId ??= new Map(shapes.map((each) => [each.id, each]));
+      const fixed = withPinnedBindings(shape, byId);
+      if (fixed !== shape) pinned.push(fixed);
+    }
+    if (pinned.length > 0) doc.pinArrowBindings(pinned);
+  }, [doc, shapes, readOnly]);
+
   const comments = useComments(doc);
   const commenting = useCommentPlacement();
   // Taken apart for the pointer handlers, which depend on these four and on
@@ -1534,6 +1596,27 @@ export function Editor({ boardId }: EditorProps) {
     setSnapGuides(next);
   }, []);
 
+  /**
+   * Where the end of an arrow being drawn or dragged would attach: the shape
+   * outlined and the spot marked. Set only when it changes, as the guides are,
+   * since an end held over one spot gives the same answer every frame.
+   */
+  const [bindingHint, setBindingHint] = useState<BindingHint | null>(null);
+  const bindingHintRef = useRef<BindingHint | null>(null);
+  const showBindingHint = useCallback((next: BindingHint | null) => {
+    const shown = bindingHintRef.current;
+    const same =
+      shown === next ||
+      (shown !== null &&
+        next !== null &&
+        shown.shapeId === next.shapeId &&
+        shown.point.x === next.point.x &&
+        shown.point.y === next.point.y);
+    if (same) return;
+    bindingHintRef.current = next;
+    setBindingHint(next);
+  }, []);
+
   // Selection is a transition, not a stream — publishing it from an effect
   // rather than the pointer handlers means marquee, click, shortcut and undo
   // all reach collaborators through the same path.
@@ -1952,6 +2035,7 @@ export function Editor({ boardId }: EditorProps) {
         boundArrowsRef.current = EMPTY_IDS;
       }
       showSnapGuides(EMPTY_GUIDES);
+      showBindingHint(null);
       pointerDownWorldRef.current = downPoint;
 
       actorRef.send({
@@ -2003,6 +2087,7 @@ export function Editor({ boardId }: EditorProps) {
       measureSnapTargets,
       snapForPointer,
       showSnapGuides,
+      showBindingHint,
       preferences.values.snapToObjects,
     ],
   );
@@ -2116,6 +2201,13 @@ export function Editor({ boardId }: EditorProps) {
 
       const snap = actorRef.getSnapshot();
 
+      // Where the end under the pointer would attach, shown while it moves.
+      let hint: BindingHint | null = null;
+      const drawn = snap.context.newElement;
+      if (snap.matches('drawingShape') && drawn && isArrow(drawn) && bindArrowsRef.current) {
+        hint = bindingHintAt(arrowEndsAttached(drawn, shapes), drawn.points.length - 1, shapes);
+      }
+
       if (snap.matches('erasing')) {
         // Test the span the pointer just swept, not where it landed: between
         // two events the cursor can jump clean over a shape.
@@ -2219,6 +2311,10 @@ export function Editor({ boardId }: EditorProps) {
 
         const moved = withHandlePointMoved(vertexOrigin, vertexGrab.index, x, y);
         const geometry = { x: moved.x, y: moved.y, points: moved.points };
+        if (isArrow(moved) && bindArrowsRef.current) {
+          const index = vertexGrab.index;
+          hint = bindingHintAt(reattachArrowEnd(moved, index, shapes), index, shapes);
+        }
 
         // The attachment is let go on the first move rather than on the press,
         // so that clicking an end without moving it leaves the arrow attached
@@ -2287,9 +2383,13 @@ export function Editor({ boardId }: EditorProps) {
           }
         }
       }
+
+      showBindingHint(hint);
     },
     // The unlocked shapes, the index and the zoom feed the eraser hit-test;
     // omitting them freezes this callback on the first render's empty document.
+    // The whole board feeds the arrow-end hint, which looks for what the end is
+    // over by the rules release follows.
     [
       actorRef,
       activeTool,
@@ -2297,6 +2397,7 @@ export function Editor({ boardId }: EditorProps) {
       isPlacingComment,
       followComment,
       doc,
+      shapes,
       pickableShapes,
       spatialIndex,
       camera.zoom,
@@ -2304,6 +2405,7 @@ export function Editor({ boardId }: EditorProps) {
       preferences.values.snapToMidpoints,
       snapForPointer,
       showSnapGuides,
+      showBindingHint,
     ],
   );
 
@@ -2424,8 +2526,9 @@ export function Editor({ boardId }: EditorProps) {
       if (draggedVertex && vertexOriginRef.current && bindArrowsRef.current) {
         const current = doc.getShapes();
         const dragged = current.find((s) => s.id === vertexOriginRef.current!.id);
+        const index = snap.context.vertexGrab?.index ?? -1;
         if (dragged && isArrow(dragged)) {
-          const rebound = reattachArrowEnds(dragged, current);
+          const rebound = reattachArrowEnd(dragged, index, current);
           doc.updateShape(dragged.id, {
             startBinding: rebound.startBinding,
             endBinding: rebound.endBinding,
@@ -2485,6 +2588,7 @@ export function Editor({ boardId }: EditorProps) {
       snapTargetsRef.current = NO_SNAP_TARGETS;
       boundArrowsRef.current = EMPTY_IDS;
       showSnapGuides(EMPTY_GUIDES);
+      showBindingHint(null);
 
       // Break the undo group so the next drag/resize is a separate undo step
       if (wasInteracting) {
@@ -2504,6 +2608,7 @@ export function Editor({ boardId }: EditorProps) {
       camera.zoom,
       doc,
       showSnapGuides,
+      showBindingHint,
     ],
   );
 
@@ -3991,6 +4096,7 @@ export function Editor({ boardId }: EditorProps) {
                   showGrid={preferences.values.showGrid}
                   searchHighlights={search.highlights}
                   snapGuides={snapGuides}
+                  bindingHint={bindingHint}
                   hoveredHandleId={hoveredHandleId}
                   lockedIds={lockedIds}
                   lockHighlightIds={padlock ? padlock.ids : undefined}

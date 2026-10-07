@@ -98,7 +98,7 @@ export interface ContextMenuItemMeta {
    * assistive technology through `aria-keyshortcuts`.
    */
   readonly shortcut?: string;
-  /** Held to confirm, rather than run on a click. */
+  /** Discards work, so it is drawn in red. It still runs on a plain click. */
   readonly destructive?: boolean;
   /** Switches a setting, showing a box that says whether it is on. */
   readonly toggle?: boolean;
