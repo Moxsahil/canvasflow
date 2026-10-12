@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
+  can,
   createWorkspaceInvite,
   getProfile,
   isInvitableRole,
@@ -34,7 +35,7 @@ import { AccountThrottlerGuard } from '../auth/account-throttler.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { type AuthenticatedUser, JwtAuthGuard } from '../auth/jwt.guard.js';
 import { EmailService } from '../email/email.service.js';
-import { canInvite, describeCreateRefusal } from './invite-rules.js';
+import { describeCreateRefusal } from './invite-rules.js';
 import { WorkspaceEventsService } from './workspace-events.service.js';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -201,7 +202,7 @@ export class WorkspaceInvitesController {
   private async authorize(workspaceId: string, user: AuthenticatedUser): Promise<void> {
     const role = await workspaceRoleOf(this.database.db, user.id, workspaceId);
     if (!role) throw new NotFoundException('Workspace not found');
-    if (!canInvite(role)) {
+    if (!can(role, 'invite')) {
       throw new ForbiddenException('Only the owner or an admin can invite people.');
     }
   }

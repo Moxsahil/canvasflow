@@ -38,24 +38,10 @@ export interface WorkspaceSummary {
 }
 
 /**
- * Who may rename a workspace: the people who administer it.
- *
- * A lower bar than deleting, deliberately — a name is something a team fixes
- * together, and getting it wrong is undone by typing the old one back.
+ * What each role may do: the one table, kept in `@canvasflow/types` so the
+ * editor reads the same rules the routes enforce.
  */
-export function canRenameWorkspace(role: WorkspaceRole): boolean {
-  return role === 'owner' || role === 'admin';
-}
-
-/**
- * Who may delete a workspace: only an owner.
- *
- * It takes every board in the workspace down with it, which is more than an
- * admin should be able to do to everyone else's work on their own.
- */
-export function canDeleteWorkspace(role: WorkspaceRole): boolean {
-  return role === 'owner';
-}
+export { can, canManageMember, type WorkspaceCapability } from '@canvasflow/types';
 
 export interface BoardSummary {
   id: string;

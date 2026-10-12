@@ -5,10 +5,11 @@ import { parseEnv } from '../../config/env.js';
 /**
  * Must match `services/sync-server/src/security/internal-auth.ts`, as the web
  * app's copy in `apps/web/src/lib/sync/internal.ts` does: the header, and the
- * purpose string that keeps this value good for this one route.
+ * purpose strings that keep each value good for its one route.
  */
 const INTERNAL_AUTH_HEADER = 'x-canvasflow-internal';
 const WORKSPACE_CHANGED_PURPOSE = 'canvasflow:internal:workspace-changed:v1';
+const BOARD_ACCESS_PURPOSE = 'canvasflow:internal:board-access:v1';
 
 /** The sync-server's internal port when both run on one machine. */
 const DEV_SYNC_INTERNAL_URL = 'http://localhost:4001';
@@ -32,27 +33,45 @@ export class WorkspaceEventsService {
   private readonly baseUrl =
     this.env.SYNC_INTERNAL_URL ??
     (this.env.NODE_ENV === 'production' ? null : DEV_SYNC_INTERNAL_URL);
-  private readonly token = createHmac('sha256', this.env.AUTH_SECRET)
-    .update(WORKSPACE_CHANGED_PURPOSE)
-    .digest('hex');
+  private readonly token = this.internalToken(WORKSPACE_CHANGED_PURPOSE);
+  private readonly boardAccessToken = this.internalToken(BOARD_ACCESS_PURPOSE);
 
   /** `alsoTell`: people to reach who are not members, such as somebody who has just joined. */
   changed(workspaceId: string, alsoTell: readonly string[] = []): void {
     void this.send(workspaceId, alsoTell);
   }
 
+  /**
+   * Have the sync-server re-check one person on these boards now, rather than
+   * at its next sweep — what makes somebody removed from a workspace lose the
+   * board in front of them within a second. Boards they do not have open cost
+   * the sync-server a lookup and nothing else.
+   */
+  boardAccessChanged(boardIds: readonly string[], userId: string): void {
+    for (const boardId of boardIds)
+      void this.post('/internal/board-access', this.boardAccessToken, { boardId, userId });
+  }
+
+  private internalToken(purpose: string): string {
+    return createHmac('sha256', this.env.AUTH_SECRET).update(purpose).digest('hex');
+  }
+
   private async send(workspaceId: string, alsoTell: readonly string[]): Promise<void> {
+    await this.post('/internal/workspace-changed', this.token, { workspaceId, userIds: alsoTell });
+  }
+
+  private async post(path: string, token: string, body: unknown): Promise<void> {
     if (!this.baseUrl) return;
     try {
-      const res = await fetch(new URL('/internal/workspace-changed', this.baseUrl), {
+      const res = await fetch(new URL(path, this.baseUrl), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', [INTERNAL_AUTH_HEADER]: this.token },
-        body: JSON.stringify({ workspaceId, userIds: alsoTell }),
+        headers: { 'Content-Type': 'application/json', [INTERNAL_AUTH_HEADER]: token },
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
-      if (!res.ok) this.logger.warn(`sync-server answered ${res.status} to a workspace change`);
+      if (!res.ok) this.logger.warn(`sync-server answered ${res.status} to ${path}`);
     } catch (error) {
-      this.logger.warn(`Could not tell the sync-server about a workspace change: ${String(error)}`);
+      this.logger.warn(`Could not reach the sync-server's ${path}: ${String(error)}`);
     }
   }
 }

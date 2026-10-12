@@ -105,6 +105,7 @@ const ROW_ICONS: Record<string, LucideIcon> = {
   'sign-out-everywhere': LogOut,
   'workspace-name': Building2,
   role: Crown,
+  'ownership-offer': Crown,
   members: Users,
   'board-access': Globe,
   'leave-workspace': LogOut,
@@ -837,6 +838,7 @@ export function SettingsModal({
   onSubmit,
   actions,
   width = 440,
+  layerRef,
   children,
 }: {
   title: string;
@@ -846,6 +848,11 @@ export function SettingsModal({
   onSubmit?: () => void;
   actions: ReactNode;
   width?: number;
+  /**
+   * Handed the dialog's backdrop, for a menu inside to portal into: it carries
+   * the palette and the theme, which a menu sent to <body> would lose.
+   */
+  layerRef?: (element: HTMLElement | null) => void;
   children?: ReactNode;
 }) {
   const frame = useSettingsFrame();
@@ -888,8 +895,11 @@ export function SettingsModal({
       initial="hidden"
       animate="shown"
       exit="gone"
-      // It is outside the Settings window's element, so it brings the palette.
+      ref={layerRef}
+      // It is outside the Settings window's element, so it brings the palette,
+      // and the theme the menu look takes its dark form from.
       style={frame?.surface}
+      data-theme={frame?.theme}
       className="fixed inset-0 z-[1010] flex items-center justify-center bg-[var(--surface-backdrop)] p-6 backdrop-blur-[2px]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();

@@ -127,6 +127,7 @@ export function SettingsDialog({
   const frame = useMemo(
     () => ({
       surface,
+      theme,
       holdModal(opener: HTMLElement | null) {
         modalsRef.current += 1;
         setModals(modalsRef.current);
@@ -156,7 +157,7 @@ export function SettingsDialog({
         };
       },
     }),
-    [surface],
+    [surface, theme],
   );
 
   // While a dialog is up the window behind it is out of reach, to the keyboard

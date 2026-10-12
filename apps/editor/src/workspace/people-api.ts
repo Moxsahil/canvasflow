@@ -71,6 +71,14 @@ export interface WorkspacePeople {
   guests: WorkspaceGuest[];
   /** Newest first. Only the owner and admins are told; empty for everyone else. */
   invites: WorkspaceInvite[];
+  /** The owner's offer of the ownership, while it waits for an answer. */
+  ownershipOffer: OwnershipOffer | null;
+}
+
+export interface OwnershipOffer {
+  toUserId: string;
+  /** ISO-8601. */
+  offeredAt: string;
 }
 
 /** An invitation just sent, and whether its email went. */
@@ -81,11 +89,11 @@ export interface SentInvite {
 }
 
 /**
- * A refusal from an invitation route, with the gateway's code when it sent
- * one — `already-invited`, `email-not-verified` — for a caller that does more
- * than show the sentence.
+ * A refusal from a workspace route, with the gateway's code when it sent one —
+ * `already-invited`, `email-not-verified`, `owner-must-hand-over` — for a
+ * caller that does more than show the sentence.
  */
-export class InviteError extends Error {
+export class WorkspaceRequestError extends Error {
   constructor(
     message: string,
     readonly code: string | null,
@@ -103,12 +111,12 @@ async function failureMessage(res: Response): Promise<string> {
 }
 
 /** Why a request failed, in words, with the gateway's code when it gave one. */
-async function failure(res: Response, aboutOneInvite = false): Promise<InviteError> {
+async function failure(res: Response): Promise<WorkspaceRequestError> {
   if (res.status === 401) {
-    return new InviteError('Your session expired. Reload the board and try again.', null);
+    return new WorkspaceRequestError('Your session expired. Reload the board and try again.', null);
   }
   if (res.status === 429) {
-    return new InviteError('Too many tries at once. Wait a moment and try again.', null);
+    return new WorkspaceRequestError('Too many tries at once. Wait a moment and try again.', null);
   }
   let body: { message?: unknown; code?: unknown } = {};
   try {
@@ -118,18 +126,17 @@ async function failure(res: Response, aboutOneInvite = false): Promise<InviteErr
   }
   const code = typeof body.code === 'string' ? body.code : null;
   // Not a member — or no longer one, or the workspace is gone. The gateway
-  // does not say which, on purpose. A route about one invitation says what
-  // 404 means there instead.
-  if (res.status === 404) {
-    return new InviteError(
-      aboutOneInvite && typeof body.message === 'string'
-        ? body.message
-        : 'That workspace is no longer available to you.',
-      code,
-    );
+  // does not say which, on purpose. A route about one invitation or one
+  // person says what 404 means there instead.
+  if (
+    res.status === 404 &&
+    (typeof body.message !== 'string' || body.message === 'Workspace not found')
+  ) {
+    return new WorkspaceRequestError('That workspace is no longer available to you.', code);
   }
-  if (typeof body.message === 'string' && body.message) return new InviteError(body.message, code);
-  return new InviteError(`Something went wrong (${res.status}).`, code);
+  if (typeof body.message === 'string' && body.message)
+    return new WorkspaceRequestError(body.message, code);
+  return new WorkspaceRequestError(`Something went wrong (${res.status}).`, code);
 }
 
 /** Everyone in the workspace, and everyone else on its boards. */
@@ -147,7 +154,7 @@ function invitesUrl(workspaceId: string, path = ''): URL {
   return new URL(`/workspaces/${workspaceId}/invites${path}`, env.VITE_API_URL);
 }
 
-/** Invite an address into the workspace. Rejects with an `InviteError`. */
+/** Invite an address into the workspace. Rejects with an `WorkspaceRequestError`. */
 export async function inviteToWorkspace(
   workspaceId: string,
   email: string,
@@ -170,7 +177,7 @@ export async function resendInvite(workspaceId: string, inviteId: string): Promi
     method: 'POST',
     credentials: 'include',
   });
-  if (!res.ok) throw await failure(res, true);
+  if (!res.ok) throw await failure(res);
   const body = (await res.json()) as { data: SentInvite };
   return body.data;
 }
@@ -181,5 +188,84 @@ export async function revokeInvite(workspaceId: string, inviteId: string): Promi
     method: 'DELETE',
     credentials: 'include',
   });
-  if (!res.ok) throw await failure(res, true);
+  if (!res.ok) throw await failure(res);
+}
+
+function workspaceUrl(workspaceId: string, path: string): URL {
+  return new URL(`/workspaces/${workspaceId}${path}`, env.VITE_API_URL);
+}
+
+/** A change with nothing to read back; rejects with a `WorkspaceRequestError`. */
+async function send(
+  url: URL,
+  method: 'POST' | 'PATCH' | 'DELETE',
+  body?: unknown,
+): Promise<Response> {
+  const res = await fetch(url, {
+    method,
+    credentials: 'include',
+    ...(body === undefined
+      ? {}
+      : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  });
+  if (!res.ok) throw await failure(res);
+  return res;
+}
+
+/** Make someone a member or an admin. */
+export async function changeMemberRole(
+  workspaceId: string,
+  userId: string,
+  role: InvitableRole,
+): Promise<void> {
+  await send(workspaceUrl(workspaceId, `/members/${userId}`), 'PATCH', { role });
+}
+
+/** What leaving or removing someone did with the boards they owned. */
+export interface Departure {
+  boardsPassed: number;
+}
+
+/** Take someone out of the workspace. */
+export async function removeMember(workspaceId: string, userId: string): Promise<Departure> {
+  const res = await send(workspaceUrl(workspaceId, `/members/${userId}`), 'DELETE');
+  return ((await res.json()) as { data: Departure }).data;
+}
+
+/** Leave the workspace. Refused for the owner, who hands it over first. */
+export async function leaveWorkspace(workspaceId: string): Promise<Departure> {
+  const res = await send(workspaceUrl(workspaceId, '/leave'), 'POST');
+  return ((await res.json()) as { data: Departure }).data;
+}
+
+/** Offer the ownership to another member. */
+export async function offerOwnership(workspaceId: string, userId: string): Promise<void> {
+  await send(workspaceUrl(workspaceId, '/ownership-offer'), 'POST', { userId });
+}
+
+/** Take the offer back, or — for the person offered it — turn it down. */
+export async function withdrawOwnershipOffer(workspaceId: string): Promise<void> {
+  await send(workspaceUrl(workspaceId, '/ownership-offer'), 'DELETE');
+}
+
+/** Accept the ownership one was offered. */
+export async function acceptOwnership(workspaceId: string): Promise<void> {
+  await send(workspaceUrl(workspaceId, '/ownership-offer/accept'), 'POST');
+}
+
+/** What a guest may do on a board. */
+export type GuestRole = 'editor' | 'viewer';
+
+/** Set what a guest may do on every board of the workspace they are on. */
+export async function setGuestRole(
+  workspaceId: string,
+  userId: string,
+  role: GuestRole,
+): Promise<void> {
+  await send(workspaceUrl(workspaceId, `/guests/${userId}`), 'PATCH', { role });
+}
+
+/** Take a guest off every board of the workspace they are on. */
+export async function removeGuest(workspaceId: string, userId: string): Promise<void> {
+  await send(workspaceUrl(workspaceId, `/guests/${userId}`), 'DELETE');
 }

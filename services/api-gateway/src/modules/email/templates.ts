@@ -500,3 +500,52 @@ export function workspaceInviteEmail(content: WorkspaceInviteContent): RenderedE
     ].join('\n'),
   };
 }
+
+export interface OwnershipOfferContent {
+  /** Where they go to answer: the app, where Settings → Workspace has the offer. */
+  openUrl: string;
+  ownerName: string;
+  workspaceName: string;
+}
+
+/**
+ * To a member the owner has offered the workspace's ownership to. Nothing has
+ * changed hands yet — it waits for their answer, in the app — so this only
+ * says what is being asked and where to answer it.
+ */
+export function ownershipOfferEmail(content: OwnershipOfferContent): RenderedEmail {
+  const owner = content.ownerName.trim() || 'The owner';
+  const ask = (who: string, where: string) =>
+    `${who} would like to make you the owner of ${where} on CanvasFlow. You'd have full control of it, including deleting it, and they would become an admin.`;
+  const how = 'Nothing changes until you accept. Answer from Settings → Workspace.';
+  const ignore = "If you'd rather not, turn it down there, or ignore this email.";
+
+  return {
+    subject: `${owner} wants to make you the owner of ${content.workspaceName}`.replace(
+      /[\p{Cc}\p{Cf}]+/gu,
+      ' ',
+    ),
+    html: layout(
+      'Become the owner?',
+      paragraph(
+        ask(
+          `<strong>${escapeHtml(owner)}</strong>`,
+          `<strong>${escapeHtml(content.workspaceName)}</strong>`,
+        ),
+      ) +
+        paragraph(escapeHtml(how)) +
+        button(content.openUrl, 'Open CanvasFlow') +
+        footnote(escapeHtml(ignore)),
+    ),
+    text: [
+      'Become the owner?',
+      '',
+      ask(owner, content.workspaceName),
+      '',
+      how,
+      content.openUrl,
+      '',
+      ignore,
+    ].join('\n'),
+  };
+}

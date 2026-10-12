@@ -79,6 +79,8 @@ export const USER_REFERENCE_FATES = {
   // sent are kept once answered, and deleted while still open.
   'workspace_invites.accepted_by': 'deleted',
   'workspace_invites.invited_by': 'kept',
+  // An offer of a workspace's ownership to them is withdrawn.
+  'workspace.ownership_offered_to': 'unlinked',
 } as const;
 
 /** The account row's columns that erasure leaves as they are. None of them says who anybody was. */
@@ -524,6 +526,11 @@ export async function purgeAccount(
           ),
         );
     }
+
+    await tx
+      .update(workspaces)
+      .set({ ownershipOfferedTo: null, ownershipOfferedAt: null })
+      .where(eq(workspaces.ownershipOfferedTo, userId));
 
     await tx.update(auditLog).set({ actorId: null }).where(eq(auditLog.actorId, userId));
 

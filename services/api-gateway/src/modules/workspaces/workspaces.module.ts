@@ -3,6 +3,7 @@ import { AvatarsModule } from '../avatars/avatars.module.js';
 import { EmailModule } from '../email/email.module.js';
 import { WorkspaceEventsService } from './workspace-events.service.js';
 import { WorkspaceInvitesController } from './workspace-invites.controller.js';
+import { WorkspaceMembersController } from './workspace-members.controller.js';
 import { WorkspacePeopleController } from './workspace-people.controller.js';
 
 /**
@@ -12,7 +13,7 @@ import { WorkspacePeopleController } from './workspace-people.controller.js';
  */
 @Module({
   imports: [AvatarsModule, EmailModule],
-  controllers: [WorkspacePeopleController, WorkspaceInvitesController],
+  controllers: [WorkspacePeopleController, WorkspaceInvitesController, WorkspaceMembersController],
   providers: [WorkspaceEventsService],
 })
 export class WorkspacesModule {}

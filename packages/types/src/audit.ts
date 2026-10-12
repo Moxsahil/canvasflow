@@ -9,6 +9,18 @@ export type AuditAction =
   | 'workspace.invite.revoked'
   /** Somebody joined the workspace by accepting an email invitation. */
   | 'workspace.member.joined'
+  /** Somebody left the workspace of their own accord. */
+  | 'workspace.member.left'
+  /** The owner offered the ownership to another member. */
+  | 'workspace.ownership.offered'
+  /** An ownership offer was taken back by the owner or turned down by the person offered it. */
+  | 'workspace.ownership.offer_withdrawn'
+  /** The person offered the ownership accepted it; the previous owner became an admin. */
+  | 'workspace.ownership.transferred'
+  /** What a guest may do on the workspace's boards was changed from the workspace's member list. */
+  | 'workspace.guest.role.changed'
+  /** A guest was taken off every board of the workspace they were on. */
+  | 'workspace.guest.removed'
   | 'workspace.member.role.changed'
   | 'workspace.member.removed'
   | 'board.created'
