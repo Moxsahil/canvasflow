@@ -40,6 +40,12 @@ primary_region = "sin"
   # character, which is why it is configured rather than read from the Host
   # header a caller writes.
   API_PUBLIC_URL = "https://api.canvasflowapp.com"
+  # The sync-server's internal routes, so a workspace change made here (an
+  # invitation sent or taken back) reaches the open editors at once, as the
+  # web app's changes do. The same address the web app's SYNC_INTERNAL_URL
+  # holds: the HTTP side of the sync host, on 8443. Not a secret — the calls
+  # carry their own credential, derived from AUTH_SECRET.
+  SYNC_INTERNAL_URL = "https://sync.canvasflowapp.com:8443"
 
 [http_service]
   internal_port = 3001

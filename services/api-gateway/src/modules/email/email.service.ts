@@ -9,6 +9,7 @@ import {
   passwordSetupEmail,
   providerNoticeEmail,
   verificationEmail,
+  workspaceInviteEmail,
   type AccountClaimedContent,
   type AccountDeletionContent,
   type PasswordChangedContent,
@@ -16,6 +17,7 @@ import {
   type PasswordSetupContent,
   type ProviderNoticeContent,
   type RenderedEmail,
+  type WorkspaceInviteContent,
 } from './templates.js';
 
 export interface VerificationMessage {
@@ -129,6 +131,22 @@ export class EmailService {
       recipient.to,
       accountDeletionEmail(content),
       `Account deletion email for user ${recipient.userId}`,
+    );
+  }
+
+  /**
+   * An invitation to join a workspace. Addressed to somebody who may have no
+   * account, so it is logged by the invitation's id rather than by a user's;
+   * the link is a working credential and is never logged.
+   */
+  async sendWorkspaceInvite(
+    recipient: { to: string; inviteId: string },
+    content: WorkspaceInviteContent,
+  ): Promise<boolean> {
+    return this.deliver(
+      recipient.to,
+      workspaceInviteEmail(content),
+      `Workspace invitation ${recipient.inviteId}`,
     );
   }
 

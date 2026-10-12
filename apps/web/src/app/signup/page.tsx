@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   AuthShell,
   AuthDivider,
@@ -14,10 +15,16 @@ import { NewPasswordField } from '@/components/auth/new-password-field';
 import { TermsAgreement } from '@/components/legal/terms-agreement';
 import { signup } from '@/features/auth/api/signup';
 import { oauthStartUrl, signInWithPassword } from '@/features/auth/api/signin';
+import { safeRedirect } from '@/lib/safe-redirect';
 
-export default function SignupPage() {
+function SignupForm() {
+  const searchParams = useSearchParams();
+  // Where to go once the account exists. Usually the way into the app; an
+  // invitation sends people here with its own page as `next`, and the address
+  // it was sent to filled in, since only that address can accept it.
+  const next = safeRedirect(searchParams.get('next'), '/open');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => searchParams.get('email') ?? '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +61,7 @@ export default function SignupPage() {
     if (signedIn.ok) {
       // A full navigation, not the router: /open answers with a redirect to the
       // editor on another origin, which a client-side navigation cannot follow.
-      window.location.href = '/open';
+      window.location.href = next;
       return;
     }
 
@@ -72,7 +79,12 @@ export default function SignupPage() {
       footer={
         <>
           Already have an account?{' '}
-          <Link href="/login" className={authStyles.link}>
+          <Link
+            href={
+              next === '/open' ? '/login' : `/login?${new URLSearchParams({ next }).toString()}`
+            }
+            className={authStyles.link}
+          >
             Sign in
           </Link>
         </>
@@ -86,7 +98,7 @@ export default function SignupPage() {
           aria-label="Continue with Google"
           className={authStyles.provider}
           onClick={() => {
-            window.location.href = oauthStartUrl('google', '/open');
+            window.location.href = oauthStartUrl('google', next);
           }}
         >
           <GoogleMark />
@@ -97,7 +109,7 @@ export default function SignupPage() {
           aria-label="Continue with GitHub"
           className={authStyles.provider}
           onClick={() => {
-            window.location.href = oauthStartUrl('github', '/open');
+            window.location.href = oauthStartUrl('github', next);
           }}
         >
           <GitHubMark />
@@ -152,5 +164,13 @@ export default function SignupPage() {
       {/* Below the form rather than inside it: it covers the provider buttons too. */}
       <TermsAgreement className={authStyles.agreement} linkClassName={authStyles.link} />
     </AuthShell>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense>
+      <SignupForm />
+    </Suspense>
   );
 }

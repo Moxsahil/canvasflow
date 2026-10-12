@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AvatarsModule } from '../avatars/avatars.module.js';
+import { EmailModule } from '../email/email.module.js';
+import { WorkspaceEventsService } from './workspace-events.service.js';
+import { WorkspaceInvitesController } from './workspace-invites.controller.js';
 import { WorkspacePeopleController } from './workspace-people.controller.js';
 
 /**
@@ -8,7 +11,8 @@ import { WorkspacePeopleController } from './workspace-people.controller.js';
  * web app's, which the editor's board switcher reads.
  */
 @Module({
-  imports: [AvatarsModule],
-  controllers: [WorkspacePeopleController],
+  imports: [AvatarsModule, EmailModule],
+  controllers: [WorkspacePeopleController, WorkspaceInvitesController],
+  providers: [WorkspaceEventsService],
 })
 export class WorkspacesModule {}

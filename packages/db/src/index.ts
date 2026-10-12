@@ -18,3 +18,4 @@ export * from './access/account-deletion.js';
 export * from './access/account-purge.js';
 export * from './access/account-restore.js';
 export * from './access/library.js';
+export * from './access/workspace-invites.js';

@@ -433,3 +433,70 @@ export function accountDeletionEmail(content: AccountDeletionContent): RenderedE
     ].join('\n'),
   };
 }
+
+export interface WorkspaceInviteContent {
+  joinUrl: string;
+  expiresAt: Date;
+  /** Whoever sent it, as their account names them. */
+  inviterName: string;
+  workspaceName: string;
+  role: 'admin' | 'member';
+}
+
+/** "7 days", "1 day" — an invitation lives a week, so minutes would read oddly. */
+export function daysUntil(expiresAt: Date, now = Date.now()): string {
+  const days = Math.max(1, Math.round((expiresAt.getTime() - now) / 86_400_000));
+  return days === 1 ? '1 day' : `${days} days`;
+}
+
+/**
+ * An invitation to join a workspace, to an address that may or may not have
+ * an account yet. Worded for both: the page the button opens asks them to sign
+ * in or to sign up, whichever they need.
+ *
+ * The names in it were typed by other people, so they are escaped like any
+ * other outside value — and kept out of the subject's markup entirely, where
+ * a mail client shows them as plain text anyway.
+ */
+export function workspaceInviteEmail(content: WorkspaceInviteContent): RenderedEmail {
+  const days = daysUntil(content.expiresAt);
+  const inviter = content.inviterName.trim() || 'Someone';
+  const as = content.role === 'admin' ? ' as an admin' : '';
+  const intro = (who: string, where: string) =>
+    `${who} invited you to join ${where}${as} on CanvasFlow, to draw and plan together on its boards.`;
+  const expiry = `The invitation works for ${days}, once, and only for this email address.`;
+  const ignore =
+    "If you weren't expecting this, you can ignore it. Nothing happens unless the link is used.";
+
+  return {
+    // One line whatever was typed into either name: a subject is a header.
+    subject: `${inviter} invited you to ${content.workspaceName} on CanvasFlow`.replace(
+      /[\p{Cc}\p{Cf}]+/gu,
+      ' ',
+    ),
+    html: layout(
+      `Join ${escapeHtml(content.workspaceName)}`,
+      paragraph(
+        intro(
+          `<strong>${escapeHtml(inviter)}</strong>`,
+          `<strong>${escapeHtml(content.workspaceName)}</strong>`,
+        ),
+      ) +
+        button(content.joinUrl, 'Accept invitation') +
+        paragraph(escapeHtml(expiry)) +
+        footnote(escapeHtml(ignore)),
+    ),
+    text: [
+      `Join ${content.workspaceName}`,
+      '',
+      intro(inviter, content.workspaceName),
+      '',
+      'Accept the invitation:',
+      content.joinUrl,
+      '',
+      expiry,
+      '',
+      ignore,
+    ].join('\n'),
+  };
+}

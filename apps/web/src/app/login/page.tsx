@@ -82,7 +82,9 @@ function LoginForm() {
       footer={
         <>
           Don&apos;t have an account?{' '}
-          <Link href="/signup" className={authStyles.link}>
+          {/* Carries `next`, so somebody sent here from an invitation who
+              turns out to need an account still ends up back at it. */}
+          <Link href={withNext('/signup', next)} className={authStyles.link}>
             Sign up
           </Link>
         </>
@@ -174,6 +176,11 @@ function LoginForm() {
       <TermsAgreement className={authStyles.agreement} linkClassName={authStyles.link} />
     </AuthShell>
   );
+}
+
+/** A page between the sign-in and sign-up forms, keeping where to go afterwards. */
+function withNext(path: string, next: string): string {
+  return next === '/open' ? path : `${path}?${new URLSearchParams({ next }).toString()}`;
 }
 
 export default function LoginPage() {

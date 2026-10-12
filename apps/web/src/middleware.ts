@@ -47,7 +47,11 @@ export default async function middleware(req: NextRequest) {
     // Share links must open for people who have no account at all — that is
     // the whole point of a guest invite. The page itself grants nothing; it
     // only reads the link, and every path off it re-validates the token.
-    req.nextUrl.pathname.startsWith('/invite/');
+    req.nextUrl.pathname.startsWith('/invite/') ||
+    // Workspace invitations go to people who may not have an account yet, and
+    // the page grants nothing either: joining is a button, for the invited
+    // address only.
+    req.nextUrl.pathname.startsWith('/join/');
 
   if (isPublic) return NextResponse.next();
 

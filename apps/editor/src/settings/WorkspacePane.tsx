@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { WorkspaceRole, WorkspaceSummary } from '../workspace/workspace-api';
 import { useWorkspacePeople } from '../workspace/useWorkspacePeople';
+import { announceWorkspaceChanged } from '../workspace/workspace-events';
 import { MembersDialog, ROLE_LABELS } from './WorkspaceDialogs';
 import {
   Band,
@@ -24,20 +25,24 @@ export type WorkspaceSettingsSource =
 
 const ROLE_HINTS: Record<WorkspaceRole, string> = {
   owner: 'Full control, including deleting the workspace',
-  admin: 'Can rename the workspace',
+  admin: 'Can rename the workspace and invite people',
   member: 'Can open, make and edit its boards',
 };
 
-/** The people who may rename it. The server holds the same rule and is what decides. */
-function canRename(role: WorkspaceRole): boolean {
+/**
+ * The people who run it: who may rename it and invite people into it. The
+ * server holds the same rule and is what decides.
+ */
+function runsWorkspace(role: WorkspaceRole): boolean {
   return role === 'owner' || role === 'admin';
 }
 
-/** "Just you", "3 members", and the guests after them when there are any. */
-function peopleCount(members: number, guests: number): string {
-  const inside = members === 1 ? 'Just you' : `${members} members`;
-  if (guests === 0) return inside;
-  return `${inside} · ${guests === 1 ? '1 guest' : `${guests} guests`}`;
+/** "Just you", "3 members", and the invitations and guests after them when there are any. */
+function peopleCount(members: number, invited: number, guests: number): string {
+  const parts = [members === 1 ? 'Just you' : `${members} members`];
+  if (invited > 0) parts.push(`${invited} invited`);
+  if (guests > 0) parts.push(guests === 1 ? '1 guest' : `${guests} guests`);
+  return parts.join(' · ');
 }
 
 interface WorkspacePaneProps {
@@ -94,6 +99,7 @@ function ReadyPane({
   const [showingMembers, setShowingMembers] = useState(false);
 
   const role = workspace?.role ?? null;
+  const canInvite = role !== null && runsWorkspace(role);
 
   const save = async (next: string) => {
     if (!workspace || !onRename) return false;
@@ -113,7 +119,11 @@ function ReadyPane({
 
   const membersHint =
     people.status === 'ready'
-      ? peopleCount(people.members.length, people.guests.length)
+      ? peopleCount(
+          people.members.length,
+          canInvite ? (people.invites ?? []).length : 0,
+          people.guests.length,
+        )
       : people.status === 'error'
         ? people.error
         : 'Loading…';
@@ -128,15 +138,20 @@ function ReadyPane({
           <MembersDialog
             key="members"
             workspaceName={workspace.name}
+            workspaceId={workspace.id}
             people={people}
             userId={userId}
+            canInvite={canInvite}
+            // This window's own list re-reads at once; everyone else's hears it
+            // from the sync-server.
+            onChanged={() => announceWorkspaceChanged(workspace.id)}
             onClose={() => setShowingMembers(false)}
           />
         )
       }
     >
       <Band title="Workspace">
-        {workspace && role && canRename(role) ? (
+        {workspace && canInvite ? (
           <InlineTextField
             setting="workspace-name"
             label="Workspace name"
@@ -167,8 +182,9 @@ function ReadyPane({
           <SettingsButton
             disabled={people.status !== 'ready'}
             onClick={() => setShowingMembers(true)}
+            data-testid="workspace-members-open"
           >
-            View
+            {canInvite ? 'Manage' : 'View'}
           </SettingsButton>
         </SettingRow>
         <SettingRow

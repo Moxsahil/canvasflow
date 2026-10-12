@@ -87,6 +87,21 @@ const envSchema = z
       .optional()
       .or(z.literal('').transform(() => undefined)),
 
+    /**
+     * Where the sync-server's internal routes answer, so a change made here —
+     * somebody invited, an invitation taken back — reaches everyone in the
+     * workspace while their boards are open, as the web app's changes do.
+     *
+     * Optional: the editors also re-read when their window comes back into
+     * focus, so a gateway without it still works, only less promptly.
+     * Development falls back to the sync-server's local port.
+     */
+    SYNC_INTERNAL_URL: z
+      .string()
+      .url()
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
+
     // === Email delivery (Resend) ===
     // Optional like the storage group below: a checkout without a key still
     // serves every route, and a verification send reports that it did not go

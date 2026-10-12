@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { env } from '@/lib/env';
 import { clearGuestSession } from '@/lib/auth/guest-session';
+import { safeRedirect } from '@/lib/safe-redirect';
 
 /**
  * The one place a session ends, for both kinds of session this app issues.
@@ -36,9 +37,28 @@ export async function POST(request: NextRequest) {
   // and it has both — and leaving either behind leaves the person signed in.
   await clearGuestSession();
 
-  const response = NextResponse.redirect(new URL('/login', env.AUTH_URL), 303);
+  const response = NextResponse.redirect(await loginUrlAfter(request), 303);
   await endGatewaySession(request, response);
   return response;
+}
+
+/**
+ * The sign-in page, carrying on to `next` when the form named somewhere to go
+ * afterwards — the invitation page's "sign in with the invited address", which
+ * has to end this session and then come back. Checked like every other `next`,
+ * so the form cannot send anyone off-site.
+ */
+async function loginUrlAfter(request: NextRequest): Promise<URL> {
+  const login = new URL('/login', env.AUTH_URL);
+  const type = request.headers.get('content-type') ?? '';
+  if (!type.includes('form')) return login;
+  try {
+    const next = safeRedirect((await request.formData()).get('next')?.toString(), '');
+    if (next) login.searchParams.set('next', next);
+  } catch {
+    // An unreadable body is a plain sign-out.
+  }
+  return login;
 }
 
 /**
