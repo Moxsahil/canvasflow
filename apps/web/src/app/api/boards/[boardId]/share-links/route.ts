@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import {
-  canManageMembers,
+  canManageBoardSharing,
   createClient,
   createShareLink,
   listShareLinks,
@@ -18,11 +18,10 @@ import { requireVerified } from '@/lib/api/require-verified';
  * Called by the editor's share dialog, cross-origin with the user's session
  * cookie — the same arrangement as /api/editor-token.
  *
- * Only someone who can manage the board may mint or list links. Sharing is an
- * administrative act: it hands out standing access to a document, so it is
- * deliberately not something every editor on the board can do on the owner's
- * behalf. Loosen by swapping canManageMembers for canEdit if that proves too
- * strict in practice.
+ * Only the board's owner, or whoever runs its workspace, may mint or list
+ * links — see canManageBoardSharing. Sharing is an administrative act: it
+ * hands out standing access to a document, so it is deliberately not
+ * something every editor on the board can do on the owner's behalf.
  */
 
 const db = createClient(env.DATABASE_URL);
@@ -48,7 +47,7 @@ async function authorize(boardId: string) {
   // probeable for existence.
   if (!access) return { error: corsJson({ error: 'Board not found' }, { status: 404 }) };
 
-  if (!canManageMembers(access.role)) {
+  if (!(await canManageBoardSharing(db, session.user.id, access))) {
     return { error: corsJson({ error: 'Not allowed to share this board' }, { status: 403 }) };
   }
 

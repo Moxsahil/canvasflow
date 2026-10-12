@@ -17,6 +17,7 @@ import {
   type WorkspaceSummary,
 } from './workspace-api';
 import { mergeBoards } from './merge-boards';
+import { listSharedBoards, type SharedBoard } from './people-api';
 import { useWorkspaceChanges } from './workspace-events';
 
 /** One workspace's board list, as far as it has got. */
@@ -50,6 +51,13 @@ export interface RenameBoardTarget {
  */
 export type ManageTarget = { kind: 'workspaces' } | { kind: 'boards'; workspaceId: string };
 
+/**
+ * The sidebar's "Shared with you", listed in a workspace's place: the boards
+ * one was let onto by link, from workspaces one is not in. Not a workspace id,
+ * and never sent anywhere as one.
+ */
+export const SHARED_WITH_YOU = 'shared-with-you';
+
 export interface BoardSwitcherState {
   boardId: string;
   /** The board's title once it is known, and its id until then. */
@@ -71,6 +79,20 @@ export interface BoardSwitcherState {
    * board's own. Null lists the open board's workspace.
    */
   browsedWorkspaceId: string | null;
+  /**
+   * What the sidebar lists now: a workspace's id, or `SHARED_WITH_YOU`. The
+   * open board's own workspace unless another is being browsed — or, when the
+   * open board was shared from a workspace one is not in, the shared boards.
+   */
+  listedId: string | null;
+  /**
+   * The open board belongs to a workspace one is not in: one was let onto it
+   * by link. The sidebar then lists what has been shared rather than asking
+   * for a workspace it may not see.
+   */
+  openBoardIsShared: boolean;
+  /** Boards shared from other workspaces, newest first. Null until read. */
+  sharedBoards: SharedBoard[] | null;
   /** Lists another workspace's boards, fetching them the first time. Null goes home. */
   browseWorkspace: (workspaceId: string | null) => void;
   /** Fetches a workspace's boards without listing them, for the manage dialog. */
@@ -141,7 +163,20 @@ const remembered: {
   workspaces: WorkspaceSummary[] | null;
   available: boolean;
   boards: Record<string, WorkspaceBoards>;
-} = { workspaces: null, available: true, boards: {} };
+  shared: SharedBoard[] | null;
+} = { workspaces: null, available: true, boards: {}, shared: null };
+
+/** Read the shared boards, keeping them for the next board too. Never throws. */
+function readShared(apply: (boards: SharedBoard[]) => void): void {
+  listSharedBoards().then(
+    (boards) => {
+      remembered.shared = boards;
+      apply(boards);
+    },
+    // A failed read leaves what was there; the next change or focus retries.
+    () => {},
+  );
+}
 
 function rememberBoards(id: string, list: BoardSummary[]) {
   remembered.boards = { ...remembered.boards, [id]: { status: 'ready', boards: list } };
@@ -194,6 +229,14 @@ export function useBoardSwitcher({
     [tokenWorkspaceId, boardId, boards],
   );
   const [browsedWorkspaceId, setBrowsedWorkspaceId] = useState<string | null>(null);
+  const [sharedBoards, setSharedBoards] = useState<SharedBoard[] | null>(() => remembered.shared);
+  // Known once the list of one's own workspaces is: before that, a board's
+  // workspace is assumed to be one's own, which it nearly always is.
+  const openBoardIsShared =
+    workspaces !== null &&
+    workspaceId !== null &&
+    !workspaces.some((workspace) => workspace.id === workspaceId);
+  const home = openBoardIsShared ? SHARED_WITH_YOU : workspaceId;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Held here rather than in the switcher, because the sidebar's own "Rename
@@ -253,6 +296,10 @@ export function useBoardSwitcher({
       .then((list) => {
         remembered.workspaces = list;
         if (!cancelled) setWorkspaces(list);
+        // Only for an account: a guest's 401 above never gets here.
+        readShared((boards) => {
+          if (!cancelled) setSharedBoards(boards);
+        });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -271,10 +318,11 @@ export function useBoardSwitcher({
   }, []);
 
   // The board's own workspace: the sidebar lists it, and the board's title
-  // and colour come from it.
+  // and colour come from it. Not one somebody else let us onto: its list is
+  // theirs, and the shared list already says what this board is.
   useEffect(() => {
-    if (workspaceId) loadBoards(workspaceId);
-  }, [workspaceId, loadBoards]);
+    if (workspaceId && !openBoardIsShared) loadBoards(workspaceId);
+  }, [workspaceId, openBoardIsShared, loadBoards]);
 
   // Which re-read of each list is the latest, so an answer that arrives after
   // a newer one does not put the older state back.
@@ -292,6 +340,9 @@ export function useBoardSwitcher({
       .then((list) => {
         remembered.workspaces = list;
         setWorkspaces(list);
+        // Any change might be one to a board shared with us — let on, taken
+        // off, renamed — and the list is one small read.
+        readShared(setSharedBoards);
       })
       .catch(() => {});
 
@@ -323,6 +374,7 @@ export function useBoardSwitcher({
   useEffect(() => {
     if (
       browsedWorkspaceId &&
+      browsedWorkspaceId !== SHARED_WITH_YOU &&
       workspaces &&
       !workspaces.some((it) => it.id === browsedWorkspaceId)
     ) {
@@ -333,8 +385,11 @@ export function useBoardSwitcher({
   // The open board's own row, which is where the header's title and dot come
   // from. Its id stands in for the title until the list arrives.
   const current = useMemo(() => {
-    const entry = workspaceId ? boards[workspaceId] : undefined;
-    const board = entry?.status === 'ready' ? entry.boards.find((it) => it.id === boardId) : null;
+    const entry = workspaceId && !openBoardIsShared ? boards[workspaceId] : undefined;
+    const board =
+      (entry?.status === 'ready' ? entry.boards.find((it) => it.id === boardId) : null) ??
+      (openBoardIsShared ? sharedBoards?.find((it) => it.id === boardId) : null) ??
+      null;
     return {
       title: board?.title ?? boardId,
       color: board?.color ?? ('gray' as BoardColor),
@@ -350,17 +405,20 @@ export function useBoardSwitcher({
        */
       settled:
         (workspaces !== null || !available) &&
-        (!workspaceId || entry?.status === 'ready' || entry?.status === 'error'),
+        (openBoardIsShared
+          ? sharedBoards !== null
+          : !workspaceId || entry?.status === 'ready' || entry?.status === 'error'),
     };
-  }, [boards, workspaceId, boardId, workspaces, available]);
+  }, [boards, workspaceId, boardId, workspaces, available, openBoardIsShared, sharedBoards]);
 
   const browseWorkspace = useCallback(
     (id: string | null) => {
-      // The open board's own workspace is home, so browsing to it is going home.
-      setBrowsedWorkspaceId(id === workspaceId ? null : id);
-      if (id) loadBoards(id);
+      // The open board's own workspace is home, so browsing to it is going
+      // home — or the shared list, for a board one was let onto.
+      setBrowsedWorkspaceId(id === home ? null : id);
+      if (id && id !== SHARED_WITH_YOU) loadBoards(id);
     },
-    [loadBoards, workspaceId],
+    [loadBoards, home],
   );
 
   const boardsFor = useCallback((id: string) => boards[id], [boards]);
@@ -647,7 +705,11 @@ export function useBoardSwitcher({
       createWorkspace,
       renameBoard,
       renameTarget,
-      canRename: current.known || !current.settled,
+      // Not a board somebody else let us onto: renaming it is its owner's.
+      canRename: !openBoardIsShared && (current.known || !current.settled),
+      listedId: browsedWorkspaceId ?? home,
+      openBoardIsShared,
+      sharedBoards,
       beginRename,
       endRename,
       deleteBoard,
@@ -667,6 +729,9 @@ export function useBoardSwitcher({
       workspaces,
       available,
       browsedWorkspaceId,
+      home,
+      openBoardIsShared,
+      sharedBoards,
       browseWorkspace,
       loadBoards,
       boardsFor,

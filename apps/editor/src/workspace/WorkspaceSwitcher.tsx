@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Check, ChevronsUpDown, Plus, Settings2 } from 'lucide-react';
+import { Check, ChevronsUpDown, Plus, Settings2, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   identityDetailClasses,
@@ -9,7 +9,7 @@ import {
 import { MenuBadge, MenuRowEnd, menuButtonRowClasses } from '@/components/ui/menu-look';
 import { SidebarMenuItem } from '@/components/ui/sidebar';
 import { Workspaces, WorkspaceContent, WorkspaceTrigger } from '@/components/ui/workspaces';
-import type { BoardSwitcherState } from './useBoardSwitcher';
+import { SHARED_WITH_YOU, type BoardSwitcherState } from './useBoardSwitcher';
 
 interface WorkspaceSwitcherProps {
   state: BoardSwitcherState;
@@ -23,6 +23,33 @@ const noteClasses = 'px-2 py-1.5 text-xs text-neutral-500 dark:text-neutral-400'
 const errorClasses = 'text-red-500 dark:text-red-400';
 
 const boardCount = (count: number) => (count === 1 ? '1 board' : `${count} boards`);
+
+/** A row of the menu: one of one's workspaces, or the boards shared from others'. */
+interface Entry {
+  id: string;
+  name: string;
+  logoUrl?: string | null;
+  boardCount: number;
+  shared?: boolean;
+}
+
+/**
+ * The mark for "Shared with you": people rather than an initial, since it is
+ * not a workspace with a name but boards from other people's.
+ */
+function SharedBadge({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'flex aspect-square size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-sidebar-accent-foreground [&>svg]:size-4',
+        className,
+      )}
+    >
+      <Users />
+    </span>
+  );
+}
 
 /**
  * The workspace at the top of the sidebar, and the way to list another one.
@@ -52,8 +79,17 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
     [dismissError],
   );
 
-  const listedId = state.browsedWorkspaceId ?? state.workspaceId;
-  const listed = workspaces?.find((workspace) => workspace.id === listedId);
+  // One's own workspaces, and — once anything has been shared from someone
+  // else's, or the open board was — the boards shared with one, as a row of
+  // its own beside them.
+  const shared = state.sharedBoards?.length ?? 0;
+  const entries: Entry[] | null = workspaces && [
+    ...workspaces,
+    ...(state.openBoardIsShared || shared > 0
+      ? [{ id: SHARED_WITH_YOU, name: 'Shared with you', boardCount: shared, shared: true }]
+      : []),
+  ];
+  const listed = entries?.find((entry) => entry.id === state.listedId);
 
   if (!state.available) {
     return (
@@ -69,7 +105,7 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
 
   // Still loading, or the token hasn't said which workspace yet: the row keeps
   // its place so the list below doesn't jump when the name arrives.
-  if (!workspaces || !listed) {
+  if (!entries || !listed) {
     return (
       <SidebarMenuItem>
         <div className={cn(identityRowClasses, 'hover:bg-transparent')} aria-busy="true">
@@ -83,7 +119,7 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
   return (
     <SidebarMenuItem>
       <Workspaces
-        workspaces={workspaces}
+        workspaces={entries}
         selectedWorkspaceId={listed.id}
         open={open}
         onOpenChange={handleOpenChange}
@@ -98,7 +134,11 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
             <>
               {/* A circle, like the account at the foot: the header names who the
                   boards belong to rather than being another board. */}
-              <InitialBadge label={listed.name} src={listed.logoUrl} className="rounded-full" />
+              {listed.shared ? (
+                <SharedBadge />
+              ) : (
+                <InitialBadge label={listed.name} src={listed.logoUrl} className="rounded-full" />
+              )}
               <Lines primary={listed.name} secondary={boardCount(listed.boardCount)} />
               <ChevronsUpDown className={cn('ml-auto size-4 shrink-0', identityDetailClasses)} />
             </>
@@ -116,17 +156,21 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
           className="w-60 max-w-none"
           container={portalContainer}
           renderWorkspace={(workspace, selected) => {
-            const full = workspaces.find((it) => it.id === workspace.id);
+            const full = entries.find((it) => it.id === workspace.id);
             return (
               <>
                 {/* Each workspace wears the badge the header shows for it, so
                     the one picked reads as the same thing once it is up there. */}
                 <span className="flex min-w-0 items-center gap-2">
-                  <InitialBadge
-                    label={workspace.name}
-                    src={full?.logoUrl}
-                    className="size-5 rounded-full text-[10px]"
-                  />
+                  {full?.shared ? (
+                    <SharedBadge className="size-5 [&>svg]:size-3" />
+                  ) : (
+                    <InitialBadge
+                      label={workspace.name}
+                      src={full?.logoUrl}
+                      className="size-5 rounded-full text-[10px]"
+                    />
+                  )}
                   <span className="min-w-0 truncate">{workspace.name}</span>
                 </span>
                 {/* The tick's column is held open on every row, so the counts

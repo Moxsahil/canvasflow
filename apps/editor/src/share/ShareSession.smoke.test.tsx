@@ -91,6 +91,24 @@ describe('ShareSessionPanel', () => {
     expect(html).not.toContain('Add back');
   });
 
+  it('lists the workspace’s people too, with their workspace role and no menu', () => {
+    const html = render({
+      people: [
+        OWNER,
+        JONAH,
+        { ...JONAH, id: 'u5', name: 'Ines Invited', workspaceRole: 'member' },
+        { ...JONAH, id: 'u6', name: 'Ada Admin', workspaceRole: 'admin' },
+      ],
+    });
+    expect(html).toContain('Ines Invited');
+    expect(html).toContain('data-testid="share-workspace-u5"');
+    expect(html).toContain('Workspace member');
+    expect(html).toContain('Workspace admin');
+    // A grant of their own keeps its menu; the workspace's people have none.
+    expect(html).toContain('data-testid="share-role-menu-u2"');
+    expect(html).not.toContain('data-testid="share-role-menu-u5"');
+  });
+
   it('has no Removed line when nobody was removed', () => {
     expect(render({ removed: [], onAddBack: noop })).not.toContain('Removed ·');
     expect(render()).not.toContain('Removed ·');
@@ -209,23 +227,22 @@ describe('ShareCollaboratorPanel', () => {
         boardName="Product launch plan"
         role="editor"
         ownerName="Sahil"
-        link="https://app.example.com/boards/b1"
         here={here}
-        copied={false}
-        onCopy={async () => true}
         onClose={noop}
         {...overrides}
       />,
     );
   }
 
-  it('says what you can do, who can invite, and offers the board link', () => {
+  it('says what you can do and who can invite, and offers no link to pass on', () => {
     const html = renderCollaborator();
     expect(html).toContain('You can edit this board');
-    expect(html).toContain('Only Sahil can invite people or change who has access.');
-    expect(html).toContain('value="https://app.example.com/boards/b1"');
-    expect(html).toContain('data-testid="share-copy-board-link"');
-    expect(html).toContain('Copy link');
+    expect(html).toContain(
+      'Only Sahil and the workspace’s admins can invite people or change who has access.',
+    );
+    expect(html).not.toContain('Board link');
+    expect(html).not.toContain('Copy link');
+    expect(html).not.toContain('/boards/');
   });
 
   it('lists who is here, marking you and the owner', () => {
@@ -245,6 +262,8 @@ describe('ShareCollaboratorPanel', () => {
   });
 
   it('falls back to "the owner" before the owner’s name has arrived', () => {
-    expect(renderCollaborator({ ownerName: null })).toContain('Only the owner can invite people');
+    expect(renderCollaborator({ ownerName: null })).toContain(
+      'Only the owner and the workspace’s admins can invite people',
+    );
   });
 });

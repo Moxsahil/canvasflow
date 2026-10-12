@@ -1,4 +1,6 @@
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+import { can } from '@canvasflow/types';
 import type { Database } from '../client.js';
 import { boardMembers, type BoardRole } from '../schema/board-access.js';
 import { boards, type BoardRow } from '../schema/boards.js';
@@ -628,4 +630,76 @@ async function ensureDefaultWorkspace(db: Database, input: EnsureBoardInput): Pr
 
 function randomSlugSuffix(): string {
   return globalThis.crypto.randomUUID().slice(0, 8);
+}
+
+/** A board someone is on by share link, in a workspace they are not part of. */
+export interface SharedBoard extends BoardSummary {
+  workspaceName: string;
+  /** Who owns the board, for the line under its name. */
+  ownerName: string;
+  /** What the link let them do there. */
+  role: BoardRole;
+}
+
+/**
+ * Every board this person was let onto by share link, outside the workspaces
+ * they belong to — the boards the sidebar lists as "Shared with you", so they
+ * can get back to them without the link. Most recently changed first.
+ *
+ * Only standing access: a revoked grant, a deleted board or a deleted
+ * workspace lists nothing. A board in one of their own workspaces is listed
+ * there instead, whatever grant they also hold on it.
+ */
+export async function listBoardsSharedWith(db: Database, userId: string): Promise<SharedBoard[]> {
+  const owners = alias(users, 'owners');
+  const rows = await db
+    .select({
+      board: boards,
+      workspaceName: workspaces.name,
+      ownerName: owners.name,
+      role: boardMembers.role,
+    })
+    .from(boardMembers)
+    .innerJoin(boards, eq(boards.id, boardMembers.boardId))
+    .innerJoin(workspaces, eq(workspaces.id, boards.workspaceId))
+    .innerJoin(owners, eq(owners.id, boards.ownerId))
+    .leftJoin(
+      memberships,
+      and(eq(memberships.workspaceId, boards.workspaceId), eq(memberships.userId, userId)),
+    )
+    .where(
+      and(
+        eq(boardMembers.userId, userId),
+        eq(boardMembers.status, 'active'),
+        isNull(boards.deletedAt),
+        isNull(workspaces.deletedAt),
+        isNull(memberships.id),
+        ne(boards.ownerId, userId),
+      ),
+    )
+    .orderBy(desc(boards.updatedAt));
+
+  return rows.map(({ board, workspaceName, ownerName, role }) => ({
+    ...toBoardSummary(board),
+    workspaceName,
+    ownerName,
+    role,
+  }));
+}
+
+/**
+ * Who may run a board's sharing — start and stop its link, change what the
+ * people on it may do, take them off: its owner, and whoever runs the
+ * workspace it lives in. An admin can then let someone onto a board without
+ * waiting on its owner; everyone else on the board, by workspace or by link,
+ * sees no link to pass on.
+ */
+export async function canManageBoardSharing(
+  db: Database,
+  userId: string,
+  access: { role: BoardRole; workspaceId: string },
+): Promise<boolean> {
+  if (access.role === 'owner') return true;
+  const role = await workspaceRoleOf(db, userId, access.workspaceId);
+  return role !== null && can(role, 'manage-members');
 }

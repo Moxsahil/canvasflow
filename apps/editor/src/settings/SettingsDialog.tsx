@@ -66,6 +66,8 @@ interface SettingsDialogProps {
   workspace?: WorkspaceSettingsSource;
   /** Resolves once the name is kept; rejects with why it was not. */
   renameWorkspace?: (workspaceId: string, name: string) => Promise<void>;
+  /** Lists one of one's workspaces in the sidebar, which Settings then follows. */
+  showWorkspace?: (workspaceId: string) => void;
   onClose: () => void;
 }
 
@@ -94,6 +96,7 @@ export function SettingsDialog({
   deleteAccount,
   workspace = LOADING_WORKSPACE,
   renameWorkspace,
+  showWorkspace,
   onClose,
 }: SettingsDialogProps) {
   const [section, setSection] = useState<SettingsSectionId>(resumeDeletion ? 'privacy' : 'profile');
@@ -311,7 +314,14 @@ export function SettingsDialog({
       case 'account':
         return <AccountPane token={token} user={user} account={account} />;
       case 'workspace':
-        return <WorkspacePane source={workspace} userId={userId} onRename={renameWorkspace} />;
+        return (
+          <WorkspacePane
+            source={workspace}
+            userId={userId}
+            onRename={renameWorkspace}
+            onShowWorkspace={showWorkspace}
+          />
+        );
       case 'notifications':
         return <NotificationsPane />;
       case 'billing':

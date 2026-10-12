@@ -41,7 +41,7 @@ function state(
     home: { status: 'ready', boards: HOME_BOARDS },
     side: { status: 'ready', boards: [board('elsewhere', 'Side sketches', 'side')] },
   };
-  return {
+  const merged: Omit<BoardSwitcherState, 'listedId'> = {
     boardId: 'open',
     title: 'Onboarding flow',
     color: 'green',
@@ -69,7 +69,17 @@ function state(
     busy: false,
     error: null,
     dismissError: noop,
+    openBoardIsShared: false,
+    sharedBoards: [],
     ...overrides,
+  };
+  return {
+    ...merged,
+    // What the sidebar lists follows from the rest, unless a test says otherwise.
+    listedId:
+      overrides.listedId !== undefined
+        ? overrides.listedId
+        : (merged.browsedWorkspaceId ?? merged.workspaceId),
   };
 }
 
@@ -173,6 +183,18 @@ describe('BoardCard', () => {
     const html = render(<BoardCard state={state()} actions={actions} portalContainer={null} />);
     expect(tagWith(html, 'menu-renameBoard')).toContain('aria-disabled="true"');
     expect(tagWith(html, 'menu-open')).toContain('aria-disabled="false"');
+  });
+
+  it('leaves Copy board link off the card for someone who does not run its sharing', () => {
+    const html = render(
+      <BoardCard
+        state={state()}
+        actions={{ ...actions, copyLink: false }}
+        portalContainer={null}
+      />,
+    );
+    expect(html).not.toContain('data-testid="menu-copyLink"');
+    expect(html).toContain('data-testid="menu-open"');
   });
 });
 

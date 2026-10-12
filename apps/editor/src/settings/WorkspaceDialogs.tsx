@@ -880,7 +880,11 @@ export function MembersDialog({
             pending.guest.boards.length === 1
               ? pending.guest.boards[0]?.title
               : `all ${pending.guest.boards.length} boards they’re on in ${workspaceName}`
-          } at once, and the share link won’t let them back. What they drew stays. A board’s owner can add them back from Share.`}
+          } at once. What they drew stays, and a board’s owner can add them back from Share. ${
+            pending.guest.isGuest
+              ? 'They joined without an account, so a share link that lets guests in could let them in again as a new guest — reset it from Share to keep them out.'
+              : 'Share links won’t let them back.'
+          }`}
           confirmLabel="Remove"
           danger
           testId="confirm-remove-guest"

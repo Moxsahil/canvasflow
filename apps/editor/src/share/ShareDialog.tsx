@@ -72,6 +72,12 @@ interface ShareDialogProps {
    * may read is ever asked for on their behalf. Null until the token says.
    */
   viewerRole?: EditorRole | null;
+  /**
+   * The viewer runs the board's workspace — its owner or an admin — and so
+   * may run the board's sharing as its owner does. The server holds the same
+   * rule and is what decides.
+   */
+  managesWorkspace?: boolean;
   /** Whose board it is, for the line saying who can invite people. */
   ownerName?: string | null;
   ownerId?: string | null;
@@ -110,11 +116,13 @@ export function ShareDialog({
   authToken,
   theme,
   viewerRole = null,
+  managesWorkspace = false,
   ownerName = null,
   ownerId = null,
   roster = [],
 }: ShareDialogProps) {
-  const isOwner = viewerRole === 'owner';
+  // Runs this board's sharing: its owner, or whoever runs its workspace.
+  const isOwner = viewerRole === 'owner' || managesWorkspace;
   const [links, setLinks] = useState<ShareLinkSummary[]>([]);
   const [members, setMembers] = useState<BoardMember[]>([]);
   const [role, setRole] = useState<ShareRole>('editor');
@@ -293,11 +301,25 @@ export function ShareDialog({
     };
   }, [open, onClose]);
 
-  const handleStart = async () => {
+  /**
+   * Somebody without an account the owner has just removed while a link that
+   * lets guests in is live. Nothing ties a guest to a person — joining again
+   * from another browser makes a new guest — so the window says so, and offers
+   * a new link, until the link changes or the window closes.
+   */
+  const [removedGuest, setRemovedGuest] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) setRemovedGuest(null);
+  }, [open]);
+
+  const handleStart = async (
+    settings: { role: ShareRole; allowGuests: boolean } = { role, allowGuests },
+  ) => {
     setBusy(true);
     setError(null);
     try {
-      const link = await createShareLink(boardId, { role, allowGuests });
+      const link = await createShareLink(boardId, settings);
+      setRemovedGuest(null);
       storeLink(boardId, link.id, link.url);
       // Live the moment the server says so. Its answer is the session, so
       // reading it back first would only add a second round trip before the
@@ -332,6 +354,7 @@ export function ShareDialog({
     try {
       await revokeShareLink(boardId, session.id);
       clearStoredLink(boardId);
+      setRemovedGuest(null);
       // Stopped the moment the server says so; at most one link is ever live.
       changes.current += 1;
       setLinks([]);
@@ -356,25 +379,6 @@ export function ShareDialog({
     }
   };
 
-  // The board's own address, which is all a collaborator can pass on: the
-  // session's link is the owner's, and exists only in the browser that made it.
-  const boardLink =
-    typeof window === 'undefined'
-      ? `/boards/${boardId}`
-      : `${window.location.origin}/boards/${boardId}`;
-
-  const handleCopyBoardLink = async (): Promise<boolean> => {
-    try {
-      await navigator.clipboard.writeText(boardLink);
-      setCopied(true);
-      if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
-      copyTimer.current = window.setTimeout(() => setCopied(false), 2000);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
   const handleRoleChange = async (memberId: string, next: ShareRole) => {
     setError(null);
     // Optimistic: the request is a single indexed update, and the list snapping
@@ -390,8 +394,10 @@ export function ShareDialog({
 
   const handleRemove = async (memberId: string) => {
     setError(null);
+    const person = members.find((m) => m.userId === memberId);
     try {
       await removeMember(boardId, memberId);
+      if (person?.isGuest) setRemovedGuest(person.name);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not remove that person.');
@@ -472,6 +478,7 @@ export function ShareDialog({
         email: member.email,
         isGuest: member.isGuest,
         isOwner: member.isOwner,
+        workspaceRole: member.workspaceRole ?? null,
         role: member.role,
         photo: photos[member.userId] ?? null,
         you: member.userId === userId,
@@ -546,6 +553,16 @@ export function ShareDialog({
                   copied={copied}
                   error={error}
                   onStart={() => void handleStart()}
+                  guestMayReturn={session?.allowGuests ? removedGuest : null}
+                  onResetLink={
+                    session
+                      ? () =>
+                          void handleStart({
+                            role: session.role === 'viewer' ? 'viewer' : 'editor',
+                            allowGuests: session.allowGuests,
+                          })
+                      : undefined
+                  }
                   onStop={() => void handleStop()}
                   onCopy={() => void handleCopy()}
                   onClose={onClose}
@@ -564,10 +581,7 @@ export function ShareDialog({
                   boardName={name}
                   role={viewerRole === 'editor' || viewerRole === 'viewer' ? viewerRole : null}
                   ownerName={ownerName}
-                  link={boardLink}
                   here={here}
-                  copied={copied}
-                  onCopy={handleCopyBoardLink}
                   onClose={onClose}
                 />
               )}

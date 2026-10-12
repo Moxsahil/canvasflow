@@ -52,6 +52,8 @@ interface CanvasContextMenuProps {
   target: ContextMenuTarget;
   /** Takes every row that edits the board out of the menu. */
   readOnly: boolean;
+  /** False takes out the rows that hand out a link to the board. */
+  canShareLinks?: boolean;
   actions: ContextMenuActions;
   checks: ContextMenuChecks;
   /**
@@ -81,6 +83,7 @@ interface CanvasContextMenuProps {
 export function CanvasContextMenu({
   target,
   readOnly,
+  canShareLinks = true,
   actions,
   checks,
   labels,
@@ -91,7 +94,10 @@ export function CanvasContextMenu({
   container,
   children,
 }: CanvasContextMenuProps) {
-  const groups = useMemo(() => contextMenuFor(target, { readOnly }), [target, readOnly]);
+  const groups = useMemo(
+    () => contextMenuFor(target, { readOnly, canShareLinks }),
+    [target, readOnly, canShareLinks],
+  );
 
   return (
     <ContextMenu open={open} onOpenChange={onOpenChange}>

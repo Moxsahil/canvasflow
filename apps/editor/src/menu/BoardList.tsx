@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   Archive,
   ChevronDown,
@@ -38,7 +38,9 @@ import type { SurfaceTheme } from '../ui/surface-palette';
 import { BOARD_COLORS } from '../workspace/board-colors';
 import { ColorDot, formatUpdatedAt } from '../workspace/board-presentation';
 import { DeleteWarningDialog } from '../workspace/DeleteWarningDialog';
+import { SHARED_WITH_YOU } from '../workspace';
 import type { BoardColor, BoardSummary, BoardSwitcherState } from '../workspace';
+import type { SharedBoard } from '../workspace/people-api';
 import type { BoardDetailsPatch } from '../workspace/workspace-api';
 
 /** A small square button beside the group's label. */
@@ -109,8 +111,12 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
     setFindRequested(false);
   }, [findRequested, collapsed]);
 
-  const workspaceId = state.browsedWorkspaceId ?? state.workspaceId;
+  const workspaceId = state.listedId;
   if (!state.available || !workspaceId) return null;
+
+  if (workspaceId === SHARED_WITH_YOU) {
+    return <SharedList state={state} query={query} setQuery={setQuery} inputRef={inputRef} />;
+  }
 
   const entry = state.boardsFor(workspaceId);
   const boards = entry?.status === 'ready' ? entry.boards : [];
@@ -269,6 +275,126 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
         }
       />
     </SidebarGroup>
+  );
+}
+
+/**
+ * The boards shared with one from workspaces one is not in, listed in a
+ * workspace's place. Opening one is all there is to do from here: renaming,
+ * deleting and making boards belong to the workspaces they live in.
+ */
+function SharedList({
+  state,
+  query,
+  setQuery,
+  inputRef,
+}: {
+  state: BoardSwitcherState;
+  query: string;
+  setQuery: (query: string) => void;
+  inputRef: RefObject<HTMLInputElement>;
+}) {
+  const boards = state.sharedBoards;
+  const needle = query.trim().toLowerCase();
+  const shown = (boards ?? []).filter(
+    (board) => !needle || board.title.toLowerCase().includes(needle),
+  );
+
+  return (
+    <SidebarGroup className="group-data-[collapsible=icon]:pb-0">
+      <SidebarGroupContent className="flex flex-col gap-1">
+        <div className="relative mb-1 group-data-[collapsible=icon]:hidden">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-sidebar-foreground/50"
+          />
+          <input
+            ref={inputRef}
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && query) {
+                event.stopPropagation();
+                setQuery('');
+              }
+            }}
+            placeholder="Find a board"
+            aria-label="Find a board"
+            data-testid="sidebar-find-board"
+            className="h-8 w-full rounded-md bg-sidebar-accent/60 pr-2 pl-8 text-sm text-sidebar-foreground outline-hidden ring-sidebar-ring placeholder:text-sidebar-foreground/50 focus-visible:ring-2 [&::-webkit-search-cancel-button]:hidden"
+          />
+        </div>
+
+        <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">
+          Shared with you
+        </SidebarGroupLabel>
+
+        <SidebarMenu
+          data-testid="sidebar-shared-boards"
+          className="max-h-[min(40vh,22rem)] overflow-y-auto [scrollbar-width:thin] group-data-[collapsible=icon]:max-h-none group-data-[collapsible=icon]:[scrollbar-width:none]"
+        >
+          {boards === null &&
+            [0, 1].map((key) => (
+              <SidebarMenuItem key={key}>
+                <SidebarMenuSkeleton showIcon />
+              </SidebarMenuItem>
+            ))}
+          {boards?.length === 0 && (
+            <li className={`${noteClasses} group-data-[collapsible=icon]:hidden`}>
+              Nothing is shared with you right now.
+            </li>
+          )}
+          {boards && boards.length > 0 && shown.length === 0 && (
+            <li className={`${noteClasses} group-data-[collapsible=icon]:hidden`}>
+              No board by that name.
+            </li>
+          )}
+          {shown.map((board) => (
+            <SharedRow
+              key={board.id}
+              board={board}
+              current={board.id === state.boardId}
+              onOpen={() => state.openBoard(board.id)}
+            />
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+
+/** A shared board: its tag, its name, and whose it is, in place of a menu. */
+function SharedRow({
+  board,
+  current,
+  onOpen,
+}: {
+  board: SharedBoard;
+  current: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        isActive={current}
+        aria-current={current ? 'page' : undefined}
+        tooltip={`${board.title} — ${board.ownerName}, ${board.workspaceName}`}
+        onClick={onOpen}
+        data-testid={`sidebar-shared-board-${board.id}`}
+        className="h-auto py-1.5"
+      >
+        <span className="grid size-4 shrink-0 place-items-center self-start pt-1">
+          <ColorDot color={board.color} />
+        </span>
+        <span className="grid min-w-0 flex-1 leading-tight">
+          <span className="truncate">{board.title}</span>
+          <span className="truncate text-xs text-sidebar-foreground/50">
+            {`${board.ownerName} · ${board.role === 'viewer' ? 'Can view' : 'Can edit'}`}
+          </span>
+        </span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
 

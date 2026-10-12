@@ -1,5 +1,5 @@
 import { env } from '@/lib/env';
-import type { WorkspaceRole } from './workspace-api';
+import type { BoardSummary, WorkspaceRole } from './workspace-api';
 
 /**
  * Client for the API gateway's workspace routes — who is in a workspace, and
@@ -268,4 +268,24 @@ export async function setGuestRole(
 /** Take a guest off every board of the workspace they are on. */
 export async function removeGuest(workspaceId: string, userId: string): Promise<void> {
   await send(workspaceUrl(workspaceId, `/guests/${userId}`), 'DELETE');
+}
+
+/** A board one was let onto by share link, outside one's own workspaces. */
+export interface SharedBoard extends BoardSummary {
+  workspaceName: string;
+  ownerName: string;
+  role: GuestBoardRole;
+}
+
+/**
+ * The boards shared with the caller from workspaces they are not in, most
+ * recently changed first — the sidebar's "Shared with you".
+ */
+export async function listSharedBoards(signal?: AbortSignal): Promise<SharedBoard[]> {
+  const res = await fetch(new URL('/users/me/shared-boards', env.VITE_API_URL), {
+    credentials: 'include',
+    signal,
+  });
+  if (!res.ok) throw await failure(res);
+  return ((await res.json()) as { data: SharedBoard[] }).data;
 }

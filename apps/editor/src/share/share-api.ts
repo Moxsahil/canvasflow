@@ -112,6 +112,12 @@ export interface BoardMember {
   role: BoardRole;
   status: 'active' | 'revoked';
   isOwner: boolean;
+  /**
+   * Set for somebody here through the board's workspace rather than a grant of
+   * their own — however they joined it, email invitation included. Their
+   * access is the workspace's, and changed there.
+   */
+  workspaceRole?: 'owner' | 'admin' | 'member';
 }
 
 function membersUrl(boardId: string): string {

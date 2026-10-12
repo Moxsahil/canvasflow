@@ -5,12 +5,14 @@ import {
   createClient,
   redeemShareLink,
   redeemShareLinkAsGuest,
+  lookupShareLink,
   resolveBoardAccess,
+  wasRemovedFromBoard,
 } from '@canvasflow/db';
 import { env } from '@/lib/env';
 import { currentUser } from '@/lib/auth/session';
 import { editorUrlFor, mintEditorToken } from '@/lib/auth/editor-token';
-import { setGuestSession } from '@/lib/auth/guest-session';
+import { readGuestSession, setGuestSession } from '@/lib/auth/guest-session';
 import { checkBoardAccess } from '@/lib/boards/access';
 import { notifyWorkspaceChanged } from '@/lib/sync/internal';
 
@@ -33,6 +35,17 @@ export async function joinAsGuest(token: string, formData: FormData): Promise<Jo
   // The version the guest form showed under its button; recorded on the guest
   // row only while it is the terms in force.
   const shownTerms = formData.get('termsVersion');
+
+  // A browser the owner removed a guest from does not get to come back as a
+  // new one. Joining makes a fresh identity each time, so the cookie naming the
+  // guest this browser already is, is the only way to recognise them.
+  const formerGuest = await readGuestSession();
+  if (formerGuest) {
+    const found = await lookupShareLink(db, token);
+    if (found.ok && (await wasRemovedFromBoard(db, found.link.boardId, formerGuest))) {
+      return { error: describeRejection('removed') };
+    }
+  }
 
   const outcome = await redeemShareLinkAsGuest(db, token, displayName, shownTerms);
   if (!outcome.ok) {
@@ -83,7 +96,8 @@ export async function joinAsUser(token: string): Promise<JoinResult> {
   const access = await checkBoardAccess(user.id, outcome.boardId);
   if (!access) return { error: 'That board is no longer available.' };
 
-  await notifyWorkspaceChanged(access.workspaceId);
+  // Their own other tabs list the board under "Shared with you" too.
+  await notifyWorkspaceChanged(access.workspaceId, [user.id]);
 
   const minted = await mintEditorToken(
     {

@@ -26,7 +26,13 @@ import { BoardCard } from './BoardCard';
 import { BoardList, RailSeparator } from './BoardList';
 import { ThemeToggle } from './ThemeToggle';
 import { NavUser, type SidebarUser } from './NavUser';
-import { MENU_ITEMS, SIDEBAR_ITEMS, type MenuActions, type MenuItemId } from './menu-items';
+import {
+  liveAction,
+  MENU_ITEMS,
+  SIDEBAR_ITEMS,
+  type MenuActions,
+  type MenuItemId,
+} from './menu-items';
 
 interface AppSidebarProps {
   /** The board on screen, and the workspaces and boards it can be swapped for. */
@@ -97,7 +103,7 @@ export function AppSidebar({
       <SidebarFooter>
         <SidebarMenu>
           {SIDEBAR_ITEMS.map((id) => (
-            <MenuRow key={id} id={id} onSelect={actions?.[id]} />
+            <MenuRow key={id} id={id} onSelect={liveAction(actions?.[id])} />
           ))}
           <ThemeToggle value={theme} onChange={onThemeChange} />
           <PreferencesMenu preferences={preferences} portalContainer={portalContainer} />
