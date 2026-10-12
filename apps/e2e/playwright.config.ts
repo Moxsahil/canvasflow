@@ -23,7 +23,7 @@ export default defineConfig({
       // Password recovery, account security, the legal pages and account
       // deletion run in their own projects, below.
       testIgnore:
-        /(password-reset|account-security|legal|account-deletion(-request|-ui)?|account-purge|account-restore|username|workspace-invites)\.spec\.ts/,
+        /(password-reset|account-security|legal|account-deletion(-request|-ui)?|account-purge|account-restore|username|workspace-invites|workspace-members)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         // Every test in this project starts already signed in, from the file
@@ -68,6 +68,13 @@ export default defineConfig({
     {
       name: 'invites',
       testMatch: /workspace-invites\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // Changing people's roles, removing them, leaving and handing a workspace
+    // over, with four throwaway people. Run on its own with `--project=members`.
+    {
+      name: 'members',
+      testMatch: /workspace-members\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
     // Deleting an account: the data layer, the daily purge and support's

@@ -8,6 +8,7 @@ import {
   passwordResetEmail,
   passwordSetupEmail,
   providerNoticeEmail,
+  ownershipOfferEmail,
   workspaceInviteEmail,
 } from './templates.js';
 
@@ -215,5 +216,20 @@ describe('workspaceInviteEmail', () => {
   it('says how long it works, and the role when it is not plain member', () => {
     expect(email.text).toContain('7 days');
     expect(email.text).toContain('as an admin');
+  });
+});
+
+describe('ownershipOfferEmail', () => {
+  const email = ownershipOfferEmail({
+    openUrl: 'https://canvasflowapp.com/open',
+    ownerName: 'Olu <b>',
+    workspaceName: 'Acme\nCo',
+  });
+
+  it('says what is asked, escaped, and where to answer', () => {
+    expect(email.html).toContain('Olu &lt;b&gt;');
+    expect(email.html).toContain('https://canvasflowapp.com/open');
+    expect(email.text).toContain('Settings → Workspace');
+    expect(email.subject).not.toMatch(/\n/);
   });
 });

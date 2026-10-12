@@ -9,12 +9,15 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
+  can,
   listPendingInvites,
   listWorkspaceGuests,
   listWorkspaceMembers,
+  ownershipOfferOf,
   workspaceRoleOf,
   type AvatarSource,
   type GuestBoard,
+  type OwnershipOffer,
   type PendingInvite,
   type WorkspaceRole,
 } from '@canvasflow/db';
@@ -23,7 +26,6 @@ import { AccountThrottlerGuard } from '../auth/account-throttler.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { type AuthenticatedUser, JwtAuthGuard } from '../auth/jwt.guard.js';
 import { AvatarsService } from '../avatars/avatars.service.js';
-import { canInvite } from './invite-rules.js';
 
 /** One person in the workspace, as the editor's Settings shows them. */
 export interface WorkspaceMemberView {
@@ -60,6 +62,12 @@ export interface WorkspacePeople {
    * business of whoever runs the workspace.
    */
   invites: PendingInvite[];
+  /**
+   * The owner's offer of the ownership, while it waits for an answer. Told to
+   * everyone in the workspace: who is about to run it is theirs to know, and
+   * the person offered it answers from here.
+   */
+  ownershipOffer: OwnershipOffer | null;
 }
 
 /**
@@ -94,10 +102,11 @@ export class WorkspacePeopleController {
     if (!role) throw new NotFoundException('Workspace not found');
 
     const administers = role === 'owner' || role === 'admin';
-    const [members, guests, invites] = await Promise.all([
+    const [members, guests, invites, ownershipOffer] = await Promise.all([
       listWorkspaceMembers(db, workspaceId),
       listWorkspaceGuests(db, workspaceId),
-      canInvite(role) ? listPendingInvites(db, workspaceId) : Promise.resolve([]),
+      can(role, 'invite') ? listPendingInvites(db, workspaceId) : Promise.resolve([]),
+      ownershipOfferOf(db, workspaceId),
     ]);
 
     return {
@@ -117,6 +126,7 @@ export class WorkspacePeopleController {
           })),
         ),
         invites,
+        ownershipOffer,
       },
     };
   }

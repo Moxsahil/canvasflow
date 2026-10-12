@@ -1,7 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { and, count, desc, eq, isNull, lte, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull, lte, sql } from 'drizzle-orm';
 import type { Database } from '../client.js';
 import { auditLog } from '../schema/audit.js';
+import { boardMembers } from '../schema/board-access.js';
+import { boards } from '../schema/boards.js';
 import { users } from '../schema/users.js';
 import { memberships, workspaces } from '../schema/workspaces.js';
 import { workspaceInvites, type WorkspaceInviteRow } from '../schema/workspace-invites.js';
@@ -494,6 +496,25 @@ export async function acceptWorkspaceInvite(
       .where(eq(users.id, userId));
 
     if (added) {
+      // Coming back after being removed: the workspace asking them in again
+      // undoes the removal, so the grants it revoked on its boards go too.
+      // Otherwise they would rejoin to find every board still shut to them.
+      await tx
+        .delete(boardMembers)
+        .where(
+          and(
+            eq(boardMembers.userId, userId),
+            eq(boardMembers.status, 'revoked'),
+            inArray(
+              boardMembers.boardId,
+              tx
+                .select({ id: boards.id })
+                .from(boards)
+                .where(eq(boards.workspaceId, invite.workspaceId)),
+            ),
+          ),
+        );
+
       await tx.insert(auditLog).values({
         workspaceId: invite.workspaceId,
         actorId: userId,

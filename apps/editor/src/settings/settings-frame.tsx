@@ -21,6 +21,11 @@ interface SettingsFrame {
    */
   surface: CSSProperties;
   /**
+   * Which theme that palette is, for a dialog drawn outside the window to name
+   * on itself: the menus inside take their dark form from it.
+   */
+  theme: 'light' | 'dark';
+  /**
    * A dialog is up over the window: the window is out of reach until it goes,
    * and then focus goes back to `opener`. Returns the way to let go.
    */

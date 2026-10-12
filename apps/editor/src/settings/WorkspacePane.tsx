@@ -1,15 +1,23 @@
 import { useState } from 'react';
+import { can } from '@canvasflow/types';
+import { env } from '@/lib/env';
 import type { WorkspaceRole, WorkspaceSummary } from '../workspace/workspace-api';
+import {
+  acceptOwnership,
+  leaveWorkspace,
+  withdrawOwnershipOffer,
+  type WorkspaceMember,
+} from '../workspace/people-api';
 import { useWorkspacePeople } from '../workspace/useWorkspacePeople';
 import { announceWorkspaceChanged } from '../workspace/workspace-events';
-import { MembersDialog, ROLE_LABELS } from './WorkspaceDialogs';
+import { ConfirmDialog, HandOverDialog, MembersDialog, ROLE_LABELS } from './WorkspaceDialogs';
 import {
   Band,
-  ComingSoonTag,
   InlineTextField,
   SettingRow,
   SettingsButton,
   SettingsPage,
+  StatusTag,
   ValueText,
 } from './settings-ui';
 
@@ -25,16 +33,17 @@ export type WorkspaceSettingsSource =
 
 const ROLE_HINTS: Record<WorkspaceRole, string> = {
   owner: 'Full control, including deleting the workspace',
-  admin: 'Can rename the workspace and invite people',
+  admin: 'Can rename it, invite people, and change or remove members',
   member: 'Can open, make and edit its boards',
 };
 
-/**
- * The people who run it: who may rename it and invite people into it. The
- * server holds the same rule and is what decides.
- */
-function runsWorkspace(role: WorkspaceRole): boolean {
-  return role === 'owner' || role === 'admin';
+/** Which dialog is up over the page. */
+type Dialog = 'members' | 'leave' | 'hand-over' | null;
+
+/** "you", or the owner's name, for sentences about where boards go. */
+function ownerWord(owner: WorkspaceMember | null, userId: string | null): string {
+  if (!owner) return 'the owner';
+  return owner.userId === userId ? 'you' : owner.name;
 }
 
 /** "Just you", "3 members", and the invitations and guests after them when there are any. */
@@ -96,10 +105,36 @@ function ReadyPane({
 }) {
   const people = useWorkspacePeople(workspace?.id ?? null);
   const [renameError, setRenameError] = useState<string | null>(null);
-  const [showingMembers, setShowingMembers] = useState(false);
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [offerBusy, setOfferBusy] = useState(false);
+  const [offerError, setOfferError] = useState<string | null>(null);
 
   const role = workspace?.role ?? null;
-  const canInvite = role !== null && runsWorkspace(role);
+  const runs = role !== null && can(role, 'invite');
+  const ready = people.status === 'ready' ? people : null;
+  const members = ready?.members ?? [];
+  const owner = members.find((member) => member.role === 'owner') ?? null;
+  const offer = ready?.ownershipOffer ?? null;
+  const offeredTo = offer ? (members.find((m) => m.userId === offer.toUserId) ?? null) : null;
+  const offeredToMe = offer !== null && offer.toUserId === userId;
+  const reread = () => {
+    if (workspace) announceWorkspaceChanged(workspace.id);
+  };
+
+  /** Accept or turn down the ownership one was offered. */
+  const answerOffer = async (accept: boolean) => {
+    if (!workspace || offerBusy) return;
+    setOfferBusy(true);
+    setOfferError(null);
+    try {
+      await (accept ? acceptOwnership(workspace.id) : withdrawOwnershipOffer(workspace.id));
+      reread();
+    } catch (err: unknown) {
+      setOfferError(err instanceof Error ? err.message : 'That didn’t work. Try again.');
+    } finally {
+      setOfferBusy(false);
+    }
+  };
 
   const save = async (next: string) => {
     if (!workspace || !onRename) return false;
@@ -121,7 +156,7 @@ function ReadyPane({
     people.status === 'ready'
       ? peopleCount(
           people.members.length,
-          canInvite ? (people.invites ?? []).length : 0,
+          runs ? (people.invites ?? []).length : 0,
           people.guests.length,
         )
       : people.status === 'error'
@@ -132,26 +167,84 @@ function ReadyPane({
     <SettingsPage
       lead={LEAD}
       dialog={
-        showingMembers &&
-        workspace &&
-        people.status === 'ready' && (
+        workspace && ready && dialog === 'members' ? (
           <MembersDialog
             key="members"
             workspaceName={workspace.name}
             workspaceId={workspace.id}
-            people={people}
+            people={ready}
             userId={userId}
-            canInvite={canInvite}
+            viewerRole={role}
             // This window's own list re-reads at once; everyone else's hears it
             // from the sync-server.
-            onChanged={() => announceWorkspaceChanged(workspace.id)}
-            onClose={() => setShowingMembers(false)}
+            onChanged={reread}
+            onClose={() => setDialog(null)}
           />
-        )
+        ) : workspace && ready && dialog === 'hand-over' ? (
+          <HandOverDialog
+            key="hand-over"
+            workspaceId={workspace.id}
+            workspaceName={workspace.name}
+            members={members}
+            userId={userId}
+            onOffered={() => {
+              setDialog(null);
+              reread();
+            }}
+            onClose={() => setDialog(null)}
+          />
+        ) : workspace && dialog === 'leave' ? (
+          <ConfirmDialog
+            key="leave"
+            title={`Leave ${workspace.name}?`}
+            description={`You lose it and every board in it at once. What you drew stays on the boards, and any boards you own here pass to ${ownerWord(owner, userId)}. Someone in it can invite you back.`}
+            confirmLabel="Leave workspace"
+            danger
+            testId="confirm-leave"
+            onClose={() => setDialog(null)}
+            onConfirm={async () => {
+              await leaveWorkspace(workspace.id);
+              // Off this workspace's boards, onto the most recent one left —
+              // or a fresh workspace of their own if this was the only one.
+              window.location.assign(new URL('/open', env.VITE_WEB_URL).toString());
+            }}
+          />
+        ) : null
       }
     >
       <Band title="Workspace">
-        {workspace && canInvite ? (
+        {offeredToMe && (
+          <SettingRow
+            setting="ownership-offer"
+            title="Become the owner?"
+            badge={<StatusTag tone="caution">Waiting for you</StatusTag>}
+            hint={
+              offerError ?? (
+                <>
+                  {`${owner?.name ?? 'The owner'} offered you this workspace. You’d have full control, including deleting it, and they’d become an admin.`}
+                </>
+              )
+            }
+          >
+            <SettingsButton
+              variant="ghost"
+              disabled={offerBusy}
+              onClick={() => void answerOffer(false)}
+              data-testid="ownership-decline"
+            >
+              Decline
+            </SettingsButton>
+            <SettingsButton
+              variant="primary"
+              disabled={offerBusy}
+              onClick={() => void answerOffer(true)}
+              data-testid="ownership-accept"
+            >
+              Accept
+            </SettingsButton>
+          </SettingRow>
+        )}
+        {workspace && runs ? (
           <InlineTextField
             setting="workspace-name"
             label="Workspace name"
@@ -180,11 +273,11 @@ function ReadyPane({
       <Band title="People">
         <SettingRow setting="members" title="Members" hint={membersHint}>
           <SettingsButton
-            disabled={people.status !== 'ready'}
-            onClick={() => setShowingMembers(true)}
+            disabled={!ready}
+            onClick={() => setDialog('members')}
             data-testid="workspace-members-open"
           >
-            {canInvite ? 'Manage' : 'View'}
+            {runs ? 'Manage' : 'View'}
           </SettingsButton>
         </SettingRow>
         <SettingRow
@@ -194,21 +287,122 @@ function ReadyPane({
         >
           <ValueText>Can edit</ValueText>
         </SettingRow>
-        <SettingRow
-          setting="leave-workspace"
-          title="Leave workspace"
-          badge={<ComingSoonTag />}
-          hint={
-            role === 'owner'
-              ? "You'll hand ownership to someone else first"
-              : "You'll lose access to its boards"
-          }
-        >
-          <SettingsButton variant="danger" disabled>
-            Leave
-          </SettingsButton>
-        </SettingRow>
+        <LeaveRow
+          role={role}
+          ready={ready !== null}
+          alone={members.length <= 1}
+          offeredTo={offeredTo}
+          onLeave={() => setDialog('leave')}
+          onHandOver={() => setDialog('hand-over')}
+          onWithdraw={async () => {
+            if (!workspace) return;
+            await withdrawOwnershipOffer(workspace.id);
+            reread();
+          }}
+        />
       </Band>
     </SettingsPage>
+  );
+}
+
+/**
+ * Leaving, for anyone but the owner. The owner cannot leave until somebody
+ * has accepted the workspace from them, so their row is where that starts —
+ * or says who it is waiting on — and, alone in the workspace, says to delete
+ * it instead.
+ */
+function LeaveRow({
+  role,
+  ready,
+  alone,
+  offeredTo,
+  onLeave,
+  onHandOver,
+  onWithdraw,
+}: {
+  role: WorkspaceRole | null;
+  ready: boolean;
+  alone: boolean;
+  offeredTo: WorkspaceMember | null;
+  onLeave: () => void;
+  onHandOver: () => void;
+  onWithdraw: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (role !== 'owner') {
+    return (
+      <SettingRow
+        setting="leave-workspace"
+        title="Leave workspace"
+        hint="You’ll lose access to its boards. Boards you own here pass to the owner."
+      >
+        <SettingsButton
+          variant="danger"
+          disabled={!role}
+          onClick={onLeave}
+          data-testid="workspace-leave"
+        >
+          Leave
+        </SettingsButton>
+      </SettingRow>
+    );
+  }
+
+  if (!ready || alone) {
+    return (
+      <SettingRow
+        setting="leave-workspace"
+        title="Leave workspace"
+        hint={ready ? 'You’re the only one here. Delete the workspace instead.' : 'Loading…'}
+      >
+        <SettingsButton variant="danger" disabled data-testid="workspace-leave">
+          Leave
+        </SettingsButton>
+      </SettingRow>
+    );
+  }
+
+  if (offeredTo) {
+    return (
+      <SettingRow
+        setting="leave-workspace"
+        title="Leave workspace"
+        badge={<StatusTag tone="caution">Handing over</StatusTag>}
+        hint={
+          error ??
+          `Waiting for ${offeredTo.name} to accept the ownership. You can leave once they do.`
+        }
+      >
+        <SettingsButton
+          disabled={busy}
+          data-testid="ownership-withdraw"
+          onClick={() => {
+            setBusy(true);
+            setError(null);
+            onWithdraw()
+              .catch((err: unknown) =>
+                setError(err instanceof Error ? err.message : 'That didn’t work. Try again.'),
+              )
+              .finally(() => setBusy(false));
+          }}
+        >
+          Take back offer
+        </SettingsButton>
+      </SettingRow>
+    );
+  }
+
+  return (
+    <SettingRow
+      setting="leave-workspace"
+      title="Leave workspace"
+      hint="You’re the owner. Hand the workspace to someone first; you can leave once they accept."
+    >
+      <SettingsButton onClick={onHandOver} data-testid="workspace-hand-over">
+        Hand over…
+      </SettingsButton>
+    </SettingRow>
   );
 }

@@ -195,13 +195,20 @@ describe('SettingsDialog', () => {
     expect(pane).not.toContain('4 members');
   });
 
-  it('shows a member the name without a field, and Leave as not built yet', () => {
+  it('shows a member the name without a field, and lets them leave', () => {
     const pane = renderToString(<WorkspacePane source={workspaceSource('member')} />);
     expect(pane).not.toContain('value="Studio Boards"');
     expect(pane).toContain('Studio Boards');
     expect(pane).toContain('Only the owner or an admin can rename it');
     expect(pane).toContain('Member');
-    expect(pane).toContain('Coming soon');
+    expect(pane).not.toContain('Coming soon');
+    expect(pane).toMatch(/data-testid="workspace-leave"[^>]*>Leave</);
+    expect(pane).not.toMatch(/disabled=""[^>]*data-testid="workspace-leave"/);
+  });
+
+  it('keeps the owner from leaving while it is still working out who else is here', () => {
+    const pane = renderPane('workspace');
+    expect(pane).toMatch(/disabled=""[^>]*data-testid="workspace-leave"/);
   });
 
   it('waits for the workspace list rather than inventing a workspace', () => {
@@ -256,6 +263,7 @@ describe('SettingsDialog', () => {
         },
       ],
       invites: [],
+      ownershipOffer: null,
     };
     const html = renderToString(
       <MembersDialog workspaceName="Studio" people={people} userId="u1" onClose={noop} />,
@@ -273,7 +281,7 @@ describe('SettingsDialog', () => {
     const alone = renderToString(
       <MembersDialog
         workspaceName="Studio"
-        people={{ members: people.members, guests: [], invites: [] }}
+        people={{ members: people.members, guests: [], invites: [], ownershipOffer: null }}
         userId="u1"
         onClose={noop}
       />,
@@ -320,6 +328,7 @@ describe('SettingsDialog', () => {
           expired: true,
         },
       ],
+      ownershipOffer: null,
     };
     const html = renderToString(
       <MembersDialog
@@ -327,7 +336,7 @@ describe('SettingsDialog', () => {
         workspaceId="w1"
         people={people}
         userId="u1"
-        canInvite
+        viewerRole="owner"
         onClose={noop}
       />,
     );
@@ -354,6 +363,103 @@ describe('SettingsDialog', () => {
     );
     expect(member).not.toContain('Invite by email');
     expect(member).not.toContain('mia@example.com');
+  });
+
+  it('gives managers a menu on everyone but the owner and themselves, and marks an offer', () => {
+    const member = (userId: string, name: string, role: 'owner' | 'admin' | 'member') => ({
+      userId,
+      name,
+      username: null,
+      email: `${userId}@example.com`,
+      role,
+      joinedAt: '2026-10-01T00:00:00.000Z',
+      photo: null,
+    });
+    const people: WorkspacePeople = {
+      members: [
+        member('u1', 'Olu', 'owner'),
+        member('u2', 'Ada', 'admin'),
+        member('u3', 'Mia', 'member'),
+      ],
+      guests: [],
+      invites: [],
+      ownershipOffer: { toUserId: 'u3', offeredAt: '2026-10-12T00:00:00.000Z' },
+    };
+    const render = (userId: string, viewerRole: 'owner' | 'admin' | 'member') =>
+      renderToString(
+        <MembersDialog
+          workspaceName="Studio"
+          workspaceId="w1"
+          people={people}
+          userId={userId}
+          viewerRole={viewerRole}
+          onClose={noop}
+        />,
+      );
+
+    // An admin manages members and other admins — never themselves or the owner.
+    const admin = render('u2', 'admin');
+    expect(admin).not.toContain('data-testid="member-menu-u1"');
+    expect(admin).not.toContain('data-testid="member-menu-u2"');
+    expect(admin).toContain('data-testid="member-menu-u3"');
+
+    // The owner manages both, and sees who the ownership is waiting on.
+    const owner = render('u1', 'owner');
+    expect(owner).toContain('data-testid="member-menu-u2"');
+    expect(owner).toContain('data-testid="member-menu-u3"');
+    expect(owner).toContain('Ownership offered');
+
+    // A member manages nobody.
+    expect(render('u3', 'member')).not.toContain('data-testid="member-menu-');
+  });
+
+  it('lets whoever runs the workspace set what a guest may do, or take them off', () => {
+    const people: WorkspacePeople = {
+      members: [
+        {
+          userId: 'u1',
+          name: 'Olu',
+          username: null,
+          email: 'u1@example.com',
+          role: 'owner',
+          joinedAt: '2026-10-01T00:00:00.000Z',
+          photo: null,
+        },
+      ],
+      guests: [
+        {
+          userId: 'g1',
+          name: 'Prachi',
+          username: null,
+          email: null,
+          isGuest: true,
+          photo: null,
+          boards: [
+            { boardId: 'b1', title: 'Roadmap', role: 'editor' },
+            { boardId: 'b2', title: 'Launch', role: 'viewer' },
+          ],
+        },
+      ],
+      invites: [],
+      ownershipOffer: null,
+    };
+    const render = (viewerRole: 'owner' | 'admin' | 'member') =>
+      renderToString(
+        <MembersDialog
+          workspaceName="Studio"
+          workspaceId="w1"
+          people={people}
+          userId="u1"
+          viewerRole={viewerRole}
+          onClose={noop}
+        />,
+      );
+
+    const admin = render('admin');
+    expect(admin).toContain('data-testid="guest-menu-g1"');
+    expect(admin).toContain('Mixed access');
+    expect(render('owner')).toContain('data-testid="guest-menu-g1"');
+    expect(render('member')).not.toContain('data-testid="guest-menu-g1"');
   });
 
   it('links to both legal pages from Data & Privacy, and says which terms were agreed to', () => {

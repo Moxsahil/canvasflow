@@ -8,6 +8,7 @@ import {
   passwordResetEmail,
   passwordSetupEmail,
   providerNoticeEmail,
+  ownershipOfferEmail,
   verificationEmail,
   workspaceInviteEmail,
   type AccountClaimedContent,
@@ -16,6 +17,7 @@ import {
   type PasswordResetContent,
   type PasswordSetupContent,
   type ProviderNoticeContent,
+  type OwnershipOfferContent,
   type RenderedEmail,
   type WorkspaceInviteContent,
 } from './templates.js';
@@ -147,6 +149,15 @@ export class EmailService {
       recipient.to,
       workspaceInviteEmail(content),
       `Workspace invitation ${recipient.inviteId}`,
+    );
+  }
+
+  /** To a member offered the ownership of a workspace: what is asked, and where to answer. */
+  async sendOwnershipOffer(recipient: Recipient, content: OwnershipOfferContent): Promise<boolean> {
+    return this.deliver(
+      recipient.to,
+      ownershipOfferEmail(content),
+      `Ownership offer email for user ${recipient.userId}`,
     );
   }
 

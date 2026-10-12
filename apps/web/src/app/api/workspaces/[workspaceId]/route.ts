@@ -1,7 +1,6 @@
 import type { NextRequest } from 'next/server';
 import {
-  canDeleteWorkspace,
-  canRenameWorkspace,
+  can,
   createClient,
   deleteWorkspace,
   renameWorkspace,
@@ -61,7 +60,7 @@ export async function PATCH(
   const authorized = await authorize(workspaceId);
   if ('error' in authorized) return authorized.error;
 
-  if (!canRenameWorkspace(authorized.role)) {
+  if (!can(authorized.role, 'rename')) {
     return corsJson(
       { error: 'Only an owner or admin can rename this workspace.' },
       { status: 403 },
@@ -101,7 +100,7 @@ export async function DELETE(
   const authorized = await authorize(workspaceId);
   if ('error' in authorized) return authorized.error;
 
-  if (!canDeleteWorkspace(authorized.role)) {
+  if (!can(authorized.role, 'delete')) {
     return corsJson({ error: 'Only the owner can delete this workspace.' }, { status: 403 });
   }
 

@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canInvite, describeCreateRefusal } from './invite-rules.js';
-
-describe('canInvite', () => {
-  it('lets whoever runs the workspace invite, and nobody else', () => {
-    expect(canInvite('owner')).toBe(true);
-    expect(canInvite('admin')).toBe(true);
-    expect(canInvite('member')).toBe(false);
-  });
-});
+import { describeCreateRefusal } from './invite-rules.js';
 
 describe('describeCreateRefusal', () => {
   it('points an address that is already invited at sending it again', () => {

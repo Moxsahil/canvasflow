@@ -1,13 +1,4 @@
-import type { CreateInviteOutcome, WorkspaceRole } from '@canvasflow/db';
-
-/**
- * Who may invite people into a workspace, take an invitation back or send it
- * again: whoever runs it. The editor shows the Invite form on the same rule,
- * but this is the one that decides.
- */
-export function canInvite(role: WorkspaceRole): boolean {
-  return role === 'owner' || role === 'admin';
-}
+import type { CreateInviteOutcome } from '@canvasflow/db';
 
 type CreateRefusal = Extract<CreateInviteOutcome, { ok: false }>['reason'];
 

@@ -25,6 +25,18 @@ export const workspaces = pgTable('workspace', {
    * Every read of a workspace has to exclude these; see access/workspaces.ts.
    */
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  /**
+   * The member the owner has offered the ownership to, until they accept it,
+   * turn it down, or the owner takes it back. One offer at a time.
+   *
+   * Ownership is handed over rather than taken: nothing changes until the
+   * person offered it says yes, and until then the owner is still the owner
+   * and still cannot leave.
+   */
+  ownershipOfferedTo: uuid('ownership_offered_to').references(() => users.id, {
+    onDelete: 'set null',
+  }),
+  ownershipOfferedAt: timestamp('ownership_offered_at', { withTimezone: true }),
 });
 
 export const memberships = pgTable(
