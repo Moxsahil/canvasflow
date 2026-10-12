@@ -103,6 +103,13 @@ export class CommentStore {
     return id;
   }
 
+  /** The id of a thread's opening comment, or null when there is no such thread. */
+  firstCommentId(threadId: string): string | null {
+    const first = this.commentsOf(threadId)?.get(0);
+    const id = first instanceof Y.Map ? first.get('id') : null;
+    return typeof id === 'string' ? id : null;
+  }
+
   /** Reply to a thread. Nothing happens if the thread has gone. */
   addComment(
     threadId: string,

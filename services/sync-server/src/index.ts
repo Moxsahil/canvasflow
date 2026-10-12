@@ -16,12 +16,14 @@ import {
 import { getAllowedOrigins, isOriginAllowed } from './security/allowed-origins.js';
 import {
   ACCOUNT_CHANGED_PURPOSE,
+  COMMENT_LOOKUP_PURPOSE,
   INTERNAL_AUTH_HEADER,
   WORKSPACE_CHANGED_PURPOSE,
   isInternalCaller,
 } from './security/internal-auth.js';
 import { announceWorkspaceChanged } from './workspace/workspace-changed.js';
 import { announceAccountChanged, isAccountPart } from './account/account-changed.js';
+import { findComment } from './comments/comment-lookup.js';
 import {
   PRESENCE_RENEW_INTERVAL_MS,
   startPresenceKeepalive,
@@ -532,6 +534,43 @@ app.post('/internal/account-changed', express.json({ limit: '1kb' }), (req, res)
   const told = announceAccountChanged(hocuspocus, userId, body.part);
   log.info('account change announced', { userId, part: body.part, told });
   res.json({ ok: true, told });
+});
+
+/** A comment or thread id as the editor makes them: short, and nothing but word characters and dashes. */
+const COMMENT_ID = /^[\w-]{1,80}$/;
+
+/**
+ * "What does this comment on this board say, and who wrote it?"
+ *
+ * Asked by the API gateway before it emails anybody about a comment, so the
+ * email is built from the board and not from what a browser claims. Answers
+ * from the open document only: a comment worth emailing about was written a
+ * moment ago by somebody who still has the board open. Reveals a comment to
+ * nobody but the gateway, which checks who is asking before it uses one.
+ */
+app.post('/internal/comment-lookup', express.json({ limit: '1kb' }), (req, res) => {
+  if (
+    !isInternalCaller(req.headers[INTERNAL_AUTH_HEADER], env.AUTH_SECRET, COMMENT_LOOKUP_PURPOSE)
+  ) {
+    log.warn('rejected internal call: bad or missing credential');
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
+
+  const body = req.body as { boardId?: unknown; threadId?: unknown; commentId?: unknown };
+  const boardId = typeof body.boardId === 'string' && UUID.test(body.boardId) ? body.boardId : null;
+  const threadId =
+    typeof body.threadId === 'string' && COMMENT_ID.test(body.threadId) ? body.threadId : null;
+  const commentId =
+    typeof body.commentId === 'string' && COMMENT_ID.test(body.commentId) ? body.commentId : null;
+  if (!boardId || !threadId || !commentId) {
+    res.status(400).json({ error: 'boardId, threadId and commentId are required' });
+    return;
+  }
+
+  const document = hocuspocus.documents.get(boardId);
+  const comment = document ? findComment(document, threadId, commentId) : null;
+  res.json({ comment });
 });
 
 let stopReauthorize: (() => void) | null = null;

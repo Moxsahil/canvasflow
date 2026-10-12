@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   accountClaimedEmail,
   accountDeletionEmail,
+  commentMentionEmail,
+  quoteOf,
   escapeHtml,
   minutesUntil,
   passwordChangedEmail,
@@ -231,5 +233,41 @@ describe('ownershipOfferEmail', () => {
     expect(email.html).toContain('https://canvasflowapp.com/open');
     expect(email.text).toContain('Settings → Workspace');
     expect(email.subject).not.toMatch(/\n/);
+  });
+});
+
+describe('commentMentionEmail', () => {
+  const email = commentMentionEmail({
+    authorName: 'Ada <script>',
+    boardTitle: 'Road\nmap',
+    body: 'Can you check this, @Grace?\n\n\n\nThanks <b>',
+    openUrl: 'https://app.canvasflowapp.com/boards/b1?comment=thread-1',
+    unsubscribeUrl: 'https://canvasflowapp.com/unsubscribe?u=1&k=commentMentions&t=x',
+  });
+
+  it('says who, where and what, escaped', () => {
+    expect(email.subject).toBe('Ada <script> mentioned you on Road map');
+    expect(email.html).toContain('Ada &lt;script&gt;');
+    expect(email.html).not.toContain('<script>');
+    expect(email.html).toContain('Thanks &lt;b&gt;');
+    expect(email.text).toContain('> Can you check this, @Grace?');
+  });
+
+  it('links to the thread, and to turning these emails off', () => {
+    expect(email.html).toContain('https://app.canvasflowapp.com/boards/b1?comment=thread-1');
+    expect(email.html).toContain('k=commentMentions&amp;t=x');
+    expect(email.text).toContain('Turn them off: https://canvasflowapp.com/unsubscribe?');
+  });
+});
+
+describe('quoteOf', () => {
+  it('keeps a short comment whole, with its lines, and closes up blank runs', () => {
+    expect(quoteOf('one  two\n\n\n\nthree ')).toBe('one two\n\nthree');
+  });
+
+  it('cuts a long one on a word', () => {
+    const quote = quoteOf('word '.repeat(200), 50);
+    expect(quote.endsWith('word…')).toBe(true);
+    expect(quote.length).toBeLessThanOrEqual(51);
   });
 });

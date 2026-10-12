@@ -13,6 +13,7 @@ export const SYNC_PURPOSE = {
   workspaceChanged: 'canvasflow:internal:workspace-changed:v1',
   boardAccess: 'canvasflow:internal:board-access:v1',
   accountChanged: 'canvasflow:internal:account-changed:v1',
+  commentLookup: 'canvasflow:internal:comment-lookup:v1',
 } as const;
 
 /** The sync-server's internal port when both run on one machine. */
@@ -44,6 +45,21 @@ export class SyncInternalService {
     void this.post(path, purpose, body);
   }
 
+  /**
+   * Ask, and take back the answer — or null when there is none to be had: no
+   * sync-server configured, one that is not answering, or one that refused.
+   * Never throws, like `tell`; a caller decides what no answer means.
+   */
+  async ask<T>(path: string, purpose: string, body: unknown): Promise<T | null> {
+    const res = await this.post(path, purpose, body);
+    if (!res?.ok) return null;
+    try {
+      return (await res.json()) as T;
+    } catch {
+      return null;
+    }
+  }
+
   private token(purpose: string): string {
     let token = this.tokens.get(purpose);
     if (!token) {
@@ -53,8 +69,8 @@ export class SyncInternalService {
     return token;
   }
 
-  private async post(path: string, purpose: string, body: unknown): Promise<void> {
-    if (!this.baseUrl) return;
+  private async post(path: string, purpose: string, body: unknown): Promise<Response | null> {
+    if (!this.baseUrl) return null;
     try {
       const res = await fetch(new URL(path, this.baseUrl), {
         method: 'POST',
@@ -66,8 +82,10 @@ export class SyncInternalService {
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
       if (!res.ok) this.logger.warn(`sync-server answered ${res.status} to ${path}`);
+      return res;
     } catch (error) {
       this.logger.warn(`Could not reach the sync-server's ${path}: ${String(error)}`);
+      return null;
     }
   }
 }

@@ -4,6 +4,7 @@ import { parseEnv } from '../../config/env.js';
 import {
   accountClaimedEmail,
   accountDeletionEmail,
+  commentMentionEmail,
   passwordChangedEmail,
   passwordResetEmail,
   passwordSetupEmail,
@@ -13,6 +14,7 @@ import {
   workspaceInviteEmail,
   type AccountClaimedContent,
   type AccountDeletionContent,
+  type CommentMentionContent,
   type PasswordChangedContent,
   type PasswordResetContent,
   type PasswordSetupContent,
@@ -162,6 +164,26 @@ export class EmailService {
   }
 
   /**
+   * To somebody @mentioned in a comment. Carries the headers that give mail
+   * clients their own unsubscribe button (RFC 8058), posting to `oneClickUrl`.
+   */
+  async sendCommentMention(
+    recipient: Recipient,
+    content: CommentMentionContent,
+    oneClickUrl: string,
+  ): Promise<boolean> {
+    return this.deliver(
+      recipient.to,
+      commentMentionEmail(content),
+      `Comment mention email for user ${recipient.userId}`,
+      {
+        'List-Unsubscribe': `<${oneClickUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
+    );
+  }
+
+  /**
    * Hand one message to the provider, reporting whether it was accepted.
    *
    * Never throws, for every message and not only verification: each of these
@@ -172,7 +194,12 @@ export class EmailService {
    * message body, because the body of a reset mail is a working credential and
    * a log file is exactly the kind of place a token should never come to rest.
    */
-  private async deliver(to: string, email: RenderedEmail, description: string): Promise<boolean> {
+  private async deliver(
+    to: string,
+    email: RenderedEmail,
+    description: string,
+    headers?: Record<string, string>,
+  ): Promise<boolean> {
     if (!this.client) {
       this.logger.warn(`RESEND_API_KEY is unset, so this was not sent: ${description}`);
       return false;
@@ -185,6 +212,7 @@ export class EmailService {
         subject: email.subject,
         html: email.html,
         text: email.text,
+        ...(headers ? { headers } : {}),
       });
       // The SDK reports a refusal in the result rather than by throwing, so a
       // rejected message has to be looked for here or it reads as sent.

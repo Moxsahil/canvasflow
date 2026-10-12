@@ -13,6 +13,7 @@ import { passwordResetTokens } from '../schema/password-reset.js';
 import { users, type NewUserRow } from '../schema/users.js';
 import { memberships, workspaces } from '../schema/workspaces.js';
 import { workspaceInvites } from '../schema/workspace-invites.js';
+import { notificationDeliveries } from '../schema/notifications.js';
 import { isUniqueViolation } from './pg-errors.js';
 
 /**
@@ -81,6 +82,9 @@ export const USER_REFERENCE_FATES = {
   'workspace_invites.invited_by': 'kept',
   // An offer of a workspace's ownership to them is withdrawn.
   'workspace.ownership_offered_to': 'unlinked',
+  // What they were told about goes; what they did to others stays, as nobody.
+  'notification_deliveries.recipient_id': 'deleted',
+  'notification_deliveries.actor_id': 'unlinked',
 } as const;
 
 /** The account row's columns that erasure leaves as they are. None of them says who anybody was. */
@@ -531,6 +535,14 @@ export async function purgeAccount(
       .update(workspaces)
       .set({ ownershipOfferedTo: null, ownershipOfferedAt: null })
       .where(eq(workspaces.ownershipOfferedTo, userId));
+
+    // What they were told about is theirs; what they did to others is kept,
+    // as nobody, so the people they mentioned are not mailed about it again.
+    await tx.delete(notificationDeliveries).where(eq(notificationDeliveries.recipientId, userId));
+    await tx
+      .update(notificationDeliveries)
+      .set({ actorId: null })
+      .where(eq(notificationDeliveries.actorId, userId));
 
     await tx.update(auditLog).set({ actorId: null }).where(eq(auditLog.actorId, userId));
 
