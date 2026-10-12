@@ -3,6 +3,7 @@ export { ManageDialog } from './ManageDialog';
 export { RenameBoardDialog } from './RenameBoardDialog';
 export {
   useBoardSwitcher,
+  SHARED_WITH_YOU,
   type BoardSwitcherState,
   type ManageTarget,
   type RenameBoardTarget,

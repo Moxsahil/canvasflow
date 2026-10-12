@@ -46,6 +46,14 @@ describe('the two menus', () => {
     // It changes the board, so a viewer is not shown it.
     expect(idsIn(contextMenuFor('canvas', { readOnly: true }))).not.toContain('pasteHere');
   });
+  it('leaves out the link to a selection for whoever does not run the board’s sharing', () => {
+    expect(idsIn(contextMenuFor('selection', { readOnly: false }))).toContain(
+      'copyLinkToSelection',
+    );
+    expect(
+      idsIn(contextMenuFor('selection', { readOnly: false, canShareLinks: false })),
+    ).not.toContain('copyLinkToSelection');
+  });
 
   it('keeps Lock and Unlock all away from a viewer, who cannot change the board', () => {
     expect(idsIn(contextMenuFor('selection', { readOnly: true }))).not.toContain('lock');

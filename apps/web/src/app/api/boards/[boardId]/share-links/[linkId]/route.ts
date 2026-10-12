@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { canManageMembers, createClient, revokeShareLink } from '@canvasflow/db';
+import { canManageBoardSharing, createClient, revokeShareLink } from '@canvasflow/db';
 import { env } from '@/lib/env';
 import { currentSession } from '@/lib/auth/session';
 import { checkBoardAccess } from '@/lib/boards/access';
@@ -37,7 +37,7 @@ export async function DELETE(
 
   const access = await checkBoardAccess(session.user.id, boardId);
   if (!access) return corsJson({ error: 'Not found' }, { status: 404 });
-  if (!canManageMembers(access.role)) {
+  if (!(await canManageBoardSharing(db, session.user.id, access))) {
     return corsJson({ error: 'Not allowed to manage this board' }, { status: 403 });
   }
 

@@ -148,6 +148,11 @@ export interface CommandContext {
   canCopyAsText: boolean;
   /** Among what Copy as would copy, a box or an arrow tied at both ends. */
   canCopyAsMermaid: boolean;
+  /**
+   * Runs this board's sharing — its owner, or whoever runs its workspace. The
+   * links to the board are theirs to hand out; nobody else is offered them.
+   */
+  canShareLinks: boolean;
 }
 
 export interface CommandMeta {
@@ -410,8 +415,8 @@ export const COMMANDS: readonly CommandMeta[] = [
     icon: Link2,
     category: 'Edit',
     keywords: ['share', 'url', 'point to', 'shapes', 'deep link', 'go to'],
-    // Copying a link changes nothing, so a viewer may do it as well.
-    available: (context) => context.selectionCount > 0,
+    // A link to the board is for those who run its sharing to hand out.
+    available: (context) => context.canShareLinks && context.selectionCount > 0,
   },
   // Copying changes nothing, so a viewer may do all five. Each covers the
   // selection, or the board when nothing is selected.
@@ -571,7 +576,7 @@ export const COMMANDS: readonly CommandMeta[] = [
     (context) => context.canRename,
   ),
   fromMenu('liveCollaboration', 'Board', ['share', 'invite', 'multiplayer', 'collaborate']),
-  fromMenu('copyLink', 'Board', ['url', 'share', 'clipboard']),
+  fromMenu('copyLink', 'Board', ['url', 'share', 'clipboard'], (context) => context.canShareLinks),
   // Last in its category, as it is in the sidebar: it is the one entry here
   // that discards work.
   //

@@ -47,6 +47,11 @@ export interface SharePerson {
   isOwner: boolean;
   role: ShareRole | 'owner';
   photo: string | null;
+  /**
+   * Here through the board's workspace, not a grant of their own: their role
+   * there. Changed in Settings → Workspace, so no menu here. Null otherwise.
+   */
+  workspaceRole?: 'owner' | 'admin' | 'member' | null;
   /** The person looking at this dialog. */
   you: boolean;
   /** Arrived while the dialog was open, a moment ago. */
@@ -91,6 +96,14 @@ export interface ShareSessionPanelProps {
   onClose: () => void;
   onMemberRole: (userId: string, role: ShareRole) => void;
   onRemoveMember: (userId: string) => void;
+  /**
+   * The name of somebody without an account just removed while the live link
+   * lets guests in: they could join again as a new guest, so the panel says so
+   * and offers a new link. Null otherwise.
+   */
+  guestMayReturn?: string | null;
+  /** Start the session again with a new link, as it is now. */
+  onResetLink?: () => void;
   /** People removed from the board, listed out of the way so they can be added back. */
   removed?: RemovedPerson[];
   onAddBack?: (userId: string) => void;
@@ -108,6 +121,13 @@ const PERMISSIONS: Record<ShareRole, { label: string; hint: string; icon: typeof
   viewer: { label: 'Can view', hint: 'See it, but not change it', icon: Eye },
   editor: { label: 'Can edit', hint: 'Draw and change the board', icon: Pencil },
 };
+
+/** How somebody here through the workspace is labelled, in place of a role menu. */
+const WORKSPACE_ROLE_LABELS = {
+  owner: 'Workspace owner',
+  admin: 'Workspace admin',
+  member: 'Workspace member',
+} as const;
 
 /** Chosen from a person's menu, where it reads as one more thing to set. */
 const REMOVE = 'remove';
@@ -156,6 +176,13 @@ export function ShareSessionPanel(props: ShareSessionPanelProps) {
             <span className="text-[11.5px] text-[var(--surface-fg-muted)]">{members}</span>
           </div>
           <PeopleList {...props} />
+          {props.guestMayReturn && props.onResetLink && (
+            <GuestMayReturn
+              name={props.guestMayReturn}
+              busy={props.busy}
+              onReset={props.onResetLink}
+            />
+          )}
           {props.removed && props.onAddBack && (
             <RemovedList removed={props.removed} onAddBack={props.onAddBack} />
           )}
@@ -212,37 +239,31 @@ export interface ShareCollaboratorPanelProps {
   role: ShareRole | null;
   /** Whose board it is, once the gateway has said. */
   ownerName: string | null;
-  /** The board's own address — what they can pass on. */
-  link: string;
   here: HerePerson[];
-  copied: boolean;
-  /** Resolves false when the clipboard refused, and the field is selected instead. */
-  onCopy: () => Promise<boolean>;
   onClose: () => void;
 }
 
 /**
- * The Share window for someone who is not the board's owner.
+ * The Share window for someone on the board who does not run its sharing —
+ * a member of its workspace, or someone let on by link.
  *
- * Sharing is the owner's to do, so this is the honest smaller version of their
- * window: what you can do here, the board's address to pass on, and who is on
- * the board now. It asks the server for nothing the owner alone may read — the
- * people listed come from presence, already on this board's socket — so it
- * has no way to end up showing an error about permissions it never needed.
+ * Sharing is for the board's owner and the workspace's admins, so this is the
+ * honest smaller version of their window: what you can do here, who decides
+ * who else can, and who is on the board now. It offers no link to pass on:
+ * letting people in is not theirs to do. It asks the server for nothing only
+ * those who run sharing may read — the people listed come from presence,
+ * already on this board's socket — so it has no way to end up showing an
+ * error about permissions it never needed.
  */
 export function ShareCollaboratorPanel({
   boardName,
   role,
   ownerName,
-  link,
   here,
-  copied,
-  onCopy,
   onClose,
 }: ShareCollaboratorPanelProps) {
   const count = here.length === 1 ? '1 here now' : `${here.length} here now`;
   const Icon = role === 'editor' ? Pencil : Eye;
-  const linkField = useRef<HTMLInputElement>(null);
   const owner = ownerName ?? 'the owner';
 
   return (
@@ -282,42 +303,9 @@ export function ShareCollaboratorPanel({
                     : 'You’re on this board'}
               </p>
               <p className="text-[11.5px] text-[var(--surface-fg-muted)]">
-                {`Only ${owner} can invite people or change who has access.`}
+                {`Only ${owner} and the workspace’s admins can invite people or change who has access.`}
               </p>
             </div>
-          </div>
-          <div className="flex flex-col gap-[8px]">
-            <div className="flex gap-[6px]">
-              <input
-                ref={linkField}
-                readOnly
-                value={link}
-                aria-label="Board link"
-                onFocus={(event) => event.currentTarget.select()}
-                className={cn(INPUT, 'min-w-0 flex-1')}
-              />
-              <SettingsButton
-                variant="primary"
-                className="h-[32px] px-[14px] text-[12.5px]"
-                onClick={() =>
-                  void onCopy().then((ok) => {
-                    // The clipboard said no: the link is selected, a keystroke away.
-                    if (!ok) linkField.current?.select();
-                  })
-                }
-                data-testid="share-copy-board-link"
-              >
-                {copied ? (
-                  <Check className="size-[14px]" aria-hidden="true" />
-                ) : (
-                  <Copy className="size-[14px]" aria-hidden="true" />
-                )}
-                {copied ? 'Copied' : 'Copy link'}
-              </SettingsButton>
-            </div>
-            <p className="text-[11.5px] text-[var(--surface-fg-muted)]">
-              Opens the board for people who already have access to it.
-            </p>
           </div>
         </div>
 
@@ -640,6 +628,15 @@ function PeopleList({
               <Crown className="size-[12px]" aria-hidden="true" />
               Owner
             </span>
+          ) : person.workspaceRole ? (
+            <span
+              title="Here through the workspace. Change it in Settings → Workspace."
+              data-testid={`share-workspace-${person.id}`}
+              className="inline-flex h-[26px] shrink-0 items-center gap-[5px] rounded-[7px] border border-[var(--surface-border)] px-[9px] text-[11.5px] text-[var(--surface-fg-muted)]"
+            >
+              <Users className="size-[12px]" aria-hidden="true" />
+              {WORKSPACE_ROLE_LABELS[person.workspaceRole]}
+            </span>
           ) : (
             <RoleMenu
               person={person}
@@ -653,6 +650,36 @@ function PeopleList({
         </motion.li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * Said right after removing somebody who joined without an account: the board
+ * cannot tell them from anyone else who opens the link, so the link is what
+ * has to change to keep them out.
+ */
+function GuestMayReturn({
+  name,
+  busy,
+  onReset,
+}: {
+  name: string;
+  busy: boolean;
+  onReset: () => void;
+}) {
+  return (
+    <div
+      role="status"
+      data-testid="share-guest-may-return"
+      className="mt-[6px] flex items-center gap-[10px] rounded-[10px] bg-amber-500/10 px-[12px] py-[9px]"
+    >
+      <p className="min-w-0 flex-1 text-[11.5px] leading-[1.5] text-[var(--surface-fg)]">
+        {`${name} joined without an account, so this link could let them in again as a new guest. Reset the link to keep them out.`}
+      </p>
+      <SettingsButton onClick={onReset} disabled={busy} data-testid="share-reset-link">
+        Reset link
+      </SettingsButton>
+    </div>
   );
 }
 

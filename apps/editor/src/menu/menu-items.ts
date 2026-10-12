@@ -171,9 +171,11 @@ export const LEARN_MORE_GROUPS: readonly (readonly LearnMoreItem[])[] = [
 ];
 
 /**
- * Handlers for menu items, in three states:
+ * Handlers for menu items, in four states:
  *
  * - a function — the item is live.
+ * - `false` — not for this person at all: copying the board's link, for
+ *   someone who does not run its sharing. The item is left out.
  * - `null` — the feature exists, but does not apply right now: nothing to
  *   reset on an empty board, nothing to rename without the rights. The row
  *   disables itself and keeps its shortcut hint.
@@ -185,4 +187,12 @@ export const LEARN_MORE_GROUPS: readonly (readonly LearnMoreItem[])[] = [
  * feature is "coming soon" because their board happens to be empty is worse
  * than saying nothing at all.
  */
-export type MenuActions = Partial<Record<MenuItemId, (() => void) | null>>;
+export type MenuActions = Partial<Record<MenuItemId, (() => void) | null | false>>;
+
+/**
+ * A handler as a row takes it: `false` — not offered to this person — reads
+ * as disabled for any row that cannot leave itself out.
+ */
+export function liveAction(action: MenuActions[MenuItemId]): (() => void) | null | undefined {
+  return action === false ? null : action;
+}

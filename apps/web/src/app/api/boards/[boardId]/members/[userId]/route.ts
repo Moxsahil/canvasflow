@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import {
-  canManageMembers,
+  canManageBoardSharing,
   createClient,
   revokeBoardAccess,
   setBoardMemberRole,
@@ -45,7 +45,7 @@ async function authorize(boardId: string, userId: string) {
   const access = await checkBoardAccess(session.user.id, boardId);
   if (!access) return { error: corsJson({ error: 'Not found' }, { status: 404 }) };
 
-  if (!canManageMembers(access.role)) {
+  if (!(await canManageBoardSharing(db, session.user.id, access))) {
     return { error: corsJson({ error: 'Not allowed to manage this board' }, { status: 403 }) };
   }
 
@@ -86,8 +86,9 @@ export async function PATCH(
   }
 
   await notifyBoardAccessChanged(boardId, userId);
-  // The workspace's guest list shows what each guest may do.
-  await notifyWorkspaceChanged(authorized.workspaceId);
+  // The workspace's guest list shows what each guest may do, and the person
+  // changed lists the board under "Shared with you".
+  await notifyWorkspaceChanged(authorized.workspaceId, [userId]);
 
   return corsJson({ ok: true, role: outcome.role });
 }
@@ -117,7 +118,8 @@ export async function DELETE(
   // they removed is still drawing. It cannot fail the request — see
   // notifyBoardAccessChanged — and gives up after two seconds.
   await notifyBoardAccessChanged(boardId, userId);
-  await notifyWorkspaceChanged(authorized.workspaceId);
+  // Told too, though no longer on it: the board leaves their shared list.
+  await notifyWorkspaceChanged(authorized.workspaceId, [userId]);
 
   return corsJson({ ok: true });
 }

@@ -22,6 +22,7 @@ import { ariaKeyShortcut, formatShortcut } from '../help/platform';
 import { ColorDot, formatUpdatedAt } from '../workspace/board-presentation';
 import type { BoardSwitcherState } from '../workspace';
 import {
+  liveAction,
   BOARD_CARD_ITEMS,
   BOARD_MORE_GROUPS,
   MENU_ITEMS,
@@ -50,7 +51,11 @@ const cardButtonClasses =
 export function BoardCard({ state, actions, portalContainer }: BoardCardProps) {
   const entry = state.workspaceId ? state.boardsFor(state.workspaceId) : undefined;
   const board =
-    entry?.status === 'ready' ? entry.boards.find((it) => it.id === state.boardId) : undefined;
+    (entry?.status === 'ready' ? entry.boards.find((it) => it.id === state.boardId) : undefined) ??
+    // One somebody let us onto is in the shared list, not in a workspace's.
+    (state.openBoardIsShared
+      ? state.sharedBoards?.find((it) => it.id === state.boardId)
+      : undefined);
 
   return (
     <>
@@ -76,9 +81,11 @@ export function BoardCard({ state, actions, portalContainer }: BoardCardProps) {
             aria-label="Board actions"
             className="flex items-center justify-between"
           >
-            {BOARD_CARD_ITEMS.map((id) => (
-              <CardAction key={id} id={id} onSelect={actions?.[id]} />
-            ))}
+            {BOARD_CARD_ITEMS.map((id) =>
+              actions?.[id] === false ? null : (
+                <CardAction key={id} id={id} onSelect={liveAction(actions?.[id])} />
+              ),
+            )}
             <BoardActionsMenu
               groups={BOARD_MORE_GROUPS}
               actions={actions}
@@ -194,9 +201,11 @@ function BoardActionsMenu({
         {groups.map((group, index) => (
           <Fragment key={index}>
             {index > 0 && <InlineDropdownMenuSeparator />}
-            {group.map((id) => (
-              <ActionItem key={id} id={id} onSelect={actions?.[id]} />
-            ))}
+            {group.map((id) =>
+              actions?.[id] === false ? null : (
+                <ActionItem key={id} id={id} onSelect={liveAction(actions?.[id])} />
+              ),
+            )}
           </Fragment>
         ))}
       </InlineDropdownMenuContent>

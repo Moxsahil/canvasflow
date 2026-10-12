@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { canManageMembers, createClient, listBoardAccess } from '@canvasflow/db';
+import { canManageBoardSharing, createClient, listBoardAccess } from '@canvasflow/db';
 import { env } from '@/lib/env';
 import { currentSession } from '@/lib/auth/session';
 import { checkBoardAccess } from '@/lib/boards/access';
@@ -33,8 +33,8 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ boardI
   if (!access) return corsJson({ error: 'Board not found' }, { status: 404 });
 
   // Seeing the full membership list is an administrative view, not something
-  // every collaborator needs.
-  if (!canManageMembers(access.role)) {
+  // every collaborator needs: the board's owner and the workspace's admins.
+  if (!(await canManageBoardSharing(db, session.user.id, access))) {
     return corsJson({ error: 'Not allowed to manage this board' }, { status: 403 });
   }
 

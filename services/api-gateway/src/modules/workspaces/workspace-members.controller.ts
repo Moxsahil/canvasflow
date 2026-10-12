@@ -139,7 +139,7 @@ export class WorkspaceMembersController {
     });
     if (!outcome.ok) throw refused('guest', outcome.reason);
 
-    this.events.changed(workspaceId);
+    this.events.changed(workspaceId, [userId]);
     // Their open boards turn read-only, or editable, without a reconnect.
     this.events.boardAccessChanged(outcome.boardIds, userId);
   }
@@ -157,7 +157,8 @@ export class WorkspaceMembersController {
     const outcome = await removeGuest(this.database.db, { workspaceId, actorId: user.id, userId });
     if (!outcome.ok) throw refused('guest', outcome.reason);
 
-    this.events.changed(workspaceId);
+    // Told too, though no longer on them: the boards leave their shared list.
+    this.events.changed(workspaceId, [userId]);
     this.events.boardAccessChanged(outcome.boardIds, userId);
   }
 

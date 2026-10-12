@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
+import { can } from '@canvasflow/types';
 import { useActorRef, useSelector } from '@xstate/react';
 import {
   arrowsAffectedBy,
@@ -199,7 +200,7 @@ import {
   decodeJwtWorkspaceId,
   sessionResumeUrl,
 } from './auth/token';
-import { announceWorkspaceChanged, useBoardSwitcher } from './workspace';
+import { announceWorkspaceChanged, SHARED_WITH_YOU, useBoardSwitcher } from './workspace';
 import {
   CursorLayer,
   FollowingChip,
@@ -784,20 +785,42 @@ export function Editor({ boardId }: EditorProps) {
   const { beginRename, canRename } = boardSwitcher;
   const handleRenameBoard = useCallback(() => beginRename(), [beginRename]);
 
+  // Whoever runs the open board's workspace runs its sharing too, as its owner
+  // does. Read from the sidebar's list, where each workspace carries one's role.
+  const managesBoardWorkspace = useMemo(() => {
+    const role = boardSwitcher.workspaces?.find(
+      (workspace) => workspace.id === boardSwitcher.workspaceId,
+    )?.role;
+    return role !== undefined && can(role, 'manage-members');
+  }, [boardSwitcher.workspaces, boardSwitcher.workspaceId]);
+  /**
+   * Runs this board's sharing: its owner, or whoever runs its workspace. Only
+   * they are offered a link to the board — the board link and links to a
+   * selection alike. Everyone else, in the workspace or let on by link, is
+   * offered none to pass on.
+   */
+  const runsSharing = user?.role === 'owner' || managesBoardWorkspace;
+
   // Settings → Workspace is about the workspace the sidebar header names: the
-  // one being browsed, else the open board's own.
+  // one being browsed, else the open board's own. While the sidebar lists the
+  // boards shared from other people's workspaces, there is no workspace there
+  // to run, and the page says so — naming the board's real workspace and
+  // pointing at one's own — rather than quietly showing one's own workspace
+  // under a board that belongs to somebody else's.
   const settingsWorkspace = useMemo<WorkspaceSettingsSource>(() => {
     if (user?.isGuest || !boardSwitcher.available) return { status: 'none' };
-    const shownId = boardSwitcher.browsedWorkspaceId ?? boardSwitcher.workspaceId;
-    const workspace = boardSwitcher.workspaces?.find((candidate) => candidate.id === shownId);
+    const { workspaces, listedId, sharedBoards } = boardSwitcher;
+    if (!workspaces) return { status: 'loading' };
+    if (listedId === SHARED_WITH_YOU) {
+      return {
+        status: 'shared',
+        board: sharedBoards?.find((board) => board.id === boardId) ?? null,
+        own: workspaces[0] ?? null,
+      };
+    }
+    const workspace = workspaces.find((candidate) => candidate.id === listedId);
     return workspace ? { status: 'ready', workspace } : { status: 'loading' };
-  }, [
-    user?.isGuest,
-    boardSwitcher.available,
-    boardSwitcher.browsedWorkspaceId,
-    boardSwitcher.workspaceId,
-    boardSwitcher.workspaces,
-  ]);
+  }, [user?.isGuest, boardSwitcher, boardId]);
   const { renameWorkspace, dismissError: dismissSwitcherError } = boardSwitcher;
   const renameWorkspaceFromSettings = useCallback(
     async (workspaceId: string, name: string) => {
@@ -3235,6 +3258,7 @@ export function Editor({ boardId }: EditorProps) {
    * access needs a share link instead.
    */
   const handleCopyBoardLink = useCallback(async () => {
+    if (!runsSharing) return;
     const url = window.location.href;
     try {
       await navigator.clipboard.writeText(url);
@@ -3252,7 +3276,7 @@ export function Editor({ boardId }: EditorProps) {
         link: { url, copied: false },
       });
     }
-  }, []);
+  }, [runsSharing]);
 
   /**
    * Copy a link that opens this board with the selection in view, for anyone
@@ -3262,6 +3286,7 @@ export function Editor({ boardId }: EditorProps) {
    */
   const { show: showToast } = toast;
   const handleCopyLinkToSelection = useCallback(async () => {
+    if (!runsSharing) return;
     const selected = shapes.filter((shape) => selectedIds.includes(shape.id));
     if (selected.length === 0) return;
     const url = shapeLinkFor(window.location.href, selected);
@@ -3276,7 +3301,7 @@ export function Editor({ boardId }: EditorProps) {
         link: { url, copied: false },
       });
     }
-  }, [shapes, selectedIds, showToast]);
+  }, [shapes, selectedIds, showToast, runsSharing]);
 
   // --- copy as --------------------------------------------------------------
   // Each copies the selection, or the board when nothing is selected: the
@@ -3937,6 +3962,7 @@ export function Editor({ boardId }: EditorProps) {
       canCopyAsPng,
       canCopyAsText,
       canCopyAsMermaid,
+      canShareLinks: runsSharing,
     },
   );
 
@@ -4043,7 +4069,8 @@ export function Editor({ boardId }: EditorProps) {
             saveTo: saveBoardFileToDisk,
             exportImage: showExport,
             liveCollaboration: showShare,
-            copyLink: handleCopyBoardLink,
+            // Left out for anyone who does not run the board's sharing.
+            copyLink: runsSharing ? handleCopyBoardLink : false,
             /* Live on an empty board too — it recentres the view as well as
                clearing, so it always does something. Null for a viewer, whose
                edits the document refuses anyway. */
@@ -4067,6 +4094,7 @@ export function Editor({ boardId }: EditorProps) {
             <CanvasContextMenu
               target={contextMenuTarget}
               readOnly={readOnly}
+              canShareLinks={runsSharing}
               moveTo={moveToBoards}
               open={contextMenuOpen}
               onOpenChange={handleContextMenuOpenChange}
@@ -4454,6 +4482,7 @@ export function Editor({ boardId }: EditorProps) {
               authToken={authToken}
               theme={presenceTheme}
               viewerRole={user?.role ?? null}
+              managesWorkspace={managesBoardWorkspace}
               ownerName={overview?.ownerName ?? null}
               ownerId={overview?.ownerId ?? null}
               roster={roster}
@@ -4562,6 +4591,7 @@ export function Editor({ boardId }: EditorProps) {
                   deleteAccount={deleteAccount}
                   workspace={settingsWorkspace}
                   renameWorkspace={renameWorkspaceFromSettings}
+                  showWorkspace={boardSwitcher.browseWorkspace}
                   onClose={hideSettings}
                 />
               )}

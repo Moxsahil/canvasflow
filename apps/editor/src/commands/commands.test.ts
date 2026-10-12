@@ -17,6 +17,7 @@ const editing: CommandContext = {
   canCopyAsPng: true,
   canCopyAsText: true,
   canCopyAsMermaid: true,
+  canShareLinks: true,
 };
 
 const available = (context: CommandContext) =>
@@ -56,6 +57,14 @@ describe('the command registry', () => {
 });
 
 describe('availability', () => {
+  it('offers links to the board only to those who run its sharing', () => {
+    expect(available(editing)).toContain('copyLink');
+    expect(available(editing)).toContain('copyLinkToSelection');
+    const other = available({ ...editing, canShareLinks: false });
+    expect(other).not.toContain('copyLink');
+    expect(other).not.toContain('copyLinkToSelection');
+  });
+
   it('offers everything while editing with a single shape selected', () => {
     // Every command in the registry applies in this state, which is what makes
     // it the useful baseline for the narrower cases below.

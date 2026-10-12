@@ -337,12 +337,16 @@ export type ContextMenuTarget = 'selection' | 'canvas';
  * A submenu left with nothing in it goes too, and so does a group — the rule
  * between two groups would otherwise sit over an empty space.
  */
+/** Rows that hand out a link to the board: only for those who run its sharing. */
+const SHARING_ROWS: ReadonlySet<ContextMenuItemId> = new Set(['copyLinkToSelection']);
+
 export function contextMenuFor(
   target: ContextMenuTarget,
-  { readOnly }: { readOnly: boolean },
+  { readOnly, canShareLinks = true }: { readOnly: boolean; canShareLinks?: boolean },
 ): ContextMenuGroup[] {
   const layout = target === 'selection' ? SELECTION_MENU : CANVAS_MENU;
-  const usable = (id: ContextMenuItemId) => !(readOnly && CONTEXT_MENU_ITEMS[id].edits);
+  const usable = (id: ContextMenuItemId) =>
+    !(readOnly && CONTEXT_MENU_ITEMS[id].edits) && (canShareLinks || !SHARING_ROWS.has(id));
 
   const groups: ContextMenuGroup[] = [];
   for (const group of layout) {

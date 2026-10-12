@@ -12,6 +12,7 @@ import { CircleSlash, Clock, Link2Off, Lock, Trash2, type LucideIcon } from 'luc
 import { AuthShell, authStyles } from '@/components/auth/auth-shell';
 import { env } from '@/lib/env';
 import { currentUser } from '@/lib/auth/session';
+import { readGuestSession } from '@/lib/auth/guest-session';
 import { resumeUrl } from '@/lib/auth/gateway-session';
 import { cn } from '@/lib/utils';
 import { BoardTile } from './board-tile';
@@ -60,8 +61,11 @@ export default async function InvitePage({ params }: InvitePageProps) {
   const sharedBy = inviter?.name ?? null;
 
   // The link works, but not for someone the owner removed: say so now rather
-  // than offer a button that will refuse them.
-  if (user && (await wasRemovedFromBoard(db, link.boardId, user.id))) {
+  // than offer a button that will refuse them. That includes a guest coming
+  // back in the same browser — the guest it already is, carried in its cookie,
+  // is the one that was removed, even though joining would make a new one.
+  const visitor = user?.id ?? (await readGuestSession());
+  if (visitor && (await wasRemovedFromBoard(db, link.boardId, visitor))) {
     return (
       <AuthShell label="Invitation" heading="You were removed from this board.">
         <BoardTile

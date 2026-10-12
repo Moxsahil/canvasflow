@@ -3,6 +3,8 @@ import type { Database } from '../client.js';
 import { boards } from '../schema/boards.js';
 import { users } from '../schema/users.js';
 import { boardMembers, type BoardRole } from '../schema/board-access.js';
+import { memberships } from '../schema/workspaces.js';
+import { compareWorkspaceMembers, type WorkspaceRole } from './workspaces.js';
 
 /**
  * Changing who may do what on a board, after they are already on it.
@@ -29,6 +31,12 @@ export interface BoardMemberSummary {
   status: 'active' | 'revoked';
   /** True for the board's owner, who has no membership row and cannot be changed. */
   isOwner: boolean;
+  /**
+   * Set for somebody here because they are in the board's workspace, with no
+   * grant of their own on it: their role in the workspace. Their access comes
+   * with the workspace, so it is changed there, not on the board.
+   */
+  workspaceRole?: WorkspaceRole;
 }
 
 /**
@@ -45,7 +53,7 @@ export async function listBoardAccess(
   boardId: string,
 ): Promise<BoardMemberSummary[]> {
   const boardRows = await db
-    .select({ ownerId: boards.ownerId })
+    .select({ ownerId: boards.ownerId, workspaceId: boards.workspaceId })
     .from(boards)
     .where(eq(boards.id, boardId))
     .limit(1);
@@ -92,6 +100,46 @@ export async function listBoardAccess(
     // them twice, at two different roles.
     if (row.userId === board.ownerId) continue;
     result.push({ ...row, isOwner: false });
+  }
+
+  // Everyone in the workspace reaches the board through it — those who joined
+  // by an email invitation as much as its founders — so they are listed too,
+  // after the people let on by link. Somebody with a grant of their own on the
+  // board is already listed by it: a role there, or a removal, outranks the
+  // workspace's.
+  const listed = new Set(result.map((person) => person.userId));
+  const workspaceRows = await db
+    .select({
+      userId: users.id,
+      name: users.name,
+      email: users.email,
+      isGuest: users.isGuest,
+      workspaceRole: memberships.role,
+      joinedAt: memberships.joinedAt,
+    })
+    .from(memberships)
+    .innerJoin(users, eq(users.id, memberships.userId))
+    .where(eq(memberships.workspaceId, board.workspaceId));
+
+  const byStanding = workspaceRows.sort((a, b) =>
+    compareWorkspaceMembers(
+      { role: a.workspaceRole, joinedAt: a.joinedAt },
+      { role: b.workspaceRole, joinedAt: b.joinedAt },
+    ),
+  );
+  for (const row of byStanding) {
+    if (listed.has(row.userId)) continue;
+    result.push({
+      userId: row.userId,
+      name: row.name,
+      email: row.email,
+      isGuest: row.isGuest,
+      // What the workspace gives on its boards.
+      role: 'editor',
+      status: 'active',
+      isOwner: false,
+      workspaceRole: row.workspaceRole,
+    });
   }
 
   return result;

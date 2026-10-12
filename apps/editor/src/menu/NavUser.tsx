@@ -23,6 +23,7 @@ import { SidebarMenuItem } from '@/components/ui/sidebar';
 import { ariaKeyShortcut } from '../help/platform';
 import { env } from '../lib/env';
 import {
+  liveAction,
   CURRENT_LANGUAGE,
   LANGUAGES,
   LEARN_MORE_GROUPS,
@@ -160,7 +161,7 @@ function Soon() {
 /** A row the sidebar's vocabulary already names, live exactly when it has a handler. */
 function AccountRow({ id, actions }: { id: MenuItemId; actions?: MenuActions }) {
   const { label, icon: Icon, destructive } = MENU_ITEMS[id];
-  const action = actions?.[id];
+  const action = liveAction(actions?.[id]);
   return (
     <InlineDropdownMenuItem
       disabled={!action}
@@ -186,7 +187,7 @@ function LearnMoreRow({ item, actions }: { item: LearnMoreItem; actions?: MenuAc
 
   let run: (() => void) | null | undefined;
   if (actionId) {
-    run = actions?.[actionId];
+    run = liveAction(actions?.[actionId]);
   } else if (path) {
     const href = new URL(path, env.VITE_WEB_URL).toString();
     run = () => window.open(href, '_blank', 'noopener,noreferrer');

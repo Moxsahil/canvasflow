@@ -6,6 +6,7 @@ import {
   acceptOwnership,
   leaveWorkspace,
   withdrawOwnershipOffer,
+  type SharedBoard,
   type WorkspaceMember,
 } from '../workspace/people-api';
 import { useWorkspacePeople } from '../workspace/useWorkspacePeople';
@@ -28,6 +29,12 @@ const MAX_WORKSPACE_NAME = 60;
 /** Which workspace the tab is about: none (a guest), not known yet, or this one. */
 export type WorkspaceSettingsSource =
   | { status: 'none' }
+  /**
+   * The sidebar is listing the boards shared from other people's workspaces.
+   * `board` is the open board when it is one of them; `own` is one's own first
+   * workspace, if there is one, to point at.
+   */
+  | { status: 'shared'; board: SharedBoard | null; own: WorkspaceSummary | null }
   | { status: 'loading' }
   | { status: 'ready'; workspace: WorkspaceSummary };
 
@@ -35,6 +42,13 @@ const ROLE_HINTS: Record<WorkspaceRole, string> = {
   owner: 'Full control, including deleting the workspace',
   admin: 'Can rename it, invite people, and change or remove members',
   member: 'Can open, make and edit its boards',
+};
+
+/** "You're the owner here", and so on. */
+const ROLE_PHRASES: Record<WorkspaceRole, string> = {
+  owner: 'the owner',
+  admin: 'an admin',
+  member: 'a member',
 };
 
 /** Which dialog is up over the page. */
@@ -60,13 +74,24 @@ interface WorkspacePaneProps {
   userId?: string | null;
   /** Resolves once the server has kept the name, and rejects with why it did not. */
   onRename?: (workspaceId: string, name: string) => Promise<void>;
+  /** Lists one of one's own workspaces in the sidebar, which this page then follows. */
+  onShowWorkspace?: (workspaceId: string) => void;
 }
 
 /**
  * Workspace: the one the sidebar is showing — what it is called, where you
  * stand in it, and who else is in it.
  */
-export function WorkspacePane({ source, userId = null, onRename }: WorkspacePaneProps) {
+export function WorkspacePane({
+  source,
+  userId = null,
+  onRename,
+  onShowWorkspace,
+}: WorkspacePaneProps) {
+  if (source.status === 'shared') {
+    return <SharedPane board={source.board} own={source.own} onShowWorkspace={onShowWorkspace} />;
+  }
+
   if (source.status === 'none') {
     return (
       <SettingsPage lead={LEAD}>
@@ -404,5 +429,71 @@ function LeaveRow({
         Hand over…
       </SettingsButton>
     </SettingRow>
+  );
+}
+
+/**
+ * For a board one was let onto by link, from a workspace one is not in.
+ *
+ * There is nothing here to run — inviting, roles and leaving belong to that
+ * workspace's people — so the page says whose board it is and what one may do
+ * on it, and points at one's own workspace, rather than showing that one under
+ * a board it has nothing to do with.
+ */
+function SharedPane({
+  board,
+  own,
+  onShowWorkspace,
+}: {
+  board: SharedBoard | null;
+  own: WorkspaceSummary | null;
+  onShowWorkspace?: (workspaceId: string) => void;
+}) {
+  return (
+    <SettingsPage lead={LEAD}>
+      <Band title="This board">
+        <SettingRow
+          setting="workspace-name"
+          title={board ? `Shared with you from ${board.workspaceName}` : 'Shared with you'}
+          hint={
+            board
+              ? `${board.ownerName} shared it with you by link. You’re not in ${board.workspaceName}, so its members and settings aren’t yours to manage.`
+              : 'Boards shared with you by link, from workspaces you’re not in. Their members and settings aren’t yours to manage.'
+          }
+        />
+        {board && (
+          <SettingRow
+            setting="role"
+            title="Your access"
+            hint="Set by the board’s owner, from the board’s Share window"
+          >
+            <ValueText>{board.role === 'viewer' ? 'Can view' : 'Can edit'}</ValueText>
+          </SettingRow>
+        )}
+      </Band>
+      <Band title="Your workspace">
+        {own ? (
+          <SettingRow
+            setting="members"
+            title={own.name}
+            hint={`You’re ${ROLE_PHRASES[own.role]} here. Open it to manage its members and settings.`}
+          >
+            <SettingsButton
+              onClick={() => onShowWorkspace?.(own.id)}
+              disabled={!onShowWorkspace}
+              data-testid="workspace-show-own"
+            >
+              Open
+            </SettingsButton>
+          </SettingRow>
+        ) : (
+          <SettingRow
+            setting="members"
+            title="No workspace of your own yet"
+            hint="Create one from the menu at the top of the sidebar to make boards of your own."
+          />
+        )}
+      </Band>
+    </SettingsPage>
   );
 }
