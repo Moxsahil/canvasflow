@@ -255,6 +255,7 @@ describe('SettingsDialog', () => {
           ],
         },
       ],
+      invites: [],
     };
     const html = renderToString(
       <MembersDialog workspaceName="Studio" people={people} userId="u1" onClose={noop} />,
@@ -272,13 +273,87 @@ describe('SettingsDialog', () => {
     const alone = renderToString(
       <MembersDialog
         workspaceName="Studio"
-        people={{ members: people.members, guests: [] }}
+        people={{ members: people.members, guests: [], invites: [] }}
         userId="u1"
         onClose={noop}
       />,
     );
     expect(alone).toContain('Everyone in Studio.');
     expect(alone).not.toContain('Guests on boards');
+    expect(alone).not.toContain('Invite by email');
+  });
+
+  it('gives whoever runs the workspace the Invite form and the invitations still waiting', () => {
+    const day = 24 * 60 * 60 * 1000;
+    const people: WorkspacePeople = {
+      members: [
+        {
+          userId: 'u1',
+          name: 'Sahil',
+          username: 'sahil',
+          email: 'sahil@example.com',
+          role: 'owner',
+          joinedAt: '2026-10-01T00:00:00.000Z',
+          photo: null,
+        },
+      ],
+      guests: [],
+      invites: [
+        {
+          id: 'i1',
+          email: 'mia@example.com',
+          role: 'admin',
+          invitedByName: 'Sahil',
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 6.5 * day).toISOString(),
+          lastSentAt: new Date().toISOString(),
+          expired: false,
+        },
+        {
+          id: 'i2',
+          email: 'old@example.com',
+          role: 'member',
+          invitedByName: 'Sahil',
+          createdAt: '2026-09-01T00:00:00.000Z',
+          expiresAt: '2026-09-08T00:00:00.000Z',
+          lastSentAt: '2026-09-01T00:00:00.000Z',
+          expired: true,
+        },
+      ],
+    };
+    const html = renderToString(
+      <MembersDialog
+        workspaceName="Studio"
+        workspaceId="w1"
+        people={people}
+        userId="u1"
+        canInvite
+        onClose={noop}
+      />,
+    );
+    expect(html).toContain('Invite by email');
+    expect(html).toContain('data-testid="invite-email"');
+    expect(html).toMatch(/aria-checked="true"[^>]*data-testid="invite-role-member"/);
+    expect(html).toContain('Members · 1');
+    expect(html).toContain('Invited · 2');
+    expect(html).toContain('mia@example.com');
+    expect(html).toContain('Admin · Expires in 7 days · from Sahil');
+    expect(html).toContain('Expired');
+    expect(html).toContain('Send again');
+    expect(html).toContain('Take back the invitation to old@example.com');
+
+    // A member sees the same list, without the form or the invitations.
+    const member = renderToString(
+      <MembersDialog
+        workspaceName="Studio"
+        workspaceId="w1"
+        people={people}
+        userId="u1"
+        onClose={noop}
+      />,
+    );
+    expect(member).not.toContain('Invite by email');
+    expect(member).not.toContain('mia@example.com');
   });
 
   it('links to both legal pages from Data & Privacy, and says which terms were agreed to', () => {

@@ -13,3 +13,4 @@ export * from './sign-in-failures.js';
 export * from './password-reset.js';
 export * from './account-deletion.js';
 export * from './library.js';
+export * from './workspace-invites.js';

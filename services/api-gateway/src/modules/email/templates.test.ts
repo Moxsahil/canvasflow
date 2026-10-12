@@ -8,6 +8,7 @@ import {
   passwordResetEmail,
   passwordSetupEmail,
   providerNoticeEmail,
+  workspaceInviteEmail,
 } from './templates.js';
 
 const origin = {
@@ -183,5 +184,36 @@ describe('accountDeletionEmail', () => {
     const email = accountDeletionEmail(base);
     expect(email.html).toContain('Mallory &lt;b&gt;');
     expect(email.html).not.toContain('<img');
+  });
+});
+
+describe('workspaceInviteEmail', () => {
+  const email = workspaceInviteEmail({
+    joinUrl: 'https://canvasflowapp.com/join/abc',
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60_000),
+    inviterName: 'Mallory <script>',
+    workspaceName: 'Acme\r\nBcc: everyone <b>',
+    role: 'admin',
+  });
+
+  it('carries the link in both parts', () => {
+    expect(email.html).toContain('https://canvasflowapp.com/join/abc');
+    expect(email.text).toContain('https://canvasflowapp.com/join/abc');
+  });
+
+  it('escapes the names other people typed', () => {
+    expect(email.html).not.toContain('<script>');
+    expect(email.html).not.toContain('<b>');
+    expect(email.html).toContain('Mallory &lt;script&gt;');
+  });
+
+  it('keeps the subject on one line', () => {
+    expect(email.subject).not.toMatch(/[\r\n]/);
+    expect(email.subject).toContain('Mallory <script> invited you to Acme');
+  });
+
+  it('says how long it works, and the role when it is not plain member', () => {
+    expect(email.text).toContain('7 days');
+    expect(email.text).toContain('as an admin');
   });
 });

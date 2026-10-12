@@ -1,4 +1,4 @@
-import { and, count, eq, inArray, isNull, lte, ne } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { ACCOUNT_DELETION_GRACE_DAYS, DEFAULT_USER_PREFERENCES } from '@canvasflow/types';
 import type { Database, DatabaseExecutor } from '../client.js';
 import { accountDeletions, type AccountDeletionRow } from '../schema/account-deletion.js';
@@ -12,6 +12,7 @@ import { addedLibraries, libraryItems } from '../schema/library.js';
 import { passwordResetTokens } from '../schema/password-reset.js';
 import { users, type NewUserRow } from '../schema/users.js';
 import { memberships, workspaces } from '../schema/workspaces.js';
+import { workspaceInvites } from '../schema/workspace-invites.js';
 import { isUniqueViolation } from './pg-errors.js';
 
 /**
@@ -74,6 +75,10 @@ export const USER_REFERENCE_FATES = {
   'board_access_requests.responded_by': 'kept',
   'audit_log.actor_id': 'unlinked',
   'account_deletions.user_id': 'kept',
+  // Invitations they accepted go with the ones to their address; ones they
+  // sent are kept once answered, and deleted while still open.
+  'workspace_invites.accepted_by': 'deleted',
+  'workspace_invites.invited_by': 'kept',
 } as const;
 
 /** The account row's columns that erasure leaves as they are. None of them says who anybody was. */
@@ -499,6 +504,26 @@ export async function purgeAccount(
     // Their library is theirs alone, so it goes with the rest of them.
     await tx.delete(libraryItems).where(eq(libraryItems.ownerId, userId));
     await tx.delete(addedLibraries).where(eq(addedLibraries.ownerId, userId));
+
+    // Invitations to their address name them, so they go — answered or not —
+    // and so do the ones they sent that nobody has answered, which would
+    // otherwise go on arriving from "Deleted user". Answered ones they sent
+    // stay as the record of who let whom in.
+    const [account] = await tx
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, userId));
+    if (account) {
+      await tx
+        .delete(workspaceInvites)
+        .where(
+          or(
+            sql`${workspaceInvites.email} = lower(${account.email})`,
+            eq(workspaceInvites.acceptedBy, userId),
+            and(eq(workspaceInvites.invitedBy, userId), isNull(workspaceInvites.acceptedAt)),
+          ),
+        );
+    }
 
     await tx.update(auditLog).set({ actorId: null }).where(eq(auditLog.actorId, userId));
 

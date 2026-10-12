@@ -572,6 +572,23 @@ export async function findMostRecentBoardForUser(
   return rows[0] ? toBoardSummary(rows[0]) : null;
 }
 
+/**
+ * The board to open on arriving in one particular workspace — just joined it,
+ * say: its most recently touched board, or a fresh one when it has none, so
+ * there is always a canvas to land on.
+ *
+ * Null for somebody who is not a member, as `createBoardInWorkspace` answers.
+ */
+export async function boardToOpenInWorkspace(
+  db: Database,
+  userId: string,
+  workspaceId: string,
+): Promise<BoardSummary | null> {
+  const boardsHere = await listWorkspaceBoards(db, userId, workspaceId);
+  if (!boardsHere) return null;
+  return boardsHere[0] ?? createBoardInWorkspace(db, { userId, workspaceId });
+}
+
 export interface EnsureBoardInput {
   userId: string;
   /** Names the personal workspace when one has to be created. */

@@ -9,11 +9,13 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
+  listPendingInvites,
   listWorkspaceGuests,
   listWorkspaceMembers,
   workspaceRoleOf,
   type AvatarSource,
   type GuestBoard,
+  type PendingInvite,
   type WorkspaceRole,
 } from '@canvasflow/db';
 import { DatabaseService } from '../../infra/database/database.service.js';
@@ -21,6 +23,7 @@ import { AccountThrottlerGuard } from '../auth/account-throttler.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { type AuthenticatedUser, JwtAuthGuard } from '../auth/jwt.guard.js';
 import { AvatarsService } from '../avatars/avatars.service.js';
+import { canInvite } from './invite-rules.js';
 
 /** One person in the workspace, as the editor's Settings shows them. */
 export interface WorkspaceMemberView {
@@ -51,6 +54,12 @@ export interface WorkspaceGuestView {
 export interface WorkspacePeople {
   members: WorkspaceMemberView[];
   guests: WorkspaceGuestView[];
+  /**
+   * Invitations nobody has answered yet, for the people who may send them.
+   * Empty for everyone else: who has been asked in, at which address, is the
+   * business of whoever runs the workspace.
+   */
+  invites: PendingInvite[];
 }
 
 /**
@@ -85,9 +94,10 @@ export class WorkspacePeopleController {
     if (!role) throw new NotFoundException('Workspace not found');
 
     const administers = role === 'owner' || role === 'admin';
-    const [members, guests] = await Promise.all([
+    const [members, guests, invites] = await Promise.all([
       listWorkspaceMembers(db, workspaceId),
       listWorkspaceGuests(db, workspaceId),
+      canInvite(role) ? listPendingInvites(db, workspaceId) : Promise.resolve([]),
     ]);
 
     return {
@@ -106,6 +116,7 @@ export class WorkspacePeopleController {
             photo: await this.photo(guest.userId, avatar),
           })),
         ),
+        invites,
       },
     };
   }

@@ -3,7 +3,12 @@ import type { AuditEventId, UserId, WorkspaceId, ISODateString } from './primiti
 export type AuditAction =
   | 'workspace.created'
   | 'workspace.deleted'
+  /** An email invitation to join the workspace was sent, or sent again. */
   | 'workspace.member.invited'
+  /** An invitation nobody had answered was taken back. */
+  | 'workspace.invite.revoked'
+  /** Somebody joined the workspace by accepting an email invitation. */
+  | 'workspace.member.joined'
   | 'workspace.member.role.changed'
   | 'workspace.member.removed'
   | 'board.created'
@@ -54,7 +59,7 @@ export interface AuditEvent {
   workspaceId: WorkspaceId;
   actorId: UserId | null;
   action: AuditAction;
-  targetType: 'workspace' | 'board' | 'user' | 'membership';
+  targetType: 'workspace' | 'board' | 'user' | 'membership' | 'invite';
   targetId: string;
   metadata: Record<string, unknown>;
   ipAddress: string | null;

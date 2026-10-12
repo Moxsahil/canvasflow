@@ -141,7 +141,7 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     title: 'Members',
     section: 'workspace',
     group: 'People',
-    terms: 'invite people team',
+    terms: 'invite people team email',
     accountOnly: true,
   },
   {
