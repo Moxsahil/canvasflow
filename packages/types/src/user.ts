@@ -1,3 +1,4 @@
+import type { NotificationSettings } from './notifications.js';
 import type { UserId, ISODateString } from './primitives.js';
 
 export const CURSOR_COLORS = [
@@ -24,6 +25,11 @@ export interface UserPreferences {
   cursorColor: CursorColor | null;
   showCursorsOfOthers: boolean;
   defaultBoardTool: 'select' | 'rectangle' | 'freehand';
+  /**
+   * Only the email switches somebody has flipped; the rest read as their
+   * defaults. Absent until the first one is. See `notificationSettingsFrom`.
+   */
+  notifications?: Partial<NotificationSettings>;
 }
 
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {

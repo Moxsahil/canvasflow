@@ -201,6 +201,7 @@ import {
   sessionResumeUrl,
 } from './auth/token';
 import { announceWorkspaceChanged, SHARED_WITH_YOU, useBoardSwitcher } from './workspace';
+import { announceAccountChanged } from './sync/account-events';
 import {
   CursorLayer,
   FollowingChip,
@@ -937,6 +938,8 @@ export function Editor({ boardId }: EditorProps) {
     // Someone renamed a workspace, changed a board in it, or let someone onto
     // one: the sidebar and Settings re-read it.
     onWorkspaceChanged: announceWorkspaceChanged,
+    // An email switch flipped in another tab: Settings, if open, re-reads it.
+    onAccountChanged: announceAccountChanged,
   });
 
   // The same conclusion reached the slow way: the token route refuses to mint

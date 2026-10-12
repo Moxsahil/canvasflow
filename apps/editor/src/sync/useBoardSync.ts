@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BoardDocument } from '@canvasflow/canvas-engine';
 import type { SyncStatus } from './sync-status';
+import type { AccountPart } from './account-events';
 import { WebSocketSync, type SyncAwareness } from './WebSocketSync';
 import { useOfflineCache } from './useOfflineCache';
 
@@ -19,6 +20,8 @@ interface UseBoardSyncOptions {
   onSessionEnded?: () => void;
   /** One of the person's workspaces changed; whatever shows it should re-read. */
   onWorkspaceChanged?: (workspaceId: string) => void;
+  /** Part of the person's account changed in another tab or on another device. */
+  onAccountChanged?: (part: AccountPart) => void;
 }
 
 interface UseBoardSyncResult {
@@ -76,6 +79,7 @@ export function useBoardSync(
     onAccessRevoked,
     onSessionEnded,
     onWorkspaceChanged,
+    onAccountChanged,
   }: UseBoardSyncOptions,
 ): UseBoardSyncResult {
   const [status, setStatus] = useState<SyncStatus>('idle');
@@ -99,6 +103,7 @@ export function useBoardSync(
   const onAccessRevokedRef = useRef(onAccessRevoked);
   const onSessionEndedRef = useRef(onSessionEnded);
   const onWorkspaceChangedRef = useRef(onWorkspaceChanged);
+  const onAccountChangedRef = useRef(onAccountChanged);
 
   const { hydrated: cacheHydrated, purge: purgeCache } = useOfflineCache(doc, boardId, userId);
 
@@ -125,6 +130,10 @@ export function useBoardSync(
   useEffect(() => {
     onWorkspaceChangedRef.current = onWorkspaceChanged;
   }, [onWorkspaceChanged]);
+
+  useEffect(() => {
+    onAccountChangedRef.current = onAccountChanged;
+  }, [onAccountChanged]);
 
   const hasToken = authToken !== null;
 
@@ -160,6 +169,7 @@ export function useBoardSync(
       // Likewise ungated: the teardown is what it is reporting.
       onSessionEnded: () => onSessionEndedRef.current?.(),
       onWorkspaceChanged: (workspaceId) => onWorkspaceChangedRef.current?.(workspaceId),
+      onAccountChanged: (part) => onAccountChangedRef.current?.(part),
       onStatusChange: (next) => {
         if (cancelled) return;
         setStatus(next);

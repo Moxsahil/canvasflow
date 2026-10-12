@@ -13,6 +13,7 @@ export * from './access/access-requests.js';
 export * from './access/share-links.js';
 export * from './access/board-roles.js';
 export * from './access/users.js';
+export * from './access/notifications.js';
 export * from './access/sessions.js';
 export * from './access/account-deletion.js';
 export * from './access/account-purge.js';

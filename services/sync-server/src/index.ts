@@ -15,11 +15,13 @@ import {
 } from './auth/reauthorize.js';
 import { getAllowedOrigins, isOriginAllowed } from './security/allowed-origins.js';
 import {
+  ACCOUNT_CHANGED_PURPOSE,
   INTERNAL_AUTH_HEADER,
   WORKSPACE_CHANGED_PURPOSE,
   isInternalCaller,
 } from './security/internal-auth.js';
 import { announceWorkspaceChanged } from './workspace/workspace-changed.js';
+import { announceAccountChanged, isAccountPart } from './account/account-changed.js';
 import {
   PRESENCE_RENEW_INTERVAL_MS,
   startPresenceKeepalive,
@@ -501,6 +503,35 @@ app.post('/internal/workspace-changed', express.json({ limit: '4kb' }), async (r
     });
     res.status(500).json({ error: 'Announcement failed' });
   }
+});
+
+/**
+ * "Part of this person's account changed — tell their other tabs."
+ *
+ * Called by the API gateway after somebody flips an email switch, so a
+ * Settings window open in another tab or on another device follows it. No
+ * authority, like the two routes above: the message names the part, and the
+ * editor re-reads it through a route that checks who is asking.
+ */
+app.post('/internal/account-changed', express.json({ limit: '1kb' }), (req, res) => {
+  if (
+    !isInternalCaller(req.headers[INTERNAL_AUTH_HEADER], env.AUTH_SECRET, ACCOUNT_CHANGED_PURPOSE)
+  ) {
+    log.warn('rejected internal call: bad or missing credential');
+    res.status(401).json({ error: 'Not authorized' });
+    return;
+  }
+
+  const body = req.body as { userId?: unknown; part?: unknown };
+  const userId = typeof body.userId === 'string' && UUID.test(body.userId) ? body.userId : null;
+  if (!userId || !isAccountPart(body.part)) {
+    res.status(400).json({ error: 'userId and a known part are required' });
+    return;
+  }
+
+  const told = announceAccountChanged(hocuspocus, userId, body.part);
+  log.info('account change announced', { userId, part: body.part, told });
+  res.json({ ok: true, told });
 });
 
 let stopReauthorize: (() => void) | null = null;

@@ -519,11 +519,20 @@ describe('SettingsDialog', () => {
     expect(dialog).not.toContain('Checking what would be deleted');
   });
 
-  it('starts the notification switches where the design left them', () => {
+  it('shows the default switches, held still, until the saved ones arrive', () => {
     const pane = renderPane('notifications');
     // Two of the five are on: the ones about someone else reaching you.
     expect(pane.match(/aria-checked="true"/g)).toHaveLength(2);
     expect(pane.match(/aria-checked="false"/g)).toHaveLength(3);
+    expect(pane.match(/role="switch"[^>]*disabled=""/g)).toHaveLength(5);
+    expect(pane).toContain('Access changes');
+  });
+
+  it('shows a guest every switch off, with no way to turn one on', () => {
+    const pane = renderToString(<NotificationsPane isGuest />);
+    expect(pane.match(/aria-checked="false"/g)).toHaveLength(5);
+    expect(pane.match(/role="switch"[^>]*disabled=""/g)).toHaveLength(5);
+    expect(pane).toContain('Create an account to choose what CanvasFlow emails you about.');
   });
 
   it('fills the storage meter to the reading beside it', () => {

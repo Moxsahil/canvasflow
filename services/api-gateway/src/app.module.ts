@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from './infra/database/database.module.js';
 import { StorageModule } from './infra/storage/storage.module.js';
+import { SyncModule } from './infra/sync/sync.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { BoardsModule } from './modules/boards/boards.module.js';
 import { ImagesModule } from './modules/images/images.module.js';
@@ -14,6 +15,7 @@ import { AccountDeletionModule } from './modules/account-deletion/account-deleti
 import { LibraryModule } from './modules/library/library.module.js';
 import { UsernamesModule } from './modules/usernames/usernames.module.js';
 import { WorkspacesModule } from './modules/workspaces/workspaces.module.js';
+import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { AppController } from './app.controller.js';
 import { ThrottlerModule } from '@nestjs/throttler';
 
@@ -34,6 +36,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 
     DatabaseModule,
     StorageModule,
+    SyncModule,
     HealthModule,
     BoardsModule,
     ImagesModule,
@@ -47,6 +50,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     UsersModule,
     UsernamesModule,
     WorkspacesModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
 })

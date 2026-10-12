@@ -1,6 +1,7 @@
 import { HocuspocusProvider, WebSocketStatus } from '@hocuspocus/provider';
 import type { BoardDocument } from '@canvasflow/canvas-engine';
 import type { SyncStatus } from './sync-status';
+import { isAccountPart, type AccountPart } from './account-events';
 
 /**
  * The Yjs awareness instance the provider manages.
@@ -50,6 +51,11 @@ export interface WebSocketSyncConfig {
    * boards, who is in it. Carries only the id; the caller re-reads.
    */
   onWorkspaceChanged?: (workspaceId: string) => void;
+  /**
+   * Part of the person's account changed in another tab or on another device.
+   * Carries only which part; the caller re-reads.
+   */
+  onAccountChanged?: (part: AccountPart) => void;
 }
 
 /**
@@ -240,6 +246,10 @@ export class WebSocketSync {
       const { workspaceId } = message as { workspaceId?: unknown };
       if (message.type === 'workspace-changed' && typeof workspaceId === 'string') {
         this.config.onWorkspaceChanged?.(workspaceId);
+      }
+      const { part } = message as { part?: unknown };
+      if (message.type === 'account-changed' && isAccountPart(part)) {
+        this.config.onAccountChanged?.(part);
       }
     } catch {
       // A malformed stateless payload is not worth breaking the session over.

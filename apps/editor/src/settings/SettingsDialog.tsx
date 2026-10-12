@@ -28,6 +28,7 @@ import { SettingsFrameContext } from './settings-frame';
 import { BACKDROP, CloseButton, SLIDE, WINDOW } from './settings-ui';
 import type { DeletionInput } from './account-deletion-api';
 import { warmAccountSecurity } from './account-security-api';
+import { warmNotificationSettings } from './notifications-api';
 
 /**
  * The design is set in Inter. Nothing in the app loads it, so this names it
@@ -208,10 +209,13 @@ export function SettingsDialog({
     panelRef.current?.focus();
   }, []);
 
-  // Account & Security is read ahead, in case the editor has not yet: by the
-  // time its tab is chosen, the answer is usually here.
+  // Account & Security and the email switches are read ahead, in case the
+  // editor has not yet: by the time their tab is chosen, the answer is usually here.
   useEffect(() => {
-    if (!isGuest) warmAccountSecurity(token);
+    if (!isGuest) {
+      warmAccountSecurity(token);
+      warmNotificationSettings(token);
+    }
     // Once, as the window opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -323,7 +327,7 @@ export function SettingsDialog({
           />
         );
       case 'notifications':
-        return <NotificationsPane />;
+        return <NotificationsPane token={token} isGuest={isGuest} />;
       case 'billing':
         return <BillingPane />;
       case 'privacy':
