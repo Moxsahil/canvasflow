@@ -161,11 +161,11 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
   },
 
   {
-    id: 'board-shared',
-    title: 'Board shared with me',
+    id: 'access-changes',
+    title: 'Access changes',
     section: 'notifications',
     group: 'Email',
-    terms: 'invite',
+    terms: 'board shared with me invite role',
   },
   {
     id: 'comment-mentions',

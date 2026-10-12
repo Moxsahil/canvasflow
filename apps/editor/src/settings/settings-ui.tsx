@@ -109,7 +109,7 @@ const ROW_ICONS: Record<string, LucideIcon> = {
   members: Users,
   'board-access': Globe,
   'leave-workspace': LogOut,
-  'board-shared': Share,
+  'access-changes': Share,
   'comment-mentions': MessageSquare,
   'invite-accepted': UserPlus,
   'weekly-digest': CalendarDays,

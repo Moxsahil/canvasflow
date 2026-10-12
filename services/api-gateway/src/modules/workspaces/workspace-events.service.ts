@@ -1,21 +1,5 @@
-import { createHmac } from 'node:crypto';
-import { Injectable, Logger } from '@nestjs/common';
-import { parseEnv } from '../../config/env.js';
-
-/**
- * Must match `services/sync-server/src/security/internal-auth.ts`, as the web
- * app's copy in `apps/web/src/lib/sync/internal.ts` does: the header, and the
- * purpose strings that keep each value good for its one route.
- */
-const INTERNAL_AUTH_HEADER = 'x-canvasflow-internal';
-const WORKSPACE_CHANGED_PURPOSE = 'canvasflow:internal:workspace-changed:v1';
-const BOARD_ACCESS_PURPOSE = 'canvasflow:internal:board-access:v1';
-
-/** The sync-server's internal port when both run on one machine. */
-const DEV_SYNC_INTERNAL_URL = 'http://localhost:4001';
-
-/** Give up rather than hold a request open for a service that is not answering. */
-const TIMEOUT_MS = 2_000;
+import { Injectable } from '@nestjs/common';
+import { SYNC_PURPOSE, SyncInternalService } from '../../infra/sync/sync-internal.service.js';
 
 /**
  * Telling everyone in a workspace that it changed, so their open editors
@@ -28,17 +12,14 @@ const TIMEOUT_MS = 2_000;
  */
 @Injectable()
 export class WorkspaceEventsService {
-  private readonly logger = new Logger(WorkspaceEventsService.name);
-  private readonly env = parseEnv();
-  private readonly baseUrl =
-    this.env.SYNC_INTERNAL_URL ??
-    (this.env.NODE_ENV === 'production' ? null : DEV_SYNC_INTERNAL_URL);
-  private readonly token = this.internalToken(WORKSPACE_CHANGED_PURPOSE);
-  private readonly boardAccessToken = this.internalToken(BOARD_ACCESS_PURPOSE);
+  constructor(private readonly sync: SyncInternalService) {}
 
   /** `alsoTell`: people to reach who are not members, such as somebody who has just joined. */
   changed(workspaceId: string, alsoTell: readonly string[] = []): void {
-    void this.send(workspaceId, alsoTell);
+    this.sync.tell('/internal/workspace-changed', SYNC_PURPOSE.workspaceChanged, {
+      workspaceId,
+      userIds: alsoTell,
+    });
   }
 
   /**
@@ -49,29 +30,6 @@ export class WorkspaceEventsService {
    */
   boardAccessChanged(boardIds: readonly string[], userId: string): void {
     for (const boardId of boardIds)
-      void this.post('/internal/board-access', this.boardAccessToken, { boardId, userId });
-  }
-
-  private internalToken(purpose: string): string {
-    return createHmac('sha256', this.env.AUTH_SECRET).update(purpose).digest('hex');
-  }
-
-  private async send(workspaceId: string, alsoTell: readonly string[]): Promise<void> {
-    await this.post('/internal/workspace-changed', this.token, { workspaceId, userIds: alsoTell });
-  }
-
-  private async post(path: string, token: string, body: unknown): Promise<void> {
-    if (!this.baseUrl) return;
-    try {
-      const res = await fetch(new URL(path, this.baseUrl), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', [INTERNAL_AUTH_HEADER]: token },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      if (!res.ok) this.logger.warn(`sync-server answered ${res.status} to ${path}`);
-    } catch (error) {
-      this.logger.warn(`Could not reach the sync-server's ${path}: ${String(error)}`);
-    }
+      this.sync.tell('/internal/board-access', SYNC_PURPOSE.boardAccess, { boardId, userId });
   }
 }
