@@ -549,3 +549,69 @@ export function ownershipOfferEmail(content: OwnershipOfferContent): RenderedEma
     ].join('\n'),
   };
 }
+
+export interface CommentMentionContent {
+  authorName: string;
+  boardTitle: string;
+  /** The comment as the board holds it. Cut short here, never trusted to be markup-free. */
+  body: string;
+  /** The board, with the thread open. */
+  openUrl: string;
+  /** The page that turns these emails off. */
+  unsubscribeUrl: string;
+}
+
+/** How much of a comment an email quotes before it says "…". */
+export const MENTION_QUOTE_LIMIT = 500;
+
+/** A comment cut to the quote's length on a word, with what is left said by "…". */
+export function quoteOf(body: string, limit = MENTION_QUOTE_LIMIT): string {
+  // Lines kept, as the comment had them; runs of spaces and blank lines closed up.
+  const text = body
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  if (text.length <= limit) return text;
+  const cut = text.slice(0, limit);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > limit * 0.6 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
+/**
+ * To somebody @mentioned in a comment: who, where, what they said, and the
+ * way to the thread. The words are the comment's own, read from the board, so
+ * they are quoted as the author's and escaped like any other typed text.
+ */
+export function commentMentionEmail(content: CommentMentionContent): RenderedEmail {
+  const author = content.authorName.trim() || 'Someone';
+  const board = content.boardTitle.trim() || 'a board';
+  const quote = quoteOf(content.body);
+  const why =
+    "You're getting this because comment mention emails are on in Settings → Notifications.";
+
+  return {
+    subject: `${author} mentioned you on ${board}`.replace(/[\p{Cc}\p{Cf}]+/gu, ' '),
+    html: layout(
+      `${escapeHtml(author)} mentioned you`,
+      paragraph(
+        `<strong>${escapeHtml(author)}</strong> mentioned you in a comment on <strong>${escapeHtml(board)}</strong>.`,
+      ) +
+        `<blockquote style="margin: 16px 0; padding: 12px 16px; border-left: 3px solid #CBD5E1; background: #F8FAFC; color: #0F172A; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(quote)}</blockquote>` +
+        button(content.openUrl, 'Open the comment') +
+        footnote(
+          `${escapeHtml(why)} <a href="${escapeHtml(content.unsubscribeUrl)}" style="color: #64748B;">Turn them off</a>.`,
+        ),
+    ),
+    text: [
+      `${author} mentioned you on ${board}`,
+      '',
+      ...quote.split('\n').map((line) => `> ${line}`),
+      '',
+      'Open the comment:',
+      content.openUrl,
+      '',
+      why,
+      `Turn them off: ${content.unsubscribeUrl}`,
+    ].join('\n'),
+  };
+}

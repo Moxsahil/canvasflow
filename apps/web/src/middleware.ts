@@ -23,6 +23,9 @@ const PUBLIC_PATHS = [
   '/privacy',
   // Reached straight after deleting an account, with every session already ended.
   '/account-deleted',
+  // Opened from an email by whoever reads it, signed in or not. The page
+  // grants nothing; the link's own token is what the gateway checks.
+  '/unsubscribe',
 ];
 
 /**

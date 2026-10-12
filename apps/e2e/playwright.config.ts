@@ -23,7 +23,7 @@ export default defineConfig({
       // Password recovery, account security, the legal pages and account
       // deletion run in their own projects, below.
       testIgnore:
-        /(password-reset|account-security|legal|account-deletion(-request|-ui)?|account-purge|account-restore|username|workspace-invites|workspace-members|shared-boards|notification-settings)\.spec\.ts/,
+        /(password-reset|account-security|legal|account-deletion(-request|-ui)?|account-purge|account-restore|username|workspace-invites|workspace-members|shared-boards|notification-settings|mention-emails)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         // Every test in this project starts already signed in, from the file
@@ -89,6 +89,13 @@ export default defineConfig({
     {
       name: 'notifications',
       testMatch: /notification-settings\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // Comment mention emails and unsubscribing from them, with two throwaway
+    // people. Run on its own with `--project=mentions`.
+    {
+      name: 'mentions',
+      testMatch: /mention-emails\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
     // Deleting an account: the data layer, the daily purge and support's

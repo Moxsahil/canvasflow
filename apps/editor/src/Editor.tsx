@@ -141,6 +141,7 @@ import {
   commentTargetAt,
   isPinInView,
   mentionablePeople,
+  reportMentions,
   useCommentPlacement,
   useComments,
   useUnreadThreads,
@@ -258,6 +259,16 @@ const SHAPES_NOT_FOUND: Notice = {
   body: 'The shapes this link points to are no longer on this board. They may have been deleted.',
   tone: 'warn',
 };
+
+/** A link to a comment thread that has since been deleted, opened from an email. */
+const COMMENT_NOT_FOUND: Notice = {
+  title: 'Comment not found',
+  body: 'The comment this link points to is no longer on this board. It may have been deleted.',
+  tone: 'warn',
+};
+
+/** `?comment=<thread id>` — the thread a link, such as a mention email's, opens. */
+const COMMENT_PARAM = 'comment';
 
 /** One array, so "nothing is snapping" is the same value every time it is set. */
 const EMPTY_GUIDES: readonly SnapGuide[] = [];
@@ -1470,6 +1481,14 @@ export function Editor({ boardId }: EditorProps) {
     [shownShapes, spatialIndex, camera.zoom],
   );
 
+  // A comment naming people: the gateway emails them, reading the comment off
+  // the board rather than taking it from here.
+  const reportCommentMentions = useCallback(
+    (threadId: string, commentId: string) =>
+      reportMentions(authToken, boardId, threadId, commentId),
+    [authToken, boardId],
+  );
+
   // A comment posted is what the tool was picked up for, so it is put down.
   const finishCommenting = useCallback(() => {
     if (actorRef.getSnapshot().context.activeTool === 'comment') {
@@ -1891,10 +1910,39 @@ export function Editor({ boardId }: EditorProps) {
     });
   }, [arrivalLink, shapes, shownShapes, boardSynced, width, height, actorRef]);
 
+  /**
+   * The comment thread this page was opened at, from a link to it — a mention
+   * email's. Held until the thread has arrived and been opened at its pin, or
+   * the board has arrived in full without it.
+   */
+  const [arrivalThreadId, setArrivalThreadId] = useState<string | null>(() =>
+    new URL(window.location.href).searchParams.get(COMMENT_PARAM),
+  );
+
+  useEffect(() => {
+    if (!arrivalThreadId || width === 0 || height === 0) return;
+    const thread = comments.threads.find((candidate) => candidate.id === arrivalThreadId);
+    if (!thread && !boardSynced) return;
+
+    setArrivalThreadId(null);
+    // Off the address once used, as a link to shapes is.
+    const here = new URL(window.location.href);
+    here.searchParams.delete(COMMENT_PARAM);
+    window.history.replaceState(window.history.state, '', here.href);
+
+    if (!thread) {
+      setNotice(COMMENT_NOT_FOUND);
+      return;
+    }
+    didInitialViewFitRef.current = true;
+    showCommentThread(thread);
+  }, [arrivalThreadId, comments.threads, boardSynced, width, height, showCommentThread]);
+
   useEffect(() => {
     if (didInitialViewFitRef.current) return;
-    // A link to a place on the board decides the view instead, once it can.
-    if (arrivalLink) return;
+    // A link to a place on the board decides the view instead, once it can,
+    // and so does one to a comment.
+    if (arrivalLink || arrivalThreadId) return;
     // A board opened at the view it was left at is already looking where it
     // should be. Fitting on top of that would overrule the choice, and would
     // do it a beat late — after the content arrived, so as a visible jump.
@@ -1917,7 +1965,7 @@ export function Editor({ boardId }: EditorProps) {
       type: 'SET_CAMERA',
       camera: fitRectToViewport(rect, { width, height }, { maxZoom: 1 }),
     });
-  }, [shownShapes, width, height, actorRef, restoredViewRef, arrivalLink]);
+  }, [shownShapes, width, height, actorRef, restoredViewRef, arrivalLink, arrivalThreadId]);
 
   // The marquee is read on the frame it disappears, which is the frame the
   // gesture ended on. The index alone would answer with everything whose box
@@ -4243,6 +4291,7 @@ export function Editor({ boardId }: EditorProps) {
                 onClosePending={commenting.closePending}
                 onPosted={finishCommenting}
                 targetAt={commentTargetHere}
+                onMentioned={reportCommentMentions}
               />
             )}
 

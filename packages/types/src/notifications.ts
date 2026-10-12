@@ -76,3 +76,12 @@ export function parseNotificationChanges(
   }
   return { ok: true, changes };
 }
+
+/** What each switch's emails are called in a sentence: "stop emails about …". */
+export const NOTIFICATION_EMAIL_TOPICS: Record<NotificationKind, string> = {
+  accessChanges: 'changes to your board access',
+  commentMentions: 'comment mentions',
+  inviteAccepted: 'accepted invitations',
+  weeklyDigest: 'the weekly digest',
+  productUpdates: 'product updates',
+};

@@ -11,3 +11,4 @@ export { isPinInView } from './comment-placement';
 export { useCommentPlacement } from './useCommentPlacement';
 export { useComments } from './useComments';
 export { useUnreadThreads } from './useUnreadThreads';
+export { reportMentions } from './mention-api';

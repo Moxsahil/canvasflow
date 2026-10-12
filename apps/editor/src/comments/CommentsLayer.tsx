@@ -76,6 +76,8 @@ export interface CommentsLayerProps {
   onPosted: () => void;
   /** The shape a pin dropped at this point on the board would attach to. */
   targetAt: (point: Point) => Shape | null;
+  /** A comment naming people was posted or edited, so they can be told. */
+  onMentioned?: (threadId: string, commentId: string) => void;
 }
 
 /** A press has to travel this far before it is a drag and not a click. */
@@ -116,6 +118,7 @@ export function CommentsLayer({
   onClosePending,
   onPosted,
   targetAt,
+  onMentioned,
 }: CommentsLayerProps) {
   const environment = useMemo(
     () => ({ container, people, photos, theme }),
@@ -276,12 +279,16 @@ export function CommentsLayer({
               canComment={canComment}
               photos={photos}
               theme={theme}
-              onReply={(body, mentions) =>
-                user && store.addComment(openThread.id, user, body, mentions)
-              }
-              onEdit={(commentId, body, mentions) =>
-                store.editComment(openThread.id, commentId, body, mentions)
-              }
+              onReply={(body, mentions) => {
+                const commentId = user && store.addComment(openThread.id, user, body, mentions);
+                if (commentId && mentions.length > 0) onMentioned?.(openThread.id, commentId);
+              }}
+              onEdit={(commentId, body, mentions) => {
+                store.editComment(openThread.id, commentId, body, mentions);
+                // Only those it names for the first time are told; the
+                // gateway remembers who was told about this comment already.
+                if (mentions.length > 0) onMentioned?.(openThread.id, commentId);
+              }}
               onReact={(commentId, emoji) =>
                 user && store.toggleReaction(openThread.id, commentId, user, emoji)
               }
@@ -304,7 +311,12 @@ export function CommentsLayer({
           >
             <NewThreadComposer
               onPost={(body, mentions) => {
-                if (store.addThread(pending.anchor, user, body, mentions)) onPosted();
+                const threadId = store.addThread(pending.anchor, user, body, mentions);
+                if (threadId) {
+                  const first = store.firstCommentId(threadId);
+                  if (first && mentions.length > 0) onMentioned?.(threadId, first);
+                  onPosted();
+                }
                 onClosePending();
               }}
               onCancel={onClosePending}

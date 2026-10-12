@@ -22,6 +22,7 @@ export const INTERNAL_AUTH_HEADER = 'x-canvasflow-internal';
 export const BOARD_ACCESS_PURPOSE = 'canvasflow:internal:board-access:v1';
 export const WORKSPACE_CHANGED_PURPOSE = 'canvasflow:internal:workspace-changed:v1';
 export const ACCOUNT_CHANGED_PURPOSE = 'canvasflow:internal:account-changed:v1';
+export const COMMENT_LOOKUP_PURPOSE = 'canvasflow:internal:comment-lookup:v1';
 
 export function internalToken(authSecret: string, purpose = BOARD_ACCESS_PURPOSE): string {
   return createHmac('sha256', authSecret).update(purpose).digest('hex');
