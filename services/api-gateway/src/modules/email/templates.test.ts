@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   accountClaimedEmail,
   accountDeletionEmail,
+  boardAccessEmail,
+  boardJoinedEmail,
+  guestAccessEmail,
+  workspaceJoinedEmail,
+  workspaceRoleEmail,
   commentMentionEmail,
   quoteOf,
   escapeHtml,
@@ -269,5 +274,76 @@ describe('quoteOf', () => {
     const quote = quoteOf('word '.repeat(200), 50);
     expect(quote.endsWith('word…')).toBe(true);
     expect(quote.length).toBeLessThanOrEqual(51);
+  });
+});
+
+describe('the join and access emails', () => {
+  const unsubscribeUrl = 'https://canvasflowapp.com/unsubscribe?u=1&k=inviteAccepted&t=x';
+
+  it('says who came in through a link, escaped, and as a guest when they have no account', () => {
+    const email = boardJoinedEmail({
+      joinerName: 'Gus <b>',
+      joinerIsGuest: true,
+      boardTitle: 'Road\nmap',
+      role: 'viewer',
+      openUrl: 'https://app.canvasflowapp.com/boards/b1',
+      unsubscribeUrl,
+    });
+    expect(email.subject).toBe('Gus <b> joined Road map');
+    expect(email.html).toContain('Gus &lt;b&gt;');
+    expect(email.text).toContain('as a guest, without an account, through a link you shared');
+    expect(email.text).toContain('They can view it, but not change it.');
+    expect(email.text).toContain('emails about accepted invitations are on');
+    expect(email.html).toContain('k=inviteAccepted&amp;t=x');
+  });
+
+  it('says an invitation was accepted, and as what', () => {
+    const email = workspaceJoinedEmail({
+      joinerName: 'Nia',
+      workspaceName: 'Acme',
+      role: 'admin',
+      openUrl: 'https://canvasflowapp.com/open',
+      unsubscribeUrl,
+    });
+    expect(email.subject).toBe('Nia joined Acme');
+    expect(email.text).toContain('Nia accepted your invitation and joined Acme as an admin.');
+  });
+
+  it('tells a role change from being let back on', () => {
+    const base = {
+      actorName: 'Olu',
+      boardTitle: 'Plan',
+      openUrl: 'https://app.canvasflowapp.com/boards/b1',
+      unsubscribeUrl,
+    };
+    const role = boardAccessEmail({ ...base, role: 'editor', change: 'role' });
+    expect(role.subject).toBe('You can now edit Plan');
+    expect(role.text).toContain('Olu changed your access to Plan. You can now edit it.');
+    const back = boardAccessEmail({ ...base, role: 'viewer', change: 'restored' });
+    expect(back.subject).toBe("You're back on Plan");
+    expect(back.text).toContain(
+      'Olu gave you access to Plan again. You can view it, but not change it.',
+    );
+    expect(back.text).toContain('changes to your board access');
+  });
+
+  it('says what a workspace role means', () => {
+    const base = { actorName: 'Olu', workspaceName: 'Acme', openUrl: 'x', unsubscribeUrl };
+    expect(workspaceRoleEmail({ ...base, role: 'admin' }).subject).toBe(
+      "You're now an admin of Acme",
+    );
+    expect(workspaceRoleEmail({ ...base, role: 'member' }).text).toContain(
+      'Olu changed your role in Acme to member.',
+    );
+  });
+
+  it('counts a guest’s boards', () => {
+    const base = { actorName: 'Olu', workspaceName: 'Acme', openUrl: 'x', unsubscribeUrl };
+    expect(guestAccessEmail({ ...base, role: 'viewer', boards: 1 }).text).toContain(
+      "changed your access to the board you're on in Acme. You can now view it, but not change it.",
+    );
+    expect(guestAccessEmail({ ...base, role: 'editor', boards: 3 }).text).toContain(
+      "the 3 boards you're on in Acme. You can now edit them.",
+    );
   });
 });

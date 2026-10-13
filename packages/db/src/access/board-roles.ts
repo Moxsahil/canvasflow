@@ -145,8 +145,14 @@ export async function listBoardAccess(
   return result;
 }
 
+/**
+ * What a role change did: moved them between editor and viewer, let them back
+ * on after they were removed, or nothing, because it was what they had.
+ */
+export type RoleChange = 'role' | 'restored' | 'none';
+
 export type RoleChangeOutcome =
-  | { ok: true; role: AssignableBoardRole }
+  | { ok: true; role: AssignableBoardRole; change: RoleChange }
   | { ok: false; reason: 'board-not-found' | 'cannot-change-owner' | 'not-a-member' };
 
 /**
@@ -175,12 +181,23 @@ export async function setBoardMemberRole(
   if (!board) return { ok: false, reason: 'board-not-found' };
   if (board.ownerId === userId) return { ok: false, reason: 'cannot-change-owner' };
 
-  const updated = await db
-    .update(boardMembers)
-    .set({ role, status: 'active', updatedAt: new Date() })
-    .where(and(eq(boardMembers.boardId, boardId), eq(boardMembers.userId, userId)))
-    .returning({ id: boardMembers.id });
+  return db.transaction(async (tx) => {
+    // Read under the same lock as the write, so what is reported as changed is
+    // what this call changed and not what a concurrent one did.
+    const [before] = await tx
+      .select({ role: boardMembers.role, status: boardMembers.status })
+      .from(boardMembers)
+      .where(and(eq(boardMembers.boardId, boardId), eq(boardMembers.userId, userId)))
+      .for('update');
+    if (!before) return { ok: false, reason: 'not-a-member' } as const;
 
-  if (updated.length === 0) return { ok: false, reason: 'not-a-member' };
-  return { ok: true, role };
+    await tx
+      .update(boardMembers)
+      .set({ role, status: 'active', updatedAt: new Date() })
+      .where(and(eq(boardMembers.boardId, boardId), eq(boardMembers.userId, userId)));
+
+    const change: RoleChange =
+      before.status !== 'active' ? 'restored' : before.role !== role ? 'role' : 'none';
+    return { ok: true, role, change } as const;
+  });
 }

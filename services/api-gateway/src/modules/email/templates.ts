@@ -615,3 +615,217 @@ export function commentMentionEmail(content: CommentMentionContent): RenderedEma
     ].join('\n'),
   };
 }
+
+/**
+ * The line every notification email ends with: why it came, and the way to
+ * stop it. `topic` names the switch as Settings does.
+ */
+function notificationFooter(topic: string, unsubscribeUrl: string): { html: string; text: string } {
+  const why = `You're getting this because emails about ${topic} are on in Settings → Notifications.`;
+  return {
+    html: footnote(
+      `${escapeHtml(why)} <a href="${escapeHtml(unsubscribeUrl)}" style="color: #64748B;">Turn them off</a>.`,
+    ),
+    text: `${why}\nTurn them off: ${unsubscribeUrl}`,
+  };
+}
+
+/** A subject is a header: one line, whatever was typed into the names in it. */
+function oneLine(subject: string): string {
+  return subject.replace(/[\p{Cc}\p{Cf}]+/gu, ' ');
+}
+
+/** What a board role lets somebody do, as the end of a sentence. */
+function boardAbility(role: string): string {
+  return role === 'viewer' ? 'view it, but not change it' : 'edit it';
+}
+
+export interface BoardJoinedContent {
+  joinerName: string;
+  /** Joined without an account, under a name they typed. */
+  joinerIsGuest: boolean;
+  boardTitle: string;
+  role: string;
+  openUrl: string;
+  unsubscribeUrl: string;
+}
+
+/** To whoever made a share link: somebody came in through it. */
+export function boardJoinedEmail(content: BoardJoinedContent): RenderedEmail {
+  const joiner = content.joinerName.trim() || 'Someone';
+  const board = content.boardTitle.trim() || 'your board';
+  const as = content.joinerIsGuest ? ' as a guest, without an account' : '';
+  const said = (who: string, where: string) =>
+    `${who} joined ${where}${as}, through a link you shared. They can ${boardAbility(content.role)}.`;
+  const manage = 'You can change what they can do, or remove them, from Share on the board.';
+  const footer = notificationFooter('accepted invitations', content.unsubscribeUrl);
+
+  return {
+    subject: oneLine(`${joiner} joined ${board}`),
+    html: layout(
+      `${escapeHtml(joiner)} joined ${escapeHtml(board)}`,
+      paragraph(
+        said(`<strong>${escapeHtml(joiner)}</strong>`, `<strong>${escapeHtml(board)}</strong>`),
+      ) +
+        paragraph(escapeHtml(manage)) +
+        button(content.openUrl, 'Open the board') +
+        footer.html,
+    ),
+    text: [
+      `${joiner} joined ${board}`,
+      '',
+      said(joiner, board),
+      manage,
+      '',
+      content.openUrl,
+      '',
+      footer.text,
+    ].join('\n'),
+  };
+}
+
+export interface WorkspaceJoinedContent {
+  joinerName: string;
+  workspaceName: string;
+  role: string;
+  openUrl: string;
+  unsubscribeUrl: string;
+}
+
+/** To whoever sent a workspace invitation: it was accepted. */
+export function workspaceJoinedEmail(content: WorkspaceJoinedContent): RenderedEmail {
+  const joiner = content.joinerName.trim() || 'Someone';
+  const workspace = content.workspaceName.trim() || 'your workspace';
+  const as = content.role === 'admin' ? 'an admin' : 'a member';
+  const said = (who: string, where: string) =>
+    `${who} accepted your invitation and joined ${where} as ${as}.`;
+  const footer = notificationFooter('accepted invitations', content.unsubscribeUrl);
+
+  return {
+    subject: oneLine(`${joiner} joined ${workspace}`),
+    html: layout(
+      `${escapeHtml(joiner)} joined ${escapeHtml(workspace)}`,
+      paragraph(
+        said(`<strong>${escapeHtml(joiner)}</strong>`, `<strong>${escapeHtml(workspace)}</strong>`),
+      ) +
+        button(content.openUrl, 'Open CanvasFlow') +
+        footer.html,
+    ),
+    text: [
+      `${joiner} joined ${workspace}`,
+      '',
+      said(joiner, workspace),
+      '',
+      content.openUrl,
+      '',
+      footer.text,
+    ].join('\n'),
+  };
+}
+
+export interface BoardAccessContent {
+  actorName: string;
+  boardTitle: string;
+  role: string;
+  /** Moved between editor and viewer, or let back on after being removed. */
+  change: 'role' | 'restored';
+  openUrl: string;
+  unsubscribeUrl: string;
+}
+
+/** To somebody whose access to a board changed. */
+export function boardAccessEmail(content: BoardAccessContent): RenderedEmail {
+  const actor = content.actorName.trim() || 'Someone';
+  const board = content.boardTitle.trim() || 'a board';
+  const verb = content.role === 'viewer' ? 'view' : 'edit';
+  const said = (who: string, where: string) =>
+    content.change === 'restored'
+      ? `${who} gave you access to ${where} again. You can ${boardAbility(content.role)}.`
+      : `${who} changed your access to ${where}. You can now ${boardAbility(content.role)}.`;
+  const footer = notificationFooter('changes to your board access', content.unsubscribeUrl);
+
+  return {
+    subject: oneLine(
+      content.change === 'restored' ? `You're back on ${board}` : `You can now ${verb} ${board}`,
+    ),
+    html: layout(
+      content.change === 'restored' ? 'Your access is back' : 'Your access changed',
+      paragraph(
+        said(`<strong>${escapeHtml(actor)}</strong>`, `<strong>${escapeHtml(board)}</strong>`),
+      ) +
+        button(content.openUrl, 'Open the board') +
+        footer.html,
+    ),
+    text: [said(actor, board), '', content.openUrl, '', footer.text].join('\n'),
+  };
+}
+
+export interface WorkspaceRoleContent {
+  actorName: string;
+  workspaceName: string;
+  role: string;
+  openUrl: string;
+  unsubscribeUrl: string;
+}
+
+/** To a member made an admin, or an admin made a member. */
+export function workspaceRoleEmail(content: WorkspaceRoleContent): RenderedEmail {
+  const actor = content.actorName.trim() || 'Someone';
+  const workspace = content.workspaceName.trim() || 'your workspace';
+  const admin = content.role === 'admin';
+  const said = (who: string, where: string) =>
+    admin
+      ? `${who} made you an admin of ${where}. You can now invite people, change their roles, and run sharing for its boards.`
+      : `${who} changed your role in ${where} to member. You can still open and edit its boards.`;
+  const footer = notificationFooter('changes to your board access', content.unsubscribeUrl);
+
+  return {
+    subject: oneLine(
+      admin ? `You're now an admin of ${workspace}` : `You're now a member of ${workspace}`,
+    ),
+    html: layout(
+      'Your role changed',
+      paragraph(
+        said(`<strong>${escapeHtml(actor)}</strong>`, `<strong>${escapeHtml(workspace)}</strong>`),
+      ) +
+        button(content.openUrl, 'Open CanvasFlow') +
+        footer.html,
+    ),
+    text: [said(actor, workspace), '', content.openUrl, '', footer.text].join('\n'),
+  };
+}
+
+export interface GuestAccessContent {
+  actorName: string;
+  workspaceName: string;
+  role: string;
+  /** How many of the workspace's boards they are on, all of which changed. */
+  boards: number;
+  openUrl: string;
+  unsubscribeUrl: string;
+}
+
+/** To a guest whose access to a workspace's boards was changed at once, from its member list. */
+export function guestAccessEmail(content: GuestAccessContent): RenderedEmail {
+  const actor = content.actorName.trim() || 'Someone';
+  const workspace = content.workspaceName.trim() || 'a workspace';
+  const verb = content.role === 'viewer' ? 'view' : 'edit';
+  const which = content.boards === 1 ? 'the board' : `the ${content.boards} boards`;
+  const ability = content.role === 'viewer' ? 'view them, but not change them' : 'edit them';
+  const said = (who: string, where: string) =>
+    `${who} changed your access to ${which} you're on in ${where}. You can now ${content.boards === 1 ? boardAbility(content.role) : ability}.`;
+  const footer = notificationFooter('changes to your board access', content.unsubscribeUrl);
+
+  return {
+    subject: oneLine(`You can now ${verb} boards in ${workspace}`),
+    html: layout(
+      'Your access changed',
+      paragraph(
+        said(`<strong>${escapeHtml(actor)}</strong>`, `<strong>${escapeHtml(workspace)}</strong>`),
+      ) +
+        button(content.openUrl, 'Open CanvasFlow') +
+        footer.html,
+    ),
+    text: [said(actor, workspace), '', content.openUrl, '', footer.text].join('\n'),
+  };
+}

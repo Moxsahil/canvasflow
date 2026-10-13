@@ -129,7 +129,14 @@ export async function lookupShareLink(db: Database, token: string): Promise<Shar
  * let back in by it.
  */
 export type RedeemOutcome =
-  | { ok: true; boardId: string; role: BoardRole; userId: string }
+  | {
+      ok: true;
+      boardId: string;
+      role: BoardRole;
+      userId: string;
+      /** They were not on the board before: the link let somebody new in. */
+      joined: boolean;
+    }
   | { ok: false; reason: ShareLinkRejection | 'guests-not-allowed' | 'removed' };
 
 /**
@@ -223,6 +230,7 @@ export async function redeemShareLink(
       boardId: link.boardId,
       role: shouldWrite ? link.role : (current?.role ?? link.role),
       userId,
+      joined: !current,
     };
   });
 }
@@ -287,7 +295,13 @@ export async function redeemShareLinkAsGuest(
       .set({ useCount: sql`${boardShareLinks.useCount} + 1`, lastUsedAt: new Date() })
       .where(eq(boardShareLinks.id, link.id));
 
-    return { ok: true as const, boardId: link.boardId, role: link.role, userId: guest.id };
+    return {
+      ok: true as const,
+      boardId: link.boardId,
+      role: link.role,
+      userId: guest.id,
+      joined: true,
+    };
   });
 }
 

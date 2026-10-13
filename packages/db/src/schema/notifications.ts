@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { check, index, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { boards } from './boards.js';
 import { users } from './users.js';
+import { workspaces } from './workspaces.js';
 
 /**
  * Something somebody was told about, or would have been: one row per person
@@ -21,14 +22,16 @@ export const notificationDeliveries = pgTable(
     recipientId: uuid('recipient_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    /** What happened. Only `comment-mention` so far. */
+    /** What happened. See the check below for the list. */
     kind: text('kind').notNull(),
-    boardId: uuid('board_id')
-      .notNull()
-      .references(() => boards.id, { onDelete: 'cascade' }),
+    /** The board it happened on — or, for something about a whole workspace, null. */
+    boardId: uuid('board_id').references(() => boards.id, { onDelete: 'cascade' }),
+    /** The workspace it happened in, for what is about a workspace rather than one board. */
+    workspaceId: uuid('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
     /**
-     * What on the board it is about — a comment's id. Written by the browser
-     * that made it, so unique only within its board.
+     * What it is about: a comment's id (written by the browser that made it,
+     * so unique only within its board), the person who joined, an invitation's
+     * id, or a fresh id for a one-off event such as a role change.
      */
     sourceId: text('source_id').notNull(),
     /** Who did it. Kept when they delete their account, as nobody. */
@@ -43,13 +46,30 @@ export const notificationDeliveries = pgTable(
       table.sourceId,
       table.recipientId,
     ),
+    /** The same, for workspace rows, whose null board would never collide above. */
+    onceInWorkspace: uniqueIndex('notification_deliveries_once_workspace')
+      .on(table.kind, table.workspaceId, table.sourceId, table.recipientId)
+      .where(sql`${table.boardId} is null`),
     /** "Was this person mailed about this board a moment ago?" */
     recentIdx: index('notification_deliveries_recent_idx').on(
       table.recipientId,
       table.boardId,
       table.emailedAt,
     ),
-    kindCheck: check('notification_deliveries_kind', sql`${table.kind} in ('comment-mention')`),
+    workspaceRecentIdx: index('notification_deliveries_workspace_recent_idx').on(
+      table.recipientId,
+      table.workspaceId,
+      table.emailedAt,
+    ),
+    kindCheck: check(
+      'notification_deliveries_kind',
+      sql`${table.kind} in ('comment-mention', 'board-joined', 'workspace-joined', 'access-changed')`,
+    ),
+    /** About a board, or failing that a workspace: always one or the other. */
+    scopeCheck: check(
+      'notification_deliveries_scope',
+      sql`${table.boardId} is not null or ${table.workspaceId} is not null`,
+    ),
   }),
 );
 

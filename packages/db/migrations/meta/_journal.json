@@ -211,6 +211,13 @@
       "when": 1791823325775,
       "tag": "0029_notification_deliveries",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1791877009634,
+      "tag": "0030_join_and_access_notifications",
+      "breakpoints": true
     }
   ]
 }

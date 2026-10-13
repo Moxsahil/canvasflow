@@ -6,7 +6,14 @@ import { boards } from '../schema/boards.js';
 import { notificationDeliveries } from '../schema/notifications.js';
 import { users } from '../schema/users.js';
 
-export type NotificationDeliveryKind = 'comment-mention';
+export type NotificationDeliveryKind =
+  | 'comment-mention'
+  | 'board-joined'
+  | 'workspace-joined'
+  | 'access-changed';
+
+/** Where something happened: on a board, or across a workspace. */
+export type NotificationScope = { boardId: string } | { workspaceId: string };
 
 /** Somebody who might be emailed, with everything that decides whether they are. */
 export interface NotificationRecipient {
@@ -69,13 +76,12 @@ export async function liveBoardTitle(db: Database, boardId: string): Promise<str
   return row?.title ?? null;
 }
 
-export interface NewDelivery {
+export type NewDelivery = {
   recipientId: string;
   kind: NotificationDeliveryKind;
-  boardId: string;
   sourceId: string;
-  actorId: string;
-}
+  actorId: string | null;
+} & NotificationScope;
 
 /**
  * Record that these people are being told, and answer with the ones that had
@@ -89,16 +95,26 @@ export async function recordDeliveries(
   if (deliveries.length === 0) return [];
   return db
     .insert(notificationDeliveries)
-    .values([...deliveries])
+    .values(
+      deliveries.map(({ recipientId, kind, sourceId, actorId, ...scope }) => ({
+        recipientId,
+        kind,
+        sourceId,
+        actorId,
+        ...('boardId' in scope ? { boardId: scope.boardId } : { workspaceId: scope.workspaceId }),
+      })),
+    )
     .onConflictDoNothing()
     .returning({ id: notificationDeliveries.id, recipientId: notificationDeliveries.recipientId });
 }
 
-/** Whether this person was emailed about anything on this board since `since`. */
-export async function emailedAboutBoardSince(
+/**
+ * Whether this person was emailed about something here since `since` — about
+ * anything on the board, or only about one kind of thing when `kind` is given.
+ */
+export async function emailedSince(
   db: Database,
-  recipientId: string,
-  boardId: string,
+  input: { recipientId: string; kind?: NotificationDeliveryKind } & NotificationScope,
   since: Date,
 ): Promise<boolean> {
   const [row] = await db
@@ -106,8 +122,14 @@ export async function emailedAboutBoardSince(
     .from(notificationDeliveries)
     .where(
       and(
-        eq(notificationDeliveries.recipientId, recipientId),
-        eq(notificationDeliveries.boardId, boardId),
+        eq(notificationDeliveries.recipientId, input.recipientId),
+        'boardId' in input
+          ? eq(notificationDeliveries.boardId, input.boardId)
+          : and(
+              eq(notificationDeliveries.workspaceId, input.workspaceId),
+              isNull(notificationDeliveries.boardId),
+            ),
+        input.kind ? eq(notificationDeliveries.kind, input.kind) : undefined,
         isNotNull(notificationDeliveries.emailedAt),
         gte(notificationDeliveries.emailedAt, since),
       ),
