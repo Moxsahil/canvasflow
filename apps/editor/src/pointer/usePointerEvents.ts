@@ -32,6 +32,32 @@ const DOUBLE_PRESS_SLOP = 40;
  */
 const tapDragSlopFor = (pointerType: string) => (pointerType === 'touch' ? 10 : 4);
 
+/**
+ * How near an open text field a pencil has to land, in screen pixels, for what
+ * it does next to be the field's business rather than the board's.
+ *
+ * On an iPad the system turns writing near a focused field into typing. The
+ * stroke doesn't have to start inside the field, which is often smaller than
+ * the letters going into it, so the board has to keep its hands off strokes
+ * that start around it too.
+ */
+const HANDWRITING_REACH = 120;
+
+/** Whether a field that takes typing has focus, within reach of this point. */
+function focusedFieldNear(x: number, y: number): boolean {
+  const field = document.activeElement;
+  const typesText =
+    field instanceof HTMLTextAreaElement ||
+    (field instanceof HTMLInputElement &&
+      ['text', 'search', 'url', 'email'].includes(field.type)) ||
+    (field instanceof HTMLElement && field.isContentEditable);
+  if (!typesText) return false;
+  const box = field.getBoundingClientRect();
+  const dx = Math.max(box.left - x, 0, x - box.right);
+  const dy = Math.max(box.top - y, 0, y - box.bottom);
+  return Math.hypot(dx, dy) <= HANDWRITING_REACH;
+}
+
 /** The parts of a pointer event the double-press recogniser reads. */
 export interface PressSample {
   pointerId: number;
@@ -161,11 +187,9 @@ interface UsePointerEventsOptions {
    * Two presses in the same place in quick succession, from a mouse, a
    * trackpad, a pen or a finger alike — see `DOUBLE_PRESS_MS`. Reported after
    * the second press has been delivered in full, so the board has finished
-   * answering it before anything is opened on top. Says which kind of pointer
-   * made it, since a pencil's double tap doesn't always mean what a click's
-   * does.
+   * answering it before anything is opened on top.
    */
-  onDoubleClick: (point: Point, screenPoint: Point, pointerType: string) => void;
+  onDoubleClick: (point: Point, screenPoint: Point) => void;
   /**
    * Every pointer position over the canvas, pressed or not — and `null` once
    * the pointer leaves.
@@ -195,6 +219,14 @@ export function usePointerEvents(
   const lastScreenRef = useRef<Point | null>(null);
   const isDownRef = useRef(false);
   const capturedPointerIdRef = useRef<number | null>(null);
+  /**
+   * A pencil press near an open text field, held back from the board until it
+   * shows what it is. If it travels it was writing, which the field takes as
+   * typing, and the board never hears of it: answered as a press, it would
+   * close the field or open a marquee under the words. If it lifts where it
+   * landed it was a tap, and the board gets it then.
+   */
+  const heldPenRef = useRef<{ press: PointerEvent; travelled: boolean } | null>(null);
   // One recogniser for the life of the hook: it carries the press before last,
   // which is the whole point of it.
   const doublePressRef = useRef<ReturnType<typeof createDoublePressTracker> | null>(null);
@@ -205,22 +237,17 @@ export function usePointerEvents(
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const handlePointerDown = (e: PointerEvent) => {
-      // Not default-prevented, unlike the other two: the browser moving focus
-      // off an open text field is what a right-click away from it should do.
-      if (e.button === 2) {
-        onContextPress?.(screenToWorld(e.clientX, e.clientY), eventToCanvasScreen(e));
-        return;
-      }
-      if (e.button !== 0 && e.button !== 1) return;
-      e.preventDefault();
+    /** Hand a press to the board, now it is known to be the board's. */
+    const beginPress = (e: PointerEvent, capture: boolean) => {
       // A press held on the chrome can leave a text selection behind it, and
       // Safari keeps its copy and paste bubble up for as long as one exists.
       const selection = document.getSelection();
       if (selection?.anchorNode) selection.removeAllRanges();
       isDownRef.current = true;
-      capturedPointerIdRef.current = e.pointerId;
-      canvas.setPointerCapture(e.pointerId);
+      if (capture) {
+        capturedPointerIdRef.current = e.pointerId;
+        canvas.setPointerCapture(e.pointerId);
+      }
 
       doublePress.down(e);
 
@@ -230,11 +257,39 @@ export function usePointerEvents(
       onPointerDown(world, screen, e.button, e.shiftKey, snapOverrideHeld(e));
     };
 
+    const handlePointerDown = (e: PointerEvent) => {
+      heldPenRef.current = null;
+      // Not default-prevented, unlike the other two: the browser moving focus
+      // off an open text field is what a right-click away from it should do.
+      if (e.button === 2) {
+        onContextPress?.(screenToWorld(e.clientX, e.clientY), eventToCanvasScreen(e));
+        return;
+      }
+      if (e.button !== 0 && e.button !== 1) return;
+      e.preventDefault();
+      if (e.pointerType === 'pen' && e.button === 0 && focusedFieldNear(e.clientX, e.clientY)) {
+        heldPenRef.current = { press: e, travelled: false };
+        // Captured all the same, so the lift comes back here wherever it lands.
+        canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+      beginPress(e, true);
+    };
+
     const handlePointerMove = (e: PointerEvent) => {
       const world = screenToWorld(e.clientX, e.clientY);
       // Before the pressed-only guard: hover is reported whether or not a
       // button is down, so a collaborator's cursor doesn't freeze mid-drag.
       onPointerHover?.(world);
+
+      const held = heldPenRef.current;
+      if (held?.press.pointerId === e.pointerId) {
+        const { clientX, clientY } = held.press;
+        if (Math.hypot(e.clientX - clientX, e.clientY - clientY) > tapDragSlopFor('pen')) {
+          held.travelled = true;
+        }
+        return;
+      }
 
       if (!isDownRef.current) return;
 
@@ -250,6 +305,18 @@ export function usePointerEvents(
     const handlePointerLeave = () => onPointerHover?.(null);
 
     const handlePointerUp = (e: PointerEvent) => {
+      const held = heldPenRef.current;
+      if (held?.press.pointerId === e.pointerId) {
+        heldPenRef.current = null;
+        if (held.travelled) {
+          // Writing, and the field's. Nor is it half of a double tap.
+          doublePress.cancel(e);
+          return;
+        }
+        // A tap, delivered as the press it always was. Its lift follows below.
+        beginPress(held.press, false);
+      }
+
       // Asked before the early return, so the recogniser sees every lift even
       // when the board has nothing to do with this one.
       const completesDoublePress = doublePress.up(e);
@@ -267,10 +334,15 @@ export function usePointerEvents(
       // Last, on purpose: the second press of a double is an ordinary press as
       // well, and the board should have finished answering it before anything
       // is opened on top.
-      if (completesDoublePress) onDoubleClick(world, screen, e.pointerType);
+      if (completesDoublePress) onDoubleClick(world, screen);
     };
 
     const handlePointerCancel = (e: PointerEvent) => {
+      // The system taking a held pencil away is the system writing with it.
+      if (heldPenRef.current?.press.pointerId === e.pointerId) {
+        heldPenRef.current = null;
+        return;
+      }
       doublePress.cancel(e);
       handlePointerUp(e);
     };

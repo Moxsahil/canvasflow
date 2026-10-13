@@ -2759,7 +2759,7 @@ export function Editor({ boardId }: EditorProps) {
   // Double-pressing a text shape (with any tool active) reopens it for editing;
   // double-pressing anywhere else, with select in hand, starts a new one there.
   const handleDoubleClick = useCallback(
-    (point: Point, _screenPoint: Point, pointerType: string) => {
+    (point: Point) => {
       if (readOnly) return;
 
       // Frame labels first. They sit above the frame in space that otherwise
@@ -2812,14 +2812,8 @@ export function Editor({ boardId }: EditorProps) {
        * drawn something, and putting a text box on top of that is not what the
        * gesture meant; the text tool makes a box on a single press, so a second
        * would only stack another on the first.
-       *
-       * Nor from a pencil. Two taps of one are as often the start of writing
-       * as a request for a box, and on an iPad the box is a field the system
-       * turns handwriting into typing for: whatever is written next lands in
-       * it as text. Existing text above still opens to a pencil's double tap,
-       * and the text tool still makes a box with a single one.
        */
-      if (activeTool !== 'select' || pointerType === 'pen') return;
+      if (activeTool !== 'select') return;
       actorRef.send({ type: 'START_TEXT_AT', point });
     },
     [actorRef, pickableShapes, spatialIndex, camera.zoom, readOnly, activeTool],
