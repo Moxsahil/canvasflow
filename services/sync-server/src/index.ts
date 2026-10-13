@@ -24,6 +24,7 @@ import {
 import { announceWorkspaceChanged } from './workspace/workspace-changed.js';
 import { announceAccountChanged, isAccountPart } from './account/account-changed.js';
 import { findComment } from './comments/comment-lookup.js';
+import { BoardActivityCounter, startActivityFlush } from './activity/board-activity.js';
 import {
   PRESENCE_RENEW_INTERVAL_MS,
   startPresenceKeepalive,
@@ -58,6 +59,9 @@ const env = parseEnv();
 const allowedOrigins = getAllowedOrigins(env);
 const log = createLogger(env, { service: 'sync-server' });
 const db = createClient(env.DATABASE_URL);
+
+/** Who changed which board, added up for the weekly digest. See board-activity.ts. */
+const activity = new BoardActivityCounter();
 
 /**
  * Hocuspocus server configuration with enterprise-grade authentication.
@@ -310,7 +314,7 @@ const hocuspocus = Server.configure({
       boardId: ctx.boardId,
       updateBytes: data.update.length,
     });
-    // PR #28: persist to Postgres here
+    activity.note(ctx.boardId, ctx.userId);
   },
 
   /**
@@ -575,6 +579,7 @@ app.post('/internal/comment-lookup', express.json({ limit: '1kb' }), (req, res) 
 
 let stopReauthorize: (() => void) | null = null;
 let stopPresenceKeepalive: (() => void) | null = null;
+let stopActivityFlush: (() => Promise<void>) | null = null;
 
 async function bootstrap(): Promise<void> {
   await hocuspocus.listen();
@@ -591,6 +596,8 @@ async function bootstrap(): Promise<void> {
   // presence-keepalive.ts for why a timer in that tab cannot.
   stopPresenceKeepalive = startPresenceKeepalive(hocuspocus);
   log.info('presence keepalive started', { intervalMs: PRESENCE_RENEW_INTERVAL_MS });
+
+  stopActivityFlush = startActivityFlush({ db, log, counter: activity });
 
   app.listen(env.PORT_HTTP, () => {
     log.info('HTTP (health) listening', { port: env.PORT_HTTP });
@@ -620,5 +627,7 @@ process.on('SIGTERM', async () => {
   stopReauthorize?.();
   stopPresenceKeepalive?.();
   await hocuspocus.destroy();
+  // After the documents are saved: the counts of what was just changed are kept.
+  await stopActivityFlush?.();
   process.exit(0);
 });

@@ -1,0 +1,51 @@
+name: Weekly digest
+
+# Starts the Monday email: to everyone who turned the weekly digest on, the
+# boards they can open that somebody else changed in the last seven days.
+# The API gateway does the work; this only asks it to begin, with a secret of
+# its own that can do nothing else.
+#
+# These logs are public, like everything else in this repository. The gateway
+# answers with counts only — never a name or an address; keep it that way.
+on:
+  schedule:
+    # Mondays at 03:13 UTC — a quarter to nine in India — clear of the
+    # nightly prune (03:17) and purge (03:47).
+    - cron: '13 3 * * 1'
+  # By hand, as a dry run unless the box is unticked: how production is
+  # checked before the first real run. A real run by hand after a failure
+  # sends only what has not gone this week.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only count who would get one
+        type: boolean
+        default: true
+
+concurrency:
+  group: weekly-digest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  digest:
+    name: Start the weekly digest
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # A scheduled run has no inputs, so it is always a real one.
+      - name: Ask the gateway to send it
+        env:
+          DIGEST_TRIGGER_SECRET: ${{ secrets.DIGEST_TRIGGER_SECRET }}
+          DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+        run: |
+          status=$(curl -sS -o response.json -w '%{http_code}' --max-time 90 \
+            -X POST https://api.canvasflowapp.com/internal/digest \
+            -H "Authorization: Bearer ${DIGEST_TRIGGER_SECRET}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"dryRun\": ${DRY_RUN}}")
+          cat response.json; echo
+          # 200 for a dry run's counts, 202 for a run started.
+          [ "$status" = 200 ] || [ "$status" = 202 ]

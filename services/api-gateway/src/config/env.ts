@@ -88,6 +88,17 @@ const envSchema = z
       .or(z.literal('').transform(() => undefined)),
 
     /**
+     * What the weekly digest's scheduled job presents to start a run. Its own
+     * random value, kept as a Fly secret and a GitHub Actions secret, so the
+     * job holds nothing that could do anything else. Unset turns the route off.
+     */
+    DIGEST_TRIGGER_SECRET: z
+      .string()
+      .min(32, 'DIGEST_TRIGGER_SECRET must be at least 32 characters')
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
+
+    /**
      * Where the sync-server's internal routes answer, so a change made here —
      * somebody invited, an invitation taken back — reaches everyone in the
      * workspace while their boards are open, as the web app's changes do.

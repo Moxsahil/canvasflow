@@ -50,6 +50,10 @@ export const notificationDeliveries = pgTable(
     onceInWorkspace: uniqueIndex('notification_deliveries_once_workspace')
       .on(table.kind, table.workspaceId, table.sourceId, table.recipientId)
       .where(sql`${table.boardId} is null`),
+    /** And for what is about the whole account, such as a week's digest. */
+    onceForAccount: uniqueIndex('notification_deliveries_once_account')
+      .on(table.kind, table.sourceId, table.recipientId)
+      .where(sql`${table.boardId} is null and ${table.workspaceId} is null`),
     /** "Was this person mailed about this board a moment ago?" */
     recentIdx: index('notification_deliveries_recent_idx').on(
       table.recipientId,
@@ -63,12 +67,12 @@ export const notificationDeliveries = pgTable(
     ),
     kindCheck: check(
       'notification_deliveries_kind',
-      sql`${table.kind} in ('comment-mention', 'board-joined', 'workspace-joined', 'access-changed')`,
+      sql`${table.kind} in ('comment-mention', 'board-joined', 'workspace-joined', 'access-changed', 'weekly-digest')`,
     ),
-    /** About a board, or failing that a workspace: always one or the other. */
+    /** About a board, or failing that a workspace — except a digest, which is about everything. */
     scopeCheck: check(
       'notification_deliveries_scope',
-      sql`${table.boardId} is not null or ${table.workspaceId} is not null`,
+      sql`${table.boardId} is not null or ${table.workspaceId} is not null or ${table.kind} = 'weekly-digest'`,
     ),
   }),
 );

@@ -14,6 +14,7 @@ import { users, type NewUserRow } from '../schema/users.js';
 import { memberships, workspaces } from '../schema/workspaces.js';
 import { workspaceInvites } from '../schema/workspace-invites.js';
 import { notificationDeliveries } from '../schema/notifications.js';
+import { boardActivity } from '../schema/board-activity.js';
 import { isUniqueViolation } from './pg-errors.js';
 
 /**
@@ -85,6 +86,8 @@ export const USER_REFERENCE_FATES = {
   // What they were told about goes; what they did to others stays, as nobody.
   'notification_deliveries.recipient_id': 'deleted',
   'notification_deliveries.actor_id': 'unlinked',
+  // Who changed which board on which day goes with them.
+  'board_activity.user_id': 'deleted',
 } as const;
 
 /** The account row's columns that erasure leaves as they are. None of them says who anybody was. */
@@ -539,6 +542,7 @@ export async function purgeAccount(
     // What they were told about is theirs; what they did to others is kept,
     // as nobody, so the people they mentioned are not mailed about it again.
     await tx.delete(notificationDeliveries).where(eq(notificationDeliveries.recipientId, userId));
+    await tx.delete(boardActivity).where(eq(boardActivity.userId, userId));
     await tx
       .update(notificationDeliveries)
       .set({ actorId: null })

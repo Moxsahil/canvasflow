@@ -829,3 +829,95 @@ export function guestAccessEmail(content: GuestAccessContent): RenderedEmail {
     text: [said(actor, workspace), '', content.openUrl, '', footer.text].join('\n'),
   };
 }
+
+/** "Ada", "Ada and Grace", "Ada, Grace and Lin", "Ada, Grace and 3 others". */
+export function peopleList(names: readonly string[]): string {
+  const named = names.map((name) => name.trim() || 'Someone');
+  if (named.length <= 1) return named[0] ?? 'Someone';
+  if (named.length === 2) return `${named[0]} and ${named[1]}`;
+  if (named.length === 3) return `${named[0]}, ${named[1]} and ${named[2]}`;
+  return `${named[0]}, ${named[1]} and ${named.length - 2} others`;
+}
+
+const DIGEST_DAY = new Intl.DateTimeFormat('en-GB', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'UTC',
+});
+
+/** `2026-10-09` as "Thursday 9 Oct". */
+export function digestDay(day: string): string {
+  return DIGEST_DAY.format(new Date(`${day}T12:00:00Z`)).replace(',', '');
+}
+
+export interface DigestBoard {
+  title: string;
+  url: string;
+  /** Who changed it, busiest first. */
+  people: readonly string[];
+  /** `2026-10-09`. */
+  lastDay: string;
+}
+
+export interface WeeklyDigestContent {
+  /** The boards to list, most recently changed first. */
+  boards: readonly DigestBoard[];
+  /** Boards that changed beyond those listed. */
+  more: number;
+  openUrl: string;
+  unsubscribeUrl: string;
+}
+
+/** The Monday email: which of the boards somebody can open others changed this week. */
+export function weeklyDigestEmail(content: WeeklyDigestContent): RenderedEmail {
+  const total = content.boards.length + content.more;
+  const count = total === 1 ? '1 board changed' : `${total} boards changed`;
+  const line = (board: DigestBoard) =>
+    `${peopleList(board.people)} made changes · last on ${digestDay(board.lastDay)}`;
+  const footer = notificationFooter('the weekly digest', content.unsubscribeUrl);
+  const more =
+    content.more > 0
+      ? `And ${content.more} more ${content.more === 1 ? 'board' : 'boards'} changed.`
+      : null;
+
+  const rows = content.boards
+    .map(
+      (board) => `
+        <tr>
+          <td style="padding: 12px 0; border-bottom: 1px solid #E2E8F0;">
+            <a href="${escapeHtml(board.url)}" style="color: #0F172A; font-weight: 600; text-decoration: none;">${escapeHtml(board.title.trim() || 'Untitled board')}</a>
+            <div style="color: #64748B; font-size: 14px; margin-top: 2px;">${escapeHtml(line(board))}</div>
+          </td>
+        </tr>`,
+    )
+    .join('');
+
+  return {
+    subject: `Your week on CanvasFlow: ${count}`,
+    html: layout(
+      'Your week on CanvasFlow',
+      paragraph(`Here's what others changed on your boards in the last 7 days.`) +
+        `<table role="presentation" style="width: 100%; border-collapse: collapse; margin: 8px 0 4px;">${rows}</table>` +
+        (more ? paragraph(escapeHtml(more)) : '') +
+        button(content.openUrl, 'Open CanvasFlow') +
+        footer.html,
+    ),
+    text: [
+      'Your week on CanvasFlow',
+      '',
+      "Here's what others changed on your boards in the last 7 days.",
+      '',
+      ...content.boards.flatMap((board) => [
+        board.title.trim() || 'Untitled board',
+        `  ${line(board)}`,
+        `  ${board.url}`,
+        '',
+      ]),
+      ...(more ? [more, ''] : []),
+      content.openUrl,
+      '',
+      footer.text,
+    ].join('\n'),
+  };
+}
