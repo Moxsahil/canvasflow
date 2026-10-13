@@ -132,6 +132,34 @@ html[data-theme='dark'] #root {
   display: none;
 }
 
+/* A pencil or finger held still on a touch screen asks the system for more
+   than the press: a preview of the link or image under it, a grey flash on
+   whatever it tapped. Neither belongs anywhere in the editor, so both are off
+   throughout, but a link keeps its preview. */
+.cf-editor,
+.cf-editor * {
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cf-editor a {
+  -webkit-touch-callout: default;
+}
+
+/* The board and the chrome floating over it. A hand resting there, or a
+   pencil held on a label, would otherwise start a text selection, and with it
+   the system's copy and paste bubble. Fields keep theirs, and Safari needs
+   telling: a field under `user-select: none` can't be typed into there. */
+.cf-board {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.cf-board :is(input, textarea, [contenteditable]) {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .canvas-stack,
 .canvas-stack * {
   user-select: none;

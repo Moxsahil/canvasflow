@@ -212,6 +212,10 @@ export function usePointerEvents(
       }
       if (e.button !== 0 && e.button !== 1) return;
       e.preventDefault();
+      // A press held on the chrome can leave a text selection behind it, and
+      // Safari keeps its copy and paste bubble up for as long as one exists.
+      const selection = document.getSelection();
+      if (selection?.anchorNode) selection.removeAllRanges();
       isDownRef.current = true;
       capturedPointerIdRef.current = e.pointerId;
       canvas.setPointerCapture(e.pointerId);
@@ -269,13 +273,25 @@ export function usePointerEvents(
       handlePointerUp(e);
     };
 
+    /**
+     * Safari on an iPad reads a pencil or a finger on the canvas as the start
+     * of its own gestures too: handwriting turned into text, the magnifier,
+     * the copy and paste bubble on a press and hold. Cancelling the pointer
+     * event doesn't call those off; only the touch event beneath it can, and
+     * only from a listener that isn't passive. The board reads nothing but
+     * pointer events, so it loses nothing by it.
+     */
+    const handleTouchStart = (e: TouchEvent) => e.preventDefault();
+
     canvas.addEventListener('pointerdown', handlePointerDown);
     canvas.addEventListener('pointermove', handlePointerMove);
     canvas.addEventListener('pointerup', handlePointerUp);
     canvas.addEventListener('pointercancel', handlePointerCancel);
     canvas.addEventListener('pointerleave', handlePointerLeave);
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
 
     return () => {
+      canvas.removeEventListener('touchstart', handleTouchStart);
       canvas.removeEventListener('pointerdown', handlePointerDown);
       canvas.removeEventListener('pointermove', handlePointerMove);
       canvas.removeEventListener('pointerup', handlePointerUp);

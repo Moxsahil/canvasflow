@@ -4138,7 +4138,7 @@ export function Editor({ boardId }: EditorProps) {
             chrome inside anchors to the space left of the sidebar rather than
             to the window — and measured, so the canvas resizes with it. */}
         <SidebarInset className="relative min-w-0 overflow-hidden">
-          <div ref={containerRef} className="absolute inset-0">
+          <div ref={containerRef} className="cf-board absolute inset-0">
             {/* Around the canvas alone, so a right-click on the chrome floating
                 over it still gets the browser's own menu, or none. Rows go live
                 by being given a handler here; the rest read "Soon". */}
