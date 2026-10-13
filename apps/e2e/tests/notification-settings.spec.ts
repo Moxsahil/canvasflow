@@ -122,6 +122,7 @@ test('a switch flipped on one device is saved and flips on the other', async ({ 
     await expect(toggle(pane, 'Comment mentions')).toBeEnabled();
     await expect(toggle(pane, 'Access changes')).toHaveAttribute('aria-checked', 'true');
     await expect(toggle(pane, 'Comment mentions')).toHaveAttribute('aria-checked', 'true');
+    await expect(toggle(pane, 'Invite accepted')).toHaveAttribute('aria-checked', 'true');
     await expect(toggle(pane, 'Weekly digest')).toHaveAttribute('aria-checked', 'false');
   }
   expect(await storedSwitches()).toBeUndefined();
@@ -149,17 +150,19 @@ test('a switch flipped on one device is saved and flips on the other', async ({ 
   await expect.poll(storedSwitches).toEqual({
     commentMentions: false,
     weeklyDigest: true,
-    inviteAccepted: true,
+    inviteAccepted: false,
     productUpdates: true,
     accessChanges: false,
   });
   for (const pane of [onLaptop, onPhone]) {
-    for (const title of ['Invite accepted', 'Product updates']) {
-      await expect(toggle(pane, title)).toHaveAttribute('aria-checked', 'true', { timeout: 5_000 });
-    }
-    await expect(toggle(pane, 'Access changes')).toHaveAttribute('aria-checked', 'false', {
+    await expect(toggle(pane, 'Product updates')).toHaveAttribute('aria-checked', 'true', {
       timeout: 5_000,
     });
+    for (const title of ['Invite accepted', 'Access changes']) {
+      await expect(toggle(pane, title)).toHaveAttribute('aria-checked', 'false', {
+        timeout: 5_000,
+      });
+    }
   }
 
   // A reload finds them as they were left.

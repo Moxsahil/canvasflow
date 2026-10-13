@@ -521,9 +521,9 @@ describe('SettingsDialog', () => {
 
   it('shows the default switches, held still, until the saved ones arrive', () => {
     const pane = renderPane('notifications');
-    // Two of the five are on: the ones about someone else reaching you.
-    expect(pane.match(/aria-checked="true"/g)).toHaveLength(2);
-    expect(pane.match(/aria-checked="false"/g)).toHaveLength(3);
+    // Three of the five are on: the ones about other people.
+    expect(pane.match(/aria-checked="true"/g)).toHaveLength(3);
+    expect(pane.match(/aria-checked="false"/g)).toHaveLength(2);
     expect(pane.match(/role="switch"[^>]*disabled=""/g)).toHaveLength(5);
     expect(pane).toContain('Access changes');
   });
