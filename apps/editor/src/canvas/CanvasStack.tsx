@@ -68,6 +68,9 @@ interface CanvasStackProps {
   subscribePeers?: (listener: () => void) => () => void;
   /** Pointer position in world space, for publishing to collaborators. */
   onPointerHover?: (point: Point | null) => void;
+  /** Touches leave the board alone; see `usePointerEvents`. */
+  penMode?: boolean;
+  onPenDetected?: () => void;
   onPointerDown: (
     point: Point,
     screenPoint: Point,
@@ -118,6 +121,8 @@ export function CanvasStack({
   onDropFiles,
   onDropLibraryItem,
   onPointerHover,
+  penMode,
+  onPenDetected,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -197,6 +202,8 @@ export function CanvasStack({
     onContextPress,
     onDoubleClick,
     onPointerHover,
+    penMode,
+    onPenDetected,
     screenToWorld: screenToWorldFn,
     eventToCanvasScreen: eventToCanvasScreenFn,
   });

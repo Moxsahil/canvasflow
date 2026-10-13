@@ -239,7 +239,7 @@ import {
   type WorkspaceSettingsSource,
 } from './settings';
 import { warmAccountSecurity } from './settings/account-security-api';
-import { usePreferences } from './preferences';
+import { readPenSeen, storePenSeen, usePreferences } from './preferences';
 import { useAvatar, useAvatarUrls, useProfile } from './profile';
 import { VerificationNotice } from './profile/VerificationNotice';
 import { TermsNotice } from './profile/TermsNotice';
@@ -663,6 +663,7 @@ export function Editor({ boardId }: EditorProps) {
   // skipped, so they carry the warning tone.
   const [notice, setNotice] = useState<Notice | null>(null);
   const toast = useToast();
+  const { show: showToast } = toast;
   const dismissNotice = useCallback(() => setNotice(null), []);
   const showOpenNotice = useCallback(
     (body: string) => setNotice({ title: 'Open board', body, tone: 'warn' }),
@@ -2627,6 +2628,21 @@ export function Editor({ boardId }: EditorProps) {
     [setCursor, activeTool, selectedIds, shapes, camera.zoom],
   );
 
+  /**
+   * The first pen this device has seen puts pen mode on, and says so: from
+   * then on a finger on the board does nothing, which would read as broken if
+   * it came unannounced. Once only — turned off after that, it stays off.
+   */
+  const penSeenRef = useRef(readPenSeen());
+  const handlePenDetected = useCallback(() => {
+    if (penSeenRef.current) return;
+    penSeenRef.current = true;
+    storePenSeen();
+    if (preferences.values.penMode) return;
+    preferences.set('penMode', true);
+    showToast('Pen mode on: only the pen draws. Turn it off in Preferences');
+  }, [preferences, showToast]);
+
   const handlePointerUp = useCallback(
     (point: Point, screenPoint: Point) => {
       // A press on a locked shape that came up where it went down was a
@@ -3335,7 +3351,6 @@ export function Editor({ boardId }: EditorProps) {
    * goes by itself. A copy that failed still gets the notice, which shows the
    * link so it can be copied by hand.
    */
-  const { show: showToast } = toast;
   const handleCopyLinkToSelection = useCallback(async () => {
     if (!runsSharing) return;
     const selected = shapes.filter((shape) => selectedIds.includes(shape.id));
@@ -4252,6 +4267,8 @@ export function Editor({ boardId }: EditorProps) {
                   peersRef={peersRef}
                   subscribePeers={subscribe}
                   onPointerHover={handlePointerHover}
+                  penMode={preferences.values.penMode}
+                  onPenDetected={handlePenDetected}
                 />
               </div>
             </CanvasContextMenu>
