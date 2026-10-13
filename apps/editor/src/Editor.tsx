@@ -104,6 +104,7 @@ import {
   type LibraryEntry,
 } from './library';
 import { screenToWorld } from './pointer/coords';
+import { useBoardItemTouchGuard } from './pointer/useBoardItemTouchGuard';
 import { useLastPointerPosition } from './pointer/useLastPointerPosition';
 import { CanvasStack } from './canvas/CanvasStack';
 import { pointerCursorValue } from './canvas/pointer-cursor';
@@ -2034,8 +2035,37 @@ export function Editor({ boardId }: EditorProps) {
     [camera.zoom],
   );
 
+  /**
+   * Where things stood when the touch on the board went down: the edit on top
+   * of the undo history, the tool, the selection. A touch can turn out to be a
+   * palm the pencil arrived after, and then everything since is taken back.
+   */
+  const touchPressRef = useRef<{
+    undoItem: object | null;
+    tool: Tool;
+    selectedIds: readonly string[];
+  } | null>(null);
+
   const handlePointerDown = useCallback(
-    (point: Point, screenPoint: Point, button: number, shiftKey: boolean, snapOverride = false) => {
+    (
+      point: Point,
+      screenPoint: Point,
+      button: number,
+      shiftKey: boolean,
+      snapOverride = false,
+      pointerType = 'mouse',
+    ) => {
+      // Its own undo step, so taking it back takes nothing else with it.
+      if (pointerType === 'touch') {
+        doc.breakUndoGroup();
+        touchPressRef.current = {
+          undoItem: doc.peekUndoItem(),
+          tool: activeTool,
+          selectedIds: actorRef.getSnapshot().context.selectedIds,
+        };
+      } else {
+        touchPressRef.current = null;
+      }
       notifyActivity();
       lastCanvasPointRef.current = screenPoint;
       pasteTargetRef.current = null;
@@ -2216,6 +2246,7 @@ export function Editor({ boardId }: EditorProps) {
     [
       actorRef,
       activeTool,
+      doc,
       laser,
       setLasering,
       beginComment,
@@ -2633,6 +2664,7 @@ export function Editor({ boardId }: EditorProps) {
    * then on a finger on the board does nothing, which would read as broken if
    * it came unannounced. Once only — turned off after that, it stays off.
    */
+  useBoardItemTouchGuard(containerRef, preferences.values.penMode);
   const penSeenRef = useRef(readPenSeen());
   const handlePenDetected = useCallback(() => {
     if (penSeenRef.current) return;
@@ -2770,6 +2802,35 @@ export function Editor({ boardId }: EditorProps) {
       showSnapGuides,
       showBindingHint,
     ],
+  );
+
+  /**
+   * A touch the pencil took over from: a hand that reached the board first,
+   * as it does when someone settles in to write. It is ended as a lift would
+   * end it, so nothing it started is left half done, and then taken back —
+   * every edit it made, and the tool and selection it changed.
+   */
+  const handlePointerAbandon = useCallback(
+    (point: Point, screenPoint: Point) => {
+      handlePointerUp(point, screenPoint);
+      const press = touchPressRef.current;
+      touchPressRef.current = null;
+      if (!press) return;
+      for (let top = doc.peekUndoItem(); top !== press.undoItem; top = doc.peekUndoItem()) {
+        doc.undo();
+        // Nothing came off, so nothing more will: a read-only board.
+        if (doc.peekUndoItem() === top) break;
+      }
+      if (actorRef.getSnapshot().context.activeTool !== press.tool) {
+        actorRef.send({ type: 'SELECT_TOOL', tool: press.tool });
+      }
+      const present = new Set(doc.getShapes().map((shape) => shape.id));
+      actorRef.send({
+        type: 'SELECT_ALL',
+        shapeIds: press.selectedIds.filter((id) => present.has(id)),
+      });
+    },
+    [actorRef, doc, handlePointerUp],
   );
 
   // Double-pressing a text shape (with any tool active) reopens it for editing;
@@ -4251,6 +4312,7 @@ export function Editor({ boardId }: EditorProps) {
                   onPointerDown={handlePointerDown}
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp}
+                  onPointerAbandon={handlePointerAbandon}
                   onContextPress={handleContextPress}
                   onDoubleClick={handleDoubleClick}
                   onWheelZoom={handleWheelZoom}

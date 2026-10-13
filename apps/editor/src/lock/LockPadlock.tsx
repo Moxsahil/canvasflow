@@ -57,6 +57,7 @@ export function LockPadlock({
       className={cn(menuSurfaceClasses, 'absolute z-(--zIndex-layerUI) rounded-card p-0.75')}
       style={{ left: place.left, top: place.top }}
       data-testid="lock-padlock"
+      data-on-board
     >
       <button
         type="button"
