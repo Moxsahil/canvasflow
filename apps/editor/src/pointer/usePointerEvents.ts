@@ -161,9 +161,11 @@ interface UsePointerEventsOptions {
    * Two presses in the same place in quick succession, from a mouse, a
    * trackpad, a pen or a finger alike — see `DOUBLE_PRESS_MS`. Reported after
    * the second press has been delivered in full, so the board has finished
-   * answering it before anything is opened on top.
+   * answering it before anything is opened on top. Says which kind of pointer
+   * made it, since a pencil's double tap doesn't always mean what a click's
+   * does.
    */
-  onDoubleClick: (point: Point, screenPoint: Point) => void;
+  onDoubleClick: (point: Point, screenPoint: Point, pointerType: string) => void;
   /**
    * Every pointer position over the canvas, pressed or not — and `null` once
    * the pointer leaves.
@@ -265,7 +267,7 @@ export function usePointerEvents(
       // Last, on purpose: the second press of a double is an ordinary press as
       // well, and the board should have finished answering it before anything
       // is opened on top.
-      if (completesDoublePress) onDoubleClick(world, screen);
+      if (completesDoublePress) onDoubleClick(world, screen, e.pointerType);
     };
 
     const handlePointerCancel = (e: PointerEvent) => {
