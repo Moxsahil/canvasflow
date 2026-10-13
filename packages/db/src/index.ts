@@ -16,6 +16,7 @@ export * from './access/users.js';
 export * from './access/notifications.js';
 export * from './access/notification-deliveries.js';
 export * from './access/notification-facts.js';
+export * from './access/board-activity.js';
 export * from './access/sessions.js';
 export * from './access/account-deletion.js';
 export * from './access/account-purge.js';

@@ -23,7 +23,7 @@ export default defineConfig({
       // Password recovery, account security, the legal pages and account
       // deletion run in their own projects, below.
       testIgnore:
-        /(password-reset|account-security|legal|account-deletion(-request|-ui)?|account-purge|account-restore|username|workspace-invites|workspace-members|shared-boards|notification-settings|mention-emails|join-and-access-emails)\.spec\.ts/,
+        /(password-reset|account-security|legal|account-deletion(-request|-ui)?|account-purge|account-restore|username|workspace-invites|workspace-members|shared-boards|notification-settings|mention-emails|join-and-access-emails|weekly-digest)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         // Every test in this project starts already signed in, from the file
@@ -103,6 +103,14 @@ export default defineConfig({
     {
       name: 'join-emails',
       testMatch: /join-and-access-emails\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // The weekly digest: activity counted, a dry run, a real run and a rerun.
+    // A real run is for everyone in the development database who turned the
+    // digest on. Run on its own with `--project=digest`.
+    {
+      name: 'digest',
+      testMatch: /weekly-digest\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
     // Deleting an account: the data layer, the daily purge and support's

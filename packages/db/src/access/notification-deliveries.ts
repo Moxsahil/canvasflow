@@ -10,10 +10,20 @@ export type NotificationDeliveryKind =
   | 'comment-mention'
   | 'board-joined'
   | 'workspace-joined'
-  | 'access-changed';
+  | 'access-changed'
+  | 'weekly-digest';
 
-/** Where something happened: on a board, or across a workspace. */
-export type NotificationScope = { boardId: string } | { workspaceId: string };
+/**
+ * Where something happened: on a board, across a workspace, or — for what is
+ * about everything somebody can see, such as a week's digest — their account.
+ */
+export type NotificationScope = { boardId: string } | { workspaceId: string } | { account: true };
+
+function scopeColumns(scope: NotificationScope) {
+  if ('boardId' in scope) return { boardId: scope.boardId };
+  if ('workspaceId' in scope) return { workspaceId: scope.workspaceId };
+  return {};
+}
 
 /** Somebody who might be emailed, with everything that decides whether they are. */
 export interface NotificationRecipient {
@@ -101,7 +111,7 @@ export async function recordDeliveries(
         kind,
         sourceId,
         actorId,
-        ...('boardId' in scope ? { boardId: scope.boardId } : { workspaceId: scope.workspaceId }),
+        ...scopeColumns(scope),
       })),
     )
     .onConflictDoNothing()
@@ -125,10 +135,15 @@ export async function emailedSince(
         eq(notificationDeliveries.recipientId, input.recipientId),
         'boardId' in input
           ? eq(notificationDeliveries.boardId, input.boardId)
-          : and(
-              eq(notificationDeliveries.workspaceId, input.workspaceId),
-              isNull(notificationDeliveries.boardId),
-            ),
+          : 'workspaceId' in input
+            ? and(
+                eq(notificationDeliveries.workspaceId, input.workspaceId),
+                isNull(notificationDeliveries.boardId),
+              )
+            : and(
+                isNull(notificationDeliveries.workspaceId),
+                isNull(notificationDeliveries.boardId),
+              ),
         input.kind ? eq(notificationDeliveries.kind, input.kind) : undefined,
         isNotNull(notificationDeliveries.emailedAt),
         gte(notificationDeliveries.emailedAt, since),
@@ -147,4 +162,12 @@ export async function markDeliveryEmailed(
     .update(notificationDeliveries)
     .set({ emailedAt: at })
     .where(eq(notificationDeliveries.id, deliveryId));
+}
+
+/**
+ * Forget a notice whose email could not go, so the next run tries again
+ * rather than counting it as sent.
+ */
+export async function forgetDelivery(db: Database, deliveryId: string): Promise<void> {
+  await db.delete(notificationDeliveries).where(eq(notificationDeliveries.id, deliveryId));
 }
