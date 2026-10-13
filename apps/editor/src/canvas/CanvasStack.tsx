@@ -85,7 +85,7 @@ interface CanvasStackProps {
   onPointerUp: (point: Point, screenPoint: Point) => void;
   /** A right-button press, settling the selection before the context menu opens. */
   onContextPress?: (point: Point, screenPoint: Point) => void;
-  onDoubleClick: (point: Point, screenPoint: Point) => void;
+  onDoubleClick: (point: Point, screenPoint: Point, pointerType: string) => void;
   onWheelZoom: (delta: number, anchor: Point) => void;
   onWheelPan: (dx: number, dy: number) => void;
   isPanning: boolean;
