@@ -22,13 +22,14 @@ export interface NotificationSettings {
 export type NotificationKind = keyof NotificationSettings;
 
 /**
- * The two about someone else reaching you start on; the three that are
- * CanvasFlow talking to you start off.
+ * The three about other people — a mention, a change to your access, someone
+ * joining through you — start on; the two that are CanvasFlow talking to you
+ * start off.
  */
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   accessChanges: true,
   commentMentions: true,
-  inviteAccepted: false,
+  inviteAccepted: true,
   weeklyDigest: false,
   productUpdates: false,
 };

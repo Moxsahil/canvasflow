@@ -252,26 +252,27 @@ test('somebody new through a share link emails whoever made it, once in a while'
     await guest.context().close();
   };
 
-  // "Invite accepted" starts off: recorded, not mailed.
+  // "Invite accepted" starts on: the first person in is mailed.
   const friend = await signIn(browser, FRIEND.email);
   await friend.goto(`${WEB}/invite/${linkToken}`);
   await friend.getByRole('button', { name: 'Open board' }).click();
   await friend.waitForURL(new RegExp(`/boards/${boardId}`), { timeout: 45_000 });
-  await expectNotices(OWNER.email, 'board-joined', [false]);
+  await expectNotices(OWNER.email, 'board-joined', [true]);
 
-  // Turned on, the next person in is mailed.
-  await setSwitch(OWNER.email, 'inviteAccepted', true);
+  // Turned off, the next is recorded and not mailed.
+  await setSwitch(OWNER.email, 'inviteAccepted', false);
   await joinAsGuest(GUEST_NAME);
-  await expectNotices(OWNER.email, 'board-joined', [false, true]);
+  await expectNotices(OWNER.email, 'board-joined', [true, false]);
+  await setSwitch(OWNER.email, 'inviteAccepted', true);
 
   // Opening the link again is not somebody new.
   await friend.goto(`${WEB}/invite/${linkToken}`);
   await friend.getByRole('button', { name: 'Open board' }).click();
   await friend.waitForURL(new RegExp(`/boards/${boardId}`), { timeout: 45_000 });
 
-  // Another right after: recorded, and held, since the owner just heard.
+  // On again, but another right after is held: the owner just heard.
   await joinAsGuest(`${GUEST_NAME} two`);
-  await expectNotices(OWNER.email, 'board-joined', [false, true, false]);
+  await expectNotices(OWNER.email, 'board-joined', [true, false, false]);
   await friend.context().close();
 });
 
@@ -354,5 +355,5 @@ test('the internal route takes only our own services, and only events it knows',
   expect(await post({ 'x-canvasflow-internal': credential }, { event: 'made-up' })).toBe(400);
   // A real event reported again is a repeat: nothing more is recorded.
   expect(await post({ 'x-canvasflow-internal': credential }, event)).toBe(202);
-  await expect.poll(() => notices(OWNER.email, 'board-joined')).toEqual([false, true, false]);
+  await expect.poll(() => notices(OWNER.email, 'board-joined')).toEqual([true, false, false]);
 });
