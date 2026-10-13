@@ -1,7 +1,7 @@
 import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   canEdit,
-  emailedAboutBoardSince,
+  emailedSince,
   getProfile,
   liveBoardTitle,
   markDeliveryEmailed,
@@ -192,6 +192,10 @@ export class MentionsService {
     if (!person.settings.commentMentions) return false;
     if (!person.emailVerified || person.disabled || person.deletionScheduled) return false;
     const since = new Date(at.getTime() - MENTION_QUIET_MS);
-    return !(await emailedAboutBoardSince(this.database.db, person.id, boardId, since));
+    return !(await emailedSince(
+      this.database.db,
+      { recipientId: person.id, boardId, kind: 'comment-mention' },
+      since,
+    ));
   }
 }

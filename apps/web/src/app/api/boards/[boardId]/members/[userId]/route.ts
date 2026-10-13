@@ -10,6 +10,7 @@ import { env } from '@/lib/env';
 import { currentSession } from '@/lib/auth/session';
 import { checkBoardAccess } from '@/lib/boards/access';
 import { corsJson, corsPreflight } from '@/lib/api/cors';
+import { notifyGateway } from '@/lib/gateway/internal';
 import { notifyBoardAccessChanged, notifyWorkspaceChanged } from '@/lib/sync/internal';
 
 /**
@@ -89,6 +90,16 @@ export async function PATCH(
   // The workspace's guest list shows what each guest may do, and the person
   // changed lists the board under "Shared with you".
   await notifyWorkspaceChanged(authorized.workspaceId, [userId]);
+  // The person may be emailed what they can do now. Not when nothing changed.
+  if (outcome.change !== 'none') {
+    await notifyGateway({
+      event: 'board-access-changed',
+      boardId,
+      userId,
+      actorId: authorized.actorId,
+      change: outcome.change,
+    });
+  }
 
   return corsJson({ ok: true, role: outcome.role });
 }

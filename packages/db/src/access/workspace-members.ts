@@ -436,6 +436,11 @@ export type GuestChangeOutcome =
   | { ok: true; boardIds: string[] }
   | { ok: false; reason: 'workspace-gone' | 'not-allowed' | 'not-guest' };
 
+/** As for any change to a guest, and which of their boards it actually changed. */
+export type GuestRoleOutcome =
+  | (Extract<GuestChangeOutcome, { ok: true }> & { changedBoardIds: string[] })
+  | Extract<GuestChangeOutcome, { ok: false }>;
+
 /**
  * The boards in this workspace a guest is on: standing grants on boards not
  * deleted, and not their own — the same rows the member list counts them by.
@@ -482,15 +487,22 @@ async function guestBoardsToManage(
 export async function setGuestRole(
   db: Database,
   input: { workspaceId: string; actorId: string; userId: string; role: GuestRole },
-): Promise<GuestChangeOutcome> {
+): Promise<GuestRoleOutcome> {
   return db.transaction(async (tx) => {
     const found = await guestBoardsToManage(tx, input);
     if (typeof found === 'string') return { ok: false, reason: found } as const;
 
-    await tx
+    const changed = await tx
       .update(boardMembers)
       .set({ role: input.role, updatedAt: new Date() })
-      .where(and(eq(boardMembers.userId, input.userId), inArray(boardMembers.boardId, found)));
+      .where(
+        and(
+          eq(boardMembers.userId, input.userId),
+          inArray(boardMembers.boardId, found),
+          ne(boardMembers.role, input.role),
+        ),
+      )
+      .returning({ boardId: boardMembers.boardId });
 
     await tx.insert(auditLog).values({
       workspaceId: input.workspaceId,
@@ -500,7 +512,11 @@ export async function setGuestRole(
       targetId: input.userId,
       metadata: { role: input.role, boards: found.length },
     });
-    return { ok: true, boardIds: found } as const;
+    return {
+      ok: true,
+      boardIds: found,
+      changedBoardIds: changed.map((row) => row.boardId),
+    } as const;
   });
 }
 

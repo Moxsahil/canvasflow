@@ -39,6 +39,7 @@ import { CurrentUser } from '../auth/current-user.decorator.js';
 import { type AuthenticatedUser, JwtAuthGuard } from '../auth/jwt.guard.js';
 import { EmailService } from '../email/email.service.js';
 import { describeMemberRefusal, type MemberAction, type MemberRefusal } from './member-rules.js';
+import { NotifyService } from '../notifications/notify.service.js';
 import { WorkspaceEventsService } from './workspace-events.service.js';
 
 /** What leaving or removing someone did with what they owned. */
@@ -70,6 +71,7 @@ export class WorkspaceMembersController {
     private readonly database: DatabaseService,
     private readonly email: EmailService,
     private readonly events: WorkspaceEventsService,
+    private readonly notify: NotifyService,
   ) {}
 
   /** Make someone a member or an admin. */
@@ -93,7 +95,11 @@ export class WorkspaceMembersController {
       role,
     });
     if (!outcome.ok) throw refused('role', outcome.reason);
-    if (outcome.changed) this.events.changed(workspaceId);
+    if (outcome.changed) {
+      this.events.changed(workspaceId);
+      // Emailed behind the answer; it never fails the change.
+      void this.notify.workspaceRoleChanged(workspaceId, userId, user.id);
+    }
   }
 
   /** Take someone out of the workspace. Their boards pass to the owner. */
@@ -142,6 +148,16 @@ export class WorkspaceMembersController {
     this.events.changed(workspaceId, [userId]);
     // Their open boards turn read-only, or editable, without a reconnect.
     this.events.boardAccessChanged(outcome.boardIds, userId);
+    // One email for the lot, and only if something they could do changed.
+    if (outcome.changedBoardIds.length > 0) {
+      void this.notify.guestAccessChanged(
+        workspaceId,
+        userId,
+        user.id,
+        role,
+        outcome.boardIds.length,
+      );
+    }
   }
 
   /** Take a guest off every board of this workspace they are on. */

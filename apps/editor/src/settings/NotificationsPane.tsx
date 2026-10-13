@@ -20,10 +20,15 @@ const EMAIL: Row[] = [
     'accessChanges',
     'access-changes',
     'Access changes',
-    'When someone gives you a board or changes your role on one',
+    'When your role on a board or workspace changes',
   ],
   ['commentMentions', 'comment-mentions', 'Comment mentions', 'When a collaborator tags you'],
-  ['inviteAccepted', 'invite-accepted', 'Invite accepted', 'When someone joins a board you shared'],
+  [
+    'inviteAccepted',
+    'invite-accepted',
+    'Invite accepted',
+    'When someone joins through a link or invitation you sent',
+  ],
 ];
 
 const DIGEST: Row[] = [

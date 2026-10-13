@@ -184,6 +184,22 @@ export class EmailService {
   }
 
   /**
+   * Any other notification email, already rendered, with the headers that
+   * give mail clients their own unsubscribe button (RFC 8058).
+   */
+  async sendNotification(
+    recipient: Recipient,
+    email: RenderedEmail,
+    oneClickUrl: string,
+    description: string,
+  ): Promise<boolean> {
+    return this.deliver(recipient.to, email, `${description} for user ${recipient.userId}`, {
+      'List-Unsubscribe': `<${oneClickUrl}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    });
+  }
+
+  /**
    * Hand one message to the provider, reporting whether it was accepted.
    *
    * Never throws, for every message and not only verification: each of these

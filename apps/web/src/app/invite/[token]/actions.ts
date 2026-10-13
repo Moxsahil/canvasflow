@@ -14,6 +14,7 @@ import { currentUser } from '@/lib/auth/session';
 import { editorUrlFor, mintEditorToken } from '@/lib/auth/editor-token';
 import { readGuestSession, setGuestSession } from '@/lib/auth/guest-session';
 import { checkBoardAccess } from '@/lib/boards/access';
+import { notifyGateway } from '@/lib/gateway/internal';
 import { notifyWorkspaceChanged } from '@/lib/sync/internal';
 
 const db = createClient(env.DATABASE_URL);
@@ -58,8 +59,16 @@ export async function joinAsGuest(token: string, formData: FormData): Promise<Jo
   const access = await resolveBoardAccess(db, outcome.userId, outcome.boardId);
   if (!access) return { error: 'That board is no longer available.' };
 
-  // The workspace's members see a new guest on its boards.
+  // The workspace's members see a new guest on its boards, and whoever made
+  // the link may be emailed that somebody came in through it.
   await notifyWorkspaceChanged(access.workspaceId);
+  if (outcome.joined) {
+    await notifyGateway({
+      event: 'board-joined',
+      boardId: outcome.boardId,
+      userId: outcome.userId,
+    });
+  }
 
   // Without this the guest's board stops syncing five minutes from now: editor
   // tokens are short-lived by design, and the silent re-mint needs something to
@@ -98,6 +107,10 @@ export async function joinAsUser(token: string): Promise<JoinResult> {
 
   // Their own other tabs list the board under "Shared with you" too.
   await notifyWorkspaceChanged(access.workspaceId, [user.id]);
+  // Somebody new, not a member opening the link again: tell whoever made it.
+  if (outcome.joined) {
+    await notifyGateway({ event: 'board-joined', boardId: outcome.boardId, userId: user.id });
+  }
 
   const minted = await mintEditorToken(
     {

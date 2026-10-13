@@ -418,6 +418,7 @@ export type AcceptInviteOutcome =
   | {
       ok: true;
       workspaceId: string;
+      inviteId: string;
       /** False when they were in the workspace already; the invitation is used up either way. */
       joined: boolean;
     }
@@ -461,7 +462,12 @@ export async function acceptWorkspaceInvite(
     const reason = rejectionOf(invite, workspace ? workspace.deletedAt : now, now);
     if (reason === 'accepted' && invite.acceptedBy === userId) {
       // A second click on the same email, by the person it already let in.
-      return { ok: true, workspaceId: invite.workspaceId, joined: false } as const;
+      return {
+        ok: true,
+        workspaceId: invite.workspaceId,
+        inviteId: invite.id,
+        joined: false,
+      } as const;
     }
     if (reason) return { ok: false, reason } as const;
 
@@ -525,6 +531,11 @@ export async function acceptWorkspaceInvite(
       });
     }
 
-    return { ok: true, workspaceId: invite.workspaceId, joined: Boolean(added) } as const;
+    return {
+      ok: true,
+      workspaceId: invite.workspaceId,
+      inviteId: invite.id,
+      joined: Boolean(added),
+    } as const;
   });
 }

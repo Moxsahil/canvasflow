@@ -6,6 +6,7 @@ import { env } from '@/lib/env';
 import { currentUser } from '@/lib/auth/session';
 import { editorUrlFor, mintEditorToken } from '@/lib/auth/editor-token';
 import { checkBoardAccess } from '@/lib/boards/access';
+import { notifyGateway } from '@/lib/gateway/internal';
 import { notifyWorkspaceChanged } from '@/lib/sync/internal';
 
 const db = createClient(env.DATABASE_URL);
@@ -39,7 +40,11 @@ export async function acceptInvite(token: string): Promise<AcceptResult> {
   // Everyone already in the workspace sees the new face in their member list,
   // and the person joining has the workspace appear in any other tab they
   // have open.
-  if (outcome.joined) await notifyWorkspaceChanged(outcome.workspaceId, [user.id]);
+  if (outcome.joined) {
+    await notifyWorkspaceChanged(outcome.workspaceId, [user.id]);
+    // Whoever sent the invitation may be emailed that it was accepted.
+    await notifyGateway({ event: 'workspace-joined', inviteId: outcome.inviteId });
+  }
 
   const access = board && (await checkBoardAccess(user.id, board.id));
   if (!board || !access) return { error: 'That workspace is no longer available.' };
