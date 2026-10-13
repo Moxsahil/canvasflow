@@ -15,6 +15,7 @@ export interface EditorPreferences {
   arrowBinding: boolean;
   dynamicSize: boolean;
   pasteAtCursor: boolean;
+  penMode: boolean;
   focusMode: boolean;
   viewMode: boolean;
   floatingStyleBar: boolean;
@@ -45,6 +46,7 @@ export const DEFAULT_PREFERENCES: EditorPreferences = {
   arrowBinding: true,
   dynamicSize: false,
   pasteAtCursor: false,
+  penMode: false,
   focusMode: false,
   viewMode: false,
   floatingStyleBar: false,
@@ -88,6 +90,31 @@ export function storePreferences(values: EditorPreferences): void {
     localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(values));
   } catch {
     // The choices just won't survive a reload.
+  }
+}
+
+export const PEN_SEEN_STORAGE_KEY = 'cf:pen-seen';
+
+/**
+ * Whether a pen has touched this device's screen before.
+ *
+ * Kept apart from the preferences because it is not a choice: it is what lets
+ * the first pen put pen mode on by itself, once, and then leave it to the
+ * person. Turned off after that, pen mode stays off.
+ */
+export function readPenSeen(): boolean {
+  try {
+    return localStorage.getItem(PEN_SEEN_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function storePenSeen(): void {
+  try {
+    localStorage.setItem(PEN_SEEN_STORAGE_KEY, '1');
+  } catch {
+    // The next pen will put pen mode on again, which is the right way round.
   }
 }
 
@@ -166,6 +193,11 @@ export const PREFERENCE_GROUPS: readonly PreferenceGroupMeta[] = [
         id: 'pasteAtCursor',
         label: 'Paste at cursor',
         hint: 'Paste where the pointer is, not in the middle of the view',
+      },
+      {
+        id: 'penMode',
+        label: 'Pen mode',
+        hint: 'Only a pen draws; fingers and a resting hand leave the board alone',
       },
     ],
   },

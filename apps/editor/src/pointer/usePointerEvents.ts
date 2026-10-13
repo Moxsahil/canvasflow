@@ -58,6 +58,15 @@ function focusedFieldNear(x: number, y: number): boolean {
   return Math.hypot(dx, dy) <= HANDWRITING_REACH;
 }
 
+/**
+ * A pen pressed onto the screen itself — an Apple Pencil, a Surface Pen —
+ * rather than a tablet on the desk, whose pen drives a cursor like a mouse and
+ * has no hand resting on the screen to keep out.
+ */
+const isDirectDisplayPen = (e: PointerEvent) =>
+  e.pointerType === 'pen' &&
+  (navigator.maxTouchPoints > 0 || window.matchMedia?.('(any-pointer: coarse)').matches);
+
 /** The parts of a pointer event the double-press recogniser reads. */
 export interface PressSample {
   pointerId: number;
@@ -199,6 +208,13 @@ interface UsePointerEventsOptions {
    * kind: a cursor is worth showing long before anyone clicks anything.
    */
   onPointerHover?: (point: Point | null) => void;
+  /**
+   * Leave touches out: a finger or the side of a hand on the board does
+   * nothing at all, and only a pen, a mouse or a trackpad reaches it.
+   */
+  penMode?: boolean;
+  /** A pen pressed onto the screen itself, the cue to put pen mode on. */
+  onPenDetected?: () => void;
   screenToWorld: (screenX: number, screenY: number) => Point;
   eventToCanvasScreen: (event: PointerEvent) => Point;
 }
@@ -212,13 +228,30 @@ export function usePointerEvents(
     onContextPress,
     onDoubleClick,
     onPointerHover,
+    penMode = false,
+    onPenDetected,
     screenToWorld,
     eventToCanvasScreen,
   }: UsePointerEventsOptions,
 ): void {
   const lastScreenRef = useRef<Point | null>(null);
-  const isDownRef = useRef(false);
+  /**
+   * The one pointer the board is following, from its press to its lift.
+   *
+   * One at a time: a second finger, or a palm landing beside a pencil, would
+   * otherwise feed its own positions into the stroke under way and end it by
+   * lifting. The latest event is kept so a gesture can be finished early, at
+   * the last place it was seen.
+   */
+  const followedRef = useRef<{ pointerId: number; pointerType: string; last: PointerEvent } | null>(
+    null,
+  );
   const capturedPointerIdRef = useRef<number | null>(null);
+  /**
+   * Pointers the board is ignoring until they lift: touches in pen mode, and a
+   * touch a pencil took over from.
+   */
+  const ignoredRef = useRef(new Set<number>());
   /**
    * A pencil press near an open text field, held back from the board until it
    * shows what it is. If it travels it was writing, which the field takes as
@@ -237,13 +270,15 @@ export function usePointerEvents(
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    const ignored = ignoredRef.current;
+
     /** Hand a press to the board, now it is known to be the board's. */
     const beginPress = (e: PointerEvent, capture: boolean) => {
       // A press held on the chrome can leave a text selection behind it, and
       // Safari keeps its copy and paste bubble up for as long as one exists.
       const selection = document.getSelection();
       if (selection?.anchorNode) selection.removeAllRanges();
-      isDownRef.current = true;
+      followedRef.current = { pointerId: e.pointerId, pointerType: e.pointerType, last: e };
       if (capture) {
         capturedPointerIdRef.current = e.pointerId;
         canvas.setPointerCapture(e.pointerId);
@@ -257,8 +292,25 @@ export function usePointerEvents(
       onPointerDown(world, screen, e.button, e.shiftKey, snapOverrideHeld(e));
     };
 
+    /** End the followed gesture where this event puts it. */
+    const finishPress = (e: PointerEvent) => {
+      followedRef.current = null;
+      const captured = capturedPointerIdRef.current;
+      if (captured !== null) {
+        if (canvas.hasPointerCapture(captured)) canvas.releasePointerCapture(captured);
+        capturedPointerIdRef.current = null;
+      }
+      lastScreenRef.current = null;
+      const screen = eventToCanvasScreen(e);
+      const world = screenToWorld(e.clientX, e.clientY);
+      onPointerUp(world, screen);
+      return { world, screen };
+    };
+
     const handlePointerDown = (e: PointerEvent) => {
-      heldPenRef.current = null;
+      // A new pencil press means the one held before it has gone, whether or
+      // not its lift came back here.
+      if (e.pointerType === 'pen') heldPenRef.current = null;
       // Not default-prevented, unlike the other two: the browser moving focus
       // off an open text field is what a right-click away from it should do.
       if (e.button === 2) {
@@ -267,6 +319,32 @@ export function usePointerEvents(
       }
       if (e.button !== 0 && e.button !== 1) return;
       e.preventDefault();
+
+      if (penMode && e.pointerType === 'touch') {
+        // Captured, so its lift comes back here to be forgotten wherever the
+        // hand has drifted to by then.
+        ignored.add(e.pointerId);
+        canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+      if (isDirectDisplayPen(e)) onPenDetected?.();
+
+      const followed = followedRef.current;
+      if (followed) {
+        if (e.pointerType !== 'pen' || followed.pointerType !== 'touch') {
+          // Seen, so a second finger still keeps two from passing for a double
+          // tap, but the board stays with the pointer it has.
+          doublePress.down(e);
+          return;
+        }
+        // A pencil coming down on a touch gesture: the hand got there first,
+        // as it does when someone settles in to write. The pencil is what they
+        // meant, so the touch ends where it is and is ignored from here on.
+        doublePress.cancel(followed.last);
+        ignored.add(followed.pointerId);
+        finishPress(followed.last);
+      }
+
       if (e.pointerType === 'pen' && e.button === 0 && focusedFieldNear(e.clientX, e.clientY)) {
         heldPenRef.current = { press: e, travelled: false };
         // Captured all the same, so the lift comes back here wherever it lands.
@@ -277,6 +355,7 @@ export function usePointerEvents(
     };
 
     const handlePointerMove = (e: PointerEvent) => {
+      if (ignored.has(e.pointerId)) return;
       const world = screenToWorld(e.clientX, e.clientY);
       // Before the pressed-only guard: hover is reported whether or not a
       // button is down, so a collaborator's cursor doesn't freeze mid-drag.
@@ -291,9 +370,12 @@ export function usePointerEvents(
         return;
       }
 
-      if (!isDownRef.current) return;
+      const followed = followedRef.current;
+      if (!followed) return;
 
       doublePress.move(e);
+      if (e.pointerId !== followed.pointerId) return;
+      followed.last = e;
 
       const screen = eventToCanvasScreen(e);
       const last = lastScreenRef.current ?? screen;
@@ -302,9 +384,15 @@ export function usePointerEvents(
       onPointerMove(world, screen, delta, e.altKey, snapOverrideHeld(e));
     };
 
-    const handlePointerLeave = () => onPointerHover?.(null);
+    const handlePointerLeave = (e: PointerEvent) => {
+      // A hand coming off the board in pen mode was never its pointer.
+      if (penMode && e.pointerType === 'touch') return;
+      onPointerHover?.(null);
+    };
 
     const handlePointerUp = (e: PointerEvent) => {
+      if (ignored.delete(e.pointerId)) return;
+
       const held = heldPenRef.current;
       if (held?.press.pointerId === e.pointerId) {
         heldPenRef.current = null;
@@ -320,16 +408,8 @@ export function usePointerEvents(
       // Asked before the early return, so the recogniser sees every lift even
       // when the board has nothing to do with this one.
       const completesDoublePress = doublePress.up(e);
-      if (!isDownRef.current) return;
-      isDownRef.current = false;
-      if (capturedPointerIdRef.current !== null) {
-        canvas.releasePointerCapture(capturedPointerIdRef.current);
-        capturedPointerIdRef.current = null;
-      }
-      lastScreenRef.current = null;
-      const screen = eventToCanvasScreen(e);
-      const world = screenToWorld(e.clientX, e.clientY);
-      onPointerUp(world, screen);
+      if (followedRef.current?.pointerId !== e.pointerId) return;
+      const { world, screen } = finishPress(e);
 
       // Last, on purpose: the second press of a double is an ordinary press as
       // well, and the board should have finished answering it before anything
@@ -338,6 +418,7 @@ export function usePointerEvents(
     };
 
     const handlePointerCancel = (e: PointerEvent) => {
+      if (ignored.delete(e.pointerId)) return;
       // The system taking a held pencil away is the system writing with it.
       if (heldPenRef.current?.press.pointerId === e.pointerId) {
         heldPenRef.current = null;
@@ -381,6 +462,8 @@ export function usePointerEvents(
     onContextPress,
     onDoubleClick,
     onPointerHover,
+    penMode,
+    onPenDetected,
     screenToWorld,
     eventToCanvasScreen,
   ]);
