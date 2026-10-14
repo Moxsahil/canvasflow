@@ -1,11 +1,14 @@
 import { useCallback, useState, type MutableRefObject } from 'react';
 import type { BoardDocument, Shape } from '@canvasflow/canvas-engine';
 import { BoardFileError, parseBoardFile, parseImageFile, type ParsedBoardFile } from './board-file';
+import { unpackImages, type CarriedImage } from './embedded-images';
 import { pickBoardFile } from './pick-file';
 
 interface PendingReplace {
   fileName: string;
   parsed: ParsedBoardFile;
+  /** The pictures the file carried, uploaded once the board is replaced. */
+  images: ReadonlyMap<string, CarriedImage>;
   /** Only set for our own format — see the assignment in `apply`. */
   handle: FileSystemFileHandle | null;
 }
@@ -17,6 +20,8 @@ interface UseOpenBoardFileOptions {
   genId: () => string;
   /** Called once the board has been replaced, to fit the camera to it. */
   onLoaded: (shapes: readonly Shape[]) => void;
+  /** Uploads the images a file carried, whose shapes have just been placed. */
+  adoptImages: (images: ReadonlyMap<string, CarriedImage>) => Promise<void>;
   /**
    * The file this board is associated with, shared with the save flow so a
    * board opened from disk saves straight back to the same file.
@@ -58,15 +63,17 @@ export function useOpenBoardFile({
   shapeCount,
   genId,
   onLoaded,
+  adoptImages,
   fileHandleRef,
   onNotice,
 }: UseOpenBoardFileOptions): OpenBoardFile {
   const [pendingReplace, setPendingReplace] = useState<PendingReplace | null>(null);
 
   const apply = useCallback(
-    (parsed: ParsedBoardFile, fileName: string, handle: FileSystemFileHandle | null) => {
+    ({ parsed, images, fileName, handle }: PendingReplace) => {
       doc.replaceShapes(parsed.shapes);
       doc.breakUndoGroup();
+      void adoptImages(images);
 
       fileHandleRef.current = handle;
       onLoaded(parsed.shapes);
@@ -74,7 +81,7 @@ export function useOpenBoardFile({
         onNotice(describeLoad(parsed, fileName));
       }
     },
-    [doc, fileHandleRef, onLoaded, onNotice],
+    [adoptImages, doc, fileHandleRef, onLoaded, onNotice],
   );
 
   const openBoardFile = useCallback(() => {
@@ -87,7 +94,8 @@ export function useOpenBoardFile({
         // are only openable when they carry an embedded scene.
         const isImage =
           file.bytes !== undefined || /\.svg$/i.test(file.name) || /\.png$/i.test(file.name);
-        const parsed = isImage ? parseImageFile(file, genId) : parseBoardFile(file.text, genId);
+        const read = isImage ? parseImageFile(file, genId) : parseBoardFile(file.text, genId);
+        const { parsed, images } = await unpackImages(read);
         if (parsed.shapes.length === 0) {
           onNotice(`There were no shapes CanvasFlow could open in ${file.name}.`);
           return;
@@ -95,10 +103,11 @@ export function useOpenBoardFile({
 
         const handle = parsed.format === 'canvasflow' ? (file.handle ?? null) : null;
 
+        const pending = { fileName: file.name, parsed, images, handle };
         if (shapeCount === 0) {
-          apply(parsed, file.name, handle);
+          apply(pending);
         } else {
-          setPendingReplace({ fileName: file.name, parsed, handle });
+          setPendingReplace(pending);
         }
       } catch (error) {
         onNotice(
@@ -112,7 +121,7 @@ export function useOpenBoardFile({
 
   const confirmReplace = useCallback(() => {
     if (!pendingReplace) return;
-    apply(pendingReplace.parsed, pendingReplace.fileName, pendingReplace.handle);
+    apply(pendingReplace);
     setPendingReplace(null);
   }, [apply, pendingReplace]);
 

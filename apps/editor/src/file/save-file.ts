@@ -26,6 +26,7 @@ export const SAVE_FORMATS = {
   },
   png: { extension: '.png', mimeType: 'image/png', description: 'PNG image' },
   svg: { extension: '.svg', mimeType: 'image/svg+xml', description: 'SVG image' },
+  archive: { extension: '.zip', mimeType: 'application/zip', description: 'ZIP archive' },
 } as const;
 
 export type SaveFormat = keyof typeof SAVE_FORMATS;
@@ -37,7 +38,7 @@ export type SaveResult =
   | { status: 'cancelled' };
 
 /** Keeps a board name usable as a filename without surprising the user. */
-function toFileName(boardName: string, extension: string): string {
+export function toFileName(boardName: string, extension: string): string {
   const cleaned = boardName.trim().replace(/[\\/:*?"<>|]+/g, '-') || 'board';
   return `${cleaned}${extension}`;
 }
@@ -51,8 +52,12 @@ async function writeTo(handle: FileSystemFileHandle, data: string | Blob): Promi
   }
 }
 
-/** Last resort where the File System Access API isn't available. */
-function downloadFile(name: string, data: string | Blob, mimeType: string): void {
+/**
+ * Last resort where the File System Access API isn't available — and the way
+ * out for anything that took too long to make for the browser to still count
+ * it as following a click, which the save picker insists on.
+ */
+export function downloadFile(name: string, data: string | Blob, mimeType: string): void {
   const blob = typeof data === 'string' ? new Blob([data], { type: mimeType }) : data;
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -73,16 +78,22 @@ export async function saveFile({
   handle,
 }: {
   boardName: string;
-  data: string | Blob;
+  /**
+   * What to write, or how to make it. Made only once there is somewhere to put
+   * it: the picker must open while the click that asked for it still counts,
+   * so anything slow to build is built after it.
+   */
+  data: string | Blob | (() => Promise<string | Blob>);
   format: SaveFormat;
   handle?: FileSystemFileHandle | null;
 }): Promise<SaveResult> {
   const { extension, mimeType, description } = SAVE_FORMATS[format];
   const name = toFileName(boardName, extension);
+  const contents = () => (typeof data === 'function' ? data() : Promise.resolve(data));
 
   if (handle) {
     try {
-      await writeTo(handle, data);
+      await writeTo(handle, await contents());
       return { status: 'saved', handle, name: handle.name };
     } catch (error) {
       // A handle carried over from opening a file only grants read access
@@ -100,7 +111,7 @@ export async function saveFile({
         suggestedName: name,
         types: [{ description, accept: { [mimeType]: [extension] } }],
       });
-      await writeTo(picked, data);
+      await writeTo(picked, await contents());
       return { status: 'saved', handle: picked, name: picked.name };
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
@@ -110,7 +121,7 @@ export async function saveFile({
     }
   }
 
-  downloadFile(name, data, mimeType);
+  downloadFile(name, await contents(), mimeType);
   return { status: 'saved', handle: null, name };
 }
 
@@ -121,7 +132,7 @@ export function saveBoardFile({
   handle,
 }: {
   boardName: string;
-  text: string;
+  text: string | (() => Promise<string>);
   handle?: FileSystemFileHandle | null;
 }): Promise<SaveResult> {
   return saveFile({ boardName, data: text, format: 'board', handle });

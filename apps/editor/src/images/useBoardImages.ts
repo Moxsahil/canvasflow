@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ImageCache,
   createImage,
+  decodeBlob,
   fitPlacedImageSize,
   isImage,
   type BoardDocument,
@@ -10,6 +11,7 @@ import {
 } from '@canvasflow/canvas-engine';
 import { downloadImage, uploadImage } from './image-client';
 import { ImageRejectedError, prepareImage } from './prepare-image';
+import type { CarriedImage } from '../file/embedded-images';
 import type { Point } from '../machine/tool-machine.types';
 
 /**
@@ -68,7 +70,12 @@ export interface BoardImages {
   insertFiles: (files: readonly File[], at: Point) => Promise<void>;
   /** True while at least one upload is in flight. */
   isUploading: boolean;
-  /** Original bytes as data URIs, for embedding in an SVG export. */
+  /**
+   * Upload images that came inside an opened board file, whose shapes are
+   * already on the board as `pending`, keyed by file id.
+   */
+  adoptImages: (images: ReadonlyMap<string, CarriedImage>) => Promise<void>;
+  /** Original bytes as data URIs, for embedding in an SVG export or a board file. */
   resolveDataUrls: (shapes: readonly Shape[]) => Promise<ReadonlyMap<string, string>>;
 }
 
@@ -241,6 +248,42 @@ export function useBoardImages({
     [boardId, cache, canEdit],
   );
 
+  const adoptImages = useCallback(
+    async (images: ReadonlyMap<string, CarriedImage>) => {
+      if (images.size === 0 || !canEdit) return;
+      const currentToken = tokenRef.current;
+
+      setUploadCount((n) => n + images.size);
+      await Promise.all(
+        [...images].map(async ([fileId, image]) => {
+          try {
+            // Painted from the file's own bytes straight away, as a picked
+            // image is, rather than waiting for the round trip to storage.
+            try {
+              cache.put(
+                fileId,
+                await decodeBlob(new Blob([image.bytes.slice()], { type: image.mimeType })),
+              );
+            } catch {
+              // Not decodable here; the upload still decides what everyone sees.
+            }
+            if (!currentToken) throw new Error('Still connecting — the images were not saved.');
+            await uploadImage(boardId, currentToken, fileId, image.mimeType, image.bytes);
+            setImageStatus(docRef.current, fileId, 'saved');
+          } catch (error) {
+            setImageStatus(docRef.current, fileId, 'error');
+            onErrorRef.current(
+              error instanceof Error ? error.message : "An image from that file couldn't be saved.",
+            );
+          } finally {
+            setUploadCount((n) => n - 1);
+          }
+        }),
+      );
+    },
+    [boardId, cache, canEdit],
+  );
+
   /**
    * Data URIs for the images among these shapes, keyed by file id.
    *
@@ -276,7 +319,14 @@ export function useBoardImages({
     [boardId],
   );
 
-  return { cache, revision, insertFiles, isUploading: uploadCount > 0, resolveDataUrls };
+  return {
+    cache,
+    revision,
+    insertFiles,
+    isUploading: uploadCount > 0,
+    adoptImages,
+    resolveDataUrls,
+  };
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {

@@ -13,6 +13,7 @@ import { AccountPane } from './AccountPane';
 import { BillingPane } from './BillingPane';
 import { NotificationsPane } from './NotificationsPane';
 import { PrivacyPane } from './PrivacyPane';
+import type { OpenBoard } from './export-boards';
 import { ProfilePane } from './ProfilePane';
 import { WorkspacePane, type WorkspaceSettingsSource } from './WorkspacePane';
 import { surfaceThemeVars, type SurfaceTheme } from '../ui/surface-palette';
@@ -69,6 +70,8 @@ interface SettingsDialogProps {
   renameWorkspace?: (workspaceId: string, name: string) => Promise<void>;
   /** Lists one of one's workspaces in the sidebar, which Settings then follows. */
   showWorkspace?: (workspaceId: string) => void;
+  /** The board on screen, which Export all boards reads live. */
+  openBoard?: OpenBoard | null;
   onClose: () => void;
 }
 
@@ -98,6 +101,7 @@ export function SettingsDialog({
   workspace = LOADING_WORKSPACE,
   renameWorkspace,
   showWorkspace,
+  openBoard = null,
   onClose,
 }: SettingsDialogProps) {
   const [section, setSection] = useState<SettingsSectionId>(resumeDeletion ? 'privacy' : 'profile');
@@ -340,6 +344,7 @@ export function SettingsDialog({
             isGuest={isGuest}
             startDeleting={deletionPending}
             deleteAccount={deleteAccount}
+            openBoard={openBoard}
           />
         );
     }

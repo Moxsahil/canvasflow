@@ -12,6 +12,8 @@ interface UseSaveBoardFileOptions {
    * file instead of asking again.
    */
   fileHandleRef: MutableRefObject<FileSystemFileHandle | null>;
+  /** The board's images as data URIs, so the file carries its pictures. */
+  resolveDataUrls: (shapes: readonly Shape[]) => Promise<ReadonlyMap<string, string>>;
   onNotice: (message: string) => void;
 }
 
@@ -19,6 +21,7 @@ export function useSaveBoardFile({
   shapes,
   boardName,
   fileHandleRef,
+  resolveDataUrls,
   onNotice,
 }: UseSaveBoardFileOptions): { saveBoardFileToDisk: () => void } {
   const saveBoardFileToDisk = useCallback(() => {
@@ -26,7 +29,7 @@ export function useSaveBoardFile({
       try {
         const result = await saveBoardFile({
           boardName,
-          text: serializeBoardFile(shapes),
+          text: async () => serializeBoardFile(shapes, await resolveDataUrls(shapes)),
           handle: fileHandleRef.current,
         });
         if (result.status === 'saved') {
@@ -40,7 +43,7 @@ export function useSaveBoardFile({
         );
       }
     })();
-  }, [boardName, fileHandleRef, onNotice, shapes]);
+  }, [boardName, fileHandleRef, onNotice, resolveDataUrls, shapes]);
 
   return { saveBoardFileToDisk };
 }

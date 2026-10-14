@@ -4,10 +4,12 @@ import {
   createEllipse,
   createFrame,
   createFreehand,
+  createImage,
   createLine,
   createRectangle,
   createText,
 } from '../shapes/index.js';
+import { isSupportedImageMimeType } from '../images/image-formats.js';
 import { readLink } from '../shapes/link.js';
 import type { Shape } from '../shapes/shape.js';
 
@@ -124,6 +126,15 @@ function baseStyle(raw: Raw) {
   };
 }
 
+export interface SanitizeOptions {
+  /**
+   * Images whose bytes travel with the shapes, by file id — a board file that
+   * carries its pictures inside it. An image shape is kept only when its file
+   * is here; see the `image` case below for why the rest are dropped.
+   */
+  imageFileIds?: ReadonlySet<string>;
+}
+
 /**
  * One shape, or `null` if the candidate can't be trusted.
  *
@@ -131,8 +142,12 @@ function baseStyle(raw: Raw) {
  * other or with shapes already in the document, and either would corrupt the
  * board rather than merely look wrong.
  */
-export function sanitizeShape(candidate: unknown, genId: () => string): Shape | null {
-  const shape = rebuildShape(candidate, genId);
+export function sanitizeShape(
+  candidate: unknown,
+  genId: () => string,
+  options: SanitizeOptions = {},
+): Shape | null {
+  const shape = rebuildShape(candidate, genId, options);
   if (!shape) return null;
   // Every kind can carry a link and a lock, so both are read here once rather
   // than in each case below — the link through the same check the document
@@ -148,7 +163,11 @@ export function sanitizeShape(candidate: unknown, genId: () => string): Shape | 
   };
 }
 
-function rebuildShape(candidate: unknown, genId: () => string): Shape | null {
+function rebuildShape(
+  candidate: unknown,
+  genId: () => string,
+  options: SanitizeOptions,
+): Shape | null {
   if (!isRecord(candidate)) return null;
 
   const x = finite(candidate.x);
@@ -233,13 +252,44 @@ function rebuildShape(candidate: unknown, genId: () => string): Shape | null {
       });
     }
 
-    case 'image':
-      // Dropped deliberately, not overlooked. An image shape carries only the
-      // id of bytes held on the board it came from, and a board file has no
-      // way to bring those bytes with it — restoring the shape would place a
-      // grey box that can never resolve. The caller counts it as skipped, so
-      // the loss is reported rather than discovered later.
-      return null;
+    case 'image': {
+      // An image shape carries only the id of bytes held on the board it came
+      // from. Unless the file brought those bytes along, restoring the shape
+      // would place a grey box that can never resolve, so it is dropped and
+      // the caller counts it as skipped — the loss reported rather than
+      // discovered later.
+      const fileId = typeof candidate.fileId === 'string' ? candidate.fileId : undefined;
+      if (fileId === undefined || !options.imageFileIds?.has(fileId)) return null;
+      const width = finite(candidate.width);
+      const height = finite(candidate.height);
+      const naturalWidth = finite(candidate.naturalWidth);
+      const naturalHeight = finite(candidate.naturalHeight);
+      const mimeType = typeof candidate.mimeType === 'string' ? candidate.mimeType : undefined;
+      if (
+        width === undefined ||
+        height === undefined ||
+        naturalWidth === undefined ||
+        naturalHeight === undefined ||
+        mimeType === undefined ||
+        !isSupportedImageMimeType(mimeType)
+      ) {
+        return null;
+      }
+      return createImage({
+        ...common,
+        width,
+        height,
+        fileId,
+        mimeType,
+        naturalWidth,
+        naturalHeight,
+        // Whatever the file says, these bytes are not on this board yet.
+        // Whoever opens it uploads them, and the status follows.
+        status: 'pending',
+        ...(candidate.flipX === true && { flipX: true }),
+        ...(candidate.flipY === true && { flipY: true }),
+      });
+    }
 
     default:
       // Unknown kind — a shape type from a newer version, or not a shape.
