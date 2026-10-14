@@ -503,6 +503,7 @@ function ThreadPin({
     <button
       type="button"
       data-comment-pin
+      data-on-board
       data-thread-id={thread.id}
       data-testid="comment-pin"
       aria-label={`Comment by ${name}${thread.resolved ? ', resolved' : ''}${unread ? ', unread' : ''}, ${thread.comments.length} in thread`}

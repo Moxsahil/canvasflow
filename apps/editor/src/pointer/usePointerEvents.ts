@@ -174,6 +174,7 @@ interface UsePointerEventsOptions {
     button: number,
     shiftKey: boolean,
     snapOverride: boolean,
+    pointerType: string,
   ) => void;
   onPointerMove: (
     point: Point,
@@ -183,6 +184,12 @@ interface UsePointerEventsOptions {
     snapOverride: boolean,
   ) => void;
   onPointerUp: (point: Point, screenPoint: Point) => void;
+  /**
+   * A gesture that turned out not to be meant: a palm on the board when the
+   * pencil came down. Ended where it was last seen, and whatever it did should
+   * be taken back. Without this, it is ended as a lift would end it.
+   */
+  onPointerAbandon?: (point: Point, screenPoint: Point) => void;
   /**
    * A press of the secondary button, the one that opens the context menu.
    *
@@ -225,6 +232,7 @@ export function usePointerEvents(
     onPointerDown,
     onPointerMove,
     onPointerUp,
+    onPointerAbandon,
     onContextPress,
     onDoubleClick,
     onPointerHover,
@@ -289,11 +297,11 @@ export function usePointerEvents(
       const screen = eventToCanvasScreen(e);
       const world = screenToWorld(e.clientX, e.clientY);
       lastScreenRef.current = screen;
-      onPointerDown(world, screen, e.button, e.shiftKey, snapOverrideHeld(e));
+      onPointerDown(world, screen, e.button, e.shiftKey, snapOverrideHeld(e), e.pointerType);
     };
 
     /** End the followed gesture where this event puts it. */
-    const finishPress = (e: PointerEvent) => {
+    const finishPress = (e: PointerEvent, abandoned = false) => {
       followedRef.current = null;
       const captured = capturedPointerIdRef.current;
       if (captured !== null) {
@@ -303,7 +311,7 @@ export function usePointerEvents(
       lastScreenRef.current = null;
       const screen = eventToCanvasScreen(e);
       const world = screenToWorld(e.clientX, e.clientY);
-      onPointerUp(world, screen);
+      (abandoned ? (onPointerAbandon ?? onPointerUp) : onPointerUp)(world, screen);
       return { world, screen };
     };
 
@@ -339,10 +347,11 @@ export function usePointerEvents(
         }
         // A pencil coming down on a touch gesture: the hand got there first,
         // as it does when someone settles in to write. The pencil is what they
-        // meant, so the touch ends where it is and is ignored from here on.
+        // meant, so the touch is ended where it is, what it did is taken
+        // back, and it is ignored from here on.
         doublePress.cancel(followed.last);
         ignored.add(followed.pointerId);
-        finishPress(followed.last);
+        finishPress(followed.last, true);
       }
 
       if (e.pointerType === 'pen' && e.button === 0 && focusedFieldNear(e.clientX, e.clientY)) {
@@ -459,6 +468,7 @@ export function usePointerEvents(
     onPointerDown,
     onPointerMove,
     onPointerUp,
+    onPointerAbandon,
     onContextPress,
     onDoubleClick,
     onPointerHover,

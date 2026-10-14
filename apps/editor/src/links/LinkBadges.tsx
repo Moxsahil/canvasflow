@@ -62,6 +62,7 @@ export function LinkBadges({ shapes, camera, board, except, onFollow }: LinkBadg
             title={label}
             aria-label={onThisBoard ? `Go to ${label}` : `Open link: ${label}`}
             data-testid="link-badge"
+            data-on-board
             className={cn(
               menuSurfaceClasses,
               'pointer-events-auto absolute flex items-center justify-center rounded-md shadow-[0_1px_2px_rgb(0_0_0/0.18)] outline-none hover:bg-neutral-200 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--focus-highlight-color) dark:hover:bg-neutral-700',

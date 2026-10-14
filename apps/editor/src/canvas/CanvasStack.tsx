@@ -77,6 +77,7 @@ interface CanvasStackProps {
     button: number,
     shiftKey: boolean,
     snapOverride: boolean,
+    pointerType: string,
   ) => void;
   onPointerMove: (
     point: Point,
@@ -86,6 +87,8 @@ interface CanvasStackProps {
     snapOverride: boolean,
   ) => void;
   onPointerUp: (point: Point, screenPoint: Point) => void;
+  /** A gesture a pencil took over from; see `usePointerEvents`. */
+  onPointerAbandon?: (point: Point, screenPoint: Point) => void;
   /** A right-button press, settling the selection before the context menu opens. */
   onContextPress?: (point: Point, screenPoint: Point) => void;
   onDoubleClick: (point: Point, screenPoint: Point) => void;
@@ -126,6 +129,7 @@ export function CanvasStack({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  onPointerAbandon,
   onContextPress,
   onDoubleClick,
   onWheelZoom,
@@ -199,6 +203,7 @@ export function CanvasStack({
     onPointerDown,
     onPointerMove,
     onPointerUp,
+    onPointerAbandon,
     onContextPress,
     onDoubleClick,
     onPointerHover,
