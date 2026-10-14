@@ -6,6 +6,7 @@ allowBuilds:
   '@nestjs/core': true
   bcrypt: true
   canvas: true
+  core-js: false
   esbuild: true
   protobufjs: true
   sharp: true

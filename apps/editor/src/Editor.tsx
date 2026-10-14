@@ -248,6 +248,7 @@ import { readPenSeen, storePenSeen, usePreferences } from './preferences';
 import { useAvatar, useAvatarUrls, useProfile } from './profile';
 import { VerificationNotice } from './profile/VerificationNotice';
 import { TermsNotice } from './profile/TermsNotice';
+import { AnalyticsNotice, track, useUsageAnalytics } from './analytics';
 
 import { ConfirmDialog } from './ui';
 import { NoticeDialog, type Notice } from './ui/NoticeDialog';
@@ -733,6 +734,7 @@ export function Editor({ boardId }: EditorProps) {
     revalidateOn: authToken,
   });
   const cursorColor = account.profile?.cursorColor ?? null;
+  const usage = useUsageAnalytics(account, boardId);
 
   /**
    * The photo this client publishes to the board, if any.
@@ -1076,6 +1078,12 @@ export function Editor({ boardId }: EditorProps) {
   const actorRef = useActorRef(toolMachine);
 
   const activeTool = useSelector(actorRef, (s) => s.context.activeTool);
+  // Counted when it changes, not as a board opens on the default tool.
+  const toolTracked = useRef(false);
+  useEffect(() => {
+    if (toolTracked.current) track('tool_selected', { tool: activeTool });
+    toolTracked.current = true;
+  }, [activeTool]);
   const isPanning = useSelector(actorRef, (s) => s.matches('panning'));
   const newElement = useSelector(actorRef, (s) => s.context.newElement);
   const textEditingAt = useSelector(actorRef, (s) => s.context.textEditingAt);
@@ -3531,7 +3539,10 @@ export function Editor({ boardId }: EditorProps) {
 
   /** Said once the clipboard has it: "Copied selection as PNG". */
   const showCopied = useCallback(
-    (format: string) => showToast(`Copied ${copySubjectFor(selectedShapes)} as ${format}`),
+    (format: string) => {
+      track('copied_as', { format });
+      showToast(`Copied ${copySubjectFor(selectedShapes)} as ${format}`);
+    },
     [selectedShapes, showToast],
   );
   const showCopyFailed = useCallback(
@@ -3643,6 +3654,7 @@ export function Editor({ boardId }: EditorProps) {
     }
     try {
       await addToLibrary(kept, libraryItemName(kept));
+      track('library_item_added');
       showToast(
         imagesLeftOut === 0
           ? 'Added to library'
@@ -3678,6 +3690,7 @@ export function Editor({ boardId }: EditorProps) {
           .map((shape) => shape.id),
       });
       markLibraryUsed(entry.id);
+      track('library_item_placed');
     },
     [readOnly, viewportCentre, doc, actorRef, markLibraryUsed],
   );
@@ -4813,6 +4826,8 @@ export function Editor({ boardId }: EditorProps) {
                   renameWorkspace={renameWorkspaceFromSettings}
                   showWorkspace={boardSwitcher.browseWorkspace}
                   openBoard={exportOpenBoard}
+                  analytics={usage.consent}
+                  chooseAnalytics={usage.choose}
                   onClose={hideSettings}
                 />
               )}
@@ -4848,6 +4863,9 @@ export function Editor({ boardId }: EditorProps) {
               token={authToken}
               onVerified={account.reload}
             />
+            {/* Waits for the card above to be done with: it only asks an
+                account whose address is confirmed. */}
+            <AnalyticsNotice profile={account.profile} onAnswer={usage.choose} />
           </div>
         </SidebarInset>
       </SidebarProvider>

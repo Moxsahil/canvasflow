@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 /** Move this whenever the text below changes: the page tells readers it did. */
-const LAST_UPDATED = '2026-09-25';
+const LAST_UPDATED = '2026-10-14';
 
 const privacyEmail = <a href={`mailto:${CONTACT.privacy}`}>{CONTACT.privacy}</a>;
 const supportEmail = <a href={`mailto:${CONTACT.support}`}>{CONTACT.support}</a>;
@@ -21,7 +21,11 @@ const supportEmail = <a href={`mailto:${CONTACT.support}`}>{CONTACT.support}</a>
  * Cleanup jobs remove failed sign-ins and reset requests after 24 hours and
  * email links after 7 days. Nothing yet removes deleted boards, guest rows or
  * the audit log, and there is no way to restore a deleted board — the
- * retention section says exactly that. Change the product, change this.
+ * retention section says exactly that. Usage analytics goes to PostHog's EU
+ * cloud only after a yes saved on the account: the editor sends a short list
+ * of named events (apps/editor/src/analytics), with page addresses stripped,
+ * keeps PostHog's id in local storage rather than a cookie, and deletes it on
+ * a no; the project discards IP addresses. Change the product, change this.
  */
 const SECTIONS: LegalSection[] = [
   {
@@ -74,10 +78,19 @@ const SECTIONS: LegalSection[] = [
             address and device each came from. Failed sign-in attempts are stored against a
             scrambled (hashed) form of the email address used.
           </li>
+          <li>
+            <strong>Usage analytics, only if you allow it:</strong> which features you use, such as
+            the tools you pick, boards you create, and when you share, export or comment; whether
+            you use a pen, touch or a mouse; and your browser, device type and screen size. Each
+            record carries your account ID and the kind of page you were on, never the page’s
+            address. It never includes what’s on your boards, board or file names, comment text,
+            your name or your email address, and we don’t keep your IP address with it. We don’t
+            record your screen or every click.
+          </li>
         </ul>
         <p>
-          We don’t use analytics, advertising or tracking tools, and we don’t buy data about you
-          from anyone.
+          We don’t use advertising or tracking tools, and we don’t buy data about you from anyone.
+          Usage analytics is off unless you turn it on.
         </p>
       </>
     ),
@@ -105,6 +118,10 @@ const SECTIONS: LegalSection[] = [
             such as password guessing, and investigate problems.
           </li>
           <li>
+            <strong>To improve CanvasFlow,</strong> if you allow usage analytics: to see which
+            features are used and where people get stuck.
+          </li>
+          <li>
             <strong>To answer you</strong> when you contact us.
           </li>
           <li>
@@ -118,8 +135,9 @@ const SECTIONS: LegalSection[] = [
         </p>
         <p>
           Under the DPDP Act, this is data you give us so you can use CanvasFlow, used only for
-          that. If we ever ask for your consent to something else, you’ll be able to withdraw it as
-          easily as you gave it.
+          that. Usage analytics is the one exception: we collect it only with your consent, which
+          the editor asks for once. You can withdraw it as easily as you gave it, by turning off{' '}
+          <strong>Usage analytics</strong> in <strong>Settings → Data &amp; Privacy</strong>.
         </p>
       </>
     ),
@@ -145,6 +163,9 @@ const SECTIONS: LegalSection[] = [
               <li>Cloudflare, which protects our network and stores uploaded images and photos</li>
               <li>Resend, which sends our emails</li>
               <li>Zoho, which hosts the mailbox your emails to us arrive in</li>
+              <li>
+                PostHog, which stores usage analytics in the European Union, only if you allow it
+              </li>
               <li>Google and GitHub, only if you sign in with them</li>
             </ul>
           </li>
@@ -170,7 +191,8 @@ const SECTIONS: LegalSection[] = [
         <p>
           Our servers and database are in Singapore, and some providers, such as Cloudflare, Vercel
           and Resend, work through networks around the world. So when you use CanvasFlow, your data
-          is stored and handled outside India.
+          is stored and handled outside India. Usage analytics, if you allow it, is stored by
+          PostHog in the European Union.
         </p>
         <p>
           Indian law allows this, and lets the government restrict transfers to particular
@@ -210,6 +232,10 @@ const SECTIONS: LegalSection[] = [
             Password-reset and email-confirmation links: 7 days.
           </li>
           <li>
+            <strong>Usage analytics:</strong> up to one year. Turning it off stops anything new
+            being recorded; to have what was already recorded deleted, email us.
+          </li>
+          <li>
             <strong>Emails you send us:</strong> as long as we need them to deal with what you
             asked.
           </li>
@@ -246,6 +272,11 @@ const SECTIONS: LegalSection[] = [
           The editor also keeps copies of the boards you open in your browser, so they keep working
           offline and catch up when you reconnect, along with your editor settings. Clearing your
           browser’s data for CanvasFlow removes them.
+        </p>
+        <p>
+          If you allow usage analytics, the editor also keeps a random ID in your browser’s storage
+          (not a cookie), so PostHog can tell one visit from the next. Nothing is stored before you
+          allow it, and turning usage analytics off deletes it.
         </p>
       </>
     ),
@@ -291,15 +322,18 @@ const SECTIONS: LegalSection[] = [
             anything else.
           </li>
           <li>
-            <strong>Export your boards:</strong> in the editor’s menu, <strong>Save to…</strong>{' '}
-            saves a copy of a board as a file on your device.
+            <strong>Export your boards:</strong>{' '}
+            <strong>Settings → Data &amp; Privacy → Export all boards</strong> downloads every board
+            you own, with its images, and your library. <strong>Save to…</strong> in the editor’s
+            menu saves a copy of one board.
           </li>
           <li>
             <strong>Delete it:</strong> close your account in{' '}
             <strong>Settings → Data &amp; Privacy → Delete account</strong>, or ask us to.
           </li>
           <li>
-            <strong>Withdraw consent</strong> to anything you consented to.
+            <strong>Withdraw consent</strong> to anything you consented to, such as usage analytics,
+            which you can turn off in <strong>Settings → Data &amp; Privacy</strong>.
           </li>
           <li>
             <strong>Nominate someone</strong> to use these rights for you if you die or become
@@ -376,9 +410,10 @@ export default function PrivacyPage() {
           </p>
           <p>
             <strong>The short version:</strong> we collect what we need to run your account and your
-            boards. We don’t sell your data, show ads, or use analytics or tracking tools. You can
-            ask to see, correct or delete your data at any time, and save copies of your boards
-            whenever you like.
+            boards. We don’t sell your data, show ads, or use tracking tools. If you allow it, we
+            count which features you use, to improve CanvasFlow, and you can turn that off at any
+            time. You can ask to see, correct or delete your data at any time, and save copies of
+            your boards whenever you like.
           </p>
         </>
       }

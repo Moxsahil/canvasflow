@@ -30,6 +30,7 @@ import {
   type ImageExportSettings,
 } from '../file/export-image';
 import { saveFile } from '../file/save-file';
+import { track } from '../analytics/analytics';
 import { serializeBoardFile } from '../file/board-file';
 import { embedSceneInPng, embedSceneInSvg } from '../file/scene-metadata';
 
@@ -176,7 +177,10 @@ export function ExportImageDialog({
           data: blob,
           format: 'png',
         });
-        if (result.status === 'saved') onClose();
+        if (result.status === 'saved') {
+          track('image_exported', { format: 'png', scene: settings.embedScene });
+          onClose();
+        }
       }),
     [exported, settings, name, onClose, run, images],
   );
@@ -196,7 +200,10 @@ export function ExportImageDialog({
           data: svg,
           format: 'svg',
         });
-        if (result.status === 'saved') onClose();
+        if (result.status === 'saved') {
+          track('image_exported', { format: 'svg', scene: settings.embedScene });
+          onClose();
+        }
       }),
     [exported, settings, name, onClose, run, resolveImageDataUrls],
   );

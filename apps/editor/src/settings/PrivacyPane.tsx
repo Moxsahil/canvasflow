@@ -9,6 +9,7 @@ import {
   type DeletionPreview,
 } from './account-deletion-api';
 import { DeleteAccountDialog } from './DeleteAccountDialog';
+import { track } from '../analytics/analytics';
 import { downloadFile } from '../file/save-file';
 import { exportAllBoards, exportSummary, type OpenBoard } from './export-boards';
 import { fetchStorageUsage, type StorageUsage } from './storage-api';
@@ -32,6 +33,8 @@ export function PrivacyPane({
   startDeleting = false,
   deleteAccount,
   openBoard = null,
+  analytics = null,
+  chooseAnalytics,
 }: {
   /** The signed-in account, when there is one. It says which terms were agreed to. */
   profile?: Profile | null;
@@ -51,8 +54,13 @@ export function PrivacyPane({
   deleteAccount?: (input: DeletionInput) => Promise<void>;
   /** The board on screen, exported as it is now rather than as last saved. */
   openBoard?: OpenBoard | null;
+  /** The account's usage analytics answer: null before it has given one. */
+  analytics?: boolean | null;
+  /** Saves a new answer; resolves false when it could not. */
+  chooseAnalytics?: (allow: boolean) => Promise<boolean>;
 }) {
-  const [analytics, setAnalytics] = useState(true);
+  const [analyticsSaving, setAnalyticsSaving] = useState(false);
+  const [analyticsFailed, setAnalyticsFailed] = useState(false);
   const [deleting, setDeleting] = useState(startDeleting && !isGuest);
   const [preview, setPreview] = useState<DeletionPreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -112,8 +120,6 @@ export function PrivacyPane({
         ) : undefined
       }
     >
-      {/* Nothing stores the analytics choice yet, so the band does not claim
-          it saved. */}
       <Band title="Your data">
         <SettingRow
           setting="export"
@@ -143,13 +149,32 @@ export function PrivacyPane({
                 : '—'}
           </ValueText>
         </SettingRow>
-        <SettingRow
-          setting="analytics"
-          title="Usage analytics"
-          hint="Share anonymous data to improve CanvasFlow"
-        >
-          <Toggle label="Usage analytics" on={analytics} onChange={setAnalytics} />
-        </SettingRow>
+        {!isGuest && (
+          <SettingRow
+            setting="analytics"
+            title="Usage analytics"
+            hint={
+              analyticsFailed
+                ? 'Your choice couldn’t be saved. Try again.'
+                : 'Share which features you use, never what’s on your boards'
+            }
+          >
+            <Toggle
+              label="Usage analytics"
+              on={analytics === true}
+              disabled={analyticsSaving || !chooseAnalytics}
+              onChange={(on) => {
+                if (!chooseAnalytics) return;
+                setAnalyticsSaving(true);
+                setAnalyticsFailed(false);
+                void chooseAnalytics(on).then((saved) => {
+                  setAnalyticsSaving(false);
+                  setAnalyticsFailed(!saved);
+                });
+              }}
+            />
+          </SettingRow>
+        )}
       </Band>
 
       {/* The editor has no footer, so this is where the legal pages are found
@@ -260,6 +285,7 @@ function useBoardsExport(
         // A plain download rather than the save picker: by now the click that
         // asked for this is too long ago for the picker to open.
         downloadFile(result.fileName, result.blob, 'application/zip');
+        track('boards_exported', { boards: result.boards, library: result.libraryItems > 0 });
         setHint(exportSummary(result));
       })
       .catch((caught: unknown) => {

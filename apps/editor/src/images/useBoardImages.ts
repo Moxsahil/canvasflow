@@ -12,6 +12,7 @@ import {
 import { downloadImage, uploadImage } from './image-client';
 import { ImageRejectedError, prepareImage } from './prepare-image';
 import type { CarriedImage } from '../file/embedded-images';
+import { track } from '../analytics/analytics';
 import type { Point } from '../machine/tool-machine.types';
 
 /**
@@ -226,6 +227,7 @@ export function useBoardImages({
       });
 
       setUploadCount((n) => n + placed.length);
+      track('image_added', { count: placed.length });
 
       await Promise.all(
         placed.map(async ({ shape, item }) => {

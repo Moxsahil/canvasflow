@@ -55,6 +55,12 @@ export interface Profile {
    * deploy separately, so for a few minutes after a release that can happen.
    */
   termsVersion?: string | null;
+  /**
+   * Their answer about usage analytics: null before they have given one.
+   * Absent only from a web app older than this editor, which cannot record an
+   * answer, so nobody is asked until it can.
+   */
+  analytics?: boolean | null;
 }
 
 export interface ProfileChanges {
@@ -66,6 +72,7 @@ export interface ProfileChanges {
   username?: string;
   /** Null goes back to the automatic colour. */
   cursorColor?: CursorColor | null;
+  analytics?: boolean;
 }
 
 function profileUrl(): string {

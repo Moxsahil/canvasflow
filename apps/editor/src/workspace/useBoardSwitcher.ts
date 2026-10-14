@@ -16,6 +16,7 @@ import {
   type BoardSummary,
   type WorkspaceSummary,
 } from './workspace-api';
+import { track } from '../analytics/analytics';
 import { mergeBoards } from './merge-boards';
 import { listSharedBoards, type SharedBoard } from './people-api';
 import { useWorkspaceChanges } from './workspace-events';
@@ -437,6 +438,7 @@ export function useBoardSwitcher({
       setError(null);
       requestCreateBoard(id)
         .then((board) => {
+          track('board_created');
           // Listed before it opens, newest first as the server orders them,
           // so the new board's sidebar already knows it and its workspace.
           const entry = remembered.boards[id];

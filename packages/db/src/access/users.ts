@@ -50,6 +50,11 @@ export interface Profile {
    * means they have not agreed to the terms in force.
    */
   termsVersion: string | null;
+  /**
+   * Their answer about usage analytics, or null before they have given one.
+   * Nothing is collected until this is true.
+   */
+  analytics: boolean | null;
 }
 
 /** The stored photo itself, for the one caller that turns it into a URL. */
@@ -65,6 +70,7 @@ export interface ProfileChanges {
   /** Already through `parseUsername`. There is no way back to having none. */
   username?: string;
   cursorColor?: CursorColor | null;
+  analytics?: boolean;
 }
 
 /** A profile saved, or why it was not. */
@@ -119,6 +125,7 @@ function toProfile(row: ProfileRow): Profile {
     // nothing to nag them about.
     emailVerified: row.isGuest || row.emailVerifiedAt !== null,
     termsVersion: row.termsVersion,
+    analytics: typeof row.preferences.analytics === 'boolean' ? row.preferences.analytics : null,
   };
 }
 
@@ -133,18 +140,19 @@ export async function updateProfile(
   changes: ProfileChanges,
 ): Promise<ProfileUpdate> {
   const choosingUsername = changes.username !== undefined;
+  // Merged into what is stored, so a save touches only the preferences it names.
+  const preferences = {
+    ...(changes.cursorColor !== undefined && { cursorColor: changes.cursorColor }),
+    ...(changes.analytics !== undefined && { analytics: changes.analytics }),
+  };
   try {
     const [row] = await db
       .update(users)
       .set({
         ...(changes.name !== undefined ? { name: changes.name } : {}),
         ...(choosingUsername ? { username: changes.username } : {}),
-        ...(changes.cursorColor !== undefined
-          ? {
-              preferences: sql`${users.preferences} || ${JSON.stringify({
-                cursorColor: changes.cursorColor,
-              })} :: jsonb`,
-            }
+        ...(Object.keys(preferences).length > 0
+          ? { preferences: sql`${users.preferences} || ${JSON.stringify(preferences)} :: jsonb` }
           : {}),
         updatedAt: new Date(),
       })
