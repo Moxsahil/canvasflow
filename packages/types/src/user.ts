@@ -30,6 +30,11 @@ export interface UserPreferences {
    * defaults. Absent until the first one is. See `notificationSettingsFrom`.
    */
   notifications?: Partial<NotificationSettings>;
+  /**
+   * Whether usage analytics may be collected for this account. Absent until
+   * they answer: nothing is collected before a yes, and the editor asks once.
+   */
+  analytics?: boolean;
 }
 
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {

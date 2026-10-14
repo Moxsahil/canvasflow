@@ -2,6 +2,7 @@ import { useCallback, type MutableRefObject } from 'react';
 import type { Shape } from '@canvasflow/canvas-engine';
 import { serializeBoardFile } from './board-file';
 import { saveBoardFile } from './save-file';
+import { track } from '../analytics/analytics';
 
 interface UseSaveBoardFileOptions {
   shapes: readonly Shape[];
@@ -33,6 +34,7 @@ export function useSaveBoardFile({
           handle: fileHandleRef.current,
         });
         if (result.status === 'saved') {
+          track('board_saved_to_file');
           fileHandleRef.current = result.handle;
         }
       } catch (error) {

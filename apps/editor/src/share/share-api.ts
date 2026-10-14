@@ -1,4 +1,5 @@
 import { env } from '@/lib/env';
+import { track } from '../analytics/analytics';
 
 /**
  * Client for the web app's share-link routes.
@@ -80,6 +81,7 @@ export async function createShareLink(
     body: JSON.stringify(options),
   });
   if (!res.ok) throw new Error(await failureMessage(res));
+  track('share_link_created', { role: options.role ?? 'default' });
   return (await res.json()) as CreatedShareLink;
 }
 

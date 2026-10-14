@@ -1,4 +1,5 @@
 import * as Y from 'yjs';
+import { track } from '../analytics/analytics';
 import { isUsername } from '@canvasflow/types';
 import {
   cleanCommentBody,
@@ -100,6 +101,7 @@ export class CommentStore {
       thread.set('comments', comments);
       this.threads.set(id, thread);
     }, ORIGIN);
+    track('comment_posted', { reply: false });
     return id;
   }
 
@@ -123,6 +125,7 @@ export class CommentStore {
 
     const comment = this.newComment(author, text, this.now(), mentions);
     this.yDoc.transact(() => comments.push([comment]), ORIGIN);
+    track('comment_posted', { reply: true });
     return comment.get('id') as string;
   }
 

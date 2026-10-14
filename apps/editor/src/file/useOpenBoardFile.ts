@@ -3,6 +3,7 @@ import type { BoardDocument, Shape } from '@canvasflow/canvas-engine';
 import { BoardFileError, parseBoardFile, parseImageFile, type ParsedBoardFile } from './board-file';
 import { unpackImages, type CarriedImage } from './embedded-images';
 import { pickBoardFile } from './pick-file';
+import { track } from '../analytics/analytics';
 
 interface PendingReplace {
   fileName: string;
@@ -74,6 +75,7 @@ export function useOpenBoardFile({
       doc.replaceShapes(parsed.shapes);
       doc.breakUndoGroup();
       void adoptImages(images);
+      track('board_file_opened', { format: parsed.format, images: images.size });
 
       fileHandleRef.current = handle;
       onLoaded(parsed.shapes);

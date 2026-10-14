@@ -29,12 +29,14 @@ export async function GET() {
 }
 
 /**
- * The display name and cursor colour. The username is the API gateway's, at
- * `users/me/username`, with the rest of what says who somebody is.
+ * The display name, cursor colour and usage analytics answer. The username is
+ * the API gateway's, at `users/me/username`, with the rest of what says who
+ * somebody is.
  */
 interface Patchbody {
   name?: unknown;
   cursorColor?: unknown;
+  analytics?: unknown;
 }
 
 export async function PATCH(request: NextRequest) {
@@ -71,7 +73,18 @@ export async function PATCH(request: NextRequest) {
     changes.cursorColor = color;
   }
 
-  if (changes.name === undefined && changes.cursorColor === undefined) {
+  if (body.analytics !== undefined) {
+    if (typeof body.analytics !== 'boolean') {
+      return corsJson({ error: 'Usage analytics is on or off.' }, { status: 400 });
+    }
+    changes.analytics = body.analytics;
+  }
+
+  if (
+    changes.name === undefined &&
+    changes.cursorColor === undefined &&
+    changes.analytics === undefined
+  ) {
     return corsJson({ error: 'Nothing to change.' }, { status: 400 });
   }
 

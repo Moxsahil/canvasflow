@@ -72,6 +72,10 @@ interface SettingsDialogProps {
   showWorkspace?: (workspaceId: string) => void;
   /** The board on screen, which Export all boards reads live. */
   openBoard?: OpenBoard | null;
+  /** The account's usage analytics answer: null before it has given one. */
+  analytics?: boolean | null;
+  /** Saves a new answer; resolves false when it could not. */
+  chooseAnalytics?: (allow: boolean) => Promise<boolean>;
   onClose: () => void;
 }
 
@@ -102,6 +106,8 @@ export function SettingsDialog({
   renameWorkspace,
   showWorkspace,
   openBoard = null,
+  analytics = null,
+  chooseAnalytics,
   onClose,
 }: SettingsDialogProps) {
   const [section, setSection] = useState<SettingsSectionId>(resumeDeletion ? 'privacy' : 'profile');
@@ -345,6 +351,8 @@ export function SettingsDialog({
             startDeleting={deletionPending}
             deleteAccount={deleteAccount}
             openBoard={openBoard}
+            analytics={analytics}
+            chooseAnalytics={chooseAnalytics}
           />
         );
     }
