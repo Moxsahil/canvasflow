@@ -1,4 +1,4 @@
-import { Fragment, useMemo, type ReactNode } from 'react';
+import { Fragment, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { Check } from 'lucide-react';
 import {
   ContextMenu,
@@ -47,6 +47,24 @@ export interface MoveToBoards {
   onMove?: (boardId: string) => void;
 }
 
+/**
+ * Where the menus fold their longer runs of rows into submenus: on a touch
+ * screen, and on any screen short of the height the full selection menu
+ * stands at, about 760px, with room left for where it opens. A tablet in
+ * landscape is both; turned upright it is still the first, so the menu
+ * doesn't change shape when the screen turns.
+ */
+const SHORT_MENU_QUERY = '(pointer: coarse), (max-height: 899px)';
+
+const subscribeToShortScreen = (onChange: () => void) => {
+  const query = window.matchMedia?.(SHORT_MENU_QUERY);
+  query?.addEventListener('change', onChange);
+  return () => query?.removeEventListener('change', onChange);
+};
+const isShortScreen = () => window.matchMedia?.(SHORT_MENU_QUERY).matches ?? false;
+// The full menu, for a render with no screen to ask.
+const isShortOnServer = () => false;
+
 interface CanvasContextMenuProps {
   /** What the right-click landed on, settled on the press — see `contextPressAt`. */
   target: ContextMenuTarget;
@@ -94,9 +112,10 @@ export function CanvasContextMenu({
   container,
   children,
 }: CanvasContextMenuProps) {
+  const short = useSyncExternalStore(subscribeToShortScreen, isShortScreen, isShortOnServer);
   const groups = useMemo(
-    () => contextMenuFor(target, { readOnly, canShareLinks }),
-    [target, readOnly, canShareLinks],
+    () => contextMenuFor(target, { readOnly, canShareLinks, short }),
+    [target, readOnly, canShareLinks, short],
   );
 
   return (
