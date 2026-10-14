@@ -1,5 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import type { Point } from '../machine/tool-machine.types';
+import { createTouchNavigator, TOUCH_TRAVEL_SLOP, type TouchNavigation } from './touch-navigation';
 
 /**
  * Ctrl, or Cmd on a Mac — the key that reverses whatever the snapping
@@ -66,6 +67,23 @@ function focusedFieldNear(x: number, y: number): boolean {
 const isDirectDisplayPen = (e: PointerEvent) =>
   e.pointerType === 'pen' &&
   (navigator.maxTouchPoints > 0 || window.matchMedia?.('(any-pointer: coarse)').matches);
+
+/**
+ * How long after the pencil was last touching, or hovering over, the screen a
+ * touch is still taken for the hand holding it, in milliseconds. Long enough
+ * to cover the lift between two letters; short enough that reaching over to
+ * move the board straight after writing still works.
+ */
+const PEN_GRACE_MS = 400;
+
+/**
+ * A contact this wide or tall, in CSS pixels, is the side of a hand rather
+ * than a fingertip. Only where the browser reports the size — elsewhere every
+ * contact measures 1.
+ */
+const PALM_CONTACT_PX = 80;
+
+const isPalmSized = (e: PointerEvent) => Math.max(e.width, e.height) >= PALM_CONTACT_PX;
 
 /** The parts of a pointer event the double-press recogniser reads. */
 export interface PressSample {
@@ -216,10 +234,14 @@ interface UsePointerEventsOptions {
    */
   onPointerHover?: (point: Point | null) => void;
   /**
-   * Leave touches out: a finger or the side of a hand on the board does
-   * nothing at all, and only a pen, a mouse or a trackpad reaches it.
+   * Touches never reach the board's tools: only a pen, a mouse or a trackpad
+   * draws, and fingers move the board instead — one is enough to pan. With it
+   * off, one finger is a tool like any pointer, and it takes two to move the
+   * board.
    */
   penMode?: boolean;
+  /** Fingers moving the board, and tapping for undo and redo. */
+  touchNavigation?: TouchNavigation;
   /** A pen pressed onto the screen itself, the cue to put pen mode on. */
   onPenDetected?: () => void;
   screenToWorld: (screenX: number, screenY: number) => Point;
@@ -238,6 +260,7 @@ export function usePointerEvents(
     onPointerHover,
     penMode = false,
     onPenDetected,
+    touchNavigation,
     screenToWorld,
     eventToCanvasScreen,
   }: UsePointerEventsOptions,
@@ -248,18 +271,40 @@ export function usePointerEvents(
    *
    * One at a time: a second finger, or a palm landing beside a pencil, would
    * otherwise feed its own positions into the stroke under way and end it by
-   * lifting. The latest event is kept so a gesture can be finished early, at
-   * the last place it was seen.
+   * lifting. The press is kept for how far the gesture has come, and the
+   * latest event so it can be finished early, at the last place it was seen.
    */
-  const followedRef = useRef<{ pointerId: number; pointerType: string; last: PointerEvent } | null>(
-    null,
-  );
+  const followedRef = useRef<{
+    pointerId: number;
+    pointerType: string;
+    press: PointerEvent;
+    last: PointerEvent;
+  } | null>(null);
   const capturedPointerIdRef = useRef<number | null>(null);
   /**
-   * Pointers the board is ignoring until they lift: touches in pen mode, and a
-   * touch a pencil took over from.
+   * Pointers the board is ignoring until they lift: a hand, by its size or by
+   * landing while the pencil is in use, and touches a pencil took over from.
    */
   const ignoredRef = useRef(new Set<number>());
+  /** When the pencil was last down on, or hovering over, the screen. */
+  const lastPenAtRef = useRef(Number.NEGATIVE_INFINITY);
+  // The navigator lives as long as the hook, and calls through to whatever
+  // the board's moves are now: they change with every camera move.
+  const navigationRef = useRef(touchNavigation);
+  useEffect(() => {
+    navigationRef.current = touchNavigation;
+  });
+  const navigatorRef = useRef<ReturnType<typeof createTouchNavigator> | null>(null);
+  navigatorRef.current ??= createTouchNavigator({
+    begin: () => navigationRef.current?.begin(),
+    pan: (dx, dy) => navigationRef.current?.pan(dx, dy),
+    zoom: (factor, anchor) => navigationRef.current?.zoom(factor, anchor),
+    end: () => navigationRef.current?.end(),
+    cancel: () => navigationRef.current?.cancel(),
+    undo: () => navigationRef.current?.undo(),
+    redo: () => navigationRef.current?.redo(),
+  });
+  const fingers = navigatorRef.current;
   /**
    * A pencil press near an open text field, held back from the board until it
    * shows what it is. If it travels it was writing, which the field takes as
@@ -286,7 +331,12 @@ export function usePointerEvents(
       // Safari keeps its copy and paste bubble up for as long as one exists.
       const selection = document.getSelection();
       if (selection?.anchorNode) selection.removeAllRanges();
-      followedRef.current = { pointerId: e.pointerId, pointerType: e.pointerType, last: e };
+      followedRef.current = {
+        pointerId: e.pointerId,
+        pointerType: e.pointerType,
+        press: e,
+        last: e,
+      };
       if (capture) {
         capturedPointerIdRef.current = e.pointerId;
         canvas.setPointerCapture(e.pointerId);
@@ -328,14 +378,43 @@ export function usePointerEvents(
       if (e.button !== 0 && e.button !== 1) return;
       e.preventDefault();
 
-      if (penMode && e.pointerType === 'touch') {
-        // Captured, so its lift comes back here to be forgotten wherever the
-        // hand has drifted to by then.
-        ignored.add(e.pointerId);
+      if (e.pointerType === 'touch') {
+        // Captured whichever way it goes, so its moves and its lift come back
+        // here wherever the hand has drifted to by then.
         canvas.setPointerCapture(e.pointerId);
-        return;
+        const pen = followedRef.current?.pointerType === 'pen' || heldPenRef.current !== null;
+        if (isPalmSized(e) || pen || e.timeStamp - lastPenAtRef.current < PEN_GRACE_MS) {
+          ignored.add(e.pointerId);
+          return;
+        }
+        if (penMode || fingers.active()) {
+          fingers.down(e.pointerId, eventToCanvasScreen(e), e.timeStamp, penMode);
+          return;
+        }
+        const finger = followedRef.current;
+        if (finger?.pointerType === 'touch') {
+          // A second finger: the first was the start of a pinch or a tap, not
+          // a stroke. What it did is taken back, and both move the board.
+          const { press, last } = finger;
+          const travelled =
+            Math.hypot(last.clientX - press.clientX, last.clientY - press.clientY) >
+            TOUCH_TRAVEL_SLOP;
+          doublePress.cancel(last);
+          finishPress(last, true);
+          canvas.setPointerCapture(finger.pointerId);
+          fingers.adopt(finger.pointerId, eventToCanvasScreen(last), press.timeStamp, travelled);
+          fingers.down(e.pointerId, eventToCanvasScreen(e), e.timeStamp, false);
+          return;
+        }
       }
-      if (isDirectDisplayPen(e)) onPenDetected?.();
+
+      if (e.pointerType === 'pen') {
+        lastPenAtRef.current = e.timeStamp;
+        if (isDirectDisplayPen(e)) onPenDetected?.();
+        // Fingers already moving the board were a hand settling in to write:
+        // the board goes back to where it was, and they are ignored from here.
+        for (const id of fingers.interrupt()) ignored.add(id);
+      }
 
       const followed = followedRef.current;
       if (followed) {
@@ -365,6 +444,12 @@ export function usePointerEvents(
 
     const handlePointerMove = (e: PointerEvent) => {
       if (ignored.has(e.pointerId)) return;
+      // Hovering counts: the hand is already on its way down.
+      if (e.pointerType === 'pen') lastPenAtRef.current = e.timeStamp;
+      if (fingers.has(e.pointerId)) {
+        fingers.move(e.pointerId, eventToCanvasScreen(e));
+        return;
+      }
       const world = screenToWorld(e.clientX, e.clientY);
       // Before the pressed-only guard: hover is reported whether or not a
       // button is down, so a collaborator's cursor doesn't freeze mid-drag.
@@ -394,6 +479,7 @@ export function usePointerEvents(
     };
 
     const handlePointerLeave = (e: PointerEvent) => {
+      if (e.pointerType === 'pen') lastPenAtRef.current = e.timeStamp;
       // A hand coming off the board in pen mode was never its pointer.
       if (penMode && e.pointerType === 'touch') return;
       onPointerHover?.(null);
@@ -401,6 +487,11 @@ export function usePointerEvents(
 
     const handlePointerUp = (e: PointerEvent) => {
       if (ignored.delete(e.pointerId)) return;
+      if (e.pointerType === 'pen') lastPenAtRef.current = e.timeStamp;
+      if (fingers.has(e.pointerId)) {
+        fingers.up(e.pointerId, e.timeStamp);
+        return;
+      }
 
       const held = heldPenRef.current;
       if (held?.press.pointerId === e.pointerId) {
@@ -428,6 +519,10 @@ export function usePointerEvents(
 
     const handlePointerCancel = (e: PointerEvent) => {
       if (ignored.delete(e.pointerId)) return;
+      if (fingers.has(e.pointerId)) {
+        fingers.cancel(e.pointerId, e.timeStamp);
+        return;
+      }
       // The system taking a held pencil away is the system writing with it.
       if (heldPenRef.current?.press.pointerId === e.pointerId) {
         heldPenRef.current = null;
@@ -465,6 +560,7 @@ export function usePointerEvents(
   }, [
     canvasRef,
     doublePress,
+    fingers,
     onPointerDown,
     onPointerMove,
     onPointerUp,

@@ -124,9 +124,61 @@ async function fingerStroke(cdp: CDPSession, y: number) {
   await finger('touchEnd');
 }
 
+/** Fingers placed together, each given an id of its own from 10 up. */
+const fingers = (cdp: CDPSession, type: TouchAction, points: Spot[]) =>
+  cdp.send('Input.dispatchTouchEvent', {
+    type,
+    touchPoints: points.map((at, i) => ({ ...at, id: 10 + i })),
+  });
+
+const between = (from: Spot, to: Spot, t: number): Spot => ({
+  x: from.x + (to.x - from.x) * t,
+  y: from.y + (to.y - from.y) * t,
+});
+
+/** Fingers dragged from one set of places to another, in ten steps, then lifted. */
+async function drag(cdp: CDPSession, from: Spot[], to: Spot[]) {
+  await fingers(cdp, 'touchStart', from);
+  for (let i = 1; i <= 10; i += 1) {
+    await fingers(
+      cdp,
+      'touchMove',
+      from.map((at, n) => between(at, to[n]!, i / 10)),
+    );
+  }
+  await fingers(cdp, 'touchEnd', []);
+}
+
+/** A quick tap of however many fingers. */
+async function tap(cdp: CDPSession, count: number) {
+  const at = Array.from({ length: count }, (_, i) => ({ x: 600 + i * 60, y: 450 }));
+  await fingers(cdp, 'touchStart', at);
+  await fingers(cdp, 'touchEnd', []);
+}
+
+/**
+ * Where the board is looking, as the editor saves it shortly after the view
+ * settles; the origin until it has moved.
+ */
+const camera = (page: Page) =>
+  page.evaluate(() => {
+    const key = Object.keys(localStorage).find((k) => k.startsWith('cf:camera:'));
+    const stored = key ? localStorage.getItem(key) : null;
+    return (stored ? JSON.parse(stored) : { x: 0, y: 0, zoom: 1 }) as {
+      x: number;
+      y: number;
+      zoom: number;
+    };
+  });
+
+/** Past the moment after a pen stroke when any touch is taken for the hand holding it. */
+const PEN_GRACE = 500;
+
 const shapeCount = (page: Page) => page.getByLabel('Shapes', { exact: true });
 
-test('a pen draws and a resting hand leaves the board alone', async ({ browser }) => {
+test('a pen draws, fingers move the board, and a resting hand leaves it alone', async ({
+  browser,
+}) => {
   const context = await browser.newContext({
     hasTouch: true,
     viewport: { width: 1280, height: 800 },
@@ -168,8 +220,7 @@ test('a pen draws and a resting hand leaves the board alone', async ({ browser }
     await expect(shapeCount(page)).toHaveText('2');
   });
 
-  await test.step('in pen mode a finger draws nothing, and a resting hand nothing beside the pen', async () => {
-    await fingerStroke(cdp, 450);
+  await test.step('in pen mode a resting hand leaves no marks beside the pen', async () => {
     await palm(cdp, 'touchStart', { x: 700, y: 600 });
     await penStroke(cdp, 600, { x: 700, y: 600 });
     await palm(cdp, 'touchEnd');
@@ -213,6 +264,75 @@ test('a pen draws and a resting hand leaves the board alone', async ({ browser }
     await expect((await tab).url()).toBe(LINK);
   });
 
+  await test.step('in pen mode one finger moves the board instead of drawing', async () => {
+    await pickTool('freehand');
+    await page.waitForTimeout(PEN_GRACE);
+    const before = await camera(page);
+    await drag(cdp, [{ x: 300, y: 450 }], [{ x: 500, y: 450 }]);
+    await expect
+      .poll(async () => (await camera(page)).x)
+      .toBeCloseTo(before.x - 200 / before.zoom, 0);
+    await drag(cdp, [{ x: 500, y: 450 }], [{ x: 300, y: 450 }]);
+    await expect.poll(async () => (await camera(page)).x).toBeCloseTo(before.x, 0);
+    await expect(shapeCount(page)).toHaveText('3');
+  });
+
+  await test.step('a palm-sized touch, a still one, and one just after the pen leave the board where it is', async () => {
+    await page.waitForTimeout(PEN_GRACE);
+    const before = await camera(page);
+    const side = (type: TouchAction, x?: number) =>
+      cdp.send('Input.dispatchTouchEvent', {
+        type,
+        touchPoints: x === undefined ? [] : [{ x, y: 450, id: PALM, radiusX: 50, radiusY: 50 }],
+      });
+    await side('touchStart', 300);
+    for (let x = 320; x <= 500; x += 20) await side('touchMove', x);
+    await side('touchEnd');
+    await drag(cdp, [{ x: 300, y: 450 }], [{ x: 305, y: 452 }]);
+    await penStroke(cdp, 520);
+    await drag(cdp, [{ x: 300, y: 450 }], [{ x: 500, y: 450 }]);
+    await page.waitForTimeout(800);
+    expect(await camera(page)).toEqual(before);
+    await expect(shapeCount(page)).toHaveText('4');
+  });
+
+  await test.step('a hand moving the board when the pen lands puts it back', async () => {
+    await page.waitForTimeout(PEN_GRACE);
+    const before = await camera(page);
+    await fingers(cdp, 'touchStart', [{ x: 900, y: 500 }]);
+    for (let x = 920; x <= 1000; x += 20) await fingers(cdp, 'touchMove', [{ x, y: 500 }]);
+    await expect.poll(async () => (await camera(page)).x).not.toBeCloseTo(before.x, 0);
+    await penStroke(cdp, 680);
+    await fingers(cdp, 'touchEnd', []);
+    await expect.poll(async () => (await camera(page)).x).toBeCloseTo(before.x, 0);
+    await expect(shapeCount(page)).toHaveText('5');
+  });
+
+  await test.step('two fingers pinch to zoom, and pinch back', async () => {
+    await page.waitForTimeout(PEN_GRACE);
+    const before = await camera(page);
+    const near = [
+      { x: 590, y: 400 },
+      { x: 690, y: 400 },
+    ];
+    const far = [
+      { x: 540, y: 400 },
+      { x: 740, y: 400 },
+    ];
+    await drag(cdp, near, far);
+    await expect.poll(async () => (await camera(page)).zoom).toBeCloseTo(before.zoom * 2, 1);
+    await drag(cdp, far, near);
+    await expect.poll(async () => (await camera(page)).zoom).toBeCloseTo(before.zoom, 2);
+    expect((await camera(page)).x).toBeCloseTo(before.x, 0);
+  });
+
+  await test.step('a quick two-finger tap is undo, and three is redo', async () => {
+    await tap(cdp, 2);
+    await expect(shapeCount(page)).toHaveText('4');
+    await tap(cdp, 3);
+    await expect(shapeCount(page)).toHaveText('5');
+  });
+
   await test.step('turned off in Preferences, a finger draws again and the next pen leaves it off', async () => {
     await page.getByTestId('menu-preferences').click();
     const row = page.getByTestId('preference-penMode');
@@ -223,10 +343,31 @@ test('a pen draws and a resting hand leaves the board alone', async ({ browser }
 
     await pickTool('freehand');
     await fingerStroke(cdp, 700);
-    await expect(shapeCount(page)).toHaveText('4');
+    await expect(shapeCount(page)).toHaveText('6');
     await penStroke(cdp, 740);
-    await expect(shapeCount(page)).toHaveText('5');
+    await expect(shapeCount(page)).toHaveText('7');
     const stored = await page.evaluate(() => localStorage.getItem('cf:preferences'));
     expect(JSON.parse(stored!).penMode).toBe(false);
+  });
+
+  await test.step('with pen mode off, a second finger turns a stroke into a pinch', async () => {
+    await page.waitForTimeout(PEN_GRACE);
+    const before = await camera(page);
+    // The first finger lands and starts to draw before the second arrives.
+    await fingers(cdp, 'touchStart', [{ x: 590, y: 300 }]);
+    await fingers(cdp, 'touchMove', [{ x: 585, y: 300 }]);
+    await drag(
+      cdp,
+      [
+        { x: 585, y: 300 },
+        { x: 685, y: 300 },
+      ],
+      [
+        { x: 535, y: 300 },
+        { x: 735, y: 300 },
+      ],
+    );
+    await expect.poll(async () => (await camera(page)).zoom).toBeGreaterThan(before.zoom * 1.5);
+    await expect(shapeCount(page)).toHaveText('7');
   });
 });
