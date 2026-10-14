@@ -1,14 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Info, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Profile } from './profile-api';
 import { useVerificationStatus } from './useVerificationStatus';
-
-/**
- * Remembered per address, so confirming one account does not silence the notice
- * for whoever signs in on this machine next.
- */
-const dismissedKey = (email: string) => `cf:verify-dismissed:${email}`;
+import { forgetDismissalsByEmail, rememberDismissed, wasDismissed } from './verification-dismissal';
 
 /**
  * The nudge that replaced the "check your email" screen.
@@ -34,19 +29,13 @@ export function VerificationNotice({
 }) {
   const [dismissed, setDismissed] = useState(false);
 
+  // Once per page: clears what older versions left behind in this browser.
+  useEffect(() => forgetDismissalsByEmail(), []);
+
   const email = profile && !profile.isGuest && !profile.emailVerified ? profile.email : null;
+  const userId = profile?.id ?? null;
 
-  let alreadySeen = false;
-  if (email) {
-    try {
-      alreadySeen = localStorage.getItem(dismissedKey(email)) === '1';
-    } catch {
-      // Private windows and blocked storage both land here. Showing the notice
-      // again is the harmless side to fail on.
-    }
-  }
-
-  const showing = email !== null && !dismissed && !alreadySeen;
+  const showing = email !== null && userId !== null && !dismissed && !wasDismissed(userId);
 
   // Runs only while the card is on screen, and stops itself the moment the
   // answer comes back true.
@@ -56,11 +45,7 @@ export function VerificationNotice({
 
   const dismiss = () => {
     setDismissed(true);
-    try {
-      localStorage.setItem(dismissedKey(email), '1');
-    } catch {
-      // Dismissing still works for this session, it just is not remembered.
-    }
+    rememberDismissed(userId);
   };
 
   return (
