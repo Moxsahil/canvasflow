@@ -227,7 +227,13 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     group: 'Your data',
     terms: 'download json',
   },
-  { id: 'storage-used', title: 'Storage used', section: 'privacy', group: 'Your data' },
+  {
+    id: 'storage-used',
+    title: 'Storage used',
+    section: 'privacy',
+    group: 'Your data',
+    terms: 'space size usage',
+  },
   {
     id: 'analytics',
     title: 'Usage analytics',

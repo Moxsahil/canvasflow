@@ -72,3 +72,24 @@ export function signInMethodsHint(security: AccountSecurity): string {
 export function sessionsHint(count: number): string {
   return `${count} ${count === 1 ? 'device' : 'devices'} signed in right now`;
 }
+
+/**
+ * "740 KB", "3.2 MB", "48 MB", "1.4 GB". Binary units, as the image size limit
+ * reads them. Anything stored reads as at least 1 KB, so a board with a few
+ * shapes on it never shows as nothing.
+ */
+export function formatStorageSize(bytes: number): string {
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${bytes > 0 ? Math.max(1, Math.round(kb)) : 0} KB`;
+  const mb = kb / 1024;
+  if (mb < 1024) return mb < 10 ? `${mb.toFixed(1)} MB` : `${Math.round(mb)} MB`;
+  return `${(mb / 1024).toFixed(1)} GB`;
+}
+
+/** The Storage used row's line: what the number is made of. */
+export function storageHint(usage: { boards: number; images: number }): string {
+  if (usage.boards === 0) return 'You don’t own any boards yet';
+  const boards = `Across ${usage.boards} ${usage.boards === 1 ? 'board' : 'boards'} you own`;
+  if (usage.images === 0) return boards;
+  return `${boards} · ${usage.images} ${usage.images === 1 ? 'image' : 'images'}`;
+}
