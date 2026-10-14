@@ -33,6 +33,8 @@ export function contextPressAt(
   index: SpatialIndex,
   zoom: number,
   lockedIds: ReadonlySet<string> = new Set(),
+  /** How near a shape's line counts as on it, in screen pixels; see `hitTest`. */
+  margin?: number,
 ): ContextPress {
   if (selectedIds.length > 0) {
     const selected = new Set(selectedIds);
@@ -55,8 +57,8 @@ export function contextPressAt(
   const unlocked =
     lockedIds.size === 0 ? shapes : shapes.filter((shape) => !lockedIds.has(shape.id));
   const hit =
-    hitTest(unlocked, index, point.x, point.y, zoom) ??
-    (lockedIds.size === 0 ? null : hitTest(shapes, index, point.x, point.y, zoom));
+    hitTest(unlocked, index, point.x, point.y, zoom, { margin }) ??
+    (lockedIds.size === 0 ? null : hitTest(shapes, index, point.x, point.y, zoom, { margin }));
   if (hit) return { target: 'selection', select: [hit.id] };
 
   return { target: 'canvas', select: selectedIds.length > 0 ? [] : null };
