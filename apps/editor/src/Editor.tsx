@@ -29,6 +29,8 @@ import {
   frameLabelBounds,
   framesIn,
   hasPointHandles,
+  COARSE_HIT_MARGIN,
+  HIT_MARGIN,
   hitTest,
   isFrame,
   isText,
@@ -2050,6 +2052,12 @@ export function Editor({ boardId }: EditorProps) {
 
   /** The tool to go back to when a pen's eraser end lifts. */
   const eraserReturnRef = useRef<Tool | null>(null);
+  /**
+   * How near a shape's line the last press had to land to be on it: wider
+   * for a finger or a pencil than for a mouse. Kept for what follows a press —
+   * the double tap that completes it, the menu a hold opens.
+   */
+  const hitMarginRef = useRef(HIT_MARGIN);
 
   const handlePointerDown = useCallback(
     (
@@ -2070,6 +2078,8 @@ export function Editor({ boardId }: EditorProps) {
       }
       const tool: Tool = erasing ? 'eraser' : activeTool;
       const pressButton = erasing ? 0 : button;
+      const margin = pointerType === 'mouse' ? HIT_MARGIN : COARSE_HIT_MARGIN;
+      hitMarginRef.current = margin;
       // Its own undo step, so taking it back takes nothing else with it.
       if (pointerType === 'touch') {
         doc.breakUndoGroup();
@@ -2154,8 +2164,12 @@ export function Editor({ boardId }: EditorProps) {
         }
         if (hitHandle === null && hitVertex === null) {
           // A locked shape is passed over for whatever is under it, as if it
-          // were part of the board.
-          const hit = hitTest(pickableShapes, spatialIndex, point.x, point.y, camera.zoom);
+          // were part of the board. The selection answers anywhere in its box,
+          // so a diagonal line can be dragged by the space it spans.
+          const hit = hitTest(pickableShapes, spatialIndex, point.x, point.y, camera.zoom, {
+            margin,
+            selectedIds,
+          });
           hitShapeId = hit?.id ?? null;
 
           if (hit) {
@@ -2181,7 +2195,9 @@ export function Editor({ boardId }: EditorProps) {
           } else if (lockedIds.size > 0 && !readOnly) {
             // Nothing that can be picked up here. If a locked shape is, the
             // release below puts up its padlock — on a click, not a drag.
-            const locked = hitTest(shownShapes, spatialIndex, point.x, point.y, camera.zoom);
+            const locked = hitTest(shownShapes, spatialIndex, point.x, point.y, camera.zoom, {
+              margin,
+            });
             if (locked && lockedIds.has(locked.id)) {
               lockPressRef.current = { id: locked.id, at: screenPoint };
             }
@@ -2313,6 +2329,7 @@ export function Editor({ boardId }: EditorProps) {
         spatialIndex,
         camera.zoom,
         lockedIds,
+        hitMarginRef.current,
       );
       setActiveLock(null);
       if (press.select) actorRef.send({ type: 'SELECT_ALL', shapeIds: [...press.select] });
@@ -2884,7 +2901,9 @@ export function Editor({ boardId }: EditorProps) {
         return;
       }
 
-      const hit = hitTest(pickableShapes, spatialIndex, point.x, point.y, camera.zoom);
+      const hit = hitTest(pickableShapes, spatialIndex, point.x, point.y, camera.zoom, {
+        margin: hitMarginRef.current,
+      });
       if (hit && isText(hit)) {
         actorRef.send({
           type: 'EDIT_TEXT_SHAPE',
