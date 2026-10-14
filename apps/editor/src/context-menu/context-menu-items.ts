@@ -328,6 +328,57 @@ export const CANVAS_MENU: readonly ContextMenuGroup[] = [
   ['commandPalette'],
 ];
 
+/** The order rows and the flips: how a selection sits among the rest. */
+const ARRANGE: ContextSubmenu = {
+  submenu: 'arrange',
+  label: 'Arrange',
+  items: [
+    'bringToFront',
+    'bringForward',
+    'sendBackward',
+    'sendToBack',
+    'flipHorizontal',
+    'flipVertical',
+  ],
+};
+
+const GRID_AND_SNAPPING: ContextSubmenu = {
+  submenu: 'gridAndSnapping',
+  label: 'Grid and snapping',
+  items: ['showGrid', 'snapToObjects', 'snapToMidpoints', 'arrowBinding'],
+};
+
+const VIEW: ContextSubmenu = {
+  submenu: 'view',
+  label: 'View',
+  items: ['focusMode', 'viewMode', 'canvasStats', 'showComments'],
+  compact: true,
+};
+
+/**
+ * The same two menus for a screen too short to stand them at full length — a
+ * tablet in landscape loses most of its height to the browser — with the
+ * longer runs of rows folded into submenus. Every row is still there; the
+ * test holds both forms to that.
+ */
+export const SHORT_SELECTION_MENU: readonly ContextMenuGroup[] = [
+  ['cut', 'copy', 'paste', 'pasteHere', 'duplicate'],
+  [COPY_AS, 'exportImage'],
+  [EDIT, MOVE_TO, ARRANGE],
+  ['addLink', 'copyLinkToSelection'],
+  ['addToLibrary'],
+  ['hide', 'lock'],
+  ['deleteSelection'],
+];
+
+export const SHORT_CANVAS_MENU: readonly ContextMenuGroup[] = [
+  ['paste', 'pasteHere'],
+  [COPY_AS, 'exportImage'],
+  ['selectAll', 'unlockAll', 'showAll'],
+  [GRID_AND_SNAPPING, VIEW, STYLE_PANEL],
+  ['commandPalette'],
+];
+
 /** What the right-click landed on, which decides the menu it opens. */
 export type ContextMenuTarget = 'selection' | 'canvas';
 
@@ -342,9 +393,25 @@ const SHARING_ROWS: ReadonlySet<ContextMenuItemId> = new Set(['copyLinkToSelecti
 
 export function contextMenuFor(
   target: ContextMenuTarget,
-  { readOnly, canShareLinks = true }: { readOnly: boolean; canShareLinks?: boolean },
+  {
+    readOnly,
+    canShareLinks = true,
+    short = false,
+  }: {
+    readOnly: boolean;
+    canShareLinks?: boolean;
+    /** The folded form, for a screen without the height for the full one. */
+    short?: boolean;
+  },
 ): ContextMenuGroup[] {
-  const layout = target === 'selection' ? SELECTION_MENU : CANVAS_MENU;
+  const layout =
+    target === 'selection'
+      ? short
+        ? SHORT_SELECTION_MENU
+        : SELECTION_MENU
+      : short
+        ? SHORT_CANVAS_MENU
+        : CANVAS_MENU;
   const usable = (id: ContextMenuItemId) =>
     !(readOnly && CONTEXT_MENU_ITEMS[id].edits) && (canShareLinks || !SHARING_ROWS.has(id));
 

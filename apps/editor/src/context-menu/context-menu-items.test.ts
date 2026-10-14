@@ -3,6 +3,8 @@ import {
   CANVAS_MENU,
   CONTEXT_MENU_ITEMS,
   SELECTION_MENU,
+  SHORT_CANVAS_MENU,
+  SHORT_SELECTION_MENU,
   contextMenuFor,
   type ContextMenuGroup,
   type ContextMenuItemId,
@@ -17,7 +19,7 @@ function idsIn(groups: readonly ContextMenuGroup[]): ContextMenuItemId[] {
 
 describe('the two menus', () => {
   it('shows no row twice within one menu', () => {
-    for (const menu of [SELECTION_MENU, CANVAS_MENU]) {
+    for (const menu of [SELECTION_MENU, CANVAS_MENU, SHORT_SELECTION_MENU, SHORT_CANVAS_MENU]) {
       const ids = idsIn(menu);
       expect(new Set(ids).size).toBe(ids.length);
     }
@@ -39,7 +41,7 @@ describe('the two menus', () => {
   });
 
   it('offers Paste here straight after Paste, on a shape and on empty board alike', () => {
-    for (const menu of [SELECTION_MENU, CANVAS_MENU]) {
+    for (const menu of [SELECTION_MENU, CANVAS_MENU, SHORT_SELECTION_MENU, SHORT_CANVAS_MENU]) {
       const ids = idsIn(menu);
       expect(ids[ids.indexOf('paste') + 1]).toBe('pasteHere');
     }
@@ -79,7 +81,61 @@ describe('the two menus', () => {
 
   it('ends the selection menu with Delete, on its own', () => {
     expect(SELECTION_MENU.at(-1)).toEqual(['deleteSelection']);
+    expect(SHORT_SELECTION_MENU.at(-1)).toEqual(['deleteSelection']);
     expect(CONTEXT_MENU_ITEMS.deleteSelection.destructive).toBe(true);
+  });
+});
+
+describe('the short form, for a screen without the height', () => {
+  /** What stands in the menu itself: a row, or a submenu's own row. */
+  const rowsShown = (groups: readonly ContextMenuGroup[]) =>
+    groups.reduce((count, group) => count + group.length, 0);
+
+  it('keeps every row of the full menus, only folded', () => {
+    expect(new Set(idsIn(SHORT_SELECTION_MENU))).toEqual(new Set(idsIn(SELECTION_MENU)));
+    expect(new Set(idsIn(SHORT_CANVAS_MENU))).toEqual(new Set(idsIn(CANVAS_MENU)));
+  });
+
+  it('stands a good deal shorter than the full menus', () => {
+    expect(rowsShown(SELECTION_MENU)).toBe(21);
+    expect(rowsShown(SHORT_SELECTION_MENU)).toBe(16);
+    expect(rowsShown(CANVAS_MENU)).toBe(17);
+    expect(rowsShown(SHORT_CANVAS_MENU)).toBe(11);
+  });
+
+  it('folds the order rows and the flips into Arrange, and the board toggles into two', () => {
+    const submenus = (groups: readonly ContextMenuGroup[]) =>
+      Object.fromEntries(
+        groups
+          .flat()
+          .flatMap((entry) => (typeof entry === 'string' ? [] : [[entry.submenu, entry.items]])),
+      );
+    expect(submenus(contextMenuFor('selection', { readOnly: false, short: true })).arrange).toEqual(
+      [
+        'bringToFront',
+        'bringForward',
+        'sendBackward',
+        'sendToBack',
+        'flipHorizontal',
+        'flipVertical',
+      ],
+    );
+    const canvas = submenus(contextMenuFor('canvas', { readOnly: false, short: true }));
+    expect(canvas.gridAndSnapping).toEqual([
+      'showGrid',
+      'snapToObjects',
+      'snapToMidpoints',
+      'arrowBinding',
+    ]);
+    expect(canvas.view).toEqual(['focusMode', 'viewMode', 'canvasStats', 'showComments']);
+  });
+
+  it('takes the same rows away from a viewer as the full form does', () => {
+    for (const target of ['selection', 'canvas'] as const) {
+      const full = contextMenuFor(target, { readOnly: true });
+      const short = contextMenuFor(target, { readOnly: true, short: true });
+      expect(new Set(idsIn(short))).toEqual(new Set(idsIn(full)));
+    }
   });
 });
 
