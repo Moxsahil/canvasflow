@@ -106,6 +106,7 @@ import {
 import { screenToWorld } from './pointer/coords';
 import type { TouchNavigation } from './pointer/touch-navigation';
 import { useBoardItemTouchGuard } from './pointer/useBoardItemTouchGuard';
+import { PEN_ERASER_BUTTON } from './pointer/usePointerEvents';
 import { useLastPointerPosition } from './pointer/useLastPointerPosition';
 import { CanvasStack } from './canvas/CanvasStack';
 import { pointerCursorValue } from './canvas/pointer-cursor';
@@ -2047,6 +2048,9 @@ export function Editor({ boardId }: EditorProps) {
     selectedIds: readonly string[];
   } | null>(null);
 
+  /** The tool to go back to when a pen's eraser end lifts. */
+  const eraserReturnRef = useRef<Tool | null>(null);
+
   const handlePointerDown = useCallback(
     (
       point: Point,
@@ -2056,6 +2060,16 @@ export function Editor({ boardId }: EditorProps) {
       snapOverride = false,
       pointerType = 'mouse',
     ) => {
+      // The far end of a pen that has one erases, whatever tool is in hand,
+      // and the tool comes back when it lifts (see handlePointerLift). Read
+      // here rather than from the render, which hasn't caught up with it yet.
+      const erasing = button === PEN_ERASER_BUTTON;
+      if (erasing) {
+        eraserReturnRef.current = activeTool;
+        actorRef.send({ type: 'SELECT_TOOL', tool: 'eraser' });
+      }
+      const tool: Tool = erasing ? 'eraser' : activeTool;
+      const pressButton = erasing ? 0 : button;
       // Its own undo step, so taking it back takes nothing else with it.
       if (pointerType === 'touch') {
         doc.breakUndoGroup();
@@ -2074,7 +2088,7 @@ export function Editor({ boardId }: EditorProps) {
       // The laser never reaches the machine. It selects nothing, draws nothing,
       // and marks nothing for erasure — letting POINTER_DOWN through would only
       // give it a marquee it has no use for.
-      if (activeTool === 'laser') {
+      if (tool === 'laser') {
         laser.begin(point.x, point.y);
         setLasering(true);
         return;
@@ -2082,7 +2096,7 @@ export function Editor({ boardId }: EditorProps) {
       // Nor does a comment being placed: the press opens its composer, which
       // follows the pointer until the button comes up. Any other button is
       // left to pan the board as it would with any tool.
-      if (activeTool === 'comment' && button === 0) {
+      if (tool === 'comment' && pressButton === 0) {
         beginComment(point);
         return;
       }
@@ -2107,7 +2121,7 @@ export function Editor({ boardId }: EditorProps) {
       lockPressRef.current = null;
       carriedLockedRef.current = EMPTY_IDS;
 
-      if (activeTool === 'select' && !isSpacePressed && button !== 1) {
+      if (tool === 'select' && !isSpacePressed && pressButton !== 1) {
         // A locked shape has no handles to take hold of.
         if (selectedIds.length === 1 && !lockedIds.has(selectedIds[0]!)) {
           const selectedShape = shapes.find((s) => s.id === selectedIds[0]);
@@ -2181,29 +2195,29 @@ export function Editor({ boardId }: EditorProps) {
       snapOverrideRef.current = snapOverride;
 
       let downPoint = point;
-      if (activeTool === 'select' && hitVertex !== null && vertexOriginRef.current) {
+      if (tool === 'select' && hitVertex !== null && vertexOriginRef.current) {
         // No arrows to settle: an end being dragged has already let go, and
         // nothing can attach itself to a line or an arrow in the first place.
         measureSnapTargets(new Set([vertexOriginRef.current.id]));
         boundArrowsRef.current = EMPTY_IDS;
-      } else if (activeTool === 'select' && hitHandle !== null && resizeOriginRef.current) {
+      } else if (tool === 'select' && hitHandle !== null && resizeOriginRef.current) {
         const moving = new Set([resizeOriginRef.current.id]);
         measureSnapTargets(moving);
         boundArrowsRef.current = affectedArrowIds(shapes, moving);
         gestureShapesRef.current = shapeMapFor(shapes, boundArrowsRef.current);
-      } else if (activeTool === 'select' && hitShapeId) {
+      } else if (tool === 'select' && hitShapeId) {
         const moving = new Set(Object.keys(dragOriginsRef.current));
         measureSnapTargets(moving);
         boundArrowsRef.current = affectedArrowIds(shapes, moving);
         gestureShapesRef.current = shapeMapFor(shapes, boundArrowsRef.current);
-      } else if (DRAWS_FROM_POINTER.has(activeTool)) {
+      } else if (DRAWS_FROM_POINTER.has(tool)) {
         measureSnapTargets(new Set<string>());
         boundArrowsRef.current = EMPTY_IDS;
 
         // The corner a shape is drawn out from is worth snapping too: a box
         // that starts flush with its neighbour needs no nudging afterwards.
         if (snappingActive(preferences.values.snapToObjects, snapOverride)) {
-          const result = snapForPointer(point, activeTool);
+          const result = snapForPointer(point, tool);
           downPoint = { x: point.x + result.dx, y: point.y + result.dy };
         }
       } else {
@@ -2217,7 +2231,7 @@ export function Editor({ boardId }: EditorProps) {
       actorRef.send({
         type: 'POINTER_DOWN',
         point: downPoint,
-        button,
+        button: pressButton,
         shiftKey,
         hitShapeId,
         hitHandle,
@@ -2228,7 +2242,7 @@ export function Editor({ boardId }: EditorProps) {
       // state has no ERASE_MARK handler and would drop this silently.
       // A click produces no pointer move, so mark the spot directly, otherwise
       // tapping a shape would do nothing.
-      if (activeTool === 'eraser') {
+      if (tool === 'eraser') {
         lastErasePointRef.current = point;
         const ids = shapesIntersectingSegment(
           pickableShapes,
@@ -2345,14 +2359,16 @@ export function Editor({ boardId }: EditorProps) {
       snapOverride = false,
     ) => {
       lastCanvasPointRef.current = screenPoint;
+      // A pen's eraser end is erasing, whatever the last render had in hand.
+      const tool: Tool = eraserReturnRef.current ? 'eraser' : activeTool;
 
-      if (activeTool === 'laser') {
+      if (tool === 'laser') {
         // Only while the button is down. A laser tracks the cursor the way a
         // real one does — it is off until you press it.
         laser.extend(point.x, point.y);
         return;
       }
-      if (activeTool === 'comment' && isPlacingComment()) {
+      if (tool === 'comment' && isPlacingComment()) {
         followComment(point);
         return;
       }
@@ -2694,13 +2710,14 @@ export function Editor({ boardId }: EditorProps) {
       // still be queued behind this, and letting it read where the pointer was
       // would carry the board on after the gesture that asked for it ended.
       lastCanvasPointRef.current = null;
+      const tool: Tool = eraserReturnRef.current ? 'eraser' : activeTool;
 
-      if (activeTool === 'laser') {
+      if (tool === 'laser') {
         laser.end();
         setLasering(false);
         return;
       }
-      if (activeTool === 'comment' && isPlacingComment()) {
+      if (tool === 'comment' && isPlacingComment()) {
         // Where the button comes up is where the pin goes: on the shape under
         // it, or on the board.
         settleComment(point, commentTargetAt(point, shownShapes, spatialIndex, camera.zoom));
@@ -2832,6 +2849,18 @@ export function Editor({ boardId }: EditorProps) {
       });
     },
     [actorRef, doc, handlePointerUp],
+  );
+
+  /** A lift, and the tool put back if it was a pen's eraser end that lifted. */
+  const handlePointerLift = useCallback(
+    (point: Point, screenPoint: Point) => {
+      handlePointerUp(point, screenPoint);
+      const back = eraserReturnRef.current;
+      if (!back) return;
+      eraserReturnRef.current = null;
+      actorRef.send({ type: 'SELECT_TOOL', tool: back });
+    },
+    [actorRef, handlePointerUp],
   );
 
   // Double-pressing a text shape (with any tool active) reopens it for editing;
@@ -3319,6 +3348,8 @@ export function Editor({ boardId }: EditorProps) {
    * moves, which also end a follow. The view from before is kept, so a hand
    * that turns out to have been settling in to write can be put back.
    */
+  /** The camera this instant, ahead of the render that will show it. */
+  const getLiveCamera = useCallback(() => actorRef.getSnapshot().context.camera, [actorRef]);
   const touchCameraRef = useRef<Camera | null>(null);
   const touchNavigation = useMemo<TouchNavigation>(
     () => ({
@@ -4336,10 +4367,12 @@ export function Editor({ boardId }: EditorProps) {
                   onDropLibraryItem={readOnly ? undefined : handleDropLibraryItem}
                   activeTool={activeTool}
                   camera={camera}
+                  getCamera={getLiveCamera}
                   isSpacePressed={isSpacePressed}
                   onPointerDown={handlePointerDown}
                   onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
+                  onPointerUp={handlePointerLift}
+                  longPressMenu={activeTool === 'select'}
                   onPointerAbandon={handlePointerAbandon}
                   onContextPress={handleContextPress}
                   onDoubleClick={handleDoubleClick}
