@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, type RefObject } from 'react';
 import type { Point } from '../machine/tool-machine.types';
 import { createTouchNavigator, TOUCH_TRAVEL_SLOP, type TouchNavigation } from './touch-navigation';
 
@@ -75,6 +75,18 @@ const isDirectDisplayPen = (e: PointerEvent) =>
  * move the board straight after writing still works.
  */
 const PEN_GRACE_MS = 400;
+
+/**
+ * The button a pen reports for its far end, on the pens that have one: turned
+ * over, it erases.
+ */
+export const PEN_ERASER_BUTTON = 5;
+
+/**
+ * How long a pen or a finger has to be held still for the press to open the
+ * board's menu, in milliseconds — the touch screen's right-click.
+ */
+const LONG_PRESS_MS = 500;
 
 /** The parts of a pointer event the double-press recogniser reads. */
 export interface PressSample {
@@ -233,6 +245,13 @@ interface UsePointerEventsOptions {
   penMode?: boolean;
   /** Fingers moving the board, and tapping for undo and redo. */
   touchNavigation?: TouchNavigation;
+  /**
+   * Whether a pen or a finger held still opens the context menu, as a right
+   * click does. Only where a press does nothing else when held — with a
+   * drawing tool, holding still is just the start of a stroke. Never for a
+   * finger in pen mode, where fingers don't reach the board's tools at all.
+   */
+  longPressMenu?: boolean;
   /** A pen pressed onto the screen itself, the cue to put pen mode on. */
   onPenDetected?: () => void;
   screenToWorld: (screenX: number, screenY: number) => Point;
@@ -252,6 +271,7 @@ export function usePointerEvents(
     penMode = false,
     onPenDetected,
     touchNavigation,
+    longPressMenu = false,
     screenToWorld,
     eventToCanvasScreen,
   }: UsePointerEventsOptions,
@@ -298,6 +318,20 @@ export function usePointerEvents(
   });
   const fingers = navigatorRef.current;
   /**
+   * The hold under way, if any. Its timer calls through a ref because the
+   * listeners below are set up again whenever the board re-renders, which a
+   * press itself makes happen; a timer tied to the first set would be cut off
+   * by the selection the press made.
+   */
+  const longPressRef = useRef<number | null>(null);
+  const openMenuRef = useRef<() => void>(() => {});
+  const cancelLongPress = useCallback(() => {
+    if (longPressRef.current === null) return;
+    window.clearTimeout(longPressRef.current);
+    longPressRef.current = null;
+  }, []);
+  useEffect(() => cancelLongPress, [cancelLongPress]);
+  /**
    * A pencil press near an open text field, held back from the board until it
    * shows what it is. If it travels it was writing, which the field takes as
    * typing, and the board never hears of it: answered as a press, it would
@@ -335,6 +369,10 @@ export function usePointerEvents(
       }
 
       doublePress.down(e);
+      cancelLongPress();
+      if (longPressMenu && e.button === 0 && e.pointerType !== 'mouse') {
+        longPressRef.current = window.setTimeout(() => openMenuRef.current(), LONG_PRESS_MS);
+      }
 
       const screen = eventToCanvasScreen(e);
       const world = screenToWorld(e.clientX, e.clientY);
@@ -342,8 +380,38 @@ export function usePointerEvents(
       onPointerDown(world, screen, e.button, e.shiftKey, snapOverrideHeld(e), e.pointerType);
     };
 
+    /**
+     * The hold came due: what a right-click does. The press is ended where it
+     * is, so the board is settled before the menu reads it — a held shape is
+     * selected, empty board clears the selection — and then the menu opens at
+     * that spot the way a right-click opens it.
+     */
+    openMenuRef.current = () => {
+      longPressRef.current = null;
+      const followed = followedRef.current;
+      if (!followed) return;
+      const { last, pointerId } = followed;
+      doublePress.cancel(last);
+      const { world, screen } = finishPress(last);
+      // Still down, and the menu's from here: captured, so its lift lands on
+      // the board to be ignored rather than on whichever row opened under it.
+      ignored.add(pointerId);
+      canvas.setPointerCapture(pointerId);
+      onContextPress?.(world, screen);
+      canvas.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: last.clientX,
+          clientY: last.clientY,
+          button: 2,
+        }),
+      );
+    };
+
     /** End the followed gesture where this event puts it. */
     const finishPress = (e: PointerEvent, abandoned = false) => {
+      cancelLongPress();
       followedRef.current = null;
       const captured = capturedPointerIdRef.current;
       if (captured !== null) {
@@ -367,7 +435,7 @@ export function usePointerEvents(
         onContextPress?.(screenToWorld(e.clientX, e.clientY), eventToCanvasScreen(e));
         return;
       }
-      if (e.button !== 0 && e.button !== 1) return;
+      if (e.button !== 0 && e.button !== 1 && e.button !== PEN_ERASER_BUTTON) return;
       e.preventDefault();
 
       if (e.pointerType === 'touch') {
@@ -412,8 +480,10 @@ export function usePointerEvents(
       if (followed) {
         if (e.pointerType !== 'pen' || followed.pointerType !== 'touch') {
           // Seen, so a second finger still keeps two from passing for a double
-          // tap, but the board stays with the pointer it has.
+          // tap, but the board stays with the pointer it has — and a hold
+          // with two down is no longer a hold.
           doublePress.down(e);
+          cancelLongPress();
           return;
         }
         // A pencil coming down on a touch gesture: the hand got there first,
@@ -462,6 +532,13 @@ export function usePointerEvents(
       doublePress.move(e);
       if (e.pointerId !== followed.pointerId) return;
       followed.last = e;
+      const { press } = followed;
+      if (
+        Math.hypot(e.clientX - press.clientX, e.clientY - press.clientY) >
+        tapDragSlopFor(e.pointerType)
+      ) {
+        cancelLongPress();
+      }
 
       const screen = eventToCanvasScreen(e);
       const last = lastScreenRef.current ?? screen;
@@ -562,6 +639,8 @@ export function usePointerEvents(
     onPointerHover,
     penMode,
     onPenDetected,
+    longPressMenu,
+    cancelLongPress,
     screenToWorld,
     eventToCanvasScreen,
   ]);

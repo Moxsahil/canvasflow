@@ -176,6 +176,12 @@ const PEN_GRACE = 500;
 
 const shapeCount = (page: Page) => page.getByLabel('Shapes', { exact: true });
 
+/** How long a press has to be held still to open the board's menu. */
+const HOLD = 500;
+
+/** The board's own context menu, for a selection or for the board. */
+const menu = (page: Page, name: 'Selection' | 'Canvas') => page.getByRole('menu', { name });
+
 test('a pen draws, fingers move the board, and a resting hand leaves it alone', async ({
   browser,
 }) => {
@@ -357,6 +363,57 @@ test('a pen draws, fingers move the board, and a resting hand leaves it alone', 
     await expect(shapeCount(page)).toHaveText('5');
   });
 
+  await test.step('with the select tool, a pen held still opens the menu for what is under it', async () => {
+    await pickTool('select');
+    await page.waitForTimeout(PEN_GRACE);
+    await pen(cdp, 'mousePressed', { x: 1000, y: 250 });
+    await expect(menu(page, 'Canvas')).toBeVisible({ timeout: HOLD + 1000 });
+    await pen(cdp, 'mouseReleased', { x: 1000, y: 250 });
+    // Its lift belongs to the menu, which stays up for a row to be picked.
+    await expect(menu(page, 'Canvas')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(menu(page, 'Canvas')).toBeHidden();
+
+    // Inside the first pen stroke's wave, around y = 300. Not the straight
+    // finger stroke: a shape is hit inside its bounds, and a dead-straight
+    // line has none to speak of once a pinch has left the zoom a hair off 1.
+    await pen(cdp, 'mousePressed', { x: 300, y: 300 });
+    await expect(menu(page, 'Selection')).toBeVisible({ timeout: HOLD + 1000 });
+    await pen(cdp, 'mouseReleased', { x: 300, y: 300 });
+    await page.keyboard.press('Escape');
+    await expect(menu(page, 'Selection')).toBeHidden();
+
+    // Left of where the pen came down as the board went back. Read through
+    // the camera it was going back from, the stroke would start out here.
+    await pen(cdp, 'mousePressed', { x: 150, y: 680 });
+    await expect(menu(page, 'Canvas')).toBeVisible({ timeout: HOLD + 1000 });
+    await pen(cdp, 'mouseReleased', { x: 150, y: 680 });
+    await page.keyboard.press('Escape');
+  });
+
+  await test.step('a hold that moves, a drawing tool, or a finger in pen mode opens no menu', async () => {
+    const anyMenu = page.getByRole('menu');
+    await pen(cdp, 'mousePressed', { x: 1000, y: 250 });
+    for (let x = 1005; x <= 1040; x += 5) await pen(cdp, 'mouseMoved', { x, y: 250 });
+    await page.waitForTimeout(HOLD + 300);
+    await expect(anyMenu).toHaveCount(0);
+    await pen(cdp, 'mouseReleased', { x: 1040, y: 250 });
+
+    await pickTool('freehand');
+    await pen(cdp, 'mousePressed', { x: 1000, y: 250 });
+    await page.waitForTimeout(HOLD + 300);
+    await expect(anyMenu).toHaveCount(0);
+    await pen(cdp, 'mouseReleased', { x: 1000, y: 250 });
+
+    await pickTool('select');
+    await page.waitForTimeout(PEN_GRACE);
+    await fingers(cdp, 'touchStart', [{ x: 1000, y: 250 }]);
+    await page.waitForTimeout(HOLD + 300);
+    await expect(anyMenu).toHaveCount(0);
+    await fingers(cdp, 'touchEnd', []);
+    await expect(shapeCount(page)).toHaveText('5');
+  });
+
   await test.step('turned off in Preferences, a finger draws again and the next pen leaves it off', async () => {
     await page.getByTestId('menu-preferences').click();
     const row = page.getByTestId('preference-penMode');
@@ -372,6 +429,17 @@ test('a pen draws, fingers move the board, and a resting hand leaves it alone', 
     await expect(shapeCount(page)).toHaveText('7');
     const stored = await page.evaluate(() => localStorage.getItem('cf:preferences'));
     expect(JSON.parse(stored!).penMode).toBe(false);
+  });
+
+  await test.step('with pen mode off, a finger held still opens the menu too', async () => {
+    await pickTool('select');
+    await page.waitForTimeout(PEN_GRACE);
+    await fingers(cdp, 'touchStart', [{ x: 1000, y: 250 }]);
+    await expect(menu(page, 'Canvas')).toBeVisible({ timeout: HOLD + 1000 });
+    await fingers(cdp, 'touchEnd', []);
+    await page.keyboard.press('Escape');
+    await expect(menu(page, 'Canvas')).toBeHidden();
+    await pickTool('freehand');
   });
 
   await test.step('with pen mode off, a second finger turns a stroke into a pinch', async () => {

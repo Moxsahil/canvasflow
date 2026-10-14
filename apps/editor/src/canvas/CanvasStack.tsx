@@ -33,6 +33,14 @@ interface CanvasStackProps {
   marquee: { x: number; y: number; width: number; height: number } | null;
   activeTool: Tool;
   camera: Camera;
+  /**
+   * The camera as it is this instant, which `camera` only catches up with on
+   * the next render. Pointer positions are read through it: a press can move
+   * the camera — a pen landing on fingers that were moving the board puts it
+   * back — and the points that follow in the same frame belong to the view
+   * that is about to be drawn, not the one before.
+   */
+  getCamera?: () => Camera;
   isSpacePressed: boolean;
   /** Painted behind the (transparent) canvases — see canvasBackgroundFor. */
   backgroundColor: string;
@@ -73,6 +81,8 @@ interface CanvasStackProps {
   penMode?: boolean;
   onPenDetected?: () => void;
   touchNavigation?: TouchNavigation;
+  /** A pen or finger held still opens the context menu; see `usePointerEvents`. */
+  longPressMenu?: boolean;
   onPointerDown: (
     point: Point,
     screenPoint: Point,
@@ -109,6 +119,7 @@ export function CanvasStack({
   marquee,
   activeTool,
   camera,
+  getCamera,
   isSpacePressed,
   backgroundColor,
   showGrid,
@@ -129,6 +140,7 @@ export function CanvasStack({
   penMode,
   onPenDetected,
   touchNavigation,
+  longPressMenu,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -191,9 +203,9 @@ export function CanvasStack({
     (screenX: number, screenY: number) => {
       const canvas = interactiveCanvasRef.current;
       if (!canvas) return { x: 0, y: 0 };
-      return screenToWorld(screenX, screenY, canvas, camera);
+      return screenToWorld(screenX, screenY, canvas, getCamera?.() ?? camera);
     },
-    [camera],
+    [camera, getCamera],
   );
 
   const eventToCanvasScreenFn = useCallback((event: PointerEvent | WheelEvent) => {
@@ -213,6 +225,7 @@ export function CanvasStack({
     penMode,
     onPenDetected,
     touchNavigation,
+    longPressMenu,
     screenToWorld: screenToWorldFn,
     eventToCanvasScreen: eventToCanvasScreenFn,
   });
