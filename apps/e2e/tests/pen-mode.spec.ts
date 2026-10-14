@@ -277,17 +277,9 @@ test('a pen draws, fingers move the board, and a resting hand leaves it alone', 
     await expect(shapeCount(page)).toHaveText('3');
   });
 
-  await test.step('a palm-sized touch, a still one, and one just after the pen leave the board where it is', async () => {
+  await test.step('a still touch, and one just after the pen, leave the board where it is', async () => {
     await page.waitForTimeout(PEN_GRACE);
     const before = await camera(page);
-    const side = (type: TouchAction, x?: number) =>
-      cdp.send('Input.dispatchTouchEvent', {
-        type,
-        touchPoints: x === undefined ? [] : [{ x, y: 450, id: PALM, radiusX: 50, radiusY: 50 }],
-      });
-    await side('touchStart', 300);
-    for (let x = 320; x <= 500; x += 20) await side('touchMove', x);
-    await side('touchEnd');
     await drag(cdp, [{ x: 300, y: 450 }], [{ x: 305, y: 452 }]);
     await penStroke(cdp, 520);
     await drag(cdp, [{ x: 300, y: 450 }], [{ x: 500, y: 450 }]);
@@ -324,6 +316,38 @@ test('a pen draws, fingers move the board, and a resting hand leaves it alone', 
     await drag(cdp, far, near);
     await expect.poll(async () => (await camera(page)).zoom).toBeCloseTo(before.zoom, 2);
     expect((await camera(page)).x).toBeCloseTo(before.x, 0);
+  });
+
+  await test.step('a thumb laid flat pinches like any finger', async () => {
+    const before = await camera(page);
+    // As wide as the side of a hand, which is why size can't tell them apart.
+    const pinch = (type: TouchAction, spread: number) =>
+      cdp.send('Input.dispatchTouchEvent', {
+        type,
+        touchPoints:
+          type === 'touchEnd'
+            ? []
+            : [
+                { x: 640 - spread, y: 400, id: 20, radiusX: 50, radiusY: 50 },
+                { x: 640 + spread, y: 400, id: 21 },
+              ],
+      });
+    await pinch('touchStart', 50);
+    for (let spread = 55; spread <= 100; spread += 5) await pinch('touchMove', spread);
+    await pinch('touchEnd', 0);
+    await expect.poll(async () => (await camera(page)).zoom).toBeCloseTo(before.zoom * 2, 1);
+    await drag(
+      cdp,
+      [
+        { x: 540, y: 400 },
+        { x: 740, y: 400 },
+      ],
+      [
+        { x: 590, y: 400 },
+        { x: 690, y: 400 },
+      ],
+    );
+    await expect.poll(async () => (await camera(page)).zoom).toBeCloseTo(before.zoom, 2);
   });
 
   await test.step('a quick two-finger tap is undo, and three is redo', async () => {

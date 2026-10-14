@@ -76,15 +76,6 @@ const isDirectDisplayPen = (e: PointerEvent) =>
  */
 const PEN_GRACE_MS = 400;
 
-/**
- * A contact this wide or tall, in CSS pixels, is the side of a hand rather
- * than a fingertip. Only where the browser reports the size — elsewhere every
- * contact measures 1.
- */
-const PALM_CONTACT_PX = 80;
-
-const isPalmSized = (e: PointerEvent) => Math.max(e.width, e.height) >= PALM_CONTACT_PX;
-
 /** The parts of a pointer event the double-press recogniser reads. */
 export interface PressSample {
   pointerId: number;
@@ -282,8 +273,9 @@ export function usePointerEvents(
   } | null>(null);
   const capturedPointerIdRef = useRef<number | null>(null);
   /**
-   * Pointers the board is ignoring until they lift: a hand, by its size or by
-   * landing while the pencil is in use, and touches a pencil took over from.
+   * Pointers the board is ignoring until they lift: a hand landing while the
+   * pencil is in use, and touches a pencil took over from. Not told apart by
+   * size: a thumb laid flat to pinch is as wide as the side of a hand.
    */
   const ignoredRef = useRef(new Set<number>());
   /** When the pencil was last down on, or hovering over, the screen. */
@@ -383,7 +375,7 @@ export function usePointerEvents(
         // here wherever the hand has drifted to by then.
         canvas.setPointerCapture(e.pointerId);
         const pen = followedRef.current?.pointerType === 'pen' || heldPenRef.current !== null;
-        if (isPalmSized(e) || pen || e.timeStamp - lastPenAtRef.current < PEN_GRACE_MS) {
+        if (pen || e.timeStamp - lastPenAtRef.current < PEN_GRACE_MS) {
           ignored.add(e.pointerId);
           return;
         }
