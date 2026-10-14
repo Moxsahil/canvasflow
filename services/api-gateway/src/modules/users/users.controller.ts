@@ -1,5 +1,5 @@
 import { Controller, Get, NotFoundException, UseGuards } from '@nestjs/common';
-import { getProfile } from '@canvasflow/db';
+import { getProfile, storageUsage, type StorageUsage } from '@canvasflow/db';
 import { DatabaseService } from '../../infra/database/database.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { type AuthenticatedUser, JwtAuthGuard } from '../auth/jwt.guard.js';
@@ -42,6 +42,16 @@ export class UsersController {
         isGuest: profile.isGuest,
       },
     };
+  }
+
+  /**
+   * What the boards this account owns take up, in every workspace. Read fresh
+   * on every call: the Data & Privacy pane asks each time it opens, so the
+   * number follows boards being drawn on, added and deleted.
+   */
+  @Get('storage')
+  async storage(@CurrentUser() user: AuthenticatedUser): Promise<{ data: StorageUsage }> {
+    return { data: await storageUsage(this.database.db, user.id) };
   }
 }
 

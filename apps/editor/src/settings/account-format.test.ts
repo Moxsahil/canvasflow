@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   formatDay,
   formatRelative,
+  formatStorageSize,
   passwordHint,
   sessionsHint,
   signInMethodsHint,
+  storageHint,
 } from './account-format';
 import type { AccountSecurity } from './account-security-api';
 
@@ -75,5 +77,28 @@ describe('sessionsHint', () => {
   it('counts devices', () => {
     expect(sessionsHint(1)).toBe('1 device signed in right now');
     expect(sessionsHint(3)).toBe('3 devices signed in right now');
+  });
+});
+
+describe('formatStorageSize', () => {
+  it('reads in KB below a megabyte, never rounding something down to nothing', () => {
+    expect(formatStorageSize(0)).toBe('0 KB');
+    expect(formatStorageSize(200)).toBe('1 KB');
+    expect(formatStorageSize(740 * 1024)).toBe('740 KB');
+  });
+
+  it('keeps one decimal below 10 MB, whole megabytes above, then GB', () => {
+    expect(formatStorageSize(3.24 * 1024 * 1024)).toBe('3.2 MB');
+    expect(formatStorageSize(48.4 * 1024 * 1024)).toBe('48 MB');
+    expect(formatStorageSize(1.4 * 1024 * 1024 * 1024)).toBe('1.4 GB');
+  });
+});
+
+describe('storageHint', () => {
+  it('names the boards, and the images only when there are some', () => {
+    expect(storageHint({ boards: 0, images: 0 })).toBe('You don’t own any boards yet');
+    expect(storageHint({ boards: 1, images: 0 })).toBe('Across 1 board you own');
+    expect(storageHint({ boards: 5, images: 1 })).toBe('Across 5 boards you own · 1 image');
+    expect(storageHint({ boards: 5, images: 12 })).toBe('Across 5 boards you own · 12 images');
   });
 });

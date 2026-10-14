@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { ACCOUNT_DELETION_GRACE_DAYS, TERMS_VERSION } from '@canvasflow/types';
 import { formatTermsVersion, privacyUrl, termsUrl } from '@/lib/legal-links';
 import type { Profile } from '../profile';
+import { formatStorageSize, storageHint } from './account-format';
 import {
   fetchDeletionPreview,
   type DeletionInput,
   type DeletionPreview,
 } from './account-deletion-api';
 import { DeleteAccountDialog } from './DeleteAccountDialog';
+import { fetchStorageUsage, type StorageUsage } from './storage-api';
 import {
   Band,
   ExternalLinkButton,
@@ -51,6 +53,7 @@ export function PrivacyPane({
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewAttempt, setPreviewAttempt] = useState(0);
   const canDelete = !isGuest && deleteAccount !== undefined;
+  const storage = useStorageUsage(token);
 
   // Fetched as the pane opens rather than when the button is pressed, so the
   // Delete account dialog opens straight onto the fields it needs. A failed
@@ -116,9 +119,15 @@ export function PrivacyPane({
         <SettingRow
           setting="storage-used"
           title="Storage used"
-          hint="Across 3 boards in this workspace"
+          hint={storage.usage ? storageHint(storage.usage) : 'Boards you own, in every workspace'}
         >
-          <ValueText>48 MB</ValueText>
+          <ValueText>
+            {storage.usage
+              ? formatStorageSize(storage.usage.totalBytes)
+              : storage.failed
+                ? 'Unavailable'
+                : '—'}
+          </ValueText>
         </SettingRow>
         <SettingRow
           setting="analytics"
@@ -167,4 +176,39 @@ export function PrivacyPane({
       )}
     </SettingsPage>
   );
+}
+
+/**
+ * The Storage used reading, fetched as the pane opens and again whenever the
+ * window comes back into focus — a board drawn on in another tab, or an image
+ * added there, shows up without reopening Settings. A failed refresh keeps the
+ * reading already held rather than blanking it.
+ */
+function useStorageUsage(token: string | null): { usage: StorageUsage | null; failed: boolean } {
+  const [usage, setUsage] = useState<StorageUsage | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      fetchStorageUsage(token).then(
+        (loaded) => {
+          if (cancelled) return;
+          setUsage(loaded);
+          setFailed(false);
+        },
+        () => {
+          if (!cancelled) setFailed(true);
+        },
+      );
+    };
+    load();
+    window.addEventListener('focus', load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', load);
+    };
+  }, [token]);
+
+  return { usage, failed };
 }
