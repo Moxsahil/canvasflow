@@ -15,6 +15,7 @@ import { useDevicePixelRatio } from './hooks/useDevicePixelRatio';
 import { useStaticRender } from './hooks/useStaticRender';
 import { useNewElementRender } from './hooks/useNewElementRender';
 import { useInteractiveRender } from './hooks/useInteractiveRender';
+import type { TouchNavigation } from '../pointer/touch-navigation';
 import { usePointerEvents } from '../pointer/usePointerEvents';
 import { useWheelEvents } from '../pointer/useWheelEvents';
 import { screenToWorld, eventToCanvasScreen } from '../pointer/coords';
@@ -68,9 +69,10 @@ interface CanvasStackProps {
   subscribePeers?: (listener: () => void) => () => void;
   /** Pointer position in world space, for publishing to collaborators. */
   onPointerHover?: (point: Point | null) => void;
-  /** Touches leave the board alone; see `usePointerEvents`. */
+  /** Touches leave the board's tools alone; see `usePointerEvents`. */
   penMode?: boolean;
   onPenDetected?: () => void;
+  touchNavigation?: TouchNavigation;
   onPointerDown: (
     point: Point,
     screenPoint: Point,
@@ -126,6 +128,7 @@ export function CanvasStack({
   onPointerHover,
   penMode,
   onPenDetected,
+  touchNavigation,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -209,6 +212,7 @@ export function CanvasStack({
     onPointerHover,
     penMode,
     onPenDetected,
+    touchNavigation,
     screenToWorld: screenToWorldFn,
     eventToCanvasScreen: eventToCanvasScreenFn,
   });

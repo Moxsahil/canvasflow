@@ -104,6 +104,7 @@ import {
   type LibraryEntry,
 } from './library';
 import { screenToWorld } from './pointer/coords';
+import type { TouchNavigation } from './pointer/touch-navigation';
 import { useBoardItemTouchGuard } from './pointer/useBoardItemTouchGuard';
 import { useLastPointerPosition } from './pointer/useLastPointerPosition';
 import { CanvasStack } from './canvas/CanvasStack';
@@ -3314,6 +3315,33 @@ export function Editor({ boardId }: EditorProps) {
   }, [actorRef, doc]);
 
   /**
+   * Fingers moving the board. Pan and zoom go through the wheel's own camera
+   * moves, which also end a follow. The view from before is kept, so a hand
+   * that turns out to have been settling in to write can be put back.
+   */
+  const touchCameraRef = useRef<Camera | null>(null);
+  const touchNavigation = useMemo<TouchNavigation>(
+    () => ({
+      begin: () => {
+        touchCameraRef.current = actorRef.getSnapshot().context.camera;
+      },
+      pan: handleWheelPan,
+      zoom: handleWheelZoom,
+      end: () => {
+        touchCameraRef.current = null;
+      },
+      cancel: () => {
+        const before = touchCameraRef.current;
+        touchCameraRef.current = null;
+        if (before) actorRef.send({ type: 'SET_CAMERA', camera: before });
+      },
+      undo: handleUndo,
+      redo: handleRedo,
+    }),
+    [actorRef, handleWheelPan, handleWheelZoom, handleUndo, handleRedo],
+  );
+
+  /**
    * Empty the board and put the view back where a new one starts.
    *
    * One `replaceShapes` transaction, so it lands as a single undo step that
@@ -4331,6 +4359,7 @@ export function Editor({ boardId }: EditorProps) {
                   onPointerHover={handlePointerHover}
                   penMode={preferences.values.penMode}
                   onPenDetected={handlePenDetected}
+                  touchNavigation={touchNavigation}
                 />
               </div>
             </CanvasContextMenu>
