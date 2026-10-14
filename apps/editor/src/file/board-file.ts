@@ -1,10 +1,14 @@
-import type { Shape } from '@canvasflow/canvas-engine';
+import { isImage, isSupportedImageMimeType, type Shape } from '@canvasflow/canvas-engine';
 import { excalidrawElementsToShapes } from '../clipboard/excalidraw-adapter';
 import { sanitizeShapes } from './shape-sanitizer';
 import { extractSceneFromPng, extractSceneFromSvg } from './scene-metadata';
 
 export const BOARD_FILE_TYPE = 'canvasflow/board';
-export const BOARD_FILE_VERSION = 1;
+/**
+ * 2 added `files`: the images on the board, carried inside the file so it
+ * opens whole on any board. Version 1 files read the same, without pictures.
+ */
+export const BOARD_FILE_VERSION = 2;
 export const BOARD_FILE_EXTENSION = '.canvasflow';
 
 /**
@@ -17,12 +21,41 @@ export interface BoardFile {
   version: number;
   source?: string;
   shapes: unknown[];
+  /** The bytes behind the board's image shapes, by file id. */
+  files?: Record<string, EmbeddedFile>;
+}
+
+/** One image's bytes, as a `data:` URL so the file stays plain JSON. */
+export interface EmbeddedFile {
+  mimeType: string;
+  dataURL: string;
 }
 
 export interface ParsedBoardFile {
   shapes: Shape[];
   skipped: number;
   format: 'canvasflow' | 'excalidraw';
+  /**
+   * The images the file brought, by the file id its shapes name. Checked for
+   * form only: the bytes are decoded and hashed before anything uploads them.
+   */
+  files: ReadonlyMap<string, EmbeddedFile>;
+}
+
+const FILE_ID = /^[0-9a-f]{64}$/;
+
+/** The `files` a board file carries, keeping only entries that could be an image. */
+function readEmbeddedFiles(value: unknown): Map<string, EmbeddedFile> {
+  const files = new Map<string, EmbeddedFile>();
+  if (!isRecord(value)) return files;
+  for (const [fileId, entry] of Object.entries(value)) {
+    if (!FILE_ID.test(fileId) || !isRecord(entry)) continue;
+    const { mimeType, dataURL } = entry;
+    if (typeof mimeType !== 'string' || !isSupportedImageMimeType(mimeType)) continue;
+    if (typeof dataURL !== 'string' || !dataURL.startsWith(`data:${mimeType};base64,`)) continue;
+    files.set(fileId, { mimeType, dataURL });
+  }
+  return files;
 }
 
 export class BoardFileError extends Error {}
@@ -69,11 +102,14 @@ export function parseBoardFile(text: string, genId: () => string): ParsedBoardFi
       if (!Array.isArray(data.shapes)) {
         throw new BoardFileError('That board file has no shapes in it.');
       }
-      const { shapes, skipped } = sanitizeShapes(data.shapes, genId);
+      const files = readEmbeddedFiles(data.files);
+      const { shapes, skipped } = sanitizeShapes(data.shapes, genId, {
+        imageFileIds: new Set(files.keys()),
+      });
       // A `canvasBackground` written by an older build is ignored rather than
       // rejected: the canvas ground follows the app theme now, so the field
       // has nothing left to set.
-      return { shapes, skipped, format: 'canvasflow' };
+      return { shapes, skipped, format: 'canvasflow', files };
     }
 
     case 'excalidraw':
@@ -87,6 +123,7 @@ export function parseBoardFile(text: string, genId: () => string): ParsedBoardFi
         shapes,
         skipped: data.elements.length - shapes.length,
         format: 'excalidraw',
+        files: new Map(),
       };
     }
 
@@ -109,12 +146,27 @@ export function parseImageFile(
   return parseBoardFile(embedded, genId);
 }
 
-export function serializeBoardFile(shapes: readonly Shape[]): string {
+/**
+ * The board as a file. `images` holds `data:` URLs by file id; any the board's
+ * image shapes name go inside the file, and the rest are left out. An image
+ * with no bytes to hand is written without them, and opens as skipped.
+ */
+export function serializeBoardFile(
+  shapes: readonly Shape[],
+  images: ReadonlyMap<string, string> = new Map(),
+): string {
+  const files: Record<string, EmbeddedFile> = {};
+  for (const shape of shapes) {
+    if (!isImage(shape) || shape.fileId in files) continue;
+    const dataURL = images.get(shape.fileId);
+    if (dataURL) files[shape.fileId] = { mimeType: shape.mimeType, dataURL };
+  }
   const file: BoardFile = {
     type: BOARD_FILE_TYPE,
     version: BOARD_FILE_VERSION,
     source: 'canvasflow',
     shapes: shapes as unknown[],
+    ...(Object.keys(files).length > 0 && { files }),
   };
   return JSON.stringify(file);
 }

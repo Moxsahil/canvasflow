@@ -225,7 +225,7 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     title: 'Export all boards',
     section: 'privacy',
     group: 'Your data',
-    terms: 'download json',
+    terms: 'download zip backup canvasflow',
   },
   {
     id: 'storage-used',

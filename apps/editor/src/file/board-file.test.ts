@@ -200,3 +200,70 @@ describe('parseBoardFile — Excalidraw files', () => {
     expect(skipped).toBe(1);
   });
 });
+
+describe('board files with images inside', () => {
+  // A one-pixel PNG, and the SHA-256 of its bytes.
+  const PIXEL =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const FILE_ID = 'f'.repeat(64);
+  const image = {
+    kind: 'image',
+    id: 'img',
+    x: 0,
+    y: 0,
+    width: 40,
+    height: 40,
+    fileId: FILE_ID,
+    mimeType: 'image/png',
+    naturalWidth: 1,
+    naturalHeight: 1,
+    status: 'saved',
+  };
+
+  it('writes the images its shapes show, and no others', () => {
+    const shapes = parseBoardFile(
+      boardFile([image], { files: { [FILE_ID]: { mimeType: 'image/png', dataURL: PIXEL } } }),
+      genId,
+    ).shapes;
+    const written = JSON.parse(
+      serializeBoardFile(
+        shapes,
+        new Map([
+          [FILE_ID, PIXEL],
+          ['e'.repeat(64), PIXEL],
+        ]),
+      ),
+    ) as { version: number; files: Record<string, unknown> };
+    expect(written.version).toBe(2);
+    expect(Object.keys(written.files)).toEqual([FILE_ID]);
+  });
+
+  it('leaves `files` out when there are no images to carry', () => {
+    expect(JSON.parse(serializeBoardFile([]))).not.toHaveProperty('files');
+  });
+
+  it('opens an image whose bytes came along, as not yet uploaded', () => {
+    const parsed = parseBoardFile(
+      boardFile([image], { files: { [FILE_ID]: { mimeType: 'image/png', dataURL: PIXEL } } }),
+      genId,
+    );
+    expect(parsed.skipped).toBe(0);
+    expect(parsed.shapes[0]).toMatchObject({ kind: 'image', fileId: FILE_ID, status: 'pending' });
+    expect([...parsed.files.keys()]).toEqual([FILE_ID]);
+  });
+
+  it('skips an image whose bytes are missing or not an image', () => {
+    const missing = parseBoardFile(boardFile([image]), genId);
+    expect(missing.shapes).toHaveLength(0);
+    expect(missing.skipped).toBe(1);
+
+    const wrongType = parseBoardFile(
+      boardFile([image], {
+        files: { [FILE_ID]: { mimeType: 'text/html', dataURL: 'data:text/html;base64,PGI+' } },
+      }),
+      genId,
+    );
+    expect(wrongType.shapes).toHaveLength(0);
+    expect(wrongType.files.size).toBe(0);
+  });
+});

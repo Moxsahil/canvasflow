@@ -1308,6 +1308,12 @@ export function Editor({ boardId }: EditorProps) {
     onError: showImageNotice,
   });
 
+  /** This board as Export all boards reads it: live, not as last saved. */
+  const exportOpenBoard = useMemo(
+    () => ({ id: boardId, shapes: () => doc.getShapes() }),
+    [boardId, doc],
+  );
+
   /** World-space centre of the viewport — where a picked image lands. */
   const viewportCentre = useCallback(
     () => ({
@@ -3315,6 +3321,7 @@ export function Editor({ boardId }: EditorProps) {
     shapeCount: shapes.length,
     genId,
     onLoaded: handleBoardFileLoaded,
+    adoptImages: images.adoptImages,
     fileHandleRef,
     onNotice: showOpenNotice,
   });
@@ -3323,6 +3330,7 @@ export function Editor({ boardId }: EditorProps) {
     shapes,
     boardName: boardTitle,
     fileHandleRef,
+    resolveDataUrls: images.resolveDataUrls,
     onNotice: showSaveNotice,
   });
 
@@ -4804,6 +4812,7 @@ export function Editor({ boardId }: EditorProps) {
                   workspace={settingsWorkspace}
                   renameWorkspace={renameWorkspaceFromSettings}
                   showWorkspace={boardSwitcher.browseWorkspace}
+                  openBoard={exportOpenBoard}
                   onClose={hideSettings}
                 />
               )}

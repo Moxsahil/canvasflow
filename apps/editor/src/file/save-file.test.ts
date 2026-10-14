@@ -56,6 +56,30 @@ describe('saveBoardFile', () => {
     expect(showSaveFilePicker).not.toHaveBeenCalled();
   });
 
+  it('opens the picker before making slow contents, then writes them', async () => {
+    // The picker needs the click to still count, so a board whose images are
+    // still being fetched is built only once there is somewhere to put it.
+    const picked = fakeHandle('chosen.canvasflow');
+    const order: string[] = [];
+    vi.stubGlobal('window', {
+      showSaveFilePicker: vi.fn(async () => {
+        order.push('picker');
+        return picked;
+      }),
+    });
+
+    await saveBoardFile({
+      boardName: 'board',
+      text: async () => {
+        order.push('contents');
+        return 'built';
+      },
+    });
+
+    expect(order).toEqual(['picker', 'contents']);
+    expect(picked.written).toEqual(['built']);
+  });
+
   it('falls back to the picker when the handle cannot be written', async () => {
     // A handle carried over from opening a file grants read only; declining
     // the write prompt has to become "choose where to save", not a dead end.

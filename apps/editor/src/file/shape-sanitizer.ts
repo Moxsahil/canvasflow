@@ -1,4 +1,10 @@
-import { frameForShape, framesIn, sanitizeShape, type Shape } from '@canvasflow/canvas-engine';
+import {
+  frameForShape,
+  framesIn,
+  sanitizeShape,
+  type SanitizeOptions,
+  type Shape,
+} from '@canvasflow/canvas-engine';
 
 /**
  * Rebuilding a whole board's worth of shapes from a file.
@@ -19,11 +25,12 @@ export interface SanitizeResult {
 export function sanitizeShapes(
   candidates: readonly unknown[],
   genId: () => string,
+  options?: SanitizeOptions,
 ): SanitizeResult {
   const shapes: Shape[] = [];
   let skipped = 0;
   for (const candidate of candidates) {
-    const shape = sanitizeShape(candidate, genId);
+    const shape = sanitizeShape(candidate, genId, options);
     if (shape) {
       shapes.push(shape);
     } else {

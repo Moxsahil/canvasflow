@@ -9,6 +9,8 @@ import {
   type DeletionPreview,
 } from './account-deletion-api';
 import { DeleteAccountDialog } from './DeleteAccountDialog';
+import { downloadFile } from '../file/save-file';
+import { exportAllBoards, exportSummary, type OpenBoard } from './export-boards';
 import { fetchStorageUsage, type StorageUsage } from './storage-api';
 import {
   Band,
@@ -29,6 +31,7 @@ export function PrivacyPane({
   isGuest = false,
   startDeleting = false,
   deleteAccount,
+  openBoard = null,
 }: {
   /** The signed-in account, when there is one. It says which terms were agreed to. */
   profile?: Profile | null;
@@ -46,6 +49,8 @@ export function PrivacyPane({
   startDeleting?: boolean;
   /** Ask for the account to be deleted, and leave once it is. The editor owns both. */
   deleteAccount?: (input: DeletionInput) => Promise<void>;
+  /** The board on screen, exported as it is now rather than as last saved. */
+  openBoard?: OpenBoard | null;
 }) {
   const [analytics, setAnalytics] = useState(true);
   const [deleting, setDeleting] = useState(startDeleting && !isGuest);
@@ -54,6 +59,7 @@ export function PrivacyPane({
   const [previewAttempt, setPreviewAttempt] = useState(0);
   const canDelete = !isGuest && deleteAccount !== undefined;
   const storage = useStorageUsage(token);
+  const exporter = useBoardsExport(token, openBoard);
 
   // Fetched as the pane opens rather than when the button is pressed, so the
   // Delete account dialog opens straight onto the fields it needs. A failed
@@ -112,9 +118,17 @@ export function PrivacyPane({
         <SettingRow
           setting="export"
           title="Export all boards"
-          hint="Download every board as .canvasflow JSON"
+          hint={
+            exporter.hint ?? 'Every board you own, with its images, and your library, as a .zip'
+          }
         >
-          <SettingsButton>Export</SettingsButton>
+          <SettingsButton onClick={exporter.start} disabled={!token || exporter.progress !== null}>
+            {!exporter.progress
+              ? 'Export'
+              : exporter.progress.total > 0
+                ? `Exporting ${exporter.progress.done} of ${exporter.progress.total}…`
+                : 'Exporting…'}
+          </SettingsButton>
         </SettingRow>
         <SettingRow
           setting="storage-used"
@@ -211,4 +225,48 @@ function useStorageUsage(token: string | null): { usage: StorageUsage | null; fa
   }, [token]);
 
   return { usage, failed };
+}
+
+/**
+ * Export all boards, run from the pane. The button counts the boards off as
+ * they are packed, and the row's line then says what the download holds, or
+ * why there is none. Leaving the pane mid-export lets it finish and download.
+ */
+function useBoardsExport(
+  token: string | null,
+  openBoard: OpenBoard | null,
+): {
+  start: () => void;
+  progress: { done: number; total: number } | null;
+  hint: string | null;
+} {
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
+
+  const start = () => {
+    if (!token || progress) return;
+    setHint(null);
+    setProgress({ done: 0, total: 0 });
+    exportAllBoards({
+      token,
+      openBoard,
+      onProgress: (done, total) => setProgress({ done, total }),
+    })
+      .then((result) => {
+        if (!result) {
+          setHint('You don’t own any boards yet, so there is nothing to export');
+          return;
+        }
+        // A plain download rather than the save picker: by now the click that
+        // asked for this is too long ago for the picker to open.
+        downloadFile(result.fileName, result.blob, 'application/zip');
+        setHint(exportSummary(result));
+      })
+      .catch((caught: unknown) => {
+        setHint(caught instanceof Error ? caught.message : 'The export failed. Try again.');
+      })
+      .finally(() => setProgress(null));
+  };
+
+  return { start, progress, hint };
 }
