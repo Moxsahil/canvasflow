@@ -28,7 +28,7 @@ export function HeroSection() {
     <>
       <IntroAnimation onDone={handleIntroDone} />
 
-      <section className="relative h-screen overflow-hidden">
+      <section className="relative h-screen min-h-[660px] overflow-hidden">
         {/* Video background — zooms in once intro is done.
             The recording still has the editor around it. Everything but one
             piece sits in the top 7% of the frame, which any zoom past 1.15
@@ -125,7 +125,7 @@ export function HeroSection() {
         {/* Title — anchored to bottom left */}
         <div className="absolute inset-x-0 bottom-0 z-30 flex flex-col px-6 md:px-12 pb-12 max-w-3xl">
           <h1
-            className="text-6xl sm:text-7xl md:text-8xl font-light text-[#111] leading-[1.0] tracking-tight mb-10"
+            className="text-6xl sm:text-7xl md:text-8xl font-light text-[#111] leading-[1.0] tracking-tight mb-5"
             style={{
               fontFamily: 'var(--font-ibm-plex-sans), sans-serif',
               opacity: heroReady ? 1 : 0,
@@ -143,6 +143,10 @@ export function HeroSection() {
             <br />
             trust.
           </h1>
+          <p className="max-w-lg text-base md:text-lg text-black/65 leading-relaxed">
+            CanvasFlow is an online whiteboard for brainstorming, drawing diagrams and working
+            together in real time. One infinite canvas for your team’s next idea.
+          </p>
         </div>
       </section>
     </>

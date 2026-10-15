@@ -11,6 +11,8 @@ const PUBLIC_PATHS = [
   // Crawlers fetch these without a session to discover the public site.
   '/sitemap.xml',
   '/robots.txt',
+  '/opengraph-image',
+  '/guides/online-whiteboard',
   '/login',
   '/logout',
   '/signup',

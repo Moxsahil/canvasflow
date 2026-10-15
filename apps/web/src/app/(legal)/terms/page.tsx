@@ -1,12 +1,13 @@
-import type { Metadata } from 'next';
+import { publicPageMetadata } from '@/lib/seo';
 import { TERMS_VERSION } from '@canvasflow/types';
 import { LegalDocument, type LegalSection } from '@/components/legal/legal-document';
 import { CONTACT, MINIMUM_AGE, OPERATOR } from '@/lib/legal';
 
-export const metadata: Metadata = {
-  title: 'Terms of Service — CanvasFlow',
-  description: 'The rules for using CanvasFlow, in plain language.',
-};
+export const metadata = publicPageMetadata(
+  'Terms of Service — CanvasFlow',
+  'The rules for using CanvasFlow, in plain language.',
+  '/terms',
+);
 
 // "Last updated" is TERMS_VERSION, the version every agreement is recorded
 // against. Whenever the text below changes, move it — in @canvasflow/types.

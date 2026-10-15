@@ -5,9 +5,9 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: '*',
       allow: '/',
-      // These endpoints serve application data or token-bearing share links.
-      // Crawling rules do not replace authentication or control indexing.
-      disallow: ['/api/', '/invite/'],
+      // Invite and account pages must be crawlable to expose their noindex
+      // metadata. Authentication, not robots.txt, protects application data.
+      disallow: ['/api/'],
     },
     sitemap: 'https://canvasflowapp.com/sitemap.xml',
   };
