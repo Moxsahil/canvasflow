@@ -97,6 +97,7 @@ export const config = {
   // The public/ assets are the home page's own images, video and icons, served
   // to people who are not signed in — that is who the page is for. Without them
   // here the matcher redirects every one of them to /login and the page renders
-  // with nothing in it.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|images/|videos/).*)'],
+  // with nothing in it. brand/ holds the logo and the link-preview image, which
+  // the crawlers that read them never sign in to fetch.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|images/|videos/|brand/).*)'],
 };
