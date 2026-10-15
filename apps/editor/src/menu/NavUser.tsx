@@ -22,10 +22,9 @@ import {
 import { SidebarMenuItem } from '@/components/ui/sidebar';
 import { ariaKeyShortcut } from '../help/platform';
 import { env } from '../lib/env';
+import { isTestLocale, listedLanguages, useI18n } from '../i18n';
 import {
   liveAction,
-  CURRENT_LANGUAGE,
-  LANGUAGES,
   LEARN_MORE_GROUPS,
   MENU_ITEMS,
   type LearnMoreItem,
@@ -104,31 +103,7 @@ export function NavUser({ user, actions, portalContainer }: NavUserProps) {
 
           {/* Both open beside the menu, out over the canvas: up the rail there
               is only the menu itself, and below it nothing at all. */}
-          <InlineDropdownMenuSub>
-            <InlineDropdownMenuSubTrigger data-testid="menu-item-language">
-              Language
-            </InlineDropdownMenuSubTrigger>
-            <InlineDropdownMenuSubContent container={portalContainer} collisionPadding={8}>
-              {LANGUAGES.map((language) => {
-                const current = language.code === CURRENT_LANGUAGE;
-                return (
-                  <InlineDropdownMenuItem
-                    key={language.code}
-                    // Nothing to switch to until the app is translated, and
-                    // choosing the language already on is no choice at all.
-                    disabled
-                    lang={language.code}
-                    icon={current ? <Check aria-hidden="true" /> : undefined}
-                    badge={current ? null : <Soon />}
-                    data-testid={`menu-language-${language.code}`}
-                  >
-                    {language.label}
-                    {current && <span className="sr-only"> (current language)</span>}
-                  </InlineDropdownMenuItem>
-                );
-              })}
-            </InlineDropdownMenuSubContent>
-          </InlineDropdownMenuSub>
+          <LanguageSub portalContainer={portalContainer} />
 
           <InlineDropdownMenuSub>
             <InlineDropdownMenuSubTrigger data-testid="menu-item-learnMore">
@@ -151,6 +126,43 @@ export function NavUser({ user, actions, portalContainer }: NavUserProps) {
         </InlineDropdownMenuContent>
       </InlineDropdownMenu>
     </SidebarMenuItem>
+  );
+}
+
+/**
+ * Every language the app is meant to come in. Those with words to show can be
+ * switched to; the rest read "Soon" until they are translated.
+ */
+function LanguageSub({ portalContainer }: { portalContainer: HTMLElement | null }) {
+  const { locale, available, setLocale, t } = useI18n();
+  return (
+    <InlineDropdownMenuSub>
+      <InlineDropdownMenuSubTrigger data-testid="menu-item-language">
+        {t('menu.language')}
+      </InlineDropdownMenuSubTrigger>
+      <InlineDropdownMenuSubContent container={portalContainer} collisionPadding={8}>
+        {listedLanguages().map((language) => {
+          const current = language.code === locale;
+          const ready = available.includes(language.code);
+          return (
+            <InlineDropdownMenuItem
+              key={language.code}
+              // Choosing the language already on is no choice at all.
+              disabled={current || !ready}
+              onSelect={() => setLocale(language.code)}
+              // The test languages are labelled in English.
+              lang={isTestLocale(language.code) ? 'en' : language.code}
+              icon={current ? <Check aria-hidden="true" /> : undefined}
+              badge={current || ready ? null : <Soon />}
+              data-testid={`menu-language-${language.code}`}
+            >
+              {language.label}
+              {current && <span className="sr-only"> {t('menu.language.current')}</span>}
+            </InlineDropdownMenuItem>
+          );
+        })}
+      </InlineDropdownMenuSubContent>
+    </InlineDropdownMenuSub>
   );
 }
 
