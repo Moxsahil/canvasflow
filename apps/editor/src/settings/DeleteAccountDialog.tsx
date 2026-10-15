@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ACCOUNT_DELETION_GRACE_DAYS, SUPPORT_EMAIL } from '@canvasflow/types';
+import { rich, t as translate, useT } from '../i18n';
 import { PasswordField } from './AccountDialogs';
 import {
   AccountDeletionError,
@@ -29,7 +30,7 @@ import { ErrorLine, INPUT, SettingsButton, SettingsModal } from './settings-ui';
  */
 
 function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : 'Something went wrong. Try again.';
+  return error instanceof Error ? error.message : translate('common.somethingWentWrongRetry');
 }
 
 function Note({ children }: { children: ReactNode }) {
@@ -64,6 +65,7 @@ export function DeleteAccountDialog({
    */
   deleteAccount: (input: DeletionInput) => Promise<void>;
 }) {
+  const t = useT();
   const [providers, setProviders] = useState<SignInProvider[] | null>(null);
   const [typed, setTyped] = useState('');
   const [password, setPassword] = useState('');
@@ -95,12 +97,12 @@ export function DeleteAccountDialog({
   if (step === 'blocked') {
     return (
       <SettingsModal
-        title="You can’t delete your account yet"
-        description="You own a workspace other people belong to. Hand it over or remove them first."
+        title={t('deleteAccount.blockedTitle')}
+        description={t('deleteAccount.blockedBody')}
         onClose={onClose}
         actions={
           <SettingsButton variant="primary" onClick={onClose}>
-            Done
+            {t('common.done')}
           </SettingsButton>
         }
       />
@@ -142,37 +144,33 @@ export function DeleteAccountDialog({
 
   return (
     <SettingsModal
-      title="Delete your account?"
+      title={t('deleteAccount.title')}
       width={460}
-      description={
-        <>
-          Your account is locked and you’re signed out everywhere straight away. Changes you made on
-          other people’s boards stay there, shown as “Deleted user”. After{' '}
-          {ACCOUNT_DELETION_GRACE_DAYS} days, it’s erased for good. Changed your mind? Write to{' '}
+      description={rich(t('deleteAccount.body', { days: ACCOUNT_DELETION_GRACE_DAYS }), {
+        email: (
           <a
             href={`mailto:${SUPPORT_EMAIL}`}
             className="text-[var(--surface-fg)] underline underline-offset-2"
           >
             {SUPPORT_EMAIL}
-          </a>{' '}
-          within {ACCOUNT_DELETION_GRACE_DAYS} days and we’ll stop it.
-        </>
-      }
+          </a>
+        ),
+      })}
       onClose={onClose}
       onSubmit={() => void submit()}
       actions={
         <>
           <SettingsButton variant="ghost" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </SettingsButton>
           {unavailable && (
             <SettingsButton variant="ghost" onClick={onRetry}>
-              Try again
+              {t('common.tryAgain')}
             </SettingsButton>
           )}
           {step !== 'sign-in-again' && (
             <SettingsButton variant="danger" type="submit" disabled={!ready}>
-              {busy ? 'Deleting…' : 'Delete account'}
+              {busy ? t('common.deleting') : t('settings.row.delete-account')}
             </SettingsButton>
           )}
         </>
@@ -180,14 +178,11 @@ export function DeleteAccountDialog({
     >
       {step === 'sign-in-again' ? (
         <div className="flex flex-col gap-[10px]">
-          <Note>
-            For your safety, sign in again first. You’ll come straight back here, and then have 10
-            minutes to delete your account.
-          </Note>
+          <Note>{t('deleteAccount.signInAgain')}</Note>
           {providers === null ? (
-            <Note>Checking how you sign in…</Note>
+            <Note>{t('deleteAccount.checking')}</Note>
           ) : providers.length === 0 ? (
-            <ErrorLine>We couldn’t check how you sign in. Close this and try again.</ErrorLine>
+            <ErrorLine>{t('deleteAccount.checkFailed')}</ErrorLine>
           ) : (
             <div className="flex flex-wrap gap-[8px]">
               {providers.map((provider) => (
@@ -196,7 +191,7 @@ export function DeleteAccountDialog({
                   variant="primary"
                   onClick={() => signInAgain(provider)}
                 >
-                  Continue with {providerNames([provider])}
+                  {t('deleteAccount.continueWith', { provider: providerNames([provider]) })}
                 </SettingsButton>
               ))}
             </div>
@@ -206,20 +201,19 @@ export function DeleteAccountDialog({
         <div className="flex flex-col gap-[10px]">
           <label className="flex flex-col gap-[6px] text-[12px] text-[var(--surface-fg-muted)]">
             <span>
-              {email ? (
-                <>
-                  To confirm, type{' '}
-                  <strong className="font-semibold text-[var(--surface-fg)]">{email}</strong>
-                </>
-              ) : (
-                'To confirm, type your email address'
-              )}
+              {email
+                ? rich(t('delete.typeToConfirm'), {
+                    name: (
+                      <strong className="font-semibold text-[var(--surface-fg)]">{email}</strong>
+                    ),
+                  })
+                : t('deleteAccount.typeEmail')}
             </span>
             <input
               type="text"
               value={typed}
               onChange={(event) => setTyped(event.target.value)}
-              aria-label="Type your email address to confirm"
+              aria-label={t('deleteAccount.typeEmailLabel')}
               autoComplete="off"
               autoCapitalize="off"
               spellCheck={false}
@@ -233,14 +227,14 @@ export function DeleteAccountDialog({
               {/* Tells a password manager which saved entry to offer. */}
               <input type="email" autoComplete="username" value={email ?? ''} readOnly hidden />
               <PasswordField
-                label="Password"
+                label={t('settings.row.password')}
                 value={password}
                 onChange={setPassword}
                 autoComplete="current-password"
               />
             </>
           )}
-          {step === 'recent' && <Note>No password needed: you signed in a few minutes ago.</Note>}
+          {step === 'recent' && <Note>{t('deleteAccount.recent')}</Note>}
         </div>
       )}
 

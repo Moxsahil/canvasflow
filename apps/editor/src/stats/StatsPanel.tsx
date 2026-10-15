@@ -2,6 +2,7 @@ import { useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from 're
 import { X } from 'lucide-react';
 import type { Shape } from '@canvasflow/canvas-engine';
 import { cn } from '@/lib/utils';
+import { useT, type TranslationKey } from '../i18n';
 import { ScrubField } from './ScrubField';
 import {
   applyStatsEdit,
@@ -30,16 +31,16 @@ interface StatsPanelProps {
   onClose: () => void;
 }
 
-const KIND_NAMES: Record<Shape['kind'], string> = {
-  rectangle: 'Rectangle',
-  ellipse: 'Ellipse',
-  diamond: 'Diamond',
-  line: 'Line',
-  arrow: 'Arrow',
-  freehand: 'Drawing',
-  text: 'Text',
-  image: 'Image',
-  frame: 'Frame',
+const KIND_NAMES: Record<Shape['kind'], TranslationKey> = {
+  rectangle: 'shapes.rectangle',
+  ellipse: 'shapes.ellipse',
+  diamond: 'shapes.diamond',
+  line: 'shapes.line',
+  arrow: 'shapes.arrow',
+  freehand: 'shapes.freehand',
+  text: 'shapes.text',
+  image: 'shapes.image',
+  frame: 'shapes.frame',
 };
 
 /**
@@ -47,13 +48,28 @@ const KIND_NAMES: Record<Shape['kind'], string> = {
  * what size of type. A strip has room for a letter a field, so each is known
  * by its initial and says its name in full to a pointer resting on it.
  */
-const FIELDS: readonly { property: StatsProperty; label: string; name: string }[] = [
-  { property: 'x', label: 'X', name: 'X position' },
-  { property: 'y', label: 'Y', name: 'Y position' },
-  { property: 'width', label: 'W', name: 'Width' },
-  { property: 'height', label: 'H', name: 'Height' },
-  { property: 'fontSize', label: 'Aa', name: 'Font size' },
+const FIELDS: readonly { property: StatsProperty; testId: string }[] = [
+  { property: 'x', testId: 'stats-x-position' },
+  { property: 'y', testId: 'stats-y-position' },
+  { property: 'width', testId: 'stats-width' },
+  { property: 'height', testId: 'stats-height' },
+  { property: 'fontSize', testId: 'stats-font-size' },
 ];
+
+/** A field's letter, its name in full, and what dragging its letter does. */
+const FIELD_WORDS: Readonly<
+  Record<StatsProperty, { label: TranslationKey; name: TranslationKey; drag: TranslationKey }>
+> = {
+  x: { label: 'stats.x.label', name: 'stats.x.name', drag: 'stats.x.drag' },
+  y: { label: 'stats.y.label', name: 'stats.y.name', drag: 'stats.y.drag' },
+  width: { label: 'stats.width.label', name: 'stats.width.name', drag: 'stats.width.drag' },
+  height: { label: 'stats.height.label', name: 'stats.height.name', drag: 'stats.height.drag' },
+  fontSize: {
+    label: 'stats.fontSize.label',
+    name: 'stats.fontSize.name',
+    drag: 'stats.fontSize.drag',
+  },
+};
 
 const mutedText = 'text-neutral-500 dark:text-neutral-400';
 const divider = 'mx-1 h-4 w-px shrink-0 bg-(--dock-separator-color)';
@@ -78,6 +94,7 @@ export function StatsPanel({
   onEditEnd,
   onClose,
 }: StatsPanelProps) {
+  const t = useT();
   // Measuring the whole board is the one thing here that grows with it, and it
   // is asked for on every change to any shape. Deferred, a drag on a large
   // board is not held up so a total nobody is watching can keep pace with it.
@@ -111,7 +128,7 @@ export function StatsPanel({
   return (
     <aside
       ref={rootRef}
-      aria-label="Canvas stats"
+      aria-label={t('preferences.canvasStats')}
       className={cn(
         'cf-stats-strip absolute left-4 z-(--zIndex-layerUI) flex max-w-[calc(100%-2rem)] items-center gap-1 overflow-x-auto',
         'rounded-card border border-(--dock-border-color) bg-(--dock-bg-color) px-1.5 py-1',
@@ -127,21 +144,21 @@ export function StatsPanel({
     >
       <div
         role="group"
-        aria-label="Canvas"
+        aria-label={t('contextMenu.canvas')}
         className="flex h-7 shrink-0 items-center gap-2.5 rounded-md bg-neutral-950/5 px-2.5 tabular-nums dark:bg-neutral-50/5"
       >
         <span>
-          <output className="font-medium" aria-label="Shapes">
+          <output className="font-medium" aria-label={t('stats.shapes')}>
             {count}
           </output>{' '}
-          <span className={mutedText}>{count === 1 ? 'shape' : 'shapes'}</span>
+          <span className={mutedText}>{t('stats.shapeWord', { count })}</span>
         </span>
         <span>
-          <output className="font-medium" aria-label="Width">
+          <output className="font-medium" aria-label={t('stats.width.name')}>
             {size.width}
           </output>
           <span className={mutedText}> × </span>
-          <output className="font-medium" aria-label="Height">
+          <output className="font-medium" aria-label={t('stats.height.name')}>
             {size.height}
           </output>
         </span>
@@ -150,9 +167,15 @@ export function StatsPanel({
       {selectedShapes.length > 0 && (
         <>
           <div role="separator" aria-orientation="vertical" className={divider} />
-          <div role="group" aria-label="Selection" className="flex shrink-0 items-center gap-0.5">
+          <div
+            role="group"
+            aria-label={t('contextMenu.selection')}
+            className="flex shrink-0 items-center gap-0.5"
+          >
             <span className="px-1.5 font-medium">
-              {only ? KIND_NAMES[only.kind] : `${selectedShapes.length} shapes`}
+              {only
+                ? t(KIND_NAMES[only.kind])
+                : t('stats.shapeCount', { count: selectedShapes.length })}
             </span>
             {FIELDS.map((field) => (
               <SelectionField
@@ -172,8 +195,8 @@ export function StatsPanel({
       <div role="separator" aria-orientation="vertical" className={divider} />
       <button
         type="button"
-        aria-label="Close canvas stats"
-        title="Close"
+        aria-label={t('stats.close')}
+        title={t('common.close')}
         className={cn(
           mutedText,
           'grid size-(--default-button-size) shrink-0 place-items-center rounded-(--border-radius-md) outline-none hover:bg-neutral-950/10 hover:text-neutral-950 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--focus-highlight-color) dark:hover:bg-neutral-50/10 dark:hover:text-neutral-50 [&_svg]:size-4',
@@ -198,8 +221,7 @@ export function StatsPanel({
  */
 function SelectionField({
   property,
-  label,
-  name,
+  testId,
   shapes,
   selectedShapes,
   readOnly,
@@ -207,9 +229,10 @@ function SelectionField({
   onEditEnd,
 }: {
   property: StatsProperty;
-  label: string;
-  name: string;
+  testId: string;
 } & Pick<StatsPanelProps, 'shapes' | 'selectedShapes' | 'readOnly' | 'onEdit' | 'onEditEnd'>) {
+  const t = useT();
+  const words = FIELD_WORDS[property];
   const now = useRef({ shapes, selectedShapes });
   now.current = { shapes, selectedShapes };
   const scrubbed = useRef<{ originals: readonly Shape[]; board: readonly Shape[] } | null>(null);
@@ -228,8 +251,10 @@ function SelectionField({
 
   return (
     <ScrubField
-      label={label}
-      name={name}
+      label={t(words.label)}
+      name={t(words.name)}
+      dragHint={t(words.drag)}
+      testId={testId}
       value={value}
       editable={editable}
       onFocus={() => {

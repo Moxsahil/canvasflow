@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
+import { useT } from '../i18n';
 import type { Tool } from '../tools/tool';
 import { COMMANDS, type CommandContext, type CommandId, type CommandMeta } from './commands';
 
@@ -20,6 +21,8 @@ export type CommandHandlers = Record<ActionCommandId, () => void> & {
 };
 
 export interface EditorCommand extends CommandMeta {
+  /** The label, in the language on screen — what the palette shows and matches. */
+  readonly label: string;
   readonly perform: () => void;
 }
 
@@ -41,6 +44,7 @@ export function useEditorCommands(
   handlers: CommandHandlers,
   context: CommandContext,
 ): EditorCommand[] {
+  const t = useT();
   const handlersRef = useRef(handlers);
   useEffect(() => {
     handlersRef.current = handlers;
@@ -92,6 +96,7 @@ export function useEditorCommands(
       const tool = toolOf(meta.id);
       commands.push({
         ...meta,
+        label: t(meta.labelKey),
         perform: tool
           ? () => handlersRef.current.selectTool(tool)
           : () => handlersRef.current[meta.id as ActionCommandId](),
@@ -114,5 +119,6 @@ export function useEditorCommands(
     canCopyAsText,
     canCopyAsMermaid,
     canShareLinks,
+    t,
   ]);
 }

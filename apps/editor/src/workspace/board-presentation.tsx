@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { formatLocale } from '../i18n';
 import { boardSwatch } from './board-colors';
 import type { BoardColor } from './workspace-api';
 
@@ -39,5 +40,5 @@ export function BoardTitle({ title, color }: { title: string; color: BoardColor 
 export function formatUpdatedAt(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return date.toLocaleDateString(formatLocale(), { month: 'short', day: 'numeric' });
 }

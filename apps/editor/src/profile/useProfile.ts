@@ -7,6 +7,7 @@ import {
   type ProfileChanges,
 } from './profile-api';
 import { claimUsername } from './username-api';
+import { t } from '../i18n';
 
 /**
  * The signed-in account's own profile, held for the life of the board.
@@ -71,7 +72,7 @@ export interface UseProfileOptions {
 }
 
 function messageOf(cause: unknown): string {
-  return cause instanceof Error ? cause.message : 'Something went wrong.';
+  return cause instanceof Error ? cause.message : t('common.somethingWentWrong');
 }
 
 /**

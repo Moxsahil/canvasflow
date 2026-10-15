@@ -1,3 +1,5 @@
+import { formatLocale } from '../i18n';
+
 const DIVISIONS = [
   { amount: 60, unit: 'second' },
   { amount: 60, unit: 'minute' },
@@ -15,7 +17,7 @@ const DIVISIONS = [
  * Anything under a minute is "now". Counted in seconds, the label would tick
  * over on every keystroke of a reply being typed under it.
  */
-export function relativeTime(at: number, now = Date.now(), locale = 'en'): string {
+export function relativeTime(at: number, now = Date.now(), locale = formatLocale()): string {
   const format = new Intl.RelativeTimeFormat(locale, { numeric: 'auto', style: 'narrow' });
   let duration = (at - now) / 1000;
   if (Math.abs(duration) < 60) return format.format(0, 'second');
@@ -27,10 +29,16 @@ export function relativeTime(at: number, now = Date.now(), locale = 'en'): strin
   return '';
 }
 
-let fullFormat: Intl.DateTimeFormat | null = null;
+let fullFormat: { locale: string; format: Intl.DateTimeFormat } | null = null;
 
 /** The whole date and time, for a pointer resting on the short one. */
 export function fullDateTime(at: number): string {
-  fullFormat ??= new Intl.DateTimeFormat('en', { dateStyle: 'full', timeStyle: 'short' });
-  return fullFormat.format(new Date(at));
+  const locale = formatLocale();
+  if (fullFormat?.locale !== locale) {
+    fullFormat = {
+      locale,
+      format: new Intl.DateTimeFormat(locale, { dateStyle: 'full', timeStyle: 'short' }),
+    };
+  }
+  return fullFormat.format.format(new Date(at));
 }

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { formatShortcut } from '../help/platform';
+import { t } from '../i18n';
 import {
   DEFAULT_PREFERENCES,
   PREFERENCES_STORAGE_KEY,
@@ -53,8 +54,8 @@ describe('preference groups', () => {
 
   it('gives every preference a label and a tooltip that is not just the label again', () => {
     for (const item of items) {
-      expect(item.label.length).toBeGreaterThan(0);
-      expect(item.hint.length).toBeGreaterThan(item.label.length);
+      expect(t(item.labelKey).length).toBeGreaterThan(0);
+      expect(t(item.hintKey).length).toBeGreaterThan(t(item.labelKey).length);
     }
   });
 

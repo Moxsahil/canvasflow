@@ -1,3 +1,4 @@
+import type { TranslationKey } from '../i18n';
 import type { BoardColor } from './workspace-api';
 
 /**
@@ -8,14 +9,18 @@ import type { BoardColor } from './workspace-api';
  * one another on the sidebar's surface in both themes. Gray leads the same
  * life as the others but means "untagged" — it is what a board starts with.
  */
-export const BOARD_COLORS: readonly { value: BoardColor; label: string; swatch: string }[] = [
-  { value: 'red', label: 'Red', swatch: '#ef4444' },
-  { value: 'orange', label: 'Orange', swatch: '#f97316' },
-  { value: 'yellow', label: 'Yellow', swatch: '#eab308' },
-  { value: 'green', label: 'Green', swatch: '#22c55e' },
-  { value: 'blue', label: 'Blue', swatch: '#3b82f6' },
-  { value: 'purple', label: 'Purple', swatch: '#a855f7' },
-  { value: 'gray', label: 'Gray', swatch: '#9ca3af' },
+export const BOARD_COLORS: readonly {
+  value: BoardColor;
+  labelKey: TranslationKey;
+  swatch: string;
+}[] = [
+  { value: 'red', labelKey: 'color.red', swatch: '#ef4444' },
+  { value: 'orange', labelKey: 'color.orange', swatch: '#f97316' },
+  { value: 'yellow', labelKey: 'color.yellow', swatch: '#eab308' },
+  { value: 'green', labelKey: 'color.green', swatch: '#22c55e' },
+  { value: 'blue', labelKey: 'color.blue', swatch: '#3b82f6' },
+  { value: 'purple', labelKey: 'color.purple', swatch: '#a855f7' },
+  { value: 'gray', labelKey: 'color.gray', swatch: '#9ca3af' },
 ];
 
 const SWATCHES = new Map(BOARD_COLORS.map((color) => [color.value, color.swatch]));

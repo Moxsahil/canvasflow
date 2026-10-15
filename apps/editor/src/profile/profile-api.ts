@@ -1,5 +1,6 @@
 import { TERMS_VERSION, type CursorColor } from '@canvasflow/types';
 import { env } from '@/lib/env';
+import { t } from '../i18n';
 
 /**
  * Client for the web app's profile route.
@@ -86,14 +87,14 @@ function profileUrl(): string {
  * thing that knows *why* a name was refused.
  */
 async function failureMessage(res: Response): Promise<string> {
-  if (res.status === 401) return 'Sign in on the web app to change your profile.';
+  if (res.status === 401) return t('profile.signInToChange');
   try {
     const body = (await res.json()) as { error?: string };
     if (body.error) return body.error;
   } catch {
     // Fall through to the generic message.
   }
-  return `Something went wrong (${res.status}).`;
+  return t('errors.status', { status: res.status });
 }
 
 export async function fetchProfile(): Promise<Profile> {

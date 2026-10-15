@@ -1,3 +1,5 @@
+import { t, type TranslationKey } from '../i18n';
+
 export type SettingsSectionId =
   | 'profile'
   | 'account'
@@ -8,33 +10,37 @@ export type SettingsSectionId =
 
 export interface SettingsSection {
   readonly id: SettingsSectionId;
-  readonly label: string;
+  readonly labelKey: TranslationKey;
   /** The line under the tabs, saying what the page is for. */
-  readonly lead: string;
+  readonly leadKey: TranslationKey;
 }
 
 /** The tabs, left to right. */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
-  { id: 'profile', label: 'Profile', lead: 'How you appear to collaborators on shared boards.' },
+  { id: 'profile', labelKey: 'settings.section.profile', leadKey: 'settings.section.profile.lead' },
+  { id: 'account', labelKey: 'settings.section.account', leadKey: 'settings.section.account.lead' },
   {
-    id: 'account',
-    label: 'Account & Security',
-    lead: 'Sign-in methods, active sessions, and account deletion.',
+    id: 'workspace',
+    labelKey: 'settings.section.workspace',
+    leadKey: 'settings.section.workspace.lead',
   },
-  { id: 'workspace', label: 'Workspace', lead: 'Members, roles, and workspace-level settings.' },
-  { id: 'notifications', label: 'Notifications', lead: 'Choose what CanvasFlow emails you about.' },
-  { id: 'billing', label: 'Billing', lead: 'Plan, seats, usage, and invoice history.' },
-  { id: 'privacy', label: 'Data & Privacy', lead: 'Export your boards or close your account.' },
+  {
+    id: 'notifications',
+    labelKey: 'settings.section.notifications',
+    leadKey: 'settings.section.notifications.lead',
+  },
+  { id: 'billing', labelKey: 'settings.section.billing', leadKey: 'settings.section.billing.lead' },
+  { id: 'privacy', labelKey: 'settings.section.privacy', leadKey: 'settings.section.privacy.lead' },
 ];
 
 export interface SettingEntry {
   /** Matches the `data-setting` on the row, which is how search finds it on the page. */
   readonly id: string;
-  readonly title: string;
+  readonly titleKey: TranslationKey;
   readonly section: SettingsSectionId;
   /** The band it sits in, shown under the title in the results. */
-  readonly group: string;
-  /** Other words someone might type for it. */
+  readonly groupKey: TranslationKey;
+  /** Other words someone might type for it, in English whatever the language on screen. */
   readonly terms?: string;
   /** Only an account has it; a guest's search leaves it out. */
   readonly accountOnly?: boolean;
@@ -49,211 +55,229 @@ export interface SettingEntry {
 export const SETTINGS_INDEX: readonly SettingEntry[] = [
   {
     id: 'photo',
-    title: 'Profile photo',
+    titleKey: 'settings.row.photo',
     section: 'profile',
-    group: 'Identity',
+    groupKey: 'settings.group.identity',
     terms: 'avatar picture upload',
   },
   {
     id: 'display-name',
-    title: 'Display name',
+    titleKey: 'settings.row.display-name',
     section: 'profile',
-    group: 'Identity',
+    groupKey: 'settings.group.identity',
     terms: 'name cursor',
   },
   {
     id: 'username',
-    title: 'Username',
+    titleKey: 'settings.row.username',
     section: 'profile',
-    group: 'Identity',
+    groupKey: 'settings.group.identity',
     terms: 'handle mentions',
   },
   {
     id: 'cursor-colour',
-    title: 'Cursor colour',
+    titleKey: 'settings.row.cursor-colour',
     section: 'profile',
-    group: 'Presence',
+    groupKey: 'settings.group.presence',
     terms: 'color presence',
   },
 
   {
     id: 'email',
-    title: 'Email',
+    titleKey: 'settings.row.email',
     section: 'account',
-    group: 'Sign-in',
+    groupKey: 'settings.group.signIn',
     terms: 'address verify verification',
   },
   {
     id: 'password',
-    title: 'Password',
+    titleKey: 'settings.row.password',
     section: 'account',
-    group: 'Sign-in',
+    groupKey: 'settings.group.signIn',
     terms: 'change security',
   },
   {
     id: 'connected-accounts',
-    title: 'Connected accounts',
+    titleKey: 'settings.row.connected-accounts',
     section: 'account',
-    group: 'Sign-in',
+    groupKey: 'settings.group.signIn',
     terms: 'google github sign in',
   },
   {
     id: 'two-factor',
-    title: 'Two-factor authentication',
+    titleKey: 'settings.row.two-factor',
     section: 'account',
-    group: 'Sign-in',
+    groupKey: 'settings.group.signIn',
     terms: '2fa security',
   },
   {
     id: 'sessions',
-    title: 'Active sessions',
+    titleKey: 'settings.row.sessions',
     section: 'account',
-    group: 'Sessions',
+    groupKey: 'settings.group.sessions',
     terms: 'devices signed in',
   },
   {
     id: 'sign-out-everywhere',
-    title: 'Sign out everywhere',
+    titleKey: 'settings.row.sign-out-everywhere',
     section: 'account',
-    group: 'Sessions',
+    groupKey: 'settings.group.sessions',
     terms: 'devices log out',
   },
 
   // A guest is in no workspace, so search offers them none of these.
   {
     id: 'workspace-name',
-    title: 'Workspace name',
+    titleKey: 'settings.row.workspace-name',
     section: 'workspace',
-    group: 'Workspace',
+    groupKey: 'settings.group.workspace',
     terms: 'rename team',
     accountOnly: true,
   },
   {
     id: 'role',
-    title: 'Your role',
+    titleKey: 'settings.row.role',
     section: 'workspace',
-    group: 'Workspace',
+    groupKey: 'settings.group.workspace',
     terms: 'owner admin member',
     accountOnly: true,
   },
   {
     id: 'members',
-    title: 'Members',
+    titleKey: 'settings.row.members',
     section: 'workspace',
-    group: 'People',
+    groupKey: 'settings.group.people',
     terms: 'invite people team email',
     accountOnly: true,
   },
   {
     id: 'board-access',
-    title: 'Default board access',
+    titleKey: 'settings.row.board-access',
     section: 'workspace',
-    group: 'People',
+    groupKey: 'settings.group.people',
     terms: 'sharing edit',
     accountOnly: true,
   },
   {
     id: 'leave-workspace',
-    title: 'Leave workspace',
+    titleKey: 'settings.row.leave-workspace',
     section: 'workspace',
-    group: 'People',
+    groupKey: 'settings.group.people',
     accountOnly: true,
   },
 
   {
     id: 'access-changes',
-    title: 'Access changes',
+    titleKey: 'settings.row.access-changes',
     section: 'notifications',
-    group: 'Email',
+    groupKey: 'settings.group.email',
     terms: 'board shared with me invite role',
   },
   {
     id: 'comment-mentions',
-    title: 'Comment mentions',
+    titleKey: 'settings.row.comment-mentions',
     section: 'notifications',
-    group: 'Email',
+    groupKey: 'settings.group.email',
     terms: 'tag',
   },
   {
     id: 'invite-accepted',
-    title: 'Invite accepted',
+    titleKey: 'settings.row.invite-accepted',
     section: 'notifications',
-    group: 'Email',
+    groupKey: 'settings.group.email',
     terms: 'joins',
   },
   {
     id: 'weekly-digest',
-    title: 'Weekly digest',
+    titleKey: 'settings.row.weekly-digest',
     section: 'notifications',
-    group: 'Digest',
+    groupKey: 'settings.group.digest',
     terms: 'summary email',
   },
   {
     id: 'product-updates',
-    title: 'Product updates',
+    titleKey: 'settings.row.product-updates',
     section: 'notifications',
-    group: 'Digest',
+    groupKey: 'settings.group.digest',
     terms: 'news release notes',
   },
 
-  { id: 'plan', title: 'Plan', section: 'billing', group: 'Plan', terms: 'upgrade free' },
+  {
+    id: 'plan',
+    titleKey: 'settings.row.plan',
+    section: 'billing',
+    groupKey: 'settings.group.plan',
+    terms: 'upgrade free',
+  },
   {
     id: 'seats',
-    title: 'Seats',
+    titleKey: 'settings.row.seats',
     section: 'billing',
-    group: 'Usage',
+    groupKey: 'settings.group.usage',
     terms: 'collaborators editors',
   },
-  { id: 'storage', title: 'Storage', section: 'billing', group: 'Usage', terms: 'space' },
+  {
+    id: 'storage',
+    titleKey: 'settings.row.storage',
+    section: 'billing',
+    groupKey: 'settings.group.usage',
+    terms: 'space',
+  },
   {
     id: 'payment-method',
-    title: 'Payment method',
+    titleKey: 'settings.row.payment-method',
     section: 'billing',
-    group: 'Payment',
+    groupKey: 'settings.group.payment',
     terms: 'card',
   },
   {
     id: 'invoices',
-    title: 'Invoices',
+    titleKey: 'settings.row.invoices',
     section: 'billing',
-    group: 'Payment',
+    groupKey: 'settings.group.payment',
     terms: 'receipts history',
   },
 
   {
     id: 'export',
-    title: 'Export all boards',
+    titleKey: 'settings.row.export',
     section: 'privacy',
-    group: 'Your data',
+    groupKey: 'settings.group.yourData',
     terms: 'download zip backup canvasflow',
   },
   {
     id: 'storage-used',
-    title: 'Storage used',
+    titleKey: 'settings.row.storage-used',
     section: 'privacy',
-    group: 'Your data',
+    groupKey: 'settings.group.yourData',
     terms: 'space size usage',
   },
   {
     id: 'analytics',
-    title: 'Usage analytics',
+    titleKey: 'settings.row.analytics',
     section: 'privacy',
-    group: 'Your data',
+    groupKey: 'settings.group.yourData',
     terms: 'tracking data',
   },
-  { id: 'terms', title: 'Terms of Service', section: 'privacy', group: 'Legal', terms: 'legal' },
+  {
+    id: 'terms',
+    titleKey: 'settings.row.terms',
+    section: 'privacy',
+    groupKey: 'settings.group.legal',
+    terms: 'legal',
+  },
   {
     id: 'privacy-policy',
-    title: 'Privacy Policy',
+    titleKey: 'settings.row.privacy-policy',
     section: 'privacy',
-    group: 'Legal',
+    groupKey: 'settings.group.legal',
     terms: 'legal',
   },
   {
     id: 'delete-account',
-    title: 'Delete account',
+    titleKey: 'settings.row.delete-account',
     section: 'privacy',
-    group: 'Danger zone',
+    groupKey: 'settings.group.dangerZone',
     terms: 'close remove',
     accountOnly: true,
   },
@@ -265,10 +289,13 @@ export function searchSettings(query: string, { isGuest = false } = {}): Setting
   if (!needle) return [];
   return SETTINGS_INDEX.filter((entry) => {
     if (isGuest && entry.accountOnly) return false;
-    return `${entry.title} ${entry.group} ${entry.terms ?? ''}`.toLowerCase().includes(needle);
+    return `${t(entry.titleKey)} ${t(entry.groupKey)} ${entry.terms ?? ''}`
+      .toLowerCase()
+      .includes(needle);
   }).slice(0, 6);
 }
 
 export function sectionLabel(id: SettingsSectionId): string {
-  return SETTINGS_SECTIONS.find((section) => section.id === id)?.label ?? '';
+  const section = SETTINGS_SECTIONS.find((entry) => entry.id === id);
+  return section ? t(section.labelKey) : '';
 }

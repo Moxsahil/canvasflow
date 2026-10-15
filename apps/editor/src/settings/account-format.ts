@@ -1,3 +1,4 @@
+import { formatLocale, formatShortDate, t } from '../i18n';
 import type { AccountSecurity, SignInProvider } from './account-security-api';
 
 /**
@@ -10,14 +11,6 @@ const PROVIDER_NAMES: Record<SignInProvider, string> = {
   github: 'GitHub',
 };
 
-/**
- * Spelled out rather than taken from Intl: the short month names differ
- * between ICU versions ("Sep" in one, "Sept" in the next), so the same date
- * would read differently in different browsers.
- */
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const RELATIVE = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
-
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ['year', 365 * 24 * 60 * 60_000],
   ['month', 30 * 24 * 60 * 60_000],
@@ -29,48 +22,48 @@ const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
 
 /** "24 Sep 2026", in the viewer's own timezone. */
 export function formatDay(iso: string): string {
-  const date = new Date(iso);
-  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+  return formatShortDate(new Date(iso));
 }
 
 /** "just now", "5 minutes ago", "yesterday", "3 weeks ago". */
 export function formatRelative(iso: string, now = Date.now()): string {
   const elapsed = now - new Date(iso).getTime();
-  if (elapsed < 60_000) return 'just now';
+  if (elapsed < 60_000) return t('time.justNow');
+  const relative = new Intl.RelativeTimeFormat(formatLocale(), { numeric: 'auto' });
   for (const [unit, size] of UNITS) {
-    if (elapsed >= size) return RELATIVE.format(-Math.floor(elapsed / size), unit);
+    if (elapsed >= size) return relative.format(-Math.floor(elapsed / size), unit);
   }
-  return 'just now';
+  return t('time.justNow');
 }
 
 export function providerNames(providers: SignInProvider[]): string {
-  return providers.map((p) => PROVIDER_NAMES[p]).join(' or ');
+  return providers.map((p) => PROVIDER_NAMES[p]).join(` ${t('common.or')} `);
 }
 
 /** The Password row's line. */
 export function passwordHint(security: AccountSecurity, now = Date.now()): string {
   if (!security.hasPassword) {
     const via = providerNames(security.providers);
-    return via ? `Not set: you sign in with ${via}` : 'Not set';
+    return via ? t('account.passwordNotSetVia', { via }) : t('account.notSet');
   }
   if (security.passwordChangedAt) {
-    return `Last changed ${formatRelative(security.passwordChangedAt, now)}`;
+    return t('account.passwordChanged', { when: formatRelative(security.passwordChangedAt, now) });
   }
-  return `Unchanged since you signed up on ${formatDay(security.signedUpAt)}`;
+  return t('account.passwordUnchanged', { date: formatDay(security.signedUpAt) });
 }
 
 /** The Connected accounts row's line: every way this account can sign in. */
 export function signInMethodsHint(security: AccountSecurity): string {
   const methods = [
-    ...(security.hasPassword ? ['Email and password'] : []),
+    ...(security.hasPassword ? [t('account.emailAndPassword')] : []),
     ...security.providers.map((p) => PROVIDER_NAMES[p]),
   ];
-  return methods.length > 0 ? methods.join(' · ') : 'None';
+  return methods.length > 0 ? methods.join(' · ') : t('account.none');
 }
 
 /** The Active sessions row's line. */
 export function sessionsHint(count: number): string {
-  return `${count} ${count === 1 ? 'device' : 'devices'} signed in right now`;
+  return t('account.devicesSignedIn', { count });
 }
 
 /**
@@ -80,16 +73,23 @@ export function sessionsHint(count: number): string {
  */
 export function formatStorageSize(bytes: number): string {
   const kb = bytes / 1024;
-  if (kb < 1024) return `${bytes > 0 ? Math.max(1, Math.round(kb)) : 0} KB`;
+  const number = (value: number, digits: number) =>
+    value.toLocaleString(formatLocale(), {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+  if (kb < 1024)
+    return t('units.kb', { size: number(bytes > 0 ? Math.max(1, Math.round(kb)) : 0, 0) });
   const mb = kb / 1024;
-  if (mb < 1024) return mb < 10 ? `${mb.toFixed(1)} MB` : `${Math.round(mb)} MB`;
-  return `${(mb / 1024).toFixed(1)} GB`;
+  if (mb < 1024)
+    return t('units.mb', { size: mb < 10 ? number(mb, 1) : number(Math.round(mb), 0) });
+  return t('units.gb', { size: number(mb / 1024, 1) });
 }
 
 /** The Storage used row's line: what the number is made of. */
 export function storageHint(usage: { boards: number; images: number }): string {
-  if (usage.boards === 0) return 'You don’t own any boards yet';
-  const boards = `Across ${usage.boards} ${usage.boards === 1 ? 'board' : 'boards'} you own`;
+  if (usage.boards === 0) return t('storage.noBoards');
+  const boards = t('storage.acrossBoards', { count: usage.boards });
   if (usage.images === 0) return boards;
-  return `${boards} · ${usage.images} ${usage.images === 1 ? 'image' : 'images'}`;
+  return `${boards} · ${t('storage.images', { count: usage.images })}`;
 }

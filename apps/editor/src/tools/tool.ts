@@ -1,4 +1,5 @@
 import type { FC, SVGProps } from 'react';
+import type { TranslationKey } from '../i18n';
 import {
   HandIcon,
   SelectIcon,
@@ -62,7 +63,7 @@ export const TOOL_TO_SHAPE_KIND = {
 
 export interface ToolMeta {
   readonly id: Tool;
-  readonly label: string;
+  readonly labelKey: TranslationKey;
   readonly icon: FC<SVGProps<SVGSVGElement>>;
   /** Letter shortcut. */
   readonly shortcut: string;
@@ -87,28 +88,47 @@ export interface ToolMeta {
  * Array order is the toolbar order.
  */
 export const TOOLS: readonly ToolMeta[] = [
-  { id: 'hand', label: 'Hand', icon: HandIcon, shortcut: 'H', numericKey: null },
-  { id: 'select', label: 'Select', icon: SelectIcon, shortcut: 'V', numericKey: '1' },
-  { id: 'rectangle', label: 'Rectangle', icon: RectangleIcon, shortcut: 'R', numericKey: '2' },
-  { id: 'diamond', label: 'Diamond', icon: DiamondIcon, shortcut: 'D', numericKey: '3' },
-  { id: 'ellipse', label: 'Ellipse', icon: EllipseIcon, shortcut: 'C', numericKey: '4' },
-  { id: 'arrow', label: 'Arrow', icon: ArrowIcon, shortcut: 'A', numericKey: '5' },
-  { id: 'line', label: 'Line', icon: LineIcon, shortcut: 'L', numericKey: '6' },
-  { id: 'freehand', label: 'Freehand', icon: FreehandIcon, shortcut: 'P', numericKey: '7' },
-  { id: 'text', label: 'Text', icon: TextIcon, shortcut: 'T', numericKey: '8' },
-  { id: 'image', label: 'Image', icon: ImageIcon, shortcut: 'I', numericKey: '9' },
+  { id: 'hand', labelKey: 'tools.hand', icon: HandIcon, shortcut: 'H', numericKey: null },
+  { id: 'select', labelKey: 'tools.select', icon: SelectIcon, shortcut: 'V', numericKey: '1' },
+  {
+    id: 'rectangle',
+    labelKey: 'tools.rectangle',
+    icon: RectangleIcon,
+    shortcut: 'R',
+    numericKey: '2',
+  },
+  { id: 'diamond', labelKey: 'tools.diamond', icon: DiamondIcon, shortcut: 'D', numericKey: '3' },
+  { id: 'ellipse', labelKey: 'tools.ellipse', icon: EllipseIcon, shortcut: 'C', numericKey: '4' },
+  { id: 'arrow', labelKey: 'tools.arrow', icon: ArrowIcon, shortcut: 'A', numericKey: '5' },
+  { id: 'line', labelKey: 'tools.line', icon: LineIcon, shortcut: 'L', numericKey: '6' },
+  {
+    id: 'freehand',
+    labelKey: 'tools.freehand',
+    icon: FreehandIcon,
+    shortcut: 'P',
+    numericKey: '7',
+  },
+  { id: 'text', labelKey: 'tools.text', icon: TextIcon, shortcut: 'T', numericKey: '8' },
+  { id: 'image', labelKey: 'tools.image', icon: ImageIcon, shortcut: 'I', numericKey: '9' },
   // In the row rather than the overflow, though it draws nothing: a comment is
   // how most people who open a board they did not draw will ever touch it, and
   // they will not go looking behind a chevron for the way to.
-  { id: 'comment', label: 'Comment', icon: CommentIcon, shortcut: 'M', numericKey: null },
+  { id: 'comment', labelKey: 'tools.comment', icon: CommentIcon, shortcut: 'M', numericKey: null },
   // These three live in the overflow, and none takes a digit: you lay out
   // frames before the work, point with the laser while presenting it, and
   // reach for the sketch tool for a run of shapes rather than for one. None is
   // something you flick to mid-drawing, which is what the row is for.
-  { id: 'frame', label: 'Frame', icon: FrameIcon, shortcut: 'F', numericKey: null, overflow: true },
+  {
+    id: 'frame',
+    labelKey: 'tools.frame',
+    icon: FrameIcon,
+    shortcut: 'F',
+    numericKey: null,
+    overflow: true,
+  },
   {
     id: 'sketch',
-    label: 'Sketch to shape',
+    labelKey: 'tools.sketch',
     icon: SketchIcon,
     shortcut: 'X',
     numericKey: null,
@@ -116,13 +136,13 @@ export const TOOLS: readonly ToolMeta[] = [
   },
   {
     id: 'laser',
-    label: 'Laser pointer',
+    labelKey: 'tools.laser',
     icon: LaserIcon,
     shortcut: 'K',
     numericKey: null,
     overflow: true,
   },
-  { id: 'eraser', label: 'Eraser', icon: EraserIcon, shortcut: 'E', numericKey: '0' },
+  { id: 'eraser', labelKey: 'tools.eraser', icon: EraserIcon, shortcut: 'E', numericKey: '0' },
 ];
 
 /**

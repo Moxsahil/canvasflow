@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { LogIn, ShieldOff, UserPlus } from 'lucide-react';
 import { env } from '@/lib/env';
+import { useT } from '../i18n';
 import {
   SurfaceWindow,
   WindowBadge,
@@ -44,6 +45,7 @@ interface AccessRevokedDialogProps {
  * even while it is closing that application down.
  */
 export function AccessRevokedDialog({ open, boardName, isGuest, theme }: AccessRevokedDialogProps) {
+  const t = useT();
   const titleId = useId();
   const bodyId = useId();
   const webUrl = env.VITE_WEB_URL;
@@ -77,8 +79,8 @@ export function AccessRevokedDialog({ open, boardName, isGuest, theme }: AccessR
         // it: the token route answers the same 404 for "removed", "never had
         // access" and "board deleted", so a heading that claimed any one of them
         // would be wrong two-thirds of the time.
-        title="You don’t have access to this board"
-        description={name ? name : 'This board'}
+        title={t('revoked.title')}
+        description={name ? name : t('board.thisBoard')}
         lead={
           <WindowBadge tone="danger">
             <ShieldOff aria-hidden="true" />
@@ -88,11 +90,7 @@ export function AccessRevokedDialog({ open, boardName, isGuest, theme }: AccessR
 
       <WindowBody>
         <p id={bodyId} className="text-[12.5px] leading-[1.6] text-[var(--surface-fg-muted)]">
-          It may have been unshared or deleted. This session has stopped syncing, and anything
-          already drawn stays with the board.{' '}
-          {isGuest
-            ? 'You joined as a guest, so there is nothing else here to go back to. An account gives you boards of your own.'
-            : 'Your own boards are unaffected.'}
+          {t('revoked.body')} {isGuest ? t('revoked.guest') : t('revoked.account')}
         </p>
       </WindowBody>
 
@@ -104,18 +102,18 @@ export function AccessRevokedDialog({ open, boardName, isGuest, theme }: AccessR
                 joined as one already have an account. */}
             <WindowButton variant="ghost" onClick={() => go('/login?next=/open')}>
               <LogIn aria-hidden="true" />
-              Sign in
+              {t('revoked.signIn')}
             </WindowButton>
             <WindowButton variant="primary" onClick={() => go('/signup')}>
               <UserPlus aria-hidden="true" />
-              Create an account
+              {t('revoked.createAccount')}
             </WindowButton>
           </>
         ) : (
           /* /open resolves which board to land on — there is no board list
              page to send anyone to. */
           <WindowButton variant="primary" onClick={() => go('/open')}>
-            Go to my workspace
+            {t('revoked.goToWorkspace')}
           </WindowButton>
         )}
       </WindowFooter>

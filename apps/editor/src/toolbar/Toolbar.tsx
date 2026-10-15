@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { GlassDockGroup, GlassDockItem } from '@/components/ui/glass-dock';
+import { useT } from '../i18n';
 import { TOOLS, VIEW_ONLY_TOOLS, type Tool } from '../tools/tool';
 import { ToolButton } from './ToolButton';
 import { ToolOverflow } from './ToolOverflow';
@@ -21,6 +22,7 @@ export function Toolbar({
   readOnly = false,
   portalContainer = null,
 }: ToolbarProps) {
+  const t = useT();
   const [overflowOpen, setOverflowOpen] = useState(false);
 
   // Filtered rather than disabled: a row of dead buttons invites clicking, and
@@ -34,14 +36,14 @@ export function Toolbar({
   const overflowTools = useMemo(() => tools.filter((meta) => meta.overflow), [tools]);
 
   return (
-    <GlassDockGroup role="radiogroup" aria-label="Drawing tools">
+    <GlassDockGroup role="radiogroup" aria-label={t('toolbar.drawingTools')}>
       {rowTools.map((meta) => (
         <GlassDockItem
           key={meta.id}
           id={`tool-${meta.id}`}
           // The dock's own tooltip carries the shortcut, so ToolButton no
           // longer sets `title` — two tooltips would stack on one button.
-          label={`${meta.label} · ${meta.shortcut}`}
+          label={`${t(meta.labelKey)} · ${meta.shortcut}`}
         >
           <ToolButton
             meta={meta}
@@ -70,7 +72,7 @@ export function Toolbar({
           <GlassDockItem
             key={meta.id}
             id={`tool-${meta.id}`}
-            label={`${meta.label} · ${meta.shortcut}`}
+            label={`${t(meta.labelKey)} · ${meta.shortcut}`}
           >
             <ToolButton
               meta={meta}

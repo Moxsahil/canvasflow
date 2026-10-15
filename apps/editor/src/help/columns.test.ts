@@ -5,9 +5,10 @@ import { SHORTCUTS, type ShortcutCategory } from './shortcuts-registry';
 function category(title: string, entries: number): ShortcutCategory {
   return {
     title,
+    titleKey: 'shortcuts.category.tools',
     entries: Array.from({ length: entries }, (_, index) => ({
       keys: `${title}-${index}`,
-      description: `${title} ${index}`,
+      descriptionKey: 'shortcuts.undo',
     })),
   };
 }

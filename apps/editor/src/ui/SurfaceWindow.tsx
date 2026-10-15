@@ -14,6 +14,7 @@ import {
 import { createPortal } from 'react-dom';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { useT } from '../i18n';
 import { BACKDROP, CloseButton, SettingsButton, WINDOW } from '../settings/settings-ui';
 import { surfaceThemeVars, type SurfaceTheme } from './surface-palette';
 
@@ -317,6 +318,7 @@ export function WindowHeader({
   /** Omitted, there is no ×. */
   onClose?: () => void;
 }) {
+  const t = useT();
   return (
     <div className="flex shrink-0 items-start gap-[12px] pt-[18px] pr-[16px] pl-[20px]">
       {lead}
@@ -336,7 +338,7 @@ export function WindowHeader({
           </div>
         )}
       </div>
-      {onClose && <CloseButton label="Close" onClick={onClose} />}
+      {onClose && <CloseButton label={t('common.close')} onClick={onClose} />}
     </div>
   );
 }

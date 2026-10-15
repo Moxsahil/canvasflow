@@ -1,6 +1,7 @@
 import { Lock } from 'lucide-react';
 import { menuChipClasses, menuSurfaceClasses } from '@/components/ui/menu-look';
 import { cn } from '@/lib/utils';
+import { useT } from '../i18n';
 import type { ScreenRect, Size } from '../properties/halo-placement';
 
 /** Between the locked shape's top edge and the padlock. */
@@ -49,6 +50,7 @@ export function LockPadlock({
   board: Size;
   onUnlock: () => void;
 }) {
+  const t = useT();
   const place = padlockPlacement(anchor, board);
   if (!place) return null;
 
@@ -61,12 +63,12 @@ export function LockPadlock({
     >
       <button
         type="button"
-        title="Unlock"
+        title={t('lock.unlock')}
         className={cn(menuChipClasses, 'gap-1.5 px-2')}
         onClick={onUnlock}
       >
         <Lock aria-hidden="true" />
-        <span>Unlock</span>
+        <span>{t('lock.unlock')}</span>
       </button>
     </div>
   );

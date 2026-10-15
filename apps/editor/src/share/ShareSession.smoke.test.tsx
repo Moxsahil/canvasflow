@@ -136,7 +136,7 @@ describe('ShareSessionPanel', () => {
       url: 'https://canvasflow.app/join/abc123',
       qr: <span data-testid="qr" />,
     });
-    expect(html).toContain('Live for <!-- -->12:05');
+    expect(html).toContain('Live for 12:05');
     expect(html).toContain('Anyone with the link can join until you stop it.');
     expect(html).toContain('value="https://canvasflow.app/join/abc123"');
     expect(html).toContain('data-testid="qr"');

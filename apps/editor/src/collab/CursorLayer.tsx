@@ -10,6 +10,7 @@ import {
   type PresenceScreen,
   type PresenceTheme,
 } from '@canvasflow/canvas-engine';
+import { useT } from '../i18n';
 import { PeerCursor } from './PeerCursor';
 import './collab.css';
 
@@ -22,6 +23,7 @@ interface CursorLayerProps {
 }
 
 export function CursorLayer({ peersRef, subscribe, camera, screen, theme }: CursorLayerProps) {
+  const t = useT();
   const [, bump] = useState(0);
 
   useEffect(() => subscribe(() => bump((n) => n + 1)), [subscribe]);
@@ -51,7 +53,7 @@ export function CursorLayer({ peersRef, subscribe, camera, screen, theme }: Curs
               key={peer.clientId}
               className="cf-cursor-hint"
               style={{ transform: `translate(${hint.x}px, ${hint.y}px)` }}
-              title={`${peer.user.name} — off screen`}
+              title={t('collab.offScreen', { name: peer.user.name })}
               aria-hidden="true"
             >
               <span className="cf-cursor-hint__dot" style={{ background: color }} />

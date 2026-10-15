@@ -1,6 +1,7 @@
 import type { Shape } from '@canvasflow/canvas-engine';
 import { excalidrawElementsToShapes } from '../clipboard/excalidraw-adapter';
 import type { ExcalidrawElement } from '../clipboard/schema';
+import { t } from '../i18n';
 import { LIBRARY_NAME_MAX, readLibraryShapes, wordedItemName } from './library-items';
 
 /** What the Import picker offers: ours, Excalidraw's, and either saved as plain JSON. */
@@ -35,7 +36,7 @@ export interface LibraryFile {
 export function readLibraryFile(
   text: string,
   genId: () => string,
-  title = 'Item',
+  title = t('library.item'),
 ): LibraryFile | null {
   let data: unknown;
   try {
@@ -53,7 +54,7 @@ export function readLibraryFile(
 export function readLibraryData(
   data: unknown,
   genId: () => string,
-  title = 'Item',
+  title = t('library.item'),
 ): LibraryFile | null {
   if (typeof data !== 'object' || data === null) return null;
   const file = data as Record<string, unknown>;

@@ -1,5 +1,6 @@
 import { env } from '@/lib/env';
 import type { Profile } from './profile-api';
+import { t } from '../i18n';
 
 /**
  * Client for the API gateway's username routes, at `users/me/username`.
@@ -29,15 +30,15 @@ function usernameUrl(): URL {
 
 /** The gateway's own sentence where it has one; it knows which rule was broken. */
 async function failureMessage(res: Response): Promise<string> {
-  if (res.status === 401) return 'Your session expired. Reload the board and try again.';
-  if (res.status === 429) return 'Too many tries at once. Wait a moment and try again.';
+  if (res.status === 401) return t('errors.sessionExpired');
+  if (res.status === 429) return t('errors.tooManyTries');
   try {
     const body = (await res.json()) as { message?: string };
     if (body.message) return body.message;
   } catch {
     // Fall through to the generic message.
   }
-  return `Something went wrong (${res.status}).`;
+  return t('errors.status', { status: res.status });
 }
 
 /**

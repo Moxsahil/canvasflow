@@ -2,6 +2,7 @@ import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 
 const labelVariants = cva(
   'text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70',
@@ -35,16 +36,17 @@ const Label = React.forwardRef<HTMLLabelElement, LabelProps>(function Label(
   { className, variant, size, required, optional, children, ...props },
   ref,
 ) {
+  const t = useT();
   return (
     <label ref={ref} className={cn(labelVariants({ variant, size, className }))} {...props}>
       {children}
       {required && (
-        <span className="ml-1 text-destructive" aria-label="required">
+        <span className="ml-1 text-destructive" aria-label={t('form.required')}>
           *
         </span>
       )}
       {optional && !required && (
-        <span className="ml-1 font-normal text-muted-foreground">(optional)</span>
+        <span className="ml-1 font-normal text-muted-foreground">{t('form.optional')}</span>
       )}
     </label>
   );

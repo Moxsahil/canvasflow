@@ -4,6 +4,7 @@ import {
   type NotificationKind,
   type NotificationSettings,
 } from '@canvasflow/types';
+import { t as translate, useT, type TranslationKey } from '../i18n';
 import { useAccountChanges } from '../sync/account-events';
 import {
   knownNotificationSettings,
@@ -13,27 +14,37 @@ import {
 import { useBand, type BandStatus } from './settings-frame';
 import { Band, SettingRow, SettingsPage, Toggle } from './settings-ui';
 
-type Row = [NotificationKind, string, string, string];
+type Row = [NotificationKind, string, TranslationKey, TranslationKey];
 
 const EMAIL: Row[] = [
   [
     'accessChanges',
     'access-changes',
-    'Access changes',
-    'When your role on a board or workspace changes',
+    'settings.row.access-changes',
+    'notifications.accessChangesHint',
   ],
-  ['commentMentions', 'comment-mentions', 'Comment mentions', 'When a collaborator tags you'],
+  [
+    'commentMentions',
+    'comment-mentions',
+    'settings.row.comment-mentions',
+    'notifications.commentMentionsHint',
+  ],
   [
     'inviteAccepted',
     'invite-accepted',
-    'Invite accepted',
-    'When someone joins through a link or invitation you sent',
+    'settings.row.invite-accepted',
+    'notifications.inviteAcceptedHint',
   ],
 ];
 
 const DIGEST: Row[] = [
-  ['weeklyDigest', 'weekly-digest', 'Weekly digest', 'A summary of board activity each Monday'],
-  ['productUpdates', 'product-updates', 'Product updates', 'New features and release notes'],
+  ['weeklyDigest', 'weekly-digest', 'settings.row.weekly-digest', 'notifications.weeklyDigestHint'],
+  [
+    'productUpdates',
+    'product-updates',
+    'settings.row.product-updates',
+    'notifications.productUpdatesHint',
+  ],
 ];
 
 type Load = 'loading' | 'ready' | 'error';
@@ -106,7 +117,7 @@ function useNotificationSwitches(token: string | null, enabled: boolean): Notifi
             // Put it back, then ask what is saved: a later flip may have landed.
             setSettings((current) => ({ ...current, [kind]: !on }));
             readAfterSaves.current = true;
-            band?.failed(error instanceof Error ? error.message : 'Could not save that.');
+            band?.failed(error instanceof Error ? error.message : translate('settings.saveFailed'));
           },
         )
         .finally(() => {
@@ -125,7 +136,7 @@ function useNotificationSwitches(token: string | null, enabled: boolean): Notifi
 
 /** One switch. Inside its band, so the band can say it saved. */
 function NotificationSwitch({
-  row: [kind, setting, title, hint],
+  row: [kind, setting, titleKey, hintKey],
   switches,
   disabled,
 }: {
@@ -133,9 +144,11 @@ function NotificationSwitch({
   switches: NotificationSwitches;
   disabled: boolean;
 }) {
+  const t = useT();
   const band = useBand();
+  const title = t(titleKey);
   return (
-    <SettingRow setting={setting} title={title} hint={hint}>
+    <SettingRow setting={setting} title={title} hint={t(hintKey)}>
       <Toggle
         label={title}
         on={switches.settings[kind]}
@@ -160,9 +173,10 @@ export function NotificationsPane({
   token?: string | null;
   isGuest?: boolean;
 }) {
+  const t = useT();
   const switches = useNotificationSwitches(token, !isGuest);
   const disabled = isGuest || switches.load !== 'ready';
-  const error = switches.load === 'error' && !isGuest ? 'Couldn’t load your email settings.' : null;
+  const error = switches.load === 'error' && !isGuest ? t('notifications.loadFailed') : null;
 
   const rows = (list: Row[]) =>
     list.map((row) => (
@@ -176,16 +190,12 @@ export function NotificationsPane({
 
   return (
     <SettingsPage
-      lead={
-        isGuest
-          ? 'Create an account to choose what CanvasFlow emails you about.'
-          : 'Choose what CanvasFlow emails you about.'
-      }
+      lead={isGuest ? t('notifications.guestLead') : t('settings.section.notifications.lead')}
     >
-      <Band title="Email" error={error}>
+      <Band title={t('settings.group.email')} error={error}>
         {rows(EMAIL)}
       </Band>
-      <Band title="Digest">{rows(DIGEST)}</Band>
+      <Band title={t('settings.group.digest')}>{rows(DIGEST)}</Band>
     </SettingsPage>
   );
 }

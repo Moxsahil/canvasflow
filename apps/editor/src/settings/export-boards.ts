@@ -1,6 +1,7 @@
 import { BoardDocument, isImage, type Shape } from '@canvasflow/canvas-engine';
 import { strToU8, zipSync } from 'fflate';
 import { env } from '@/lib/env';
+import { t } from '../i18n';
 import { BOARD_FILE_EXTENSION, serializeBoardFile } from '../file/board-file';
 import { toFileName } from '../file/save-file';
 import { downloadImage } from '../images/image-client';
@@ -54,8 +55,8 @@ function request(path: string, token: string) {
 
 async function fetchBoards(token: string): Promise<ExportableBoard[]> {
   const res = await request('/boards', token);
-  if (res.status === 401) throw new Error('Your session has ended. Sign in again.');
-  if (!res.ok) throw new Error(`Your boards could not be listed (${res.status}).`);
+  if (res.status === 401) throw new Error(t('library.sessionEnded'));
+  if (!res.ok) throw new Error(t('exportAll.listFailed', { status: res.status }));
   return ((await res.json()) as { data: ExportableBoard[] }).data;
 }
 
@@ -63,7 +64,7 @@ async function fetchBoards(token: string): Promise<ExportableBoard[]> {
 async function fetchBoardShapes(token: string, boardId: string): Promise<Shape[]> {
   const res = await request(`/boards/${boardId}`, token);
   if (res.status === 204) return [];
-  if (!res.ok) throw new Error(`Board ${boardId} could not be read (${res.status}).`);
+  if (!res.ok) throw new Error(t('exportAll.boardFailed', { boardId, status: res.status }));
   const doc = new BoardDocument();
   try {
     doc.applyUpdate(new Uint8Array(await res.arrayBuffer()));
@@ -189,7 +190,7 @@ export async function exportAllBoards({
 
   if (Object.keys(entries).length === 0 && failedBoards.length === 0) return null;
   if (Object.keys(entries).length === 0) {
-    throw new Error('None of your boards could be read. Try again in a moment.');
+    throw new Error(t('exportAll.noneRead'));
   }
 
   const zipped = zipSync(entries, { level: 6 });
@@ -206,18 +207,18 @@ export async function exportAllBoards({
 
 /** What the Export row says once the download has started. */
 export function exportSummary(result: BoardsExport): string {
-  const boards = `${result.boards} ${result.boards === 1 ? 'board' : 'boards'}`;
+  const boards = t('boards.count', { count: result.boards });
   const parts = [
-    result.libraryItems > 0 ? `Downloaded ${boards} and your library` : `Downloaded ${boards}`,
+    result.libraryItems > 0
+      ? t('exportAll.downloadedWithLibrary', { boards })
+      : t('exportAll.downloaded', { boards }),
   ];
   if (result.failedBoards.length > 0) {
-    const n = result.failedBoards.length;
-    parts.push(`${n} ${n === 1 ? 'board' : 'boards'} couldn’t be read`);
+    parts.push(t('exportAll.boardsUnread', { count: result.failedBoards.length }));
   }
   if (result.missingImages > 0) {
-    const n = result.missingImages;
-    parts.push(`${n} ${n === 1 ? 'image' : 'images'} couldn’t be fetched`);
+    parts.push(t('exportAll.imagesMissing', { count: result.missingImages }));
   }
-  if (result.libraryFailed) parts.push('your library couldn’t be read');
+  if (result.libraryFailed) parts.push(t('exportAll.libraryUnread'));
   return parts.join(' · ');
 }

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { BOARD_FILE_EXTENSION } from './board-file';
 
 interface SaveFilePickerOptions {
@@ -17,16 +18,16 @@ export const SAVE_FORMATS = {
   board: {
     extension: BOARD_FILE_EXTENSION,
     mimeType: 'application/json',
-    description: 'CanvasFlow board',
+    descriptionKey: 'file.format.board',
   },
   library: {
     extension: '.canvasflowlib',
     mimeType: 'application/json',
-    description: 'CanvasFlow library',
+    descriptionKey: 'file.format.library',
   },
-  png: { extension: '.png', mimeType: 'image/png', description: 'PNG image' },
-  svg: { extension: '.svg', mimeType: 'image/svg+xml', description: 'SVG image' },
-  archive: { extension: '.zip', mimeType: 'application/zip', description: 'ZIP archive' },
+  png: { extension: '.png', mimeType: 'image/png', descriptionKey: 'file.format.png' },
+  svg: { extension: '.svg', mimeType: 'image/svg+xml', descriptionKey: 'file.format.svg' },
+  archive: { extension: '.zip', mimeType: 'application/zip', descriptionKey: 'file.format.zip' },
 } as const;
 
 export type SaveFormat = keyof typeof SAVE_FORMATS;
@@ -87,7 +88,8 @@ export async function saveFile({
   format: SaveFormat;
   handle?: FileSystemFileHandle | null;
 }): Promise<SaveResult> {
-  const { extension, mimeType, description } = SAVE_FORMATS[format];
+  const { extension, mimeType, descriptionKey } = SAVE_FORMATS[format];
+  const description = t(descriptionKey);
   const name = toFileName(boardName, extension);
   const contents = () => (typeof data === 'function' ? data() : Promise.resolve(data));
 

@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/sidebar';
 import type { SurfaceTheme } from '../ui/surface-palette';
 import { BOARD_COLORS } from '../workspace/board-colors';
+import { useT } from '../i18n';
 import { ColorDot, formatUpdatedAt } from '../workspace/board-presentation';
 import { DeleteWarningDialog } from '../workspace/DeleteWarningDialog';
 import { SHARED_WITH_YOU } from '../workspace';
@@ -73,6 +74,7 @@ export function RailSeparator() {
  * A guest let in by share link has no workspace, and no list.
  */
 export function BoardList({ state, portalContainer, theme }: BoardListProps) {
+  const t = useT();
   const { state: sidebarState, isMobile, setOpen } = useSidebar();
   const collapsed = sidebarState === 'collapsed' && !isMobile;
   const [query, setQuery] = useState('');
@@ -99,9 +101,9 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
     deleteBoard(pendingDelete.id).then(
       () => setPendingDelete(null),
       (err: unknown) =>
-        setDeleteError(err instanceof Error ? err.message : 'Something went wrong.'),
+        setDeleteError(err instanceof Error ? err.message : t('common.somethingWentWrong')),
     );
-  }, [pendingDelete, deleteBoard]);
+  }, [pendingDelete, deleteBoard, t]);
 
   // Focused once the sidebar has opened: the field is not on screen in the
   // rail, and a hidden input cannot take focus.
@@ -148,20 +150,20 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
                 setQuery('');
               }
             }}
-            placeholder="Find a board"
-            aria-label="Find a board"
+            placeholder={t('boards.find')}
+            aria-label={t('boards.find')}
             data-testid="sidebar-find-board"
             className="h-8 w-full rounded-md bg-sidebar-accent/60 pr-2 pl-8 text-sm text-sidebar-foreground outline-hidden ring-sidebar-ring placeholder:text-sidebar-foreground/50 focus-visible:ring-2 [&::-webkit-search-cancel-button]:hidden"
           />
         </div>
 
         <div className="flex items-center gap-0.5 pr-1 group-data-[collapsible=icon]:hidden">
-          <SidebarGroupLabel className="flex-1">Boards</SidebarGroupLabel>
+          <SidebarGroupLabel className="flex-1">{t('boards.title')}</SidebarGroupLabel>
           <button
             type="button"
             className={labelActionClasses}
-            aria-label="Manage boards"
-            title="Manage boards"
+            aria-label={t('boards.manage')}
+            title={t('boards.manage')}
             data-testid="manage-boards"
             onClick={() => state.beginManage({ kind: 'boards', workspaceId })}
           >
@@ -170,8 +172,8 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
           <button
             type="button"
             className={labelActionClasses}
-            aria-label="New board"
-            title="New board"
+            aria-label={t('boards.new')}
+            title={t('boards.new')}
             data-testid="sidebar-new-board"
             disabled={state.busy}
             onClick={() => state.createBoard(workspaceId)}
@@ -183,14 +185,14 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
         <SidebarMenu className="max-h-[min(40vh,22rem)] overflow-y-auto [scrollbar-width:thin] group-data-[collapsible=icon]:max-h-none group-data-[collapsible=icon]:[scrollbar-width:none]">
           <RailOnly>
             <SidebarMenuButton
-              tooltip="Find a board"
+              tooltip={t('boards.find')}
               onClick={() => {
                 setOpen(true);
                 setFindRequested(true);
               }}
             >
               <Search aria-hidden="true" />
-              <span>Find a board</span>
+              <span>{t('boards.find')}</span>
             </SidebarMenuButton>
           </RailOnly>
           <li aria-hidden="true" className={cn(railSeparatorClasses, 'my-1')} />
@@ -205,24 +207,24 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
           {entry?.status === 'error' && (
             <SidebarMenuItem>
               <SidebarMenuButton
-                tooltip="Couldn’t load the boards. Try again"
+                tooltip={t('boards.loadFailed')}
                 onClick={() => state.browseWorkspace(workspaceId)}
                 className={menuDangerRowClasses}
               >
                 <RotateCw aria-hidden="true" />
-                <span>Couldn’t load the boards. Try again</span>
+                <span>{t('boards.loadFailed')}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
 
           {entry?.status === 'ready' && boards.length === 0 && (
             <li className={`${noteClasses} group-data-[collapsible=icon]:hidden`}>
-              No boards yet.
+              {t('boards.none')}
             </li>
           )}
           {entry?.status === 'ready' && boards.length > 0 && shown.length === 0 && (
             <li className={`${noteClasses} group-data-[collapsible=icon]:hidden`}>
-              No board by that name.
+              {t('boards.noMatch')}
             </li>
           )}
 
@@ -243,12 +245,12 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
 
           <RailOnly>
             <SidebarMenuButton
-              tooltip="New board"
+              tooltip={t('boards.new')}
               disabled={state.busy}
               onClick={() => state.createBoard(workspaceId)}
             >
               <Plus aria-hidden="true" />
-              <span>New board</span>
+              <span>{t('boards.new')}</span>
             </SidebarMenuButton>
           </RailOnly>
         </SidebarMenu>
@@ -265,14 +267,9 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
         busy={state.busy}
         error={deleteError}
         onConfirm={confirmDelete}
-        title={`Delete “${pendingDelete?.title ?? 'this board'}”?`}
-        confirmLabel="Delete board"
-        description={
-          <>
-            This deletes the board for everyone who can reach it, and disconnects anyone who has it
-            open. You can’t undo this here.
-          </>
-        }
+        title={t('boards.deleteTitle', { title: pendingDelete?.title ?? t('boards.thisBoard') })}
+        confirmLabel={t('boards.deleteConfirm')}
+        description={t('boards.deleteWarning')}
       />
     </SidebarGroup>
   );
@@ -294,6 +291,7 @@ function SharedList({
   setQuery: (query: string) => void;
   inputRef: RefObject<HTMLInputElement>;
 }) {
+  const t = useT();
   const boards = state.sharedBoards;
   const needle = query.trim().toLowerCase();
   const shown = (boards ?? []).filter(
@@ -319,15 +317,15 @@ function SharedList({
                 setQuery('');
               }
             }}
-            placeholder="Find a board"
-            aria-label="Find a board"
+            placeholder={t('boards.find')}
+            aria-label={t('boards.find')}
             data-testid="sidebar-find-board"
             className="h-8 w-full rounded-md bg-sidebar-accent/60 pr-2 pl-8 text-sm text-sidebar-foreground outline-hidden ring-sidebar-ring placeholder:text-sidebar-foreground/50 focus-visible:ring-2 [&::-webkit-search-cancel-button]:hidden"
           />
         </div>
 
         <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">
-          Shared with you
+          {t('boards.sharedWithYou')}
         </SidebarGroupLabel>
 
         <SidebarMenu
@@ -342,12 +340,12 @@ function SharedList({
             ))}
           {boards?.length === 0 && (
             <li className={`${noteClasses} group-data-[collapsible=icon]:hidden`}>
-              Nothing is shared with you right now.
+              {t('boards.nothingShared')}
             </li>
           )}
           {boards && boards.length > 0 && shown.length === 0 && (
             <li className={`${noteClasses} group-data-[collapsible=icon]:hidden`}>
-              No board by that name.
+              {t('boards.noMatch')}
             </li>
           )}
           {shown.map((board) => (
@@ -374,12 +372,17 @@ function SharedRow({
   current: boolean;
   onOpen: () => void;
 }) {
+  const t = useT();
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         isActive={current}
         aria-current={current ? 'page' : undefined}
-        tooltip={`${board.title} — ${board.ownerName}, ${board.workspaceName}`}
+        tooltip={t('boards.sharedTooltip', {
+          title: board.title,
+          owner: board.ownerName,
+          workspace: board.workspaceName,
+        })}
         onClick={onOpen}
         data-testid={`sidebar-shared-board-${board.id}`}
         className="h-auto py-1.5"
@@ -390,7 +393,7 @@ function SharedRow({
         <span className="grid min-w-0 flex-1 leading-tight">
           <span className="truncate">{board.title}</span>
           <span className="truncate text-xs text-sidebar-foreground/50">
-            {`${board.ownerName} · ${board.role === 'viewer' ? 'Can view' : 'Can edit'}`}
+            {`${board.ownerName} · ${board.role === 'viewer' ? t('access.canView') : t('access.canEdit')}`}
           </span>
         </span>
       </SidebarMenuButton>
@@ -513,8 +516,11 @@ function BoardNameField({
   onSave: (patch: BoardDetailsPatch) => Promise<void>;
   onEnd: () => void;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState(board.title);
   const [color, setColor] = useState<BoardColor>(board.color);
+  const colourKey = BOARD_COLORS.find((it) => it.value === color)?.labelKey;
+  const colourName = colourKey ? t(colourKey) : color;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -555,7 +561,7 @@ function BoardNameField({
       },
       (err: unknown) => {
         setSaving(false);
-        setError(err instanceof Error ? err.message : 'Couldn’t save the board.');
+        setError(err instanceof Error ? err.message : t('boards.saveFailed'));
         requestAnimationFrame(() => inputRef.current?.focus());
       },
     );
@@ -603,8 +609,8 @@ function BoardNameField({
         >
           <InlineDropdownMenuTrigger
             disabled={saving}
-            aria-label={`Colour tag: ${BOARD_COLORS.find((it) => it.value === color)?.label ?? color}`}
-            title="Colour tag"
+            aria-label={t('boards.colourTagIs', { colour: colourName })}
+            title={t('boards.colourTag')}
             data-testid={`sidebar-board-colour-${board.id}`}
             className="flex h-6 shrink-0 items-center gap-0.5 rounded px-1 text-sidebar-foreground/60 outline-hidden transition-colors hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[state=open]:bg-sidebar-foreground/10"
           >
@@ -619,7 +625,7 @@ function BoardNameField({
             sideOffset={6}
             collisionPadding={8}
             container={portalContainer}
-            aria-label="Colour tag"
+            aria-label={t('boards.colourTag')}
             data-board-colours=""
             // Back to the name, caret where it was, rather than to the button.
             onCloseAutoFocus={(event) => {
@@ -645,7 +651,7 @@ function BoardNameField({
                     />
                   }
                 >
-                  {option.label}
+                  {t(option.labelKey)}
                 </InlineDropdownMenuChoiceItem>
               ))}
             </InlineDropdownMenuRadioGroup>
@@ -656,7 +662,7 @@ function BoardNameField({
           value={draft}
           maxLength={MAX_BOARD_TITLE}
           readOnly={saving}
-          aria-label="Board name"
+          aria-label={t('boards.name')}
           aria-invalid={error !== null || undefined}
           data-testid={`sidebar-board-rename-${board.id}`}
           onChange={(event) => setDraft(event.target.value)}
@@ -689,7 +695,8 @@ function BoardNameField({
 }
 
 function Soon() {
-  return <InlineDropdownMenuBadge>Soon</InlineDropdownMenuBadge>;
+  const t = useT();
+  return <InlineDropdownMenuBadge>{t('common.soon')}</InlineDropdownMenuBadge>;
 }
 
 /**
@@ -704,12 +711,13 @@ function BoardRowMenu({
   onRename,
   onDelete,
 }: Pick<BoardRowProps, 'board' | 'portalContainer' | 'onRename' | 'onDelete'>) {
+  const t = useT();
   return (
     <InlineDropdownMenu>
       <SidebarMenuAction showOnHover asChild>
         <InlineDropdownMenuTrigger
-          aria-label={`More actions for ${board.title}`}
-          title="More"
+          aria-label={t('boards.moreActionsFor', { title: board.title })}
+          title={t('common.more')}
           data-testid={`sidebar-board-menu-${board.id}`}
         >
           <Ellipsis aria-hidden="true" />
@@ -731,7 +739,7 @@ function BoardRowMenu({
           badge={<Soon />}
           data-testid="board-menu-pin"
         >
-          Pin to top
+          {t('boards.pin')}
         </InlineDropdownMenuItem>
         <InlineDropdownMenuItem
           disabled
@@ -739,7 +747,7 @@ function BoardRowMenu({
           badge={<Soon />}
           data-testid="board-menu-archive"
         >
-          Archive
+          {t('boards.archive')}
         </InlineDropdownMenuItem>
         <InlineDropdownMenuSeparator />
         {/* In place, on the row itself — no window, so no ellipsis. The board
@@ -750,7 +758,7 @@ function BoardRowMenu({
           onSelect={onRename}
           data-testid="board-menu-rename"
         >
-          Rename
+          {t('common.rename')}
         </InlineDropdownMenuItem>
         <InlineDropdownMenuSeparator />
         <InlineDropdownMenuItem
@@ -759,7 +767,7 @@ function BoardRowMenu({
           data-testid="board-menu-delete"
           className={menuDangerRowClasses}
         >
-          Delete…
+          {t('common.deleteEllipsis')}
         </InlineDropdownMenuItem>
       </InlineDropdownMenuContent>
     </InlineDropdownMenu>

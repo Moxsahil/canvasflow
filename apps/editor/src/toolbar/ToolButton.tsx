@@ -1,5 +1,6 @@
 import type { ToolMeta } from '../tools/tool';
 import type { Tool } from '../tools/tool';
+import { useT } from '../i18n';
 import './ToolButton.css';
 
 interface ToolButtonProps {
@@ -17,7 +18,8 @@ interface ToolButtonProps {
  * and lets the selected style be pure CSS via `:checked +`.
  */
 export function ToolButton({ meta, active, group, onSelect }: ToolButtonProps) {
-  const { id, label, icon: Icon, shortcut, numericKey } = meta;
+  const t = useT();
+  const { id, labelKey, icon: Icon, shortcut, numericKey } = meta;
   const shortcutHint = numericKey ? `${shortcut} or ${numericKey}` : shortcut;
 
   return (
@@ -28,7 +30,7 @@ export function ToolButton({ meta, active, group, onSelect }: ToolButtonProps) {
         name={group}
         checked={active}
         onChange={() => onSelect(id)}
-        aria-label={label}
+        aria-label={t(labelKey)}
         aria-keyshortcuts={shortcutHint}
         data-testid={`toolbar-${id}`}
       />

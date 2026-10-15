@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
-import type { CommandId } from './commands';
+import { t } from '../i18n';
+import { CATEGORY_KEYS, type CommandId } from './commands';
 import { groupByCategory, matchCommands, type MatchRange } from './match';
 import { readRecents, storeRecents, withRecent } from './recents';
 import type { EditorCommand } from './useEditorCommands';
@@ -13,6 +14,7 @@ export interface PaletteRow {
 export interface PaletteSection {
   /** `recent`, or the category's own name. */
   readonly id: string;
+  /** The heading, in the language on screen. */
   readonly label: string;
   readonly rows: readonly PaletteRow[];
 }
@@ -71,12 +73,12 @@ export function buildPaletteSections(
 
   const sections: PaletteSection[] = [];
   if (recentRows.length > 0) {
-    sections.push({ id: RECENT_SECTION_ID, label: 'Recent', rows: recentRows });
+    sections.push({ id: RECENT_SECTION_ID, label: t('commands.recent'), rows: recentRows });
   }
   for (const group of groupByCategory(rest, Boolean(query))) {
     sections.push({
       id: group.category,
-      label: group.category,
+      label: t(CATEGORY_KEYS[group.category]),
       rows: group.items.map((hit) => ({ command: hit.item, ranges: hit.ranges })),
     });
   }

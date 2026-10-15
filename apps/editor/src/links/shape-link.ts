@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import {
   MAX_LINK_LENGTH,
   computeBoundingRect,
@@ -121,12 +122,8 @@ export function shapeLinkComplete(target: ShapeLinkTarget, shapes: readonly Shap
 export function describeLink(link: string, here: string): { label: string; onThisBoard: boolean } {
   if (!isLinkToThisBoard(link, here)) return { label: linkLabel(link), onThisBoard: false };
   const target = readShapeLink(link)!;
-  if (target.kind === 'area') return { label: 'An area of this board', onThisBoard: true };
-  const count = target.ids.length;
-  return {
-    label: count === 1 ? '1 shape on this board' : `${count} shapes on this board`,
-    onThisBoard: true,
-  };
+  if (target.kind === 'area') return { label: t('links.area'), onThisBoard: true };
+  return { label: t('links.shapes', { count: target.ids.length }), onThisBoard: true };
 }
 
 /** Dots separate the ids, so one inside an id is escaped. */

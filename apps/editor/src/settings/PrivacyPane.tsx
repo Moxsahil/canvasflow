@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ACCOUNT_DELETION_GRACE_DAYS, TERMS_VERSION } from '@canvasflow/types';
 import { formatTermsVersion, privacyUrl, termsUrl } from '@/lib/legal-links';
+import { t as translate, useT } from '../i18n';
 import type { Profile } from '../profile';
 import { formatStorageSize, storageHint } from './account-format';
 import {
@@ -59,6 +60,7 @@ export function PrivacyPane({
   /** Saves a new answer; resolves false when it could not. */
   chooseAnalytics?: (allow: boolean) => Promise<boolean>;
 }) {
+  const t = useT();
   const [analyticsSaving, setAnalyticsSaving] = useState(false);
   const [analyticsFailed, setAnalyticsFailed] = useState(false);
   const [deleting, setDeleting] = useState(startDeleting && !isGuest);
@@ -84,7 +86,7 @@ export function PrivacyPane({
       (caught: unknown) => {
         if (!cancelled) {
           setPreviewError(
-            caught instanceof Error ? caught.message : 'Something went wrong. Try again.',
+            caught instanceof Error ? caught.message : translate('common.somethingWentWrongRetry'),
           );
         }
       },
@@ -98,12 +100,12 @@ export function PrivacyPane({
   // what the terms notice is for, so here it only says when they last changed.
   const termsHint =
     profile?.termsVersion === TERMS_VERSION
-      ? `You agreed to the version of ${formatTermsVersion(TERMS_VERSION)}`
-      : `Last updated ${formatTermsVersion(TERMS_VERSION)}`;
+      ? t('privacy.agreedTo', { date: formatTermsVersion(TERMS_VERSION) })
+      : t('terms.lastUpdated', { date: formatTermsVersion(TERMS_VERSION) });
 
   return (
     <SettingsPage
-      lead="Export your boards or close your account."
+      lead={t('settings.section.privacy.lead')}
       dialog={
         deleting && deleteAccount ? (
           <DeleteAccountDialog
@@ -120,47 +122,44 @@ export function PrivacyPane({
         ) : undefined
       }
     >
-      <Band title="Your data">
+      <Band title={t('settings.group.yourData')}>
         <SettingRow
           setting="export"
-          title="Export all boards"
-          hint={
-            exporter.hint ?? 'Every board you own, with its images, and your library, as a .zip'
-          }
+          title={t('settings.row.export')}
+          hint={exporter.hint ?? t('privacy.exportHint')}
         >
           <SettingsButton onClick={exporter.start} disabled={!token || exporter.progress !== null}>
             {!exporter.progress
-              ? 'Export'
+              ? t('privacy.export')
               : exporter.progress.total > 0
-                ? `Exporting ${exporter.progress.done} of ${exporter.progress.total}…`
-                : 'Exporting…'}
+                ? t('privacy.exportingOf', {
+                    done: exporter.progress.done,
+                    total: exporter.progress.total,
+                  })
+                : t('privacy.exporting')}
           </SettingsButton>
         </SettingRow>
         <SettingRow
           setting="storage-used"
-          title="Storage used"
-          hint={storage.usage ? storageHint(storage.usage) : 'Boards you own, in every workspace'}
+          title={t('settings.row.storage-used')}
+          hint={storage.usage ? storageHint(storage.usage) : t('privacy.storageHint')}
         >
           <ValueText>
             {storage.usage
               ? formatStorageSize(storage.usage.totalBytes)
               : storage.failed
-                ? 'Unavailable'
+                ? t('settings.unavailable')
                 : '—'}
           </ValueText>
         </SettingRow>
         {!isGuest && (
           <SettingRow
             setting="analytics"
-            title="Usage analytics"
-            hint={
-              analyticsFailed
-                ? 'Your choice couldn’t be saved. Try again.'
-                : 'Share which features you use, never what’s on your boards'
-            }
+            title={t('settings.row.analytics')}
+            hint={analyticsFailed ? t('privacy.analyticsFailed') : t('privacy.analyticsHint')}
           >
             <Toggle
-              label="Usage analytics"
+              label={t('settings.row.analytics')}
               on={analytics === true}
               disabled={analyticsSaving || !chooseAnalytics}
               onChange={(on) => {
@@ -179,36 +178,36 @@ export function PrivacyPane({
 
       {/* The editor has no footer, so this is where the legal pages are found
           from inside it. */}
-      <Band title="Legal">
-        <SettingRow setting="terms" title="Terms of Service" hint={termsHint}>
-          <ExternalLinkButton href={termsUrl()} label="Read the Terms of Service">
-            Read
+      <Band title={t('settings.group.legal')}>
+        <SettingRow setting="terms" title={t('settings.row.terms')} hint={termsHint}>
+          <ExternalLinkButton href={termsUrl()} label={t('privacy.readTerms')}>
+            {t('privacy.read')}
           </ExternalLinkButton>
         </SettingRow>
         <SettingRow
           setting="privacy-policy"
-          title="Privacy Policy"
-          hint="What we collect, and your rights over it"
+          title={t('settings.row.privacy-policy')}
+          hint={t('privacy.policyHint')}
         >
-          <ExternalLinkButton href={privacyUrl()} label="Read the Privacy Policy">
-            Read
+          <ExternalLinkButton href={privacyUrl()} label={t('privacy.readPolicy')}>
+            {t('privacy.read')}
           </ExternalLinkButton>
         </SettingRow>
       </Band>
 
       {!isGuest && (
-        <Band title="Danger zone" danger>
+        <Band title={t('settings.group.dangerZone')} danger>
           <SettingRow
             setting="delete-account"
-            title="Delete account"
-            hint={`Deletes your account and the boards you own. You’ll have ${ACCOUNT_DELETION_GRACE_DAYS} days to change your mind.`}
+            title={t('settings.row.delete-account')}
+            hint={t('privacy.deleteHint', { days: ACCOUNT_DELETION_GRACE_DAYS })}
           >
             <SettingsButton
               variant="danger"
               onClick={() => setDeleting(true)}
               disabled={!deleteAccount}
             >
-              Delete account
+              {t('settings.row.delete-account')}
             </SettingsButton>
           </SettingRow>
         </Band>
@@ -279,7 +278,7 @@ function useBoardsExport(
     })
       .then((result) => {
         if (!result) {
-          setHint('You don’t own any boards yet, so there is nothing to export');
+          setHint(translate('privacy.nothingToExport'));
           return;
         }
         // A plain download rather than the save picker: by now the click that
@@ -289,7 +288,7 @@ function useBoardsExport(
         setHint(exportSummary(result));
       })
       .catch((caught: unknown) => {
-        setHint(caught instanceof Error ? caught.message : 'The export failed. Try again.');
+        setHint(caught instanceof Error ? caught.message : translate('privacy.exportFailed'));
       })
       .finally(() => setProgress(null));
   };

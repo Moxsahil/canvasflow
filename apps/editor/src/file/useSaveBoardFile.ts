@@ -3,6 +3,7 @@ import type { Shape } from '@canvasflow/canvas-engine';
 import { serializeBoardFile } from './board-file';
 import { saveBoardFile } from './save-file';
 import { track } from '../analytics/analytics';
+import { t } from '../i18n';
 
 interface UseSaveBoardFileOptions {
   shapes: readonly Shape[];
@@ -40,8 +41,8 @@ export function useSaveBoardFile({
       } catch (error) {
         onNotice(
           error instanceof Error && error.message
-            ? `The board couldn't be saved: ${error.message}`
-            : "The board couldn't be saved.",
+            ? t('file.saveFailedBecause', { reason: error.message })
+            : t('file.saveFailed'),
         );
       }
     })();

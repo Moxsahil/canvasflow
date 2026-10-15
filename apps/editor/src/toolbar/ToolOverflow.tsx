@@ -1,5 +1,6 @@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ChevronUpIcon } from '../assets/icons';
+import { useT } from '../i18n';
 import type { Tool, ToolMeta } from '../tools/tool';
 import './ToolOverflow.css';
 
@@ -34,6 +35,7 @@ export function ToolOverflow({
   onOpenChange,
   container,
 }: ToolOverflowProps) {
+  const t = useT();
   // The chevron stands in for whichever of these is in use, so it has to carry
   // the selected look — otherwise picking the laser leaves the row showing
   // nothing selected at all.
@@ -45,7 +47,7 @@ export function ToolOverflow({
         className="cf-tool-overflow__trigger"
         data-active={holdsActiveTool || undefined}
         data-open={open || undefined}
-        aria-label="More tools"
+        aria-label={t('toolbar.moreTools')}
         data-testid="toolbar-overflow"
       >
         <span className="cf-tool-overflow__chevron" aria-hidden="true">
@@ -93,7 +95,7 @@ export function ToolOverflow({
               <span className="cf-tool-overflow__icon" aria-hidden="true">
                 <Icon />
               </span>
-              <span className="cf-tool-overflow__label">{meta.label}</span>
+              <span className="cf-tool-overflow__label">{t(meta.labelKey)}</span>
               <kbd className="cf-tool-overflow__shortcut">{meta.shortcut}</kbd>
             </button>
           );

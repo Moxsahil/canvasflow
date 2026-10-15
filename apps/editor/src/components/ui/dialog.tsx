@@ -3,6 +3,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 
 /**
  * shadcn's Dialog, on the editor's theme tokens.
@@ -41,6 +42,7 @@ const DialogContent = React.forwardRef<
     showClose?: boolean;
   }
 >(function DialogContent({ className, children, container, showClose = true, ...props }, ref) {
+  const t = useT();
   return (
     <DialogPrimitive.Portal container={container ?? undefined}>
       <DialogOverlay />
@@ -56,7 +58,7 @@ const DialogContent = React.forwardRef<
         {showClose && (
           <DialogPrimitive.Close
             className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-(--border-radius-md) text-(--keybinding-color) transition-colors hover:bg-(--button-hover-bg) hover:text-(--text-primary-color) focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none"
-            aria-label="Close"
+            aria-label={t('common.close')}
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </DialogPrimitive.Close>

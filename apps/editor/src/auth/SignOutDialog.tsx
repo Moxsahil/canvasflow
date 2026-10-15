@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { LogOut, TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useT } from '../i18n';
 import { PersonAvatar } from '../ui/PersonAvatar';
 import {
   SurfaceWindow,
@@ -61,6 +62,7 @@ export function SignOutDialog({
   onConfirm,
   theme,
 }: SignOutDialogProps) {
+  const t = useT();
   const titleId = useId();
   const bodyId = useId();
   const close = () => onOpenChange(false);
@@ -78,7 +80,7 @@ export function SignOutDialog({
     >
       <WindowHeader
         titleId={titleId}
-        title="Log out?"
+        title={t('signOut.title')}
         // The account, spelled out: the sidebar row that opened this is
         // collapsed to an initial half the time.
         description={
@@ -87,7 +89,7 @@ export function SignOutDialog({
               <>
                 {name}
                 <span className="inline-flex h-[20px] items-center rounded-full bg-[var(--surface-wash)] px-[7px] text-[10.5px] font-medium">
-                  Guest
+                  {t('signOut.guest')}
                 </span>
               </>
             ) : email ? (
@@ -114,9 +116,7 @@ export function SignOutDialog({
 
       <WindowBody>
         <p id={bodyId} className="text-[12.5px] leading-[1.6] text-[var(--surface-fg-muted)]">
-          {isGuest
-            ? `You joined this board by link, as a guest. Everything you have drawn stays on the board, but this guest identity ends here. The link will let you back in as someone new rather than as ${name}.`
-            : 'This device is logged out and sent back to the sign-in page. The board is unaffected, and everything on it is waiting when you log back in.'}
+          {isGuest ? t('signOut.guestBody', { name }) : t('signOut.body')}
         </p>
 
         {!synced && (
@@ -134,11 +134,8 @@ export function SignOutDialog({
               aria-hidden="true"
             />
             <span>
-              This board isn’t connected right now, so anything drawn since it dropped hasn’t
-              reached the server.{' '}
-              {isGuest
-                ? 'It is held on this device under a guest identity you cannot log back into, so it will not reach the board. Reconnect first if you want to keep it.'
-                : 'It is kept on this device and sent the next time you open the board as this account.'}
+              {t('signOut.notSynced')}{' '}
+              {isGuest ? t('signOut.notSyncedGuest') : t('signOut.notSyncedAccount')}
             </span>
           </div>
         )}
@@ -148,7 +145,7 @@ export function SignOutDialog({
         {/* Focus lands here: the button that ends the session is never the
             one under the first keystroke. */}
         <WindowButton variant="ghost" disabled={busy} autoFocus data-autofocus onClick={close}>
-          Cancel
+          {t('common.cancel')}
         </WindowButton>
         <WindowButton
           variant="ghost"
@@ -160,7 +157,7 @@ export function SignOutDialog({
           className="text-red-400 hover:bg-red-500/[17%] hover:text-red-400 focus-visible:ring-red-400 dark:hover:bg-red-500/[43%]"
         >
           {!busy && <LogOut aria-hidden="true" />}
-          {busy ? 'Logging out…' : 'Log out'}
+          {busy ? t('signOut.busy') : t('menu.signOut')}
         </WindowButton>
       </WindowFooter>
     </SurfaceWindow>

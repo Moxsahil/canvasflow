@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Search, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 
 /**
  * A search affordance that lives as an icon and expands into a field.
@@ -44,12 +45,14 @@ export function ExpandingSearchDock({
   onSubmit,
   onInputKeyDown,
   inputRef,
-  placeholder = 'Search…',
-  label = 'Search',
+  placeholder,
+  label,
   trailing,
   expandedWidth = 380,
   className,
 }: ExpandingSearchDockProps) {
+  const t = useT();
+  const name = label ?? t('search.label');
   return (
     <div className={cn('relative flex justify-end', className)}>
       <AnimatePresence mode="wait" initial={false}>
@@ -62,8 +65,8 @@ export function ExpandingSearchDock({
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 28 }}
             onClick={onExpand}
-            title={label}
-            aria-label={label}
+            title={name}
+            aria-label={name}
             aria-expanded={false}
             style={{ width: COLLAPSED_SIZE, height: COLLAPSED_SIZE }}
             className="flex items-center justify-center rounded-full border border-(--default-border-color) bg-(--island-bg-color) text-(--icon-fill-color) transition-colors hover:bg-(--button-hover-bg) focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none"
@@ -97,8 +100,8 @@ export function ExpandingSearchDock({
                 value={query}
                 onChange={(event) => onQueryChange(event.target.value)}
                 onKeyDown={onInputKeyDown}
-                placeholder={placeholder}
-                aria-label={label}
+                placeholder={placeholder ?? t('search.placeholder')}
+                aria-label={name}
                 className="h-full min-w-0 flex-1 bg-transparent px-1.5 text-xs text-(--text-primary-color) outline-none placeholder:text-(--keybinding-color)"
               />
               {trailing}
@@ -109,8 +112,8 @@ export function ExpandingSearchDock({
                 animate={{ scale: 1 }}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
-                title="Close search"
-                aria-label="Close search"
+                title={t('search.close')}
+                aria-label={t('search.close')}
                 className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-(--icon-fill-color) hover:bg-(--button-hover-bg) focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none"
               >
                 <X className="h-4 w-4" aria-hidden="true" />

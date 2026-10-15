@@ -6,6 +6,7 @@ import {
   WindowFooter,
   WindowHeader,
 } from './SurfaceWindow';
+import { useT } from '../i18n';
 import type { SurfaceTheme } from './surface-palette';
 
 interface ConfirmDialogProps {
@@ -42,14 +43,15 @@ export function ConfirmDialog({
   title,
   children,
   onConfirm,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel,
+  cancelLabel,
   destructive = false,
   icon,
   busy = false,
   theme,
   onClose,
 }: ConfirmDialogProps) {
+  const t = useT();
   const titleId = useId();
   const bodyId = useId();
 
@@ -76,7 +78,7 @@ export function ConfirmDialog({
       />
       <WindowFooter>
         <WindowButton variant="ghost" autoFocus data-autofocus onClick={onClose}>
-          {cancelLabel}
+          {cancelLabel ?? t('common.cancel')}
         </WindowButton>
         <WindowButton
           variant={destructive ? 'danger' : 'primary'}
@@ -84,7 +86,7 @@ export function ConfirmDialog({
           onClick={onConfirm}
           data-testid="confirm-dialog-confirm"
         >
-          {confirmLabel}
+          {confirmLabel ?? t('common.confirm')}
         </WindowButton>
       </WindowFooter>
     </SurfaceWindow>

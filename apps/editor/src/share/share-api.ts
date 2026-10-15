@@ -1,5 +1,6 @@
 import { env } from '@/lib/env';
 import { track } from '../analytics/analytics';
+import { t } from '../i18n';
 
 /**
  * Client for the web app's share-link routes.
@@ -52,8 +53,8 @@ function shareLinksUrl(boardId: string): string {
  * is the point, and inventing a friendlier story here would undo it.
  */
 async function failureMessage(res: Response): Promise<string> {
-  if (res.status === 401) return 'Your session expired. Reload the board and try again.';
-  if (res.status === 404) return 'This board is no longer available.';
+  if (res.status === 401) return t('errors.sessionExpired');
+  if (res.status === 404) return t('errors.thisBoardGone');
 
   // The route's own message comes first, because a 403 no longer has one
   // cause. Refusing to share now covers both a role that may not and an
@@ -66,8 +67,8 @@ async function failureMessage(res: Response): Promise<string> {
     // Fall through to the status-based wording below.
   }
 
-  if (res.status === 403) return 'Only the board owner can share this board.';
-  return `Something went wrong (${res.status}).`;
+  if (res.status === 403) return t('share.ownerOnly');
+  return t('errors.status', { status: res.status });
 }
 
 export async function createShareLink(

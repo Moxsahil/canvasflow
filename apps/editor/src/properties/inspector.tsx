@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { ChevronDown, Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useT, type TranslationKey } from '../i18n';
 import {
   menuLabelClasses,
   menuSeparatorClasses,
@@ -57,7 +58,7 @@ export function InspectorRow({ label, children }: { label: string; children: Rea
 
 export interface SegmentOption<T> {
   value: T;
-  label: string;
+  labelKey: TranslationKey;
   icon: ReactNode;
 }
 
@@ -85,6 +86,7 @@ export function SegmentedControl<T extends string | number>({
   /** Flip the glyphs, for markers that point the other way. */
   mirrored?: boolean;
 }) {
+  const t = useT();
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   const index = options.findIndex((option) => option.value === value);
   const count = options.length;
@@ -123,8 +125,8 @@ export function SegmentedControl<T extends string | number>({
             type="button"
             role="radio"
             aria-checked={checked}
-            aria-label={option.label}
-            title={option.label}
+            aria-label={t(option.labelKey)}
+            title={t(option.labelKey)}
             // One stop in the tab order: the choice in effect, or the first.
             tabIndex={i === Math.max(index, 0) ? 0 : -1}
             className={cn(
@@ -205,10 +207,11 @@ export function ColorChip({
   expanded: boolean;
   onOpen: (trigger: HTMLElement) => void;
 }) {
+  const t = useT();
   return (
     <button
       type="button"
-      aria-label={`${label}: ${value ?? 'none'}`}
+      aria-label={`${label}: ${value ?? t('style.noneLower')}`}
       aria-haspopup="dialog"
       aria-expanded={expanded}
       className={cn(chipClasses, expanded && wellOpenClasses)}
@@ -219,7 +222,9 @@ export function ColorChip({
         paint={value ? paint(value) : null}
         className="size-3.5 rounded-[3px]"
       />
-      <span className="truncate">{value === null ? 'None' : value.toUpperCase()}</span>
+      <span className="truncate">
+        {value === null ? t('style.arrowhead.none') : value.toUpperCase()}
+      </span>
     </button>
   );
 }

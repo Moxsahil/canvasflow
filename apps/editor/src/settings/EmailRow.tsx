@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { t as translate, useT } from '../i18n';
 import { resendVerification } from '../profile/verification-status';
 import { useVerificationStatus } from '../profile/useVerificationStatus';
 import { SettingRow, SettingsButton, StatusTag } from './settings-ui';
@@ -33,6 +34,7 @@ interface EmailRowProps {
  * with its own confirmation, and it can come back with that.
  */
 export function EmailRow({ email, verified, token, onVerified }: EmailRowProps) {
+  const t = useT();
   const [status, setStatus] = useState<Status>('idle');
   const [cooldown, setCooldown] = useState(0);
 
@@ -80,8 +82,12 @@ export function EmailRow({ email, verified, token, onVerified }: EmailRowProps) 
 
   if (confirmed) {
     return (
-      <SettingRow setting="email" title="Email" hint={email ?? 'No address on this account'}>
-        <StatusTag tone="positive">Verified</StatusTag>
+      <SettingRow
+        setting="email"
+        title={t('settings.row.email')}
+        hint={email ?? t('email.noAddress')}
+      >
+        <StatusTag tone="positive">{t('email.verified')}</StatusTag>
       </SettingRow>
     );
   }
@@ -89,9 +95,9 @@ export function EmailRow({ email, verified, token, onVerified }: EmailRowProps) 
   return (
     <SettingRow
       setting="email"
-      title="Email"
+      title={t('settings.row.email')}
       hint={hintFor(email, status, cooldown)}
-      badge={<StatusTag tone="caution">Unverified</StatusTag>}
+      badge={<StatusTag tone="caution">{t('email.unverified')}</StatusTag>}
     >
       <SettingsButton onClick={() => void send()} disabled={!token || cooldown > 0}>
         {buttonLabel(status, cooldown)}
@@ -101,15 +107,15 @@ export function EmailRow({ email, verified, token, onVerified }: EmailRowProps) 
 }
 
 function hintFor(email: string | null, status: Status, cooldown: number): string {
-  if (status === 'failed') return 'That did not send. Try again in a moment.';
+  if (status === 'failed') return translate('email.sendFailed');
   if (status === 'sent' && cooldown > 0) {
-    return `Sent to ${email ?? 'your address'}. Check your inbox.`;
+    return translate('email.sentTo', { email: email ?? translate('email.yourAddress') });
   }
-  return email ?? 'No address on this account';
+  return email ?? translate('email.noAddress');
 }
 
 function buttonLabel(status: Status, cooldown: number): string {
-  if (status === 'sending') return 'Sending…';
-  if (cooldown > 0) return `Wait ${cooldown}s`;
-  return 'Send verification email';
+  if (status === 'sending') return translate('common.sending');
+  if (cooldown > 0) return translate('email.wait', { seconds: cooldown });
+  return translate('email.sendVerification');
 }

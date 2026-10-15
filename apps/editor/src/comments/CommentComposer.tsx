@@ -3,6 +3,7 @@ import { ArrowUp, AtSign } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { menuSurfaceClasses } from '@/components/ui/menu-look';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
+import { useT } from '../i18n';
 import { CommentAvatar } from './CommentAvatar';
 import { useCommentEnvironment } from './comment-environment';
 import { insertMention, mentionCandidates, mentionQueryAt, mentionsIn } from './comment-mentions';
@@ -81,6 +82,7 @@ export function CommentComposer({
   focusSignal,
   className,
 }: CommentComposerProps) {
+  const t = useT();
   const { container, people, photos, theme } = useCommentEnvironment();
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const listId = useId();
@@ -238,7 +240,7 @@ export function CommentComposer({
             />
             <div className="flex items-center gap-0.5 px-1 pb-1">
               <EmojiPopover
-                label="Add emoji"
+                label={t('comments.addEmoji')}
                 sideOffset={fieldHeight + 6}
                 onPick={insert}
                 // Back to the field, where the emoji went, not to the button.
@@ -247,8 +249,8 @@ export function CommentComposer({
               />
               <button
                 type="button"
-                aria-label="Mention someone"
-                title="Mention someone"
+                aria-label={t('comments.mention')}
+                title={t('comments.mention')}
                 className={toolButton}
                 // Kept from taking focus, so the caret is still where the @
                 // is to go.
@@ -284,7 +286,7 @@ export function CommentComposer({
           collisionPadding={8}
           id={listId}
           role="listbox"
-          aria-label="People to mention"
+          aria-label={t('comments.peopleToMention')}
           className={cn(
             menuSurfaceClasses,
             'flex w-56 flex-col gap-y-0.5 p-1 text-xs shadow-none data-[state=open]:animate-none',

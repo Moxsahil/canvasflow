@@ -48,6 +48,7 @@ import {
   WEIGHT_STEPS,
 } from './style-options';
 import { styleSections } from './style-sections';
+import { useT } from '../i18n';
 
 type HaloMenu = 'stroke' | 'fill' | 'line' | 'look' | 'arrow' | 'text' | 'opacity' | 'arrange';
 
@@ -101,6 +102,7 @@ export function StyleHalo({
   hidden,
   onPlace,
 }: StyleHaloProps) {
+  const t = useT();
   const barRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const [open, setOpen] = useState<{ menu: HaloMenu; trigger: HTMLElement } | null>(null);
@@ -190,14 +192,14 @@ export function StyleHalo({
       <div
         ref={barRef}
         role="group"
-        aria-label="Style"
+        aria-label={t('style.style')}
         data-testid="style-halo"
         className={cn(menuSurfaceClasses, 'flex items-center gap-0.5 rounded-card p-0.75')}
       >
         <button
           type="button"
-          title={show.textOnly ? 'Text colour' : 'Stroke colour'}
-          aria-label={`${show.textOnly ? 'Text colour' : 'Stroke colour'}: ${style.strokeColor}`}
+          title={show.textOnly ? t('style.textColour') : t('style.strokeColour')}
+          aria-label={`${show.textOnly ? t('style.textColour') : t('style.strokeColour')}: ${style.strokeColor}`}
           className={menuChipClasses}
           {...chipState('stroke')}
         >
@@ -211,8 +213,8 @@ export function StyleHalo({
         {show.fill && (
           <button
             type="button"
-            title="Fill"
-            aria-label={`Fill colour: ${style.fillColor ?? 'none'}`}
+            title={t('style.fill')}
+            aria-label={`${t('style.fillColour')}: ${style.fillColor ?? t('style.noneLower')}`}
             className={menuChipClasses}
             {...chipState('fill')}
           >
@@ -230,8 +232,8 @@ export function StyleHalo({
         {show.textOnly && (
           <button
             type="button"
-            title="Text"
-            aria-label="Text style"
+            title={t('style.text')}
+            aria-label={t('style.textStyle')}
             className={menuChipClasses}
             {...chipState('text')}
           >
@@ -242,8 +244,8 @@ export function StyleHalo({
         {show.stroke && (
           <button
             type="button"
-            title="Line"
-            aria-label="Line"
+            title={t('style.line')}
+            aria-label={t('style.line')}
             className={menuChipClasses}
             {...chipState('line')}
           >
@@ -272,8 +274,8 @@ export function StyleHalo({
         {show.strokeTreatments && (
           <button
             type="button"
-            title="Look"
-            aria-label="Look"
+            title={t('style.look')}
+            aria-label={t('style.look')}
             className={menuChipClasses}
             {...chipState('look')}
           >
@@ -284,8 +286,8 @@ export function StyleHalo({
         {show.corners && (
           <button
             type="button"
-            title="Rounded corners"
-            aria-label="Rounded corners"
+            title={t('style.roundedCorners')}
+            aria-label={t('style.roundedCorners')}
             aria-pressed={style.edges === 'round'}
             className={menuChipClasses}
             onClick={() => onStyleChange({ edges: style.edges === 'round' ? 'sharp' : 'round' })}
@@ -296,8 +298,8 @@ export function StyleHalo({
         {show.arrow && (
           <button
             type="button"
-            title="Arrow"
-            aria-label="Arrow"
+            title={t('style.arrow')}
+            aria-label={t('style.arrow')}
             className={menuChipClasses}
             {...chipState('arrow')}
           >
@@ -310,8 +312,8 @@ export function StyleHalo({
 
         <button
           type="button"
-          title="Opacity"
-          aria-label={`Opacity: ${style.opacity}%`}
+          title={t('style.opacity')}
+          aria-label={`${t('style.opacity')}: ${style.opacity}%`}
           className={menuChipClasses}
           {...chipState('opacity')}
         >
@@ -321,8 +323,8 @@ export function StyleHalo({
         {canReorder && (
           <button
             type="button"
-            title="Arrange"
-            aria-label="Arrange"
+            title={t('style.arrange')}
+            aria-label={t('style.arrange')}
             className={menuChipClasses}
             {...chipState('arrange')}
           >
@@ -336,7 +338,11 @@ export function StyleHalo({
         <ColorPickerPopover
           key={open.menu}
           title={
-            open.menu === 'fill' ? 'Fill colour' : show.textOnly ? 'Text colour' : 'Stroke colour'
+            open.menu === 'fill'
+              ? t('style.fillColour')
+              : show.textOnly
+                ? t('style.textColour')
+                : t('style.strokeColour')
           }
           value={open.menu === 'stroke' ? style.strokeColor : style.fillColor}
           swatches={open.menu === 'stroke' ? STROKE_SWATCHES : BACKGROUND_SWATCHES}
@@ -346,9 +352,9 @@ export function StyleHalo({
           extra={
             open.menu === 'fill' &&
             show.fillPattern && (
-              <InspectorRow label="Pattern">
+              <InspectorRow label={t('style.pattern')}>
                 <SegmentedControl
-                  label="Fill pattern"
+                  label={t('style.fillPattern')}
                   value={style.fillStyle}
                   options={PATTERN_OPTIONS}
                   onChange={(fillStyle) => onStyleChange({ fillStyle })}
@@ -371,23 +377,23 @@ export function StyleHalo({
 
       {open?.menu === 'line' &&
         menu(
-          'Line',
+          t('style.line'),
           <>
-            <InspectorRow label="Weight">
+            <InspectorRow label={t('style.weight')}>
               <StepperControl
-                label="Stroke weight"
+                label={t('style.strokeWeight')}
                 value={style.strokeWidth}
                 steps={WEIGHT_STEPS}
                 format={(width) => `${width} px`}
-                decreaseLabel="Thinner"
-                increaseLabel="Thicker"
+                decreaseLabel={t('style.thinner')}
+                increaseLabel={t('style.thicker')}
                 onChange={(strokeWidth) => onStyleChange({ strokeWidth })}
               />
             </InspectorRow>
             {show.strokeTreatments && (
-              <InspectorRow label="Dash">
+              <InspectorRow label={t('style.dash')}>
                 <SegmentedControl
-                  label="Stroke dash"
+                  label={t('style.strokeDash')}
                   value={style.strokeStyle}
                   options={DASH_OPTIONS}
                   onChange={(strokeStyle) => onStyleChange({ strokeStyle })}
@@ -395,9 +401,9 @@ export function StyleHalo({
               </InspectorRow>
             )}
             {show.pressure && (
-              <InspectorRow label="Pressure">
+              <InspectorRow label={t('style.pressure')}>
                 <SegmentedControl
-                  label="Pressure"
+                  label={t('style.pressure')}
                   value={style.simulatePressure ? 'tapered' : 'constant'}
                   options={PRESSURE_OPTIONS}
                   onChange={(pressure) =>
@@ -411,10 +417,10 @@ export function StyleHalo({
 
       {open?.menu === 'look' &&
         menu(
-          'Look',
-          <InspectorRow label="Style">
+          t('style.look'),
+          <InspectorRow label={t('style.style')}>
             <SegmentedControl
-              label="Look"
+              label={t('style.look')}
               value={style.roughness}
               options={LOOK_OPTIONS}
               onChange={(roughness) => onStyleChange({ roughness })}
@@ -424,18 +430,18 @@ export function StyleHalo({
 
       {open?.menu === 'arrow' &&
         menu(
-          'Arrow',
+          t('style.arrow'),
           <>
-            <InspectorRow label="Type">
+            <InspectorRow label={t('style.type')}>
               <SegmentedControl
-                label="Arrow type"
+                label={t('style.arrowType')}
                 value={style.arrowType}
                 options={ARROW_TYPE_OPTIONS}
                 onChange={(arrowType) => onStyleChange({ arrowType })}
               />
             </InspectorRow>
             <p className="m-0 px-2 pt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
-              Start
+              {t('style.start')}
             </p>
             <ArrowheadGrid
               end="start"
@@ -443,7 +449,9 @@ export function StyleHalo({
               value={style.startArrowhead}
               onPick={(startArrowhead) => onStyleChange({ startArrowhead })}
             />
-            <p className="m-0 px-2 pt-1 text-[11px] text-neutral-500 dark:text-neutral-400">End</p>
+            <p className="m-0 px-2 pt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+              {t('style.end')}
+            </p>
             <ArrowheadGrid
               end="end"
               columns={5}
@@ -455,27 +463,27 @@ export function StyleHalo({
 
       {open?.menu === 'text' &&
         menu(
-          'Text',
+          t('style.text'),
           <>
-            <InspectorRow label="Font">
+            <InspectorRow label={t('style.font')}>
               <SegmentedControl
-                label="Font"
+                label={t('style.font')}
                 value={style.fontFamily}
                 options={FONT_OPTIONS}
                 onChange={(fontFamily) => onStyleChange({ fontFamily })}
               />
             </InspectorRow>
-            <InspectorRow label="Size">
+            <InspectorRow label={t('style.size')}>
               <SegmentedControl
-                label="Font size"
+                label={t('style.fontSize')}
                 value={style.fontSize}
                 options={FONT_SIZE_OPTIONS}
                 onChange={(fontSize) => onStyleChange({ fontSize })}
               />
             </InspectorRow>
-            <InspectorRow label="Align">
+            <InspectorRow label={t('style.align')}>
               <SegmentedControl
-                label="Text align"
+                label={t('style.textAlign')}
                 value={style.textAlign}
                 options={ALIGN_OPTIONS}
                 onChange={(textAlign) => onStyleChange({ textAlign })}
@@ -486,10 +494,10 @@ export function StyleHalo({
 
       {open?.menu === 'opacity' &&
         menu(
-          'Opacity',
-          <InspectorRow label="Opacity">
+          t('style.opacity'),
+          <InspectorRow label={t('style.opacity')}>
             <PercentControl
-              label="Opacity"
+              label={t('style.opacity')}
               value={style.opacity}
               onChange={(opacity) => onStyleChange({ opacity })}
             />
@@ -498,18 +506,18 @@ export function StyleHalo({
 
       {open?.menu === 'arrange' &&
         menu(
-          'Arrange',
+          t('style.arrange'),
           <div className="flex flex-col gap-y-0.5">
             {(
               [
-                ['Bring to front', layerActions.onBringToFront, ArrowUpToLine],
-                ['Bring forward', layerActions.onBringForward, MoveUp],
-                ['Send backward', layerActions.onSendBackward, MoveDown],
-                ['Send to back', layerActions.onSendToBack, ArrowDownToLine],
+                ['style.bringToFront', layerActions.onBringToFront, ArrowUpToLine],
+                ['style.bringForward', layerActions.onBringForward, MoveUp],
+                ['style.sendBackward', layerActions.onSendBackward, MoveDown],
+                ['style.sendToBack', layerActions.onSendToBack, ArrowDownToLine],
               ] as const
-            ).map(([label, run, Icon]) => (
+            ).map(([labelKey, run, Icon]) => (
               <button
-                key={label}
+                key={labelKey}
                 type="button"
                 className={menuButtonRowClasses}
                 onClick={() => {
@@ -517,7 +525,7 @@ export function StyleHalo({
                   close();
                 }}
               >
-                <span>{label}</span>
+                <span>{t(labelKey)}</span>
                 <Icon aria-hidden="true" className="size-4 shrink-0" />
               </button>
             ))}

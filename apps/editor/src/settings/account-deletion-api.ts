@@ -1,4 +1,5 @@
 import { env } from '@/lib/env';
+import { t } from '../i18n';
 import type { SignInProvider } from './account-security-api';
 
 /**
@@ -54,18 +55,18 @@ async function failure(res: Response): Promise<AccountDeletionError> {
   } | null;
 
   if (res.status === 401) {
-    return new AccountDeletionError('Your session has ended. Sign in again.', 401);
+    return new AccountDeletionError(t('library.sessionEnded'), 401);
   }
   if (res.status === 429) {
     return new AccountDeletionError(
       body?.message && !body.message.startsWith('ThrottlerException')
         ? body.message
-        : 'Too many attempts. Wait a moment and try again.',
+        : t('errors.tooManyAttempts'),
       429,
     );
   }
   return new AccountDeletionError(
-    body?.message ?? `Something went wrong (${res.status}).`,
+    body?.message ?? t('errors.status', { status: res.status }),
     res.status,
     body?.code,
   );

@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { rich, useT } from '../i18n';
 import { INPUT } from '../settings/settings-ui';
 import {
   SurfaceWindow,
@@ -59,6 +60,7 @@ export function DeleteWarningDialog({
   onConfirm,
   theme,
 }: DeleteWarningDialogProps) {
+  const t = useT();
   const titleId = useId();
   const descriptionId = useId();
   const fieldId = useId();
@@ -106,8 +108,9 @@ export function DeleteWarningDialog({
       {confirmText !== undefined && (
         <WindowBody className="gap-[8px]">
           <label htmlFor={fieldId} className="text-[12px] text-[var(--surface-fg-muted)]">
-            To confirm, type{' '}
-            <span className="font-semibold text-[var(--surface-fg)]">{confirmText}</span>
+            {rich(t('delete.typeToConfirm'), {
+              name: <span className="font-semibold text-[var(--surface-fg)]">{confirmText}</span>,
+            })}
           </label>
           {/* No placeholder: it would be the name being asked for, in grey,
               which reads as a field already filled in. */}
@@ -138,11 +141,11 @@ export function DeleteWarningDialog({
           data-autofocus={confirmText === undefined ? true : undefined}
           onClick={close}
         >
-          Cancel
+          {t('common.cancel')}
         </WindowButton>
         <WindowButton variant="danger" type="submit" disabled={!confirmed || busy}>
           {!busy && <Trash2 aria-hidden="true" />}
-          {busy ? 'Deleting…' : confirmLabel}
+          {busy ? t('common.deleting') : confirmLabel}
         </WindowButton>
       </WindowFooter>
     </SurfaceWindow>

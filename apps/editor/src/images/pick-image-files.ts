@@ -1,4 +1,5 @@
 import { SUPPORTED_IMAGE_ACCEPT, SUPPORTED_IMAGE_MIME_TYPES } from '@canvasflow/canvas-engine';
+import { t } from '../i18n';
 
 /**
  * Ask for one or more image files, resolving to an empty array if dismissed.
@@ -16,7 +17,7 @@ export async function pickImageFiles(): Promise<File[]> {
         multiple: true,
         types: [
           {
-            description: 'Image',
+            description: t('tools.image'),
             accept: Object.fromEntries(SUPPORTED_IMAGE_MIME_TYPES.map((type) => [type, []])),
           },
         ],

@@ -2,6 +2,7 @@ import { GlassDock, GlassDockItem } from '@/components/ui/glass-dock';
 import { LockIcon, UnlockIcon } from '../assets/icons';
 import { isLockableTool, type Tool } from '../tools/tool';
 import { IconButton } from '../ui';
+import { useT } from '../i18n';
 
 interface ToolLockButtonProps {
   activeTool: Tool;
@@ -22,9 +23,10 @@ interface ToolLockButtonProps {
  * company for the toolbar than an empty space.
  */
 export function ToolLockButton({ activeTool, locked, onToggle }: ToolLockButtonProps) {
+  const t = useT();
   if (!isLockableTool(activeTool)) return null;
 
-  const label = locked ? 'Tool lock on · Q' : 'Tool lock off · Q';
+  const label = `${locked ? t('toolLock.on') : t('toolLock.off')} · Q`;
 
   return (
     // Stripped of the dock's own surface: a frame around a single button reads
@@ -32,7 +34,7 @@ export function ToolLockButton({ activeTool, locked, onToggle }: ToolLockButtonP
     // hover and on states, which is all the shape it needs. Still a GlassDock
     // so it keeps the sliding tooltip every other control in the dock has.
     <GlassDock
-      aria-label="Tool lock"
+      aria-label={t('preferences.toolLock')}
       className="self-end border-0 bg-transparent p-0 backdrop-blur-none"
     >
       <GlassDockItem id="tool-lock" label={label}>
@@ -40,7 +42,7 @@ export function ToolLockButton({ activeTool, locked, onToggle }: ToolLockButtonP
           icon={locked ? LockIcon : UnlockIcon}
           onClick={onToggle}
           pressed={locked}
-          aria-label={`Tool lock, ${locked ? 'on' : 'off'}`}
+          aria-label={locked ? t('toolLock.onSpoken') : t('toolLock.offSpoken')}
         />
       </GlassDockItem>
     </GlassDock>

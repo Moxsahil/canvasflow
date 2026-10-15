@@ -1,4 +1,5 @@
 import { env } from '@/lib/env';
+import { t } from '../i18n';
 
 /**
  * Transport for profile photo bytes.
@@ -21,8 +22,8 @@ export class AvatarError extends Error {
 }
 
 async function failureMessage(res: Response): Promise<string> {
-  if (res.status === 401) return 'Your session expired. Reload the board and try again.';
-  if (res.status === 503) return 'Photo storage is not configured.';
+  if (res.status === 401) return t('errors.sessionExpired');
+  if (res.status === 503) return t('profile.photoStorageMissing');
   try {
     const body = (await res.json()) as { message?: string; error?: string };
     if (body.message) return body.message;
@@ -30,7 +31,7 @@ async function failureMessage(res: Response): Promise<string> {
   } catch {
     // Fall through to the generic message.
   }
-  return `Something went wrong (${res.status}).`;
+  return t('errors.status', { status: res.status });
 }
 
 function avatarUrl(path = ''): string {
@@ -70,7 +71,7 @@ export async function uploadAvatar(
     headers: data.headers,
     body: bytes as BodyInit,
   });
-  if (!upload.ok) throw new AvatarError('The photo could not be uploaded. Try again.');
+  if (!upload.ok) throw new AvatarError(t('profile.photoUploadFailed'));
 
   const commit = await fetch(avatarUrl(), {
     method: 'POST',

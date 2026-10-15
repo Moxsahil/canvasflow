@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { menuDangerRowClasses } from '@/components/ui/menu-look';
 import { initialsOf } from '@/lib/initials';
 import { PersonAvatar } from '../ui/PersonAvatar';
+import { formatShortDate, t as translate, useT, type TranslationKey } from '../i18n';
 import {
   InlineDropdownMenu,
   InlineDropdownMenuChoiceItem,
@@ -117,17 +118,20 @@ export interface ShareSessionPanelProps {
   now?: number;
 }
 
-const PERMISSIONS: Record<ShareRole, { label: string; hint: string; icon: typeof Eye }> = {
-  viewer: { label: 'Can view', hint: 'See it, but not change it', icon: Eye },
-  editor: { label: 'Can edit', hint: 'Draw and change the board', icon: Pencil },
+const PERMISSIONS: Record<
+  ShareRole,
+  { label: TranslationKey; hint: TranslationKey; icon: typeof Eye }
+> = {
+  viewer: { label: 'access.canView', hint: 'share.canViewHint', icon: Eye },
+  editor: { label: 'access.canEdit', hint: 'share.canEditHint', icon: Pencil },
 };
 
 /** How somebody here through the workspace is labelled, in place of a role menu. */
-const WORKSPACE_ROLE_LABELS = {
-  owner: 'Workspace owner',
-  admin: 'Workspace admin',
-  member: 'Workspace member',
-} as const;
+const WORKSPACE_ROLE_LABELS: Record<'owner' | 'admin' | 'member', TranslationKey> = {
+  owner: 'share.workspaceOwner',
+  admin: 'share.workspaceAdmin',
+  member: 'share.workspaceMember',
+};
 
 /** Chosen from a person's menu, where it reads as one more thing to set. */
 const REMOVE = 'remove';
@@ -142,8 +146,9 @@ const REMOVE = 'remove';
  * either way, and arrive in the list as they join.
  */
 export function ShareSessionPanel(props: ShareSessionPanelProps) {
+  const t = useT();
   const { boardName, people, session, onClose } = props;
-  const members = people.length === 1 ? '1 member' : `${people.length} members`;
+  const members = t('share.memberCount', { count: people.length });
 
   return (
     <>
@@ -159,10 +164,10 @@ export function ShareSessionPanel(props: ShareSessionPanelProps) {
           <p className="flex items-center gap-[5px] text-[12px] text-[var(--surface-fg-muted)]">
             <Users className="size-[12px]" aria-hidden="true" />
             {members}
-            {session ? ' · sharing is live' : ''}
+            {session ? ` · ${t('share.sharingIsLive')}` : ''}
           </p>
         </div>
-        <CloseButton label="Close" onClick={onClose} />
+        <CloseButton label={t('common.close')} onClick={onClose} />
       </header>
 
       <div className="flex min-h-0 flex-col gap-[16px] px-[20px] pt-[14px]">
@@ -170,9 +175,9 @@ export function ShareSessionPanel(props: ShareSessionPanelProps) {
           {session ? <LiveHero {...props} session={session} /> : <IdleHero {...props} />}
         </Measured>
 
-        <section aria-label="On this board" className="flex min-h-0 flex-col gap-[2px]">
+        <section aria-label={t('share.onThisBoard')} className="flex min-h-0 flex-col gap-[2px]">
           <div className="flex items-baseline justify-between">
-            <h3 className="text-[12px] font-semibold">On this board</h3>
+            <h3 className="text-[12px] font-semibold">{t('share.onThisBoard')}</h3>
             <span className="text-[11.5px] text-[var(--surface-fg-muted)]">{members}</span>
           </div>
           <PeopleList {...props} />
@@ -197,14 +202,14 @@ export function ShareSessionPanel(props: ShareSessionPanelProps) {
             props.error ? 'text-[var(--surface-danger)]' : 'text-[var(--surface-fg-faint)]',
           )}
         >
-          {props.error ?? (session ? 'The session keeps running when you close this.' : '')}
+          {props.error ?? (session ? t('share.keepsRunning') : '')}
         </p>
         <SettingsButton
           variant="ghost"
           className="h-[32px] px-[14px] text-[12.5px]"
           onClick={onClose}
         >
-          Done
+          {t('common.done')}
         </SettingsButton>
         {!session && (
           <SettingsButton
@@ -215,7 +220,7 @@ export function ShareSessionPanel(props: ShareSessionPanelProps) {
             data-testid="share-start"
           >
             <Play className="size-[12px]" aria-hidden="true" />
-            {props.busy ? 'Starting…' : 'Start session'}
+            {props.busy ? t('share.starting') : t('share.start')}
           </SettingsButton>
         )}
       </footer>
@@ -262,9 +267,10 @@ export function ShareCollaboratorPanel({
   here,
   onClose,
 }: ShareCollaboratorPanelProps) {
-  const count = here.length === 1 ? '1 here now' : `${here.length} here now`;
+  const t = useT();
+  const count = t('share.hereNowCount', { count: here.length });
   const Icon = role === 'editor' ? Pencil : Eye;
-  const owner = ownerName ?? 'the owner';
+  const owner = ownerName ?? t('share.theOwner');
 
   return (
     <>
@@ -282,7 +288,7 @@ export function ShareCollaboratorPanel({
             {count}
           </p>
         </div>
-        <CloseButton label="Close" onClick={onClose} />
+        <CloseButton label={t('common.close')} onClick={onClose} />
       </header>
 
       <div className="flex min-h-0 flex-col gap-[16px] px-[20px] pt-[14px]">
@@ -297,26 +303,26 @@ export function ShareCollaboratorPanel({
             <div className="flex min-w-0 flex-1 flex-col gap-[1px]">
               <p className="text-[13.5px] font-semibold" data-testid="share-your-access">
                 {role === 'editor'
-                  ? 'You can edit this board'
+                  ? t('share.youCanEdit')
                   : role === 'viewer'
-                    ? 'You can view this board'
-                    : 'You’re on this board'}
+                    ? t('share.youCanView')
+                    : t('share.youreOnThisBoard')}
               </p>
               <p className="text-[11.5px] text-[var(--surface-fg-muted)]">
-                {`Only ${owner} and the workspace’s admins can invite people or change who has access.`}
+                {t('share.onlyOwnerInvites', { owner })}
               </p>
             </div>
           </div>
         </div>
 
-        <section aria-label="Here now" className="flex min-h-0 flex-col gap-[2px]">
+        <section aria-label={t('share.hereNow')} className="flex min-h-0 flex-col gap-[2px]">
           <div className="flex items-baseline justify-between">
-            <h3 className="text-[12px] font-semibold">Here now</h3>
+            <h3 className="text-[12px] font-semibold">{t('share.hereNow')}</h3>
             <span className="text-[11.5px] text-[var(--surface-fg-muted)]">{count}</span>
           </div>
           {here.length <= 1 ? (
             <p className="py-[10px] text-[12px] text-[var(--surface-fg-muted)]">
-              Only you, for now.
+              {t('share.onlyYou')}
             </p>
           ) : (
             <ul className={cn('max-h-[150px] overflow-y-auto pr-[2px]', SCROLLBAR)}>
@@ -334,13 +340,16 @@ export function ShareCollaboratorPanel({
                   <p className="min-w-0 flex-1 truncate text-[12.5px] font-medium">
                     {person.name}
                     {person.you && (
-                      <span className="font-normal text-[var(--surface-fg-muted)]"> (you)</span>
+                      <span className="font-normal text-[var(--surface-fg-muted)]">
+                        {' '}
+                        {t('share.you')}
+                      </span>
                     )}
                   </p>
                   {person.isOwner && (
                     <span className="inline-flex h-[24px] shrink-0 items-center gap-[5px] rounded-[7px] border border-[var(--surface-border)] px-[8px] text-[11px] text-[var(--surface-fg-muted)]">
                       <Crown className="size-[12px]" aria-hidden="true" />
-                      Owner
+                      {t('role.owner')}
                     </span>
                   )}
                 </li>
@@ -356,7 +365,7 @@ export function ShareCollaboratorPanel({
           className="h-[32px] px-[14px] text-[12.5px]"
           onClick={onClose}
         >
-          Done
+          {t('common.done')}
         </SettingsButton>
       </footer>
     </>
@@ -429,16 +438,13 @@ function IdleHero({
   onAllowGuestsChange,
   busy,
 }: ShareSessionPanelProps) {
+  const t = useT();
   return (
     <div className={HERO}>
-      <HeroTop
-        live={false}
-        title="Not sharing yet"
-        hint="Start a session to get a link anyone can join by. It stays live until you stop it."
-      />
+      <HeroTop live={false} title={t('share.notSharing')} hint={t('share.notSharingHint')} />
       <div className="flex flex-col gap-[8px]">
         <p id="share-joiners" className="text-[11.5px] text-[var(--surface-fg-muted)]">
-          People who join can
+          {t('share.peopleWhoJoinCan')}
         </p>
         <div
           role="radiogroup"
@@ -471,8 +477,8 @@ function IdleHero({
                     selected ? 'text-[var(--surface-accent)]' : 'text-[var(--surface-fg-muted)]',
                   )}
                 />
-                <span className="text-[12.5px] font-medium">{label}</span>
-                <span className="text-[11px] text-[var(--surface-fg-muted)]">{hint}</span>
+                <span className="text-[12.5px] font-medium">{t(label)}</span>
+                <span className="text-[11px] text-[var(--surface-fg-muted)]">{t(hint)}</span>
               </button>
             );
           })}
@@ -480,13 +486,13 @@ function IdleHero({
       </div>
       <div className="flex items-center gap-[12px]">
         <div className="flex min-w-0 flex-1 flex-col gap-[1px]">
-          <p className="text-[12.5px] font-medium">Allow guests</p>
+          <p className="text-[12.5px] font-medium">{t('share.allowGuests')}</p>
           <p className="text-[11.5px] text-[var(--surface-fg-muted)]">
-            People without an account can join
+            {t('share.allowGuestsHint')}
           </p>
         </div>
         <Toggle
-          label="Allow people without an account"
+          label={t('share.allowGuestsLabel')}
           on={allowGuests}
           onChange={onAllowGuestsChange}
           disabled={busy}
@@ -507,16 +513,17 @@ function LiveHero({
   qr,
   now,
 }: ShareSessionPanelProps & { session: LiveSession }) {
+  const t = useT();
   const clock = useNow(now);
   const until = session.expiresAt
-    ? `Anyone with the link can join until ${formatDate(session.expiresAt)}, or until you stop it.`
-    : 'Anyone with the link can join until you stop it.';
+    ? t('share.joinUntil', { date: formatDate(session.expiresAt) })
+    : t('share.joinUntilStopped');
 
   return (
     <div className={HERO} aria-live="polite">
       <HeroTop
         live
-        title={<>Live for {liveFor(session.startedAt, clock)}</>}
+        title={t('share.liveFor', { duration: liveFor(session.startedAt, clock) })}
         hint={until}
         action={
           <SettingsButton
@@ -526,7 +533,7 @@ function LiveHero({
             data-testid="share-stop"
           >
             <Square className="size-[11px]" aria-hidden="true" />
-            {busy ? 'Stopping…' : 'Stop session'}
+            {busy ? t('share.stopping') : t('share.stop')}
           </SettingsButton>
         }
       />
@@ -536,8 +543,8 @@ function LiveHero({
             <input
               readOnly
               value={url ?? ''}
-              placeholder="Link created in another browser"
-              aria-label="Session link"
+              placeholder={t('share.linkElsewhere')}
+              aria-label={t('share.sessionLink')}
               onFocus={(event) => event.currentTarget.select()}
               className={cn(INPUT, 'min-w-0 flex-1')}
             />
@@ -553,22 +560,22 @@ function LiveHero({
               ) : (
                 <Copy className="size-[14px]" aria-hidden="true" />
               )}
-              {copied ? 'Copied' : 'Copy'}
+              {copied ? t('links.copied') : t('export.copy')}
             </SettingsButton>
           </div>
           <div className="flex flex-wrap items-center gap-[6px]">
             <span className="inline-flex h-[22px] items-center gap-[5px] rounded-full bg-[var(--surface-panel)] px-[8px] text-[11px] text-[var(--surface-fg-muted)]">
               <Lock className="size-[11px]" aria-hidden="true" />
-              {PERMISSIONS[session.role].label} ·{' '}
-              {session.allowGuests ? 'Guests can join' : 'Accounts only'}
+              {t(PERMISSIONS[session.role].label)} ·{' '}
+              {session.allowGuests ? t('share.guestsCanJoin') : t('share.accountsOnly')}
             </span>
             <span className="text-[11.5px] text-[var(--surface-fg-muted)]">
-              {url ? 'Set when the session started' : 'Stop and start again to get the link here'}
+              {url ? t('share.setAtStart') : t('share.restartForLink')}
             </span>
           </div>
         </div>
         {url && qr ? (
-          <div title="Scan to open the board on a phone or tablet" className="shrink-0">
+          <div title={t('share.scanHint')} className="shrink-0">
             {qr}
           </div>
         ) : null}
@@ -589,9 +596,10 @@ function PeopleList({
   menuContainer,
   onMenuOpenChange,
 }: ShareSessionPanelProps) {
+  const t = useT();
   if (people.length === 0) {
     return (
-      <p className="py-[10px] text-[12px] text-[var(--surface-fg-muted)]">Only you, for now.</p>
+      <p className="py-[10px] text-[12px] text-[var(--surface-fg-muted)]">{t('share.onlyYou')}</p>
     );
   }
 
@@ -613,29 +621,32 @@ function PeopleList({
               <span className="truncate">
                 {person.name}
                 {person.you && (
-                  <span className="font-normal text-[var(--surface-fg-muted)]"> (you)</span>
+                  <span className="font-normal text-[var(--surface-fg-muted)]">
+                    {' '}
+                    {t('share.you')}
+                  </span>
                 )}
               </span>
-              {person.isGuest && <StatusTag tone="neutral">Guest</StatusTag>}
-              {person.justJoined && <StatusTag tone="positive">Joined</StatusTag>}
+              {person.isGuest && <StatusTag tone="neutral">{t('signOut.guest')}</StatusTag>}
+              {person.justJoined && <StatusTag tone="positive">{t('share.joined')}</StatusTag>}
             </p>
             <p className="truncate text-[11.5px] text-[var(--surface-fg-muted)]">
-              {person.isGuest ? 'No account' : person.email}
+              {person.isGuest ? t('share.noAccount') : person.email}
             </p>
           </div>
           {person.isOwner ? (
             <span className="inline-flex h-[26px] shrink-0 items-center gap-[5px] rounded-[7px] border border-[var(--surface-border)] px-[9px] text-[11.5px] text-[var(--surface-fg-muted)]">
               <Crown className="size-[12px]" aria-hidden="true" />
-              Owner
+              {t('role.owner')}
             </span>
           ) : person.workspaceRole ? (
             <span
-              title="Here through the workspace. Change it in Settings → Workspace."
+              title={t('share.throughWorkspace')}
               data-testid={`share-workspace-${person.id}`}
               className="inline-flex h-[26px] shrink-0 items-center gap-[5px] rounded-[7px] border border-[var(--surface-border)] px-[9px] text-[11.5px] text-[var(--surface-fg-muted)]"
             >
               <Users className="size-[12px]" aria-hidden="true" />
-              {WORKSPACE_ROLE_LABELS[person.workspaceRole]}
+              {t(WORKSPACE_ROLE_LABELS[person.workspaceRole])}
             </span>
           ) : (
             <RoleMenu
@@ -667,6 +678,7 @@ function GuestMayReturn({
   busy: boolean;
   onReset: () => void;
 }) {
+  const t = useT();
   return (
     <div
       role="status"
@@ -674,10 +686,10 @@ function GuestMayReturn({
       className="mt-[6px] flex items-center gap-[10px] rounded-[10px] bg-amber-500/10 px-[12px] py-[9px]"
     >
       <p className="min-w-0 flex-1 text-[11.5px] leading-[1.5] text-[var(--surface-fg)]">
-        {`${name} joined without an account, so this link could let them in again as a new guest. Reset the link to keep them out.`}
+        {t('share.guestMayReturn', { name })}
       </p>
       <SettingsButton onClick={onReset} disabled={busy} data-testid="share-reset-link">
-        Reset link
+        {t('share.resetLink')}
       </SettingsButton>
     </div>
   );
@@ -697,6 +709,7 @@ function RemovedList({
   removed: RemovedPerson[];
   onAddBack: (userId: string) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   if (removed.length === 0) return null;
 
@@ -709,7 +722,7 @@ function RemovedList({
         onClick={() => setOpen((was) => !was)}
         className="flex w-full items-center justify-between rounded-[6px] py-[5px] text-[11.5px] text-[var(--surface-fg-muted)] transition-colors hover:text-[var(--surface-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]"
       >
-        <span>{`Removed · ${removed.length}`}</span>
+        <span>{t('share.removedCount', { count: removed.length })}</span>
         <ChevronDown
           className={cn('size-[13px] transition-transform', open && 'rotate-180')}
           aria-hidden="true"
@@ -730,10 +743,12 @@ function RemovedList({
                   {person.name}
                 </p>
                 <p className="truncate text-[11px] text-[var(--surface-fg-faint)]">
-                  {`${person.isGuest ? 'No account' : person.email} · ${PERMISSIONS[person.role].label}`}
+                  {`${person.isGuest ? t('share.noAccount') : person.email} · ${t(PERMISSIONS[person.role].label)}`}
                 </p>
               </div>
-              <SettingsButton onClick={() => onAddBack(person.id)}>Add back</SettingsButton>
+              <SettingsButton onClick={() => onAddBack(person.id)}>
+                {t('share.addBack')}
+              </SettingsButton>
             </li>
           ))}
         </ul>
@@ -758,18 +773,19 @@ function RoleMenu({
   container: HTMLElement | null;
   onOpenChange?: (open: boolean) => void;
 }) {
+  const t = useT();
   const role = person.role === 'owner' ? 'editor' : person.role;
   const { label, icon: Icon } = PERMISSIONS[role];
   return (
     <InlineDropdownMenu onOpenChange={onOpenChange}>
       <InlineDropdownMenuTrigger asChild>
         <SettingsButton
-          aria-label={`Role for ${person.name}`}
+          aria-label={t('share.roleFor', { name: person.name })}
           data-testid={`share-role-menu-${person.id}`}
           className="gap-[6px] pr-[7px] pl-[9px] data-[state=open]:bg-[var(--surface-wash-hover)] [&[data-state=open]>svg:last-child]:rotate-180"
         >
           <Icon className="size-[12px]" aria-hidden="true" />
-          {label}
+          {t(label)}
           <ChevronDown
             className="size-[12px] text-[var(--surface-fg-muted)] transition-transform duration-200"
             aria-hidden="true"
@@ -781,7 +797,7 @@ function RoleMenu({
         sideOffset={4}
         collisionPadding={8}
         container={container}
-        aria-label={`Role for ${person.name}`}
+        aria-label={t('share.roleFor', { name: person.name })}
         className="min-w-44"
       >
         <InlineDropdownMenuRadioGroup
@@ -796,7 +812,7 @@ function RoleMenu({
                 value={key}
                 icon={<OptionIcon aria-hidden="true" />}
               >
-                {PERMISSIONS[key].label}
+                {t(PERMISSIONS[key].label)}
               </InlineDropdownMenuChoiceItem>
             );
           })}
@@ -807,7 +823,7 @@ function RoleMenu({
           onSelect={() => onChange(REMOVE)}
           className={menuDangerRowClasses}
         >
-          Remove from board
+          {t('share.removeFromBoard')}
         </InlineDropdownMenuItem>
       </InlineDropdownMenuContent>
     </InlineDropdownMenu>
@@ -834,14 +850,12 @@ export function liveFor(startedAt: string, now: number): string {
   const seconds = Math.max(0, Math.floor((now - new Date(startedAt).getTime()) / 1000));
   if (seconds < 3600) return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   const hours = Math.floor(seconds / 3600);
-  if (hours < 24) return `${hours} h ${Math.floor((seconds % 3600) / 60)} min`;
-  const days = Math.floor(hours / 24);
-  return `${days} ${days === 1 ? 'day' : 'days'}`;
+  if (hours < 24) {
+    return translate('share.hoursMinutes', { hours, minutes: Math.floor((seconds % 3600) / 60) });
+  }
+  return translate('share.days', { count: Math.floor(hours / 24) });
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
 function formatDate(iso: string): string {
-  const date = new Date(iso);
-  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+  return formatShortDate(new Date(iso));
 }

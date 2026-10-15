@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/inline-dropdown-menu';
 import { SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { ariaKeyShortcut } from '../help/platform';
+import { useT } from '../i18n';
 import { MENU_ITEMS } from '../menu/menu-items';
 import { PREFERENCE_GROUPS } from './preferences';
 import type { PreferencesState } from './usePreferences';
@@ -32,7 +33,9 @@ interface PreferencesMenuProps {
  * nothing to unfold into.
  */
 export function PreferencesMenu({ preferences, portalContainer }: PreferencesMenuProps) {
-  const { label, icon: Icon } = MENU_ITEMS.preferences;
+  const t = useT();
+  const { labelKey, icon: Icon } = MENU_ITEMS.preferences;
+  const label = t(labelKey);
   const [open, setOpen] = useState(false);
 
   // Focus and view mode take the rail away, and with it the row this menu is
@@ -75,11 +78,11 @@ export function PreferencesMenu({ preferences, portalContainer }: PreferencesMen
                   key={item.id}
                   checked={preferences.values[item.id]}
                   onToggle={() => preferences.set(item.id, !preferences.values[item.id])}
-                  title={item.hint}
+                  title={t(item.hintKey)}
                   aria-keyshortcuts={item.shortcut ? ariaKeyShortcut(item.shortcut) : undefined}
                   data-testid={`preference-${item.id}`}
                 >
-                  {item.label}
+                  {t(item.labelKey)}
                 </InlineDropdownMenuToggleItem>
               ))}
             </Fragment>

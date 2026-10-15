@@ -1,9 +1,14 @@
-/** An emoji, its name, and any other words it should be found by. */
+import type { TranslationKey } from '../i18n';
+
+/**
+ * An emoji, its name, and any other words it should be found by. The names
+ * are English whatever the language on screen: a search, not a label.
+ */
 export type EmojiEntry = readonly [char: string, name: string, also?: string];
 
 export interface EmojiGroup {
   readonly id: string;
-  readonly label: string;
+  readonly labelKey: TranslationKey;
   readonly emoji: readonly EmojiEntry[];
 }
 
@@ -17,7 +22,7 @@ export interface EmojiGroup {
 export const EMOJI_GROUPS: readonly EmojiGroup[] = [
   {
     id: 'frequent',
-    label: 'Often used',
+    labelKey: 'emoji.group.frequent',
     emoji: [
       ['👍', 'thumbs up', 'yes like approve agree +1'],
       ['❤️', 'red heart', 'love'],
@@ -33,7 +38,7 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
   },
   {
     id: 'smileys',
-    label: 'Smileys',
+    labelKey: 'emoji.group.smileys',
     emoji: [
       ['😀', 'grinning'],
       ['😃', 'smiley', 'happy'],
@@ -94,7 +99,7 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
   },
   {
     id: 'people',
-    label: 'Hands and people',
+    labelKey: 'emoji.group.people',
     emoji: [
       ['👍', 'thumbs up', 'yes like approve agree +1'],
       ['👎', 'thumbs down', 'no dislike disagree -1'],
@@ -123,7 +128,7 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
   },
   {
     id: 'symbols',
-    label: 'Hearts and signs',
+    labelKey: 'emoji.group.symbols',
     emoji: [
       ['❤️', 'red heart', 'love'],
       ['🧡', 'orange heart'],
@@ -157,7 +162,7 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
   },
   {
     id: 'objects',
-    label: 'Work and things',
+    labelKey: 'emoji.group.objects',
     emoji: [
       ['🎉', 'party popper', 'celebrate tada congratulations'],
       ['🎊', 'confetti ball'],
@@ -193,7 +198,7 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
   },
   {
     id: 'nature',
-    label: 'Nature and food',
+    labelKey: 'emoji.group.nature',
     emoji: [
       ['☀️', 'sun', 'sunny'],
       ['🌙', 'moon', 'night'],
@@ -239,5 +244,7 @@ export function searchEmoji(query: string): readonly EmojiGroup[] {
       }
     }
   }
-  return found.size === 0 ? [] : [{ id: 'found', label: 'Results', emoji: [...found.values()] }];
+  return found.size === 0
+    ? []
+    : [{ id: 'found', labelKey: 'emoji.group.found', emoji: [...found.values()] }];
 }

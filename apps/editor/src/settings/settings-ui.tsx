@@ -45,6 +45,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useT } from '../i18n';
 import {
   BandContext,
   useBand,
@@ -265,6 +266,7 @@ export function Band({
   error?: string | null;
   children: ReactNode;
 }) {
+  const t = useT();
   const [said, setSaid] = useState<Said | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -322,7 +324,7 @@ export function Band({
             {shown?.kind === 'saved' && (
               <>
                 <Check className="size-[12px]" strokeWidth={2.4} aria-hidden="true" />
-                Saved
+                {t('settings.saved')}
               </>
             )}
             {shown?.kind === 'error' && shown.message}
@@ -465,6 +467,7 @@ export function InlineTextField({
   announce?: boolean;
   maxLength?: number;
 }) {
+  const t = useT();
   const id = useId();
   const band = useBand();
   const [draft, setDraft] = useState(value);
@@ -552,8 +555,8 @@ export function InlineTextField({
           <span className="absolute right-[4px] flex gap-[2px]">
             <button
               type="button"
-              aria-label="Cancel"
-              title="Cancel"
+              aria-label={t('common.cancel')}
+              title={t('common.cancel')}
               disabled={busy}
               onClick={revert}
               className={INLINE_ACTION}
@@ -562,8 +565,8 @@ export function InlineTextField({
             </button>
             <button
               type="button"
-              aria-label={busy ? 'Saving…' : 'Save'}
-              title="Save"
+              aria-label={busy ? t('common.saving') : t('common.save')}
+              title={t('common.save')}
               disabled={busy}
               onClick={() => void save()}
               className={cn(INLINE_ACTION, 'text-[var(--surface-accent)]')}
@@ -634,12 +637,13 @@ export function ExternalLinkButton({
   label: string;
   children: ReactNode;
 }) {
+  const t = useT();
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label={`${label} (opens in a new tab)`}
+      aria-label={`${label} ${t('common.opensInNewTab')}`}
       data-variant="secondary"
       className={cn(BUTTON, BUTTON_VARIANTS.secondary)}
     >
@@ -746,7 +750,8 @@ export function StatusTag({
  * exist; this leaves it where it will be and tells the truth about it.
  */
 export function ComingSoonTag() {
-  return <StatusTag tone="neutral">Coming soon</StatusTag>;
+  const t = useT();
+  return <StatusTag tone="neutral">{t('settings.comingSoon')}</StatusTag>;
 }
 
 export function ErrorLine({ children }: { children: string | null }) {
@@ -855,6 +860,7 @@ export function SettingsModal({
   layerRef?: (element: HTMLElement | null) => void;
   children?: ReactNode;
 }) {
+  const t = useT();
   const frame = useSettingsFrame();
   const panelRef = useRef<HTMLDivElement>(null);
   // Whatever had focus as this opened: the button that opened it.
@@ -924,7 +930,7 @@ export function SettingsModal({
               </div>
             )}
           </div>
-          <CloseButton label="Close" onClick={onClose} />
+          <CloseButton label={t('common.close')} onClick={onClose} />
         </header>
         {onSubmit ? (
           <form

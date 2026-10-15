@@ -1,6 +1,7 @@
 import { GlassDockGroup, GlassDockItem } from '@/components/ui/glass-dock';
 import { UndoIcon, RedoIcon } from '../assets/icons';
 import { IconButton } from '../ui';
+import { useT } from '../i18n';
 
 interface HistoryPanelProps {
   canUndo: boolean;
@@ -15,13 +16,24 @@ interface HistoryPanelProps {
  * share a panel with.
  */
 export function HistoryPanel({ canUndo, canRedo, onUndo, onRedo }: HistoryPanelProps) {
+  const t = useT();
   return (
     <GlassDockGroup>
-      <GlassDockItem id="history-undo" label="Undo · ⌘Z">
-        <IconButton icon={UndoIcon} onClick={onUndo} disabled={!canUndo} aria-label="Undo" />
+      <GlassDockItem id="history-undo" label={`${t('commands.undo')} · ⌘Z`}>
+        <IconButton
+          icon={UndoIcon}
+          onClick={onUndo}
+          disabled={!canUndo}
+          aria-label={t('commands.undo')}
+        />
       </GlassDockItem>
-      <GlassDockItem id="history-redo" label="Redo · ⌘⇧Z">
-        <IconButton icon={RedoIcon} onClick={onRedo} disabled={!canRedo} aria-label="Redo" />
+      <GlassDockItem id="history-redo" label={`${t('commands.redo')} · ⌘⇧Z`}>
+        <IconButton
+          icon={RedoIcon}
+          onClick={onRedo}
+          disabled={!canRedo}
+          aria-label={t('commands.redo')}
+        />
       </GlassDockItem>
     </GlassDockGroup>
   );

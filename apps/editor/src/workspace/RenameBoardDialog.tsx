@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useT } from '../i18n';
 import { INPUT } from '../settings/settings-ui';
 import {
   SurfaceWindow,
@@ -42,6 +43,7 @@ export function RenameBoardDialog({
   busy,
   theme,
 }: RenameBoardDialogProps) {
+  const t = useT();
   const titleId = useId();
   const descriptionId = useId();
   const fieldId = useId();
@@ -90,7 +92,8 @@ export function RenameBoardDialog({
     onSubmit(target.boardId, patch).then(
       () => onOpenChange(false),
       // Left open on failure, so the typed name is still there to retry with.
-      (err: unknown) => setError(err instanceof Error ? err.message : 'Something went wrong.'),
+      (err: unknown) =>
+        setError(err instanceof Error ? err.message : t('common.somethingWentWrong')),
     );
   };
 
@@ -107,8 +110,8 @@ export function RenameBoardDialog({
     >
       <WindowHeader
         titleId={titleId}
-        title="Rename board"
-        description="A name and a colour tag, as the sidebar shows it."
+        title={t('renameBoard.title')}
+        description={t('renameBoard.hint')}
         descriptionId={descriptionId}
         onClose={() => onOpenChange(false)}
       />
@@ -119,12 +122,12 @@ export function RenameBoardDialog({
           type="text"
           value={name}
           maxLength={MAX_BOARD_TITLE}
-          aria-label="Board name"
+          aria-label={t('boards.name')}
           // Held shut for the moment before the board's row lands, rather
           // than inviting a name that would be typed over the instant it
           // does. Ordinarily the list is already there.
           disabled={!loaded}
-          placeholder={loaded ? 'Untitled board' : 'Loading…'}
+          placeholder={loaded ? t('boards.untitled') : t('common.loading')}
           // The window exists to edit this field.
           autoFocus
           data-autofocus
@@ -135,13 +138,17 @@ export function RenameBoardDialog({
 
         {/* Real radio inputs behind the swatches, so the arrow keys move
             between colours as in any other radio group. */}
-        <div role="radiogroup" aria-label="Colour tag" className="flex items-center gap-[8px]">
+        <div
+          role="radiogroup"
+          aria-label={t('boards.colourTag')}
+          className="flex items-center gap-[8px]"
+        >
           {BOARD_COLORS.map((option) => {
             const selected = option.value === color;
             return (
               <label
                 key={option.value}
-                title={option.label}
+                title={t(option.labelKey)}
                 className={cn(
                   'flex size-[24px] items-center justify-center rounded-full',
                   loaded ? 'cursor-pointer' : 'cursor-not-allowed opacity-50',
@@ -170,7 +177,7 @@ export function RenameBoardDialog({
                     <Check className="size-[11px] text-white" strokeWidth={3} aria-hidden="true" />
                   )}
                 </span>
-                <span className="sr-only">{option.label}</span>
+                <span className="sr-only">{t(option.labelKey)}</span>
               </label>
             );
           })}
@@ -179,10 +186,10 @@ export function RenameBoardDialog({
 
       <WindowFooter status={error} danger>
         <WindowButton variant="ghost" onClick={() => onOpenChange(false)}>
-          Cancel
+          {t('common.cancel')}
         </WindowButton>
         <WindowButton variant="primary" type="submit" disabled={!canSave || busy}>
-          {busy ? 'Saving…' : 'Save'}
+          {busy ? t('common.saving') : t('common.save')}
         </WindowButton>
       </WindowFooter>
     </SurfaceWindow>

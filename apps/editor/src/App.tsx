@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Editor } from './Editor';
+import { useT } from './i18n';
 
 export function App() {
   return (
@@ -13,9 +14,10 @@ export function App() {
 }
 
 function EditorRoute() {
+  const t = useT();
   const { boardId } = useParams<{ boardId: string }>();
   if (!boardId) {
-    return <div>Invalid board URL</div>;
+    return <div>{t('app.invalidBoardUrl')}</div>;
   }
   // Keyed by board so switching boards from the sidebar remounts the editor
   // rather than re-pointing it: the camera, the tool machine, the undo stack

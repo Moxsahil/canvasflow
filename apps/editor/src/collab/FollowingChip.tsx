@@ -5,6 +5,7 @@ import {
   type PresenceTheme,
 } from '@canvasflow/canvas-engine';
 import type { CursorColor } from '@canvasflow/types';
+import { useT } from '../i18n';
 
 interface FollowingChipProps {
   name: string;
@@ -25,6 +26,7 @@ interface FollowingChipProps {
  * discover, whereas a button is a thing you can see.
  */
 export function FollowingChip({ name, userId, color, theme, onStop }: FollowingChipProps) {
+  const t = useT();
   const fill = presenceColorFor(userId, theme, color);
 
   return (
@@ -33,13 +35,13 @@ export function FollowingChip({ name, userId, color, theme, onStop }: FollowingC
       style={{ background: fill, color: presenceTagTextColor(theme) }}
       role="status"
     >
-      Following {name}
+      {t('collab.following', { name })}
       <button
         type="button"
         className="cf-following-chip__stop"
         onClick={onStop}
-        title="Stop following"
-        aria-label={`Stop following ${name}`}
+        title={t('collab.stopFollowing')}
+        aria-label={t('collab.stopFollowingName', { name })}
       >
         <X className="h-3 w-3" aria-hidden="true" />
       </button>

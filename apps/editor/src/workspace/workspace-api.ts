@@ -1,4 +1,5 @@
 import { env } from '@/lib/env';
+import { t } from '../i18n';
 
 /**
  * Client for the web app's workspace routes.
@@ -71,10 +72,13 @@ function boardsUrl(path = ''): string {
  */
 async function failure(res: Response, subject: 'workspace' | 'board'): Promise<WorkspaceApiError> {
   if (res.status === 401) {
-    return new WorkspaceApiError('Your session expired. Reload the board and try again.', 401);
+    return new WorkspaceApiError(t('errors.sessionExpired'), 401);
   }
   if (res.status === 404) {
-    return new WorkspaceApiError(`That ${subject} is no longer available.`, 404);
+    return new WorkspaceApiError(
+      t(subject === 'board' ? 'errors.boardGone' : 'errors.workspaceGone'),
+      404,
+    );
   }
   try {
     const body = (await res.json()) as { error?: string };
@@ -82,7 +86,7 @@ async function failure(res: Response, subject: 'workspace' | 'board'): Promise<W
   } catch {
     // Fall through to the generic message.
   }
-  return new WorkspaceApiError(`Something went wrong (${res.status}).`, res.status);
+  return new WorkspaceApiError(t('errors.status', { status: res.status }), res.status);
 }
 
 export async function listWorkspaces(): Promise<WorkspaceSummary[]> {

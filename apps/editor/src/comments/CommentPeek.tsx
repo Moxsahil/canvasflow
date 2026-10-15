@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import { menuSurfaceClasses } from '@/components/ui/menu-look';
+import { useT } from '../i18n';
 import { lastActivity } from './comment-list';
 import type { CommentThread } from './comment-model';
 import { relativeTime } from './comment-time';
@@ -15,15 +16,14 @@ export const PEEK_WIDTH = 214;
  * makes a face readable without opening it.
  */
 export function CommentPeek({ thread, id }: { thread: CommentThread; id?: string }) {
+  const t = useT();
   const first = thread.comments[0]!;
   const replies = thread.comments.length - 1;
   const after = thread.resolved
-    ? 'Resolved'
+    ? t('comments.resolved')
     : replies === 0
       ? null
-      : replies === 1
-        ? '1 reply'
-        : `${replies} replies`;
+      : t('comments.replies', { count: replies });
 
   return (
     <div
@@ -34,7 +34,7 @@ export function CommentPeek({ thread, id }: { thread: CommentThread; id?: string
       data-testid="comment-peek"
     >
       <div className="flex items-baseline gap-1.5">
-        <span className="truncate font-medium">{first.authorName || 'Someone'}</span>
+        <span className="truncate font-medium">{first.authorName || t('comments.someone')}</span>
         <span className="shrink-0 text-neutral-500 dark:text-neutral-400">
           {relativeTime(lastActivity(thread))}
         </span>

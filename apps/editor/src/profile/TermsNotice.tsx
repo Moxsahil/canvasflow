@@ -10,6 +10,7 @@ import {
   WindowFooter,
   WindowHeader,
 } from '../ui/SurfaceWindow';
+import { useT } from '../i18n';
 import type { SurfaceTheme } from '../ui/surface-palette';
 import type { Profile } from './profile-api';
 
@@ -54,6 +55,7 @@ interface TermsNoticeProps {
  * board is still here afterwards.
  */
 export function TermsNotice({ profile, onAccept, theme }: TermsNoticeProps) {
+  const t = useT();
   const titleId = useId();
   const bodyId = useId();
   const [busy, setBusy] = useState(false);
@@ -69,7 +71,7 @@ export function TermsNotice({ profile, onAccept, theme }: TermsNoticeProps) {
     try {
       await onAccept();
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : 'Something went wrong.');
+      setError(cause instanceof Error ? cause.message : t('common.somethingWentWrong'));
     } finally {
       setBusy(false);
     }
@@ -91,10 +93,8 @@ export function TermsNotice({ profile, onAccept, theme }: TermsNoticeProps) {
     >
       <WindowHeader
         titleId={titleId}
-        title={
-          changed ? 'Our Terms of Service have changed' : 'We’ve published our Terms of Service'
-        }
-        description={`Last updated ${formatTermsVersion(TERMS_VERSION)}`}
+        title={changed ? t('terms.changedTitle') : t('terms.publishedTitle')}
+        description={t('terms.lastUpdated', { date: formatTermsVersion(TERMS_VERSION) })}
         lead={
           <WindowBadge tone="soft">
             <ScrollText aria-hidden="true" />
@@ -104,9 +104,7 @@ export function TermsNotice({ profile, onAccept, theme }: TermsNoticeProps) {
 
       <WindowBody>
         <p id={bodyId} className="text-[12.5px] leading-[1.6] text-[var(--surface-fg-muted)]">
-          {changed
-            ? 'We’ve updated them since you last agreed. Choosing Continue means you agree to the new version.'
-            : 'They set out what you can expect from CanvasFlow, and what we ask of you in return. Choosing Continue means you agree to them.'}
+          {changed ? t('terms.changedBody') : t('terms.publishedBody')}
         </p>
       </WindowBody>
 
@@ -117,11 +115,11 @@ export function TermsNotice({ profile, onAccept, theme }: TermsNoticeProps) {
           variant="ghost"
           onClick={() => window.open(termsUrl(), '_blank', 'noopener,noreferrer')}
         >
-          Read the terms
+          {t('terms.read')}
           <ExternalLink aria-hidden="true" />
         </WindowButton>
         <WindowButton variant="primary" disabled={busy} onClick={() => void accept()}>
-          {busy ? 'Saving…' : 'Continue'}
+          {busy ? t('common.saving') : t('common.continue')}
         </WindowButton>
       </WindowFooter>
     </SurfaceWindow>

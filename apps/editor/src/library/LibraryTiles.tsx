@@ -9,6 +9,7 @@ import {
   InlineDropdownMenuTrigger,
 } from '@/components/ui/inline-dropdown-menu';
 import { menuDangerRowClasses, menuSurfaceClasses } from '@/components/ui/menu-look';
+import { useT } from '../i18n';
 import { endLibraryDrag, startLibraryDrag } from './library-drag';
 import { LIBRARY_DRAG_TYPE, LIBRARY_NAME_MAX, libraryThumbnail } from './library-items';
 import type { LibraryEntry } from './useLibrary';
@@ -46,8 +47,9 @@ export function TileGrid({
   actionsFor,
   container,
 }: TileGridProps) {
+  const t = useT();
   return (
-    <ul className="grid grid-cols-3 gap-0.5 sm:grid-cols-4" aria-label="Library items">
+    <ul className="grid grid-cols-3 gap-0.5 sm:grid-cols-4" aria-label={t('library.items')}>
       {entries.map((entry) => (
         <LibraryTile
           key={entry.id}
@@ -94,6 +96,7 @@ function LibraryTile({
     () => libraryThumbnail(entry.shapes, darkMode),
     [entry.shapes, darkMode],
   );
+  const t = useT();
   const [renaming, setRenaming] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const { keep, rename, remove } = actions;
@@ -110,9 +113,9 @@ function LibraryTile({
       <div
         role="button"
         tabIndex={0}
-        aria-label={canPlace ? `Place ${entry.name}` : entry.name}
+        aria-label={canPlace ? t('library.place', { name: entry.name }) : entry.name}
         aria-disabled={!canPlace || undefined}
-        title={canPlace ? `${entry.name} — click to place, or drag onto the board` : entry.name}
+        title={canPlace ? t('library.placeHint', { name: entry.name }) : entry.name}
         draggable={canPlace}
         onClick={() => {
           if (canPlace) onPlace();
@@ -172,7 +175,7 @@ function LibraryTile({
           <InlineDropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label={`Options for ${entry.name}`}
+              aria-label={t('library.optionsFor', { name: entry.name })}
               className={cn(
                 'absolute top-1.5 right-1.5 hidden size-5.5 place-items-center rounded-md',
                 menuSurfaceClasses,
@@ -197,7 +200,7 @@ function LibraryTile({
                 onSelect={keep}
                 data-testid="library-tile-keep"
               >
-                Add to Personal
+                {t('library.addToPersonal')}
               </InlineDropdownMenuItem>
             )}
             {rename && (
@@ -205,7 +208,7 @@ function LibraryTile({
                 icon={<Pencil aria-hidden="true" />}
                 onSelect={() => setRenaming(true)}
               >
-                Rename
+                {t('common.rename')}
               </InlineDropdownMenuItem>
             )}
             {remove && (
@@ -225,7 +228,7 @@ function LibraryTile({
                   }}
                   data-testid="library-tile-delete"
                 >
-                  {confirmingDelete ? 'Click again to delete' : 'Delete'}
+                  {confirmingDelete ? t('library.clickAgainToDelete') : t('common.delete')}
                 </InlineDropdownMenuItem>
               </>
             )}
@@ -238,6 +241,7 @@ function LibraryTile({
 
 /** The name, typed over in place. Enter or leaving keeps it; Escape does not. */
 function RenameField({ name, onDone }: { name: string; onDone: (name: string | null) => void }) {
+  const t = useT();
   const [value, setValue] = useState(name);
   const done = useRef(false);
   const finish = (result: string | null) => {
@@ -252,7 +256,7 @@ function RenameField({ name, onDone }: { name: string; onDone: (name: string | n
       autoFocus
       value={value}
       maxLength={LIBRARY_NAME_MAX}
-      aria-label="Name"
+      aria-label={t('common.name')}
       onFocus={(event) => event.currentTarget.select()}
       onChange={(event) => setValue(event.target.value)}
       onBlur={() => finish(value)}

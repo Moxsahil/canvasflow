@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { groupByCategory, matchCommands, scoreCommand, scoreText } from './match';
+import { t } from '../i18n';
 import { COMMANDS, type CommandCategory } from './commands';
 
 const command = (label: string, category: CommandCategory, keywords?: string[]) => ({
@@ -154,7 +155,7 @@ describe('the link command', () => {
   it('comes first for "link" with a shape selected, and is found by "add link"', () => {
     const editing = COMMANDS.filter((command) =>
       ['editLink', 'copyLink', 'liveCollaboration'].includes(command.id),
-    );
+    ).map((command) => ({ ...command, label: t(command.labelKey) }));
     expect(matchCommands(editing, 'link')[0]?.item.id).toBe('editLink');
     expect(matchCommands(editing, 'add link')[0]?.item.id).toBe('editLink');
   });

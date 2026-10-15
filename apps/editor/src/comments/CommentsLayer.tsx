@@ -12,6 +12,7 @@ import { Check } from 'lucide-react';
 import type { PresenceTheme, Shape } from '@canvasflow/canvas-engine';
 import { cn } from '@/lib/utils';
 import { menuSurfaceClasses } from '@/components/ui/menu-look';
+import { useT } from '../i18n';
 import type { Camera, Point } from '../machine/tool-machine.types';
 import { CommentAvatar } from './CommentAvatar';
 import { CommentComposer } from './CommentComposer';
@@ -336,6 +337,7 @@ function NewThreadComposer({
   onPost: (body: string, mentions: CommentAuthor[]) => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   // Put back from the last placement that was closed without posting.
   const [body, setBody] = useState(() => commentDraft(NEW_THREAD_DRAFT));
   return (
@@ -355,8 +357,8 @@ function NewThreadComposer({
           onPost(body, mentions);
         }}
         onCancel={onCancel}
-        placeholder="Add a comment, @mention someone…"
-        sendLabel="Post comment"
+        placeholder={t('comments.newPlaceholder')}
+        sendLabel={t('comments.post')}
         autoFocus
       />
     </div>
@@ -490,8 +492,9 @@ function ThreadPin({
   onDrag,
   onDrop,
 }: ThreadPinProps) {
+  const t = useT();
   const first = thread.comments[0]!;
-  const name = first.authorName || 'Someone';
+  const name = first.authorName || t('comments.someone');
   const press = useRef<{ x: number; y: number; origin: Point; moved: boolean } | null>(null);
 
   const where = (event: ReactPointerEvent): Point => {
@@ -506,7 +509,14 @@ function ThreadPin({
       data-on-board
       data-thread-id={thread.id}
       data-testid="comment-pin"
-      aria-label={`Comment by ${name}${thread.resolved ? ', resolved' : ''}${unread ? ', unread' : ''}, ${thread.comments.length} in thread`}
+      aria-label={[
+        t('comments.pinBy', { name }),
+        thread.resolved ? t('comments.pinResolved') : null,
+        unread ? t('comments.pinUnread') : null,
+        t('comments.pinCount', { count: thread.comments.length }),
+      ]
+        .filter(Boolean)
+        .join(', ')}
       aria-expanded={open}
       aria-describedby={describedBy}
       className={cn(

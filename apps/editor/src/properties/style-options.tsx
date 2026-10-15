@@ -34,6 +34,7 @@ import {
   StraightArrowIcon,
 } from './icons';
 import { ARROWHEADS, FONT_FAMILIES, FONT_SIZES, STROKE_WIDTHS } from './palette';
+import { useT, type TranslationKey } from '../i18n';
 
 /**
  * The choices each style control offers, with the glyph that draws each one.
@@ -54,64 +55,64 @@ export const ARROWHEAD_ICONS: Record<Arrowhead, ComponentType> = {
 };
 
 export const DASH_OPTIONS: SegmentOption<ItemStyle['strokeStyle']>[] = [
-  { value: 'solid', label: 'Solid', icon: <SolidStrokeIcon /> },
-  { value: 'dashed', label: 'Dashed', icon: <DashedStrokeIcon /> },
-  { value: 'dotted', label: 'Dotted', icon: <DottedStrokeIcon /> },
+  { value: 'solid', labelKey: 'style.dash.solid', icon: <SolidStrokeIcon /> },
+  { value: 'dashed', labelKey: 'style.dash.dashed', icon: <DashedStrokeIcon /> },
+  { value: 'dotted', labelKey: 'style.dash.dotted', icon: <DottedStrokeIcon /> },
 ];
 
 export const PRESSURE_OPTIONS: SegmentOption<'constant' | 'tapered'>[] = [
-  { value: 'constant', label: 'Constant width', icon: <ConstantWidthIcon /> },
-  { value: 'tapered', label: 'Tapered', icon: <PressureIcon /> },
+  { value: 'constant', labelKey: 'style.pressure.constant', icon: <ConstantWidthIcon /> },
+  { value: 'tapered', labelKey: 'style.pressure.tapered', icon: <PressureIcon /> },
 ];
 
 export const PATTERN_OPTIONS: SegmentOption<ItemStyle['fillStyle']>[] = [
-  { value: 'hachure', label: 'Hatched', icon: <HachureIcon /> },
-  { value: 'cross-hatch', label: 'Cross-hatched', icon: <CrossHatchIcon /> },
-  { value: 'solid', label: 'Solid', icon: <SolidFillIcon /> },
+  { value: 'hachure', labelKey: 'style.pattern.hachure', icon: <HachureIcon /> },
+  { value: 'cross-hatch', labelKey: 'style.pattern.crossHatch', icon: <CrossHatchIcon /> },
+  { value: 'solid', labelKey: 'style.pattern.solid', icon: <SolidFillIcon /> },
 ];
 
 export const LOOK_OPTIONS: SegmentOption<ItemStyle['roughness']>[] = [
-  { value: 0, label: 'Architect', icon: <ArchitectIcon /> },
-  { value: 1, label: 'Artist', icon: <ArtistIcon /> },
-  { value: 2, label: 'Cartoonist', icon: <CartoonistIcon /> },
+  { value: 0, labelKey: 'style.look.architect', icon: <ArchitectIcon /> },
+  { value: 1, labelKey: 'style.look.artist', icon: <ArtistIcon /> },
+  { value: 2, labelKey: 'style.look.cartoonist', icon: <CartoonistIcon /> },
 ];
 
 export const CORNER_OPTIONS: SegmentOption<ItemStyle['edges']>[] = [
-  { value: 'sharp', label: 'Sharp', icon: <SharpEdgeIcon /> },
-  { value: 'round', label: 'Round', icon: <RoundEdgeIcon /> },
+  { value: 'sharp', labelKey: 'style.corner.sharp', icon: <SharpEdgeIcon /> },
+  { value: 'round', labelKey: 'style.corner.round', icon: <RoundEdgeIcon /> },
 ];
 
 export const ARROW_TYPE_OPTIONS: SegmentOption<ItemStyle['arrowType']>[] = [
-  { value: 'straight', label: 'Straight', icon: <StraightArrowIcon /> },
-  { value: 'curved', label: 'Curved', icon: <CurvedArrowIcon /> },
-  { value: 'elbow', label: 'Elbow', icon: <ElbowArrowIcon /> },
+  { value: 'straight', labelKey: 'style.arrowType.straight', icon: <StraightArrowIcon /> },
+  { value: 'curved', labelKey: 'style.arrowType.curved', icon: <CurvedArrowIcon /> },
+  { value: 'elbow', labelKey: 'style.arrowType.elbow', icon: <ElbowArrowIcon /> },
 ];
 
 export const ALIGN_OPTIONS: SegmentOption<ItemStyle['textAlign']>[] = [
-  { value: 'left', label: 'Left', icon: <AlignLeftIcon /> },
-  { value: 'center', label: 'Center', icon: <AlignCenterIcon /> },
-  { value: 'right', label: 'Right', icon: <AlignRightIcon /> },
+  { value: 'left', labelKey: 'style.align.left', icon: <AlignLeftIcon /> },
+  { value: 'center', labelKey: 'style.align.center', icon: <AlignCenterIcon /> },
+  { value: 'right', labelKey: 'style.align.right', icon: <AlignRightIcon /> },
 ];
 
-export const FONT_OPTIONS: SegmentOption<string>[] = FONT_FAMILIES.map(({ value, label }) => ({
+export const FONT_OPTIONS: SegmentOption<string>[] = FONT_FAMILIES.map(({ value, labelKey }) => ({
   value,
-  label,
+  labelKey,
   // Each family names itself in its own face.
   icon: <span style={{ fontFamily: value, fontSize: 13 }}>Aa</span>,
 }));
 
 /** Short enough to sit four abreast in the value column. */
 const FONT_SIZE_ABBREVIATIONS: Record<number, string> = { 16: 'S', 20: 'M', 28: 'L', 36: 'XL' };
-export const FONT_SIZE_OPTIONS: SegmentOption<number>[] = FONT_SIZES.map(({ value, label }) => ({
+export const FONT_SIZE_OPTIONS: SegmentOption<number>[] = FONT_SIZES.map(({ value, labelKey }) => ({
   value,
-  label,
-  icon: <span>{FONT_SIZE_ABBREVIATIONS[value] ?? label.charAt(0)}</span>,
+  labelKey,
+  icon: <span>{FONT_SIZE_ABBREVIATIONS[value] ?? value}</span>,
 }));
 
 export const WEIGHT_STEPS = STROKE_WIDTHS.map((width) => width.value);
 
-export function arrowheadLabel(value: Arrowhead): string {
-  return ARROWHEADS.find((a) => a.value === value)?.label ?? 'None';
+export function arrowheadLabel(value: Arrowhead): TranslationKey {
+  return ARROWHEADS.find((a) => a.value === value)?.labelKey ?? 'style.arrowhead.none';
 }
 
 /**
@@ -129,18 +130,19 @@ export function ArrowheadGrid({
   columns: number;
   onPick: (value: Arrowhead) => void;
 }) {
+  const t = useT();
   return (
     <div
       className="grid gap-1 p-1"
       style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
     >
-      {ARROWHEADS.map(({ value: option, label }) => {
+      {ARROWHEADS.map(({ value: option, labelKey }) => {
         const Icon = ARROWHEAD_ICONS[option];
         return (
           <PickerCell
             key={option}
             variant="glyph"
-            label={label}
+            label={t(labelKey)}
             selected={value === option}
             className={cn(end === 'start' && option !== 'none' && '[&_svg]:-scale-x-100')}
             onPick={() => onPick(option)}

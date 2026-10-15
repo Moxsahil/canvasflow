@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Command } from 'lucide-react';
 import { buildPaletteSections, RECENT_SECTION_ID } from './useCommandPalette';
 import type { CommandCategory, CommandId } from './commands';
+import type { TranslationKey } from '../i18n';
 import type { EditorCommand } from './useEditorCommands';
 
 const noop = () => {};
@@ -9,6 +10,7 @@ const noop = () => {};
 function command(id: string, label: string, category: CommandCategory): EditorCommand {
   return {
     id: id as CommandId,
+    labelKey: 'commands.undo' as TranslationKey,
     label,
     category,
     icon: Command,

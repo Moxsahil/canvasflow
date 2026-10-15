@@ -13,6 +13,7 @@ import {
   type Shape,
 } from '@canvasflow/canvas-engine';
 import { FONT_FAMILIES } from '../properties/palette';
+import { ENGLISH, type TranslationKey } from '../i18n/i18n';
 
 /**
  * The packs that come with the editor: a few sets of the things boards are
@@ -25,7 +26,9 @@ import { FONT_FAMILIES } from '../properties/palette';
 export interface PackItem {
   /** Stable, so Recently used can name it: `pack:<pack>:<item>`. */
   readonly id: string;
+  /** In English; `nameKey`, where there is one, names it in the language on screen. */
   readonly name: string;
+  readonly nameKey?: TranslationKey;
   readonly shapes: readonly Shape[];
 }
 
@@ -33,6 +36,8 @@ export interface LibraryPack {
   readonly id: string;
   readonly name: string;
   readonly description: string;
+  readonly nameKey?: TranslationKey;
+  readonly descriptionKey?: TranslationKey;
   readonly items: readonly PackItem[];
 }
 
@@ -179,33 +184,50 @@ class Item {
 
 function pack(
   id: string,
-  name: string,
-  description: string,
+  nameKey: TranslationKey,
+  descriptionKey: TranslationKey,
   style: Style,
   font: string,
-  items: [name: string, draw: (item: Item) => void][],
+  items: [nameKey: TranslationKey, draw: (item: Item) => void][],
 ): LibraryPack {
   return {
     id,
-    name,
-    description,
-    items: items.map(([itemName, draw], index) => {
+    name: ENGLISH[nameKey] ?? nameKey,
+    description: ENGLISH[descriptionKey] ?? descriptionKey,
+    nameKey,
+    descriptionKey,
+    items: items.map(([itemKey, draw], index) => {
       const item = new Item(`${id}-${index}`, style, font);
       draw(item);
-      return { id: `pack:${id}:${index}`, name: itemName, shapes: item.shapes };
+      return {
+        id: `pack:${id}:${index}`,
+        name: ENGLISH[itemKey] ?? itemKey,
+        nameKey: itemKey,
+        shapes: item.shapes,
+      };
     }),
+  };
+}
+
+/** A pack as the language on screen names it, and each of its items. */
+export function localizePack(pack: LibraryPack, t: (key: TranslationKey) => string): LibraryPack {
+  return {
+    ...pack,
+    name: pack.nameKey ? t(pack.nameKey) : pack.name,
+    description: pack.descriptionKey ? t(pack.descriptionKey) : pack.description,
+    items: pack.items.map((item) => (item.nameKey ? { ...item, name: t(item.nameKey) } : item)),
   };
 }
 
 const flowchart = pack(
   'flowchart',
-  'Flowchart',
-  'Steps, decisions and the arrows between them.',
+  'library.pack.flowchart',
+  'library.pack.flowchart.description',
   { strokeWidth: 2, roughness: 1 },
   HAND,
   [
     [
-      'Start / end',
+      'library.pack.flowchart.startEnd',
       (d) => {
         const box = { x: 0, y: 0, w: 160, h: 64 };
         d.ellipse(box);
@@ -213,7 +235,7 @@ const flowchart = pack(
       },
     ],
     [
-      'Process',
+      'library.pack.flowchart.process',
       (d) => {
         const box = { x: 0, y: 0, w: 160, h: 64 };
         d.rect(box, { edges: 'round' });
@@ -221,7 +243,7 @@ const flowchart = pack(
       },
     ],
     [
-      'Decision',
+      'library.pack.flowchart.decision',
       (d) => {
         const box = { x: 0, y: 0, w: 160, h: 110 };
         d.diamond(box);
@@ -229,7 +251,7 @@ const flowchart = pack(
       },
     ],
     [
-      'Input / output',
+      'library.pack.flowchart.inputOutput',
       (d) => {
         d.line(0, 0, [
           [28, 0],
@@ -242,7 +264,7 @@ const flowchart = pack(
       },
     ],
     [
-      'Database',
+      'library.pack.flowchart.database',
       (d) => {
         d.ellipse({ x: 0, y: 0, w: 120, h: 30 });
         d.line(0, 15, [
@@ -258,7 +280,7 @@ const flowchart = pack(
       },
     ],
     [
-      'Step to step',
+      'library.pack.flowchart.stepToStep',
       (d) => {
         const a = { x: 0, y: 0, w: 140, h: 60 };
         const b = { x: 220, y: 0, w: 140, h: 60 };
@@ -270,7 +292,7 @@ const flowchart = pack(
       },
     ],
     [
-      'Yes / no',
+      'library.pack.flowchart.yesNo',
       (d) => {
         const question = { x: 0, y: 0, w: 140, h: 100 };
         const yes = { x: 240, y: 20, w: 120, h: 60 };
@@ -286,13 +308,13 @@ const flowchart = pack(
       },
     ],
     [
-      'Labelled arrow',
+      'library.pack.flowchart.labelledArrow',
       (d) => {
         d.arrow([0, 0], [200, 0], { label: 'then' });
       },
     ],
     [
-      'Swimlane',
+      'library.pack.flowchart.swimlane',
       (d) => {
         d.frame({ x: 0, y: 0, w: 720, h: 200 }, 'Lane');
       },
@@ -302,13 +324,13 @@ const flowchart = pack(
 
 const wireframe = pack(
   'wireframe',
-  'Wireframe',
-  'Screens and the controls on them, plain and to scale.',
+  'library.pack.wireframe',
+  'library.pack.wireframe.description',
   { strokeWidth: 1, roughness: 0 },
   NORMAL,
   [
     [
-      'Button',
+      'library.pack.wireframe.button',
       (d) => {
         const box = { x: 0, y: 0, w: 120, h: 40 };
         d.rect(box, { edges: 'round', fillColor: SKY, fillStyle: 'solid' });
@@ -316,7 +338,7 @@ const wireframe = pack(
       },
     ],
     [
-      'Text field',
+      'library.pack.wireframe.textField',
       (d) => {
         d.text(0, 0, 'Label', { size: 14 });
         d.rect({ x: 0, y: 22, w: 240, h: 40 }, { edges: 'round' });
@@ -324,7 +346,7 @@ const wireframe = pack(
       },
     ],
     [
-      'Search field',
+      'library.pack.wireframe.searchField',
       (d) => {
         d.rect({ x: 0, y: 0, w: 280, h: 40 }, { edges: 'round' });
         d.ellipse({ x: 12, y: 11, w: 14, h: 14 }, { strokeColor: MUTED, strokeWidth: 2 });
@@ -341,7 +363,7 @@ const wireframe = pack(
       },
     ],
     [
-      'Dropdown',
+      'library.pack.wireframe.dropdown',
       (d) => {
         d.rect({ x: 0, y: 0, w: 200, h: 40 }, { edges: 'round' });
         d.text(12, 11, 'Choose…', { size: 16 });
@@ -353,7 +375,7 @@ const wireframe = pack(
       },
     ],
     [
-      'Checkbox',
+      'library.pack.wireframe.checkbox',
       (d) => {
         d.rect({ x: 0, y: 1, w: 18, h: 18 }, { edges: 'round' });
         d.line(
@@ -370,7 +392,7 @@ const wireframe = pack(
       },
     ],
     [
-      'Radio buttons',
+      'library.pack.wireframe.radioButtons',
       (d) => {
         d.ellipse({ x: 0, y: 1, w: 18, h: 18 });
         d.ellipse(
@@ -383,7 +405,7 @@ const wireframe = pack(
       },
     ],
     [
-      'Toggle',
+      'library.pack.wireframe.toggle',
       (d) => {
         d.rect(
           { x: 0, y: 0, w: 44, h: 24 },
@@ -397,7 +419,7 @@ const wireframe = pack(
       },
     ],
     [
-      'Avatar',
+      'library.pack.wireframe.avatar',
       (d) => {
         const box = { x: 0, y: 0, w: 48, h: 48 };
         d.ellipse(box, { fillColor: GREEN, fillStyle: 'solid' });
@@ -405,7 +427,7 @@ const wireframe = pack(
       },
     ],
     [
-      'Image',
+      'library.pack.wireframe.image',
       (d) => {
         d.rect({ x: 0, y: 0, w: 200, h: 140 });
         d.line(0, 0, [
@@ -419,7 +441,7 @@ const wireframe = pack(
       },
     ],
     [
-      'Card',
+      'library.pack.wireframe.card',
       (d) => {
         d.rect({ x: 0, y: 0, w: 240, h: 230 }, { edges: 'round' });
         d.rect({ x: 12, y: 12, w: 216, h: 110 });
@@ -439,7 +461,7 @@ const wireframe = pack(
       },
     ],
     [
-      'Navigation bar',
+      'library.pack.wireframe.navigationBar',
       (d) => {
         d.rect({ x: 0, y: 0, w: 640, h: 56 });
         d.text(16, 16, 'Logo', { size: 20 });
@@ -452,7 +474,7 @@ const wireframe = pack(
       },
     ],
     [
-      'Dialog',
+      'library.pack.wireframe.dialog',
       (d) => {
         d.rect({ x: 0, y: 0, w: 360, h: 196 }, { edges: 'round' });
         d.text(20, 20, 'Delete this board?', { size: 20 });
@@ -469,13 +491,13 @@ const wireframe = pack(
       },
     ],
     [
-      'Phone screen',
+      'library.pack.wireframe.phoneScreen',
       (d) => {
         d.frame({ x: 0, y: 0, w: 390, h: 844 }, 'Phone');
       },
     ],
     [
-      'Desktop screen',
+      'library.pack.wireframe.desktopScreen',
       (d) => {
         d.frame({ x: 0, y: 0, w: 1280, h: 800 }, 'Desktop');
       },
@@ -485,19 +507,19 @@ const wireframe = pack(
 
 const notes = pack(
   'notes',
-  'Notes',
-  'Sticky notes, markers and callouts for talking about a board.',
+  'library.pack.notes',
+  'library.pack.notes.description',
   { strokeWidth: 2, roughness: 1 },
   HAND,
   [
     ...(
       [
-        ['Yellow sticky note', YELLOW],
-        ['Pink sticky note', PINK],
-        ['Green sticky note', GREEN],
-        ['Blue sticky note', SKY],
+        ['library.pack.notes.yellowSticky', YELLOW],
+        ['library.pack.notes.pinkSticky', PINK],
+        ['library.pack.notes.greenSticky', GREEN],
+        ['library.pack.notes.blueSticky', SKY],
       ] as const
-    ).map(([name, colour]): [string, (d: Item) => void] => [
+    ).map(([name, colour]): [TranslationKey, (d: Item) => void] => [
       name,
       (d) => {
         d.rect(
@@ -508,7 +530,7 @@ const notes = pack(
       },
     ]),
     [
-      'Numbered marker',
+      'library.pack.notes.numberedMarker',
       (d) => {
         const box = { x: 0, y: 0, w: 36, h: 36 };
         d.ellipse(box, { fillColor: RED, fillStyle: 'solid', strokeColor: RED });
@@ -516,7 +538,7 @@ const notes = pack(
       },
     ],
     [
-      'Question',
+      'library.pack.notes.question',
       (d) => {
         const box = { x: 0, y: 0, w: 40, h: 40 };
         d.ellipse(box, { strokeColor: BLUE });
@@ -524,7 +546,7 @@ const notes = pack(
       },
     ],
     [
-      'Callout',
+      'library.pack.notes.callout',
       (d) => {
         const box = { x: 60, y: 0, w: 220, h: 80 };
         const note = d.rect(box, { edges: 'round' });
@@ -533,7 +555,7 @@ const notes = pack(
       },
     ],
     [
-      'Highlight',
+      'library.pack.notes.highlight',
       (d) => {
         d.rect(
           { x: 0, y: 0, w: 240, h: 40 },
@@ -542,7 +564,7 @@ const notes = pack(
       },
     ],
     [
-      'Heading',
+      'library.pack.notes.heading',
       (d) => {
         d.text(0, 0, 'Heading', { size: 40 });
         d.line(0, 56, [
@@ -552,7 +574,7 @@ const notes = pack(
       },
     ],
     [
-      'Checklist',
+      'library.pack.notes.checklist',
       (d) => {
         ['First thing', 'Second thing', 'Third thing'].forEach((words, row) => {
           const y = row * 34;
@@ -574,7 +596,7 @@ const notes = pack(
       },
     ],
     [
-      'Pros and cons',
+      'library.pack.notes.prosAndCons',
       (d) => {
         const pros = { x: 0, y: 0, w: 200, h: 180 };
         const cons = { x: 220, y: 0, w: 200, h: 180 };
@@ -585,7 +607,7 @@ const notes = pack(
       },
     ],
     [
-      'Divider',
+      'library.pack.notes.divider',
       (d) => {
         d.line(
           0,

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { t } from '../i18n';
 import { listWorkspacePeople, type WorkspacePeople } from './people-api';
 import { useWorkspaceChanges } from './workspace-events';
 
@@ -38,7 +39,7 @@ export function useWorkspacePeople(workspaceId: string | null): WorkspacePeopleS
       (people) => setState({ id: workspaceId, value: { status: 'ready', ...people } }),
       (err: unknown) => {
         if (controller.signal.aborted) return;
-        const error = err instanceof Error ? err.message : 'Could not load the members.';
+        const error = err instanceof Error ? err.message : t('people.loadFailed');
         setState((prev) =>
           // A failed re-read leaves the list that was there.
           prev.id === workspaceId && prev.value.status === 'ready'

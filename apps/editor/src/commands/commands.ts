@@ -36,6 +36,7 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import type { ComponentType, SVGProps } from 'react';
+import type { TranslationKey } from '../i18n';
 import { MENU_ITEMS, type MenuItemId } from '../menu/menu-items';
 import { TOOLS, VIEW_MODE_TOOL, VIEW_ONLY_TOOLS, type Tool } from '../tools/tool';
 
@@ -117,6 +118,16 @@ export const COMMAND_CATEGORIES = ['Tools', 'View', 'Edit', 'Arrange', 'Board', 
 
 export type CommandCategory = (typeof COMMAND_CATEGORIES)[number];
 
+/** A category's heading in the palette. */
+export const CATEGORY_KEYS: Readonly<Record<CommandCategory, TranslationKey>> = {
+  Tools: 'commands.category.tools',
+  View: 'commands.category.view',
+  Edit: 'commands.category.edit',
+  Arrange: 'commands.category.arrange',
+  Board: 'commands.category.board',
+  App: 'commands.category.app',
+};
+
 /**
  * What the editor looks like at the moment the palette opens. Commands read it
  * to say whether they apply — "Bring to front" is meaningless with nothing
@@ -157,12 +168,12 @@ export interface CommandContext {
 
 export interface CommandMeta {
   readonly id: CommandId;
-  readonly label: string;
+  readonly labelKey: TranslationKey;
   readonly icon: CommandIcon;
   readonly category: CommandCategory;
   /** Key combo in the `mod+o` notation of help/platform. */
   readonly shortcut?: string;
-  /** Matched against alongside the label, but never shown. */
+  /** Matched against alongside the label, but never shown. English, whatever the language. */
   readonly keywords?: readonly string[];
   readonly destructive?: boolean;
   /**
@@ -207,13 +218,13 @@ function fromMenu(
   keywords: readonly string[],
   available?: (context: CommandContext) => boolean,
 ): CommandMeta {
-  const { label, icon, shortcut, destructive } = MENU_ITEMS[id];
-  return { id, label, icon, category, shortcut, keywords, destructive, available };
+  const { labelKey, icon, shortcut, destructive } = MENU_ITEMS[id];
+  return { id, labelKey, icon, category, shortcut, keywords, destructive, available };
 }
 
 const TOOL_COMMANDS: readonly CommandMeta[] = TOOLS.map((tool) => ({
   id: `tool:${tool.id}` as const,
-  label: tool.label,
+  labelKey: tool.labelKey,
   icon: tool.icon,
   category: 'Tools' as const,
   // The toolbar advertises the letter; the digit works too but two hints on
@@ -238,7 +249,7 @@ export const COMMANDS: readonly CommandMeta[] = [
 
   {
     id: 'zoomIn',
-    label: 'Zoom in',
+    labelKey: 'commands.zoomIn',
     icon: ZoomIn,
     category: 'View',
     shortcut: 'mod+=',
@@ -246,7 +257,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'zoomOut',
-    label: 'Zoom out',
+    labelKey: 'commands.zoomOut',
     icon: ZoomOut,
     category: 'View',
     shortcut: 'mod+-',
@@ -254,7 +265,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'zoomTo100',
-    label: 'Zoom to 100%',
+    labelKey: 'commands.zoomTo100',
     icon: Focus,
     category: 'View',
     shortcut: 'mod+1',
@@ -262,7 +273,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'zoomToFit',
-    label: 'Zoom to fit',
+    labelKey: 'commands.zoomToFit',
     icon: Expand,
     category: 'View',
     shortcut: 'mod+2',
@@ -271,7 +282,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'zoomToSelection',
-    label: 'Zoom to selection',
+    labelKey: 'commands.zoomToSelection',
     icon: Crosshair,
     category: 'View',
     shortcut: 'mod+3',
@@ -280,7 +291,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'toggleTheme',
-    label: 'Toggle light / dark theme',
+    labelKey: 'commands.toggleTheme',
     icon: SunMoon,
     category: 'View',
     shortcut: 'alt+shift+d',
@@ -288,7 +299,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'toggleFocusMode',
-    label: 'Toggle focus mode',
+    labelKey: 'commands.toggleFocusMode',
     icon: Maximize,
     category: 'View',
     shortcut: 'alt+z',
@@ -298,7 +309,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   // offered while read-only, or the palette could enter it and not leave it.
   {
     id: 'toggleViewMode',
-    label: 'Toggle view mode',
+    labelKey: 'commands.toggleViewMode',
     icon: Eye,
     category: 'View',
     shortcut: 'alt+r',
@@ -306,7 +317,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'toggleCanvasStats',
-    label: 'Toggle canvas stats',
+    labelKey: 'commands.toggleCanvasStats',
     icon: ChartColumn,
     category: 'View',
     shortcut: 'alt+/',
@@ -314,7 +325,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'toggleComments',
-    label: 'Show or hide comments',
+    labelKey: 'commands.toggleComments',
     icon: MessageSquare,
     category: 'View',
     shortcut: 'shift+c',
@@ -323,7 +334,7 @@ export const COMMANDS: readonly CommandMeta[] = [
 
   {
     id: 'undo',
-    label: 'Undo',
+    labelKey: 'commands.undo',
     icon: Undo2,
     category: 'Edit',
     shortcut: 'mod+z',
@@ -332,7 +343,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'redo',
-    label: 'Redo',
+    labelKey: 'commands.redo',
     icon: Redo2,
     category: 'Edit',
     shortcut: 'mod+shift+z',
@@ -341,7 +352,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'cut',
-    label: 'Cut selection',
+    labelKey: 'commands.cut',
     icon: Scissors,
     category: 'Edit',
     shortcut: 'mod+x',
@@ -350,7 +361,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'copy',
-    label: 'Copy selection',
+    labelKey: 'commands.copy',
     icon: Copy,
     category: 'Edit',
     shortcut: 'mod+c',
@@ -359,7 +370,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'paste',
-    label: 'Paste',
+    labelKey: 'commands.paste',
     icon: ClipboardPaste,
     category: 'Edit',
     shortcut: 'mod+v',
@@ -368,7 +379,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'duplicate',
-    label: 'Duplicate selection',
+    labelKey: 'commands.duplicate',
     icon: CopyPlus,
     category: 'Edit',
     shortcut: 'mod+d',
@@ -379,7 +390,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'selectAll',
-    label: 'Select all',
+    labelKey: 'commands.selectAll',
     icon: BoxSelect,
     category: 'Edit',
     shortcut: 'mod+a',
@@ -388,7 +399,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'deleteSelection',
-    label: 'Delete selection',
+    labelKey: 'commands.deleteSelection',
     icon: Trash2,
     category: 'Edit',
     shortcut: 'delete',
@@ -401,7 +412,7 @@ export const COMMANDS: readonly CommandMeta[] = [
     id: 'editLink',
     // Short, so typing "link" reaches it ahead of Copy board link: with a
     // shape selected it is the link that is meant.
-    label: 'Edit link',
+    labelKey: 'commands.editLink',
     icon: Link,
     category: 'Edit',
     shortcut: 'mod+k',
@@ -411,7 +422,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'copyLinkToSelection',
-    label: 'Copy link to selection',
+    labelKey: 'commands.copyLinkToSelection',
     icon: Link2,
     category: 'Edit',
     keywords: ['share', 'url', 'point to', 'shapes', 'deep link', 'go to'],
@@ -422,7 +433,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   // selection, or the board when nothing is selected.
   {
     id: 'copyAsPng',
-    label: 'Copy as PNG',
+    labelKey: 'commands.copyAsPng',
     icon: FileImage,
     category: 'Edit',
     shortcut: 'alt+shift+c',
@@ -431,7 +442,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'copyAsSvg',
-    label: 'Copy as SVG',
+    labelKey: 'commands.copyAsSvg',
     icon: FileCode,
     category: 'Edit',
     keywords: ['vector', 'image', 'picture', 'markup', 'clipboard'],
@@ -439,7 +450,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'copyAsText',
-    label: 'Copy as text',
+    labelKey: 'commands.copyAsText',
     icon: Type,
     category: 'Edit',
     keywords: ['words', 'plain text', 'labels', 'writing', 'clipboard'],
@@ -447,7 +458,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'copyAsMermaid',
-    label: 'Copy as Mermaid',
+    labelKey: 'commands.copyAsMermaid',
     icon: Workflow,
     category: 'Edit',
     keywords: ['code', 'diagram', 'flowchart', 'chart', 'markdown', 'clipboard'],
@@ -455,7 +466,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'copyAsJson',
-    label: 'Copy as JSON',
+    labelKey: 'commands.copyAsJson',
     icon: Braces,
     category: 'Edit',
     keywords: ['data', 'code', 'shapes', 'raw', 'clipboard'],
@@ -463,7 +474,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'toggleLock',
-    label: 'Toggle lock',
+    labelKey: 'commands.toggleLock',
     icon: Lock,
     category: 'Edit',
     shortcut: 'shift+l',
@@ -472,7 +483,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'unlockAll',
-    label: 'Unlock all',
+    labelKey: 'commands.unlockAll',
     icon: LockOpen,
     category: 'Edit',
     keywords: ['lock', 'unlock', 'free', 'everything'],
@@ -483,7 +494,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'hideSelection',
-    label: 'Hide selection',
+    labelKey: 'commands.hideSelection',
     icon: EyeOff,
     category: 'Edit',
     shortcut: 'mod+shift+h',
@@ -492,7 +503,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'showAll',
-    label: 'Show hidden shapes',
+    labelKey: 'commands.showAll',
     icon: Eye,
     category: 'Edit',
     keywords: ['show all', 'unhide', 'reveal', 'visibility'],
@@ -501,7 +512,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'addToLibrary',
-    label: 'Add to library',
+    labelKey: 'commands.addToLibrary',
     icon: BookPlus,
     category: 'Edit',
     keywords: ['library', 'save', 'keep', 'reuse', 'component', 'template', 'stencil'],
@@ -512,7 +523,7 @@ export const COMMANDS: readonly CommandMeta[] = [
 
   {
     id: 'bringForward',
-    label: 'Bring forward',
+    labelKey: 'commands.bringForward',
     icon: MoveUp,
     category: 'Arrange',
     shortcut: ']',
@@ -521,7 +532,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'sendBackward',
-    label: 'Send backward',
+    labelKey: 'commands.sendBackward',
     icon: MoveDown,
     category: 'Arrange',
     shortcut: '[',
@@ -530,7 +541,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'bringToFront',
-    label: 'Bring to front',
+    labelKey: 'commands.bringToFront',
     icon: ArrowUpToLine,
     category: 'Arrange',
     shortcut: 'mod+]',
@@ -539,7 +550,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'sendToBack',
-    label: 'Send to back',
+    labelKey: 'commands.sendToBack',
     icon: ArrowDownToLine,
     category: 'Arrange',
     shortcut: 'mod+[',
@@ -549,7 +560,7 @@ export const COMMANDS: readonly CommandMeta[] = [
 
   {
     id: 'flipHorizontal',
-    label: 'Flip horizontal',
+    labelKey: 'commands.flipHorizontal',
     icon: FlipHorizontal,
     category: 'Arrange',
     shortcut: 'shift+h',
@@ -558,7 +569,7 @@ export const COMMANDS: readonly CommandMeta[] = [
   },
   {
     id: 'flipVertical',
-    label: 'Flip vertical',
+    labelKey: 'commands.flipVertical',
     icon: FlipVertical,
     category: 'Arrange',
     shortcut: 'shift+v',

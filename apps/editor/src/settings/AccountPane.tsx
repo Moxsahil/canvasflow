@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { t as translate, useT } from '../i18n';
 import type { ProfileState } from '../profile';
 import {
   AddPasswordDialog,
@@ -37,6 +38,7 @@ export function AccountPane({
   /** Whether the address is confirmed, and the way to hear that it now is. */
   account: ProfileState;
 }) {
+  const t = useT();
   const [security, setSecurity] = useState<AccountSecurity | null>(knownAccountSecurity);
   const [error, setError] = useState<string | null>(null);
   const [opened, setOpened] = useState<Opened | null>(null);
@@ -52,7 +54,8 @@ export function AccountPane({
         setError(null);
       },
       (caught: unknown) => {
-        if (live) setError(caught instanceof Error ? caught.message : 'Could not load this.');
+        if (live)
+          setError(caught instanceof Error ? caught.message : translate('settings.loadFailed'));
       },
     );
     return () => {
@@ -62,7 +65,7 @@ export function AccountPane({
 
   const loading = security === null;
   const hint = (text: (s: AccountSecurity) => string) =>
-    security ? text(security) : error ? 'Unavailable' : 'Loading…';
+    security ? text(security) : error ? t('settings.unavailable') : t('common.loading');
 
   const drawn = (() => {
     if (!security || !opened) return null;
@@ -97,55 +100,55 @@ export function AccountPane({
   })();
 
   return (
-    <SettingsPage lead="Sign-in methods, active sessions, and account deletion." dialog={drawn}>
-      <Band title="Sign-in" error={error}>
+    <SettingsPage lead={t('settings.section.account.lead')} dialog={drawn}>
+      <Band title={t('settings.group.signIn')} error={error}>
         <EmailRow
           email={account.profile?.email ?? user?.email ?? null}
           verified={account.profile?.emailVerified ?? false}
           token={token}
           onVerified={account.reload}
         />
-        <SettingRow setting="password" title="Password" hint={hint(passwordHint)}>
+        <SettingRow setting="password" title={t('settings.row.password')} hint={hint(passwordHint)}>
           <SettingsButton onClick={() => setOpened('password')} disabled={loading}>
-            {security && !security.hasPassword ? 'Add' : 'Change'}
+            {security && !security.hasPassword ? t('common.add') : t('account.change')}
           </SettingsButton>
         </SettingRow>
         <SettingRow
           setting="connected-accounts"
-          title="Connected accounts"
+          title={t('settings.row.connected-accounts')}
           hint={hint(signInMethodsHint)}
         >
           <SettingsButton onClick={() => setOpened('accounts')} disabled={loading}>
-            Manage
+            {t('account.manage')}
           </SettingsButton>
         </SettingRow>
         <SettingRow
           setting="two-factor"
-          title="Two-factor authentication"
-          hint="Require a second step at sign-in"
+          title={t('settings.row.two-factor')}
+          hint={t('account.twoFactorHint')}
           badge={<ComingSoonTag />}
         >
-          <SettingsButton disabled>Set up</SettingsButton>
+          <SettingsButton disabled>{t('account.setUp')}</SettingsButton>
         </SettingRow>
       </Band>
 
-      <Band title="Sessions">
+      <Band title={t('settings.group.sessions')}>
         <SettingRow
           setting="sessions"
-          title="Active sessions"
+          title={t('settings.row.sessions')}
           hint={hint((s) => sessionsHint(s.sessions.length))}
         >
           <SettingsButton onClick={() => setOpened('sessions')} disabled={loading}>
-            View all
+            {t('account.viewAll')}
           </SettingsButton>
         </SettingRow>
         <SettingRow
           setting="sign-out-everywhere"
-          title="Sign out everywhere"
-          hint="Signs out every device, including this one"
+          title={t('settings.row.sign-out-everywhere')}
+          hint={t('account.signOutEverywhereHint')}
         >
           <SettingsButton onClick={() => setOpened('sign-out')} disabled={loading}>
-            Sign out all
+            {t('account.signOutAll')}
           </SettingsButton>
         </SettingRow>
       </Band>

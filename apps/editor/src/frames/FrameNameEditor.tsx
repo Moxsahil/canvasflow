@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { SELECTION_COLOR } from '@canvasflow/canvas-engine';
+import { useT } from '../i18n';
 
 /**
  * The input that appears over a frame's label while it is being renamed.
@@ -74,6 +75,7 @@ export function FrameNameEditor({
   onCommit,
   onCancel,
 }: FrameNameEditorProps) {
+  const t = useT();
   const [value, setValue] = useState(initialName);
   const ref = useRef<HTMLInputElement>(null);
   // Commit runs from Enter and from blur, and Enter moves focus. Without this
@@ -122,7 +124,7 @@ export function FrameNameEditor({
           cancel();
         }
       }}
-      aria-label="Frame name"
+      aria-label={t('frames.name')}
       spellCheck={false}
       style={{
         position: 'absolute',

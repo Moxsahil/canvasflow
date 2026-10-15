@@ -1,17 +1,17 @@
 export const STROKE_SWATCHES = [
-  { value: '#1e1e1e', label: 'Black' },
-  { value: '#e03131', label: 'Red' },
-  { value: '#2f9e44', label: 'Green' },
-  { value: '#1971c2', label: 'Blue' },
-  { value: '#f08c00', label: 'Orange' },
+  { value: '#1e1e1e', labelKey: 'color.black' },
+  { value: '#e03131', labelKey: 'color.red' },
+  { value: '#2f9e44', labelKey: 'color.green' },
+  { value: '#1971c2', labelKey: 'color.blue' },
+  { value: '#f08c00', labelKey: 'color.orange' },
 ] as const;
 
 export const BACKGROUND_SWATCHES = [
-  { value: null, label: 'Transparent' },
-  { value: '#ffc9c9', label: 'Red' },
-  { value: '#b2f2bb', label: 'Green' },
-  { value: '#a5d8ff', label: 'Blue' },
-  { value: '#ffec99', label: 'Yellow' },
+  { value: null, labelKey: 'color.transparent' },
+  { value: '#ffc9c9', labelKey: 'color.red' },
+  { value: '#b2f2bb', labelKey: 'color.green' },
+  { value: '#a5d8ff', labelKey: 'color.blue' },
+  { value: '#ffec99', labelKey: 'color.yellow' },
 ] as const;
 
 export type CanvasTheme = 'light' | 'dark';
@@ -34,33 +34,33 @@ export function canvasBackgroundFor(theme: CanvasTheme): string {
 }
 
 export const STROKE_WIDTHS = [
-  { value: 1, label: 'Thin' },
-  { value: 2, label: 'Bold' },
-  { value: 4, label: 'Extra bold' },
+  { value: 1, labelKey: 'style.width.thin' },
+  { value: 2, labelKey: 'style.width.bold' },
+  { value: 4, labelKey: 'style.width.extraBold' },
 ] as const;
 
 /** Font stacks offered by the Font family row, keyed by the label shown. */
 export const FONT_FAMILIES = [
-  { value: '"Caveat", "Comic Sans MS", system-ui, sans-serif', label: 'Hand-drawn' },
-  { value: 'Helvetica, Arial, system-ui, sans-serif', label: 'Normal' },
-  { value: '"JetBrains Mono", "Fira Code", monospace', label: 'Code' },
+  { value: '"Caveat", "Comic Sans MS", system-ui, sans-serif', labelKey: 'style.font.handDrawn' },
+  { value: 'Helvetica, Arial, system-ui, sans-serif', labelKey: 'style.font.normal' },
+  { value: '"JetBrains Mono", "Fira Code", monospace', labelKey: 'style.font.code' },
 ] as const;
 
 export const ARROWHEADS = [
-  { value: 'none', label: 'None' },
-  { value: 'arrow', label: 'Arrow' },
-  { value: 'bar', label: 'Bar' },
-  { value: 'circle', label: 'Circle' },
-  { value: 'circle_outline', label: 'Circle outline' },
-  { value: 'triangle', label: 'Triangle' },
-  { value: 'triangle_outline', label: 'Triangle outline' },
-  { value: 'diamond', label: 'Diamond' },
-  { value: 'diamond_outline', label: 'Diamond outline' },
+  { value: 'none', labelKey: 'style.arrowhead.none' },
+  { value: 'arrow', labelKey: 'style.arrowhead.arrow' },
+  { value: 'bar', labelKey: 'style.arrowhead.bar' },
+  { value: 'circle', labelKey: 'style.arrowhead.circle' },
+  { value: 'circle_outline', labelKey: 'style.arrowhead.circle_outline' },
+  { value: 'triangle', labelKey: 'style.arrowhead.triangle' },
+  { value: 'triangle_outline', labelKey: 'style.arrowhead.triangle_outline' },
+  { value: 'diamond', labelKey: 'style.arrowhead.diamond' },
+  { value: 'diamond_outline', labelKey: 'style.arrowhead.diamond_outline' },
 ] as const;
 
 export const FONT_SIZES = [
-  { value: 16, label: 'Small' },
-  { value: 20, label: 'Medium' },
-  { value: 28, label: 'Large' },
-  { value: 36, label: 'Extra large' },
+  { value: 16, labelKey: 'style.fontSize.small' },
+  { value: 20, labelKey: 'style.fontSize.medium' },
+  { value: 28, labelKey: 'style.fontSize.large' },
+  { value: 36, labelKey: 'style.fontSize.extraLarge' },
 ] as const;

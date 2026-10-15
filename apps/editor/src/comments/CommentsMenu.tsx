@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/inline-dropdown-menu';
 import { menuSurfaceClasses } from '@/components/ui/menu-look';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useT, type TranslationKey } from '../i18n';
 import { CommentAvatar } from './CommentAvatar';
 import {
   COMMENT_LIST_FILTERS,
@@ -56,6 +57,7 @@ export function CommentsMenu({
   onSelect,
   container,
 }: CommentsMenuProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   // Kept while the list is shut, so it reopens on what was being looked at.
   const [filter, setFilter] = useState<CommentListFilter>('open');
@@ -64,9 +66,7 @@ export function CommentsMenu({
 
   const waiting = commentListCounts(threads).open;
   const label =
-    waiting === 0
-      ? 'Comments'
-      : `Comments, ${waiting} open ${waiting === 1 ? 'thread' : 'threads'}`;
+    waiting === 0 ? t('comments.title') : t('comments.titleWaiting', { count: waiting });
 
   return (
     <Popover
@@ -89,7 +89,7 @@ export function CommentsMenu({
           ref={button}
           type="button"
           aria-label={label}
-          title="Comments"
+          title={t('comments.title')}
           // The search button's build, which it stands beside.
           className="relative flex size-9 items-center justify-center rounded-full border border-(--default-border-color) bg-(--island-bg-color) text-(--icon-fill-color) transition-colors hover:bg-(--button-hover-bg) focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none data-[state=open]:bg-(--button-hover-bg)"
           data-testid="comments-button"
@@ -112,7 +112,7 @@ export function CommentsMenu({
         alignOffset={-overhang}
         sideOffset={8}
         collisionPadding={8}
-        aria-label="Comments"
+        aria-label={t('comments.title')}
         className={cn(menuSurfaceClasses, 'w-75 p-0 shadow-none data-[state=open]:animate-none')}
         // Keys pressed in here are the list's: a letter typed over a row must
         // not pick up a tool on the board behind.
@@ -158,9 +158,9 @@ export function CommentsList({
   onFilter: (filter: CommentListFilter) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const counts = commentListCounts(threads);
   const listed = listedThreads(threads, filter);
-  const showing = COMMENT_LIST_FILTERS.find(({ id }) => id === filter)!;
 
   return (
     <div className="flex flex-col text-xs" data-testid="comments-list">
@@ -176,7 +176,7 @@ export function CommentsList({
               )}
               data-testid="comments-filter"
             >
-              {`${showing.label} comments`}
+              {t(FILTER_HEADINGS[filter])}
               <span className={cn('font-normal tabular-nums', mutedText)}>{counts[filter]}</span>
               <ChevronDown
                 aria-hidden="true"
@@ -195,13 +195,13 @@ export function CommentsList({
               value={filter}
               onValueChange={(value) => onFilter(value as CommentListFilter)}
             >
-              {COMMENT_LIST_FILTERS.map(({ id, label }) => (
+              {COMMENT_LIST_FILTERS.map(({ id, labelKey }) => (
                 <InlineDropdownMenuChoiceItem
                   key={id}
                   value={id}
                   data-testid={`comments-filter-${id}`}
                 >
-                  {label} <span className={cn('tabular-nums', mutedText)}>{counts[id]}</span>
+                  {t(labelKey)} <span className={cn('tabular-nums', mutedText)}>{counts[id]}</span>
                 </InlineDropdownMenuChoiceItem>
               ))}
             </InlineDropdownMenuRadioGroup>
@@ -209,8 +209,8 @@ export function CommentsList({
         </InlineDropdownMenu>
         <button
           type="button"
-          aria-label="Close comments"
-          title="Close"
+          aria-label={t('comments.close')}
+          title={t('common.close')}
           className={cn(
             'grid size-6 place-items-center rounded-md hover:text-neutral-950 dark:hover:text-neutral-50 [&_svg]:size-3.5',
             washOnHover,
@@ -259,17 +259,16 @@ function ThreadRow({
   current: boolean;
   onSelect: () => void;
 }) {
+  const t = useT();
   const first = thread.comments[0]!;
-  const name = first.authorName || 'Someone';
+  const name = first.authorName || t('comments.someone');
   const replies = thread.comments.length - 1;
   const active = lastActivity(thread);
   const after = thread.resolved
-    ? 'Resolved'
+    ? t('comments.resolved')
     : replies === 0
       ? null
-      : replies === 1
-        ? '1 reply'
-        : `${replies} replies`;
+      : t('comments.replies', { count: replies });
 
   return (
     <button
@@ -305,12 +304,20 @@ function ThreadRow({
   );
 }
 
+/** The list's heading for each filter. */
+const FILTER_HEADINGS: Readonly<Record<CommentListFilter, TranslationKey>> = {
+  open: 'comments.heading.open',
+  resolved: 'comments.heading.resolved',
+  all: 'comments.heading.all',
+};
+
 function EmptyList({ filter, any }: { filter: CommentListFilter; any: boolean }) {
+  const t = useT();
   const [title, hint] = !any
-    ? ['No comments yet', 'Press M and click the board to leave one.']
+    ? [t('comments.empty.none'), t('comments.empty.noneHint')]
     : filter === 'open'
-      ? ['No open comments', 'Every thread has been resolved.']
-      : ['Nothing resolved yet', 'Resolved threads are kept here.'];
+      ? [t('comments.empty.open'), t('comments.empty.openHint')]
+      : [t('comments.empty.resolved'), t('comments.empty.resolvedHint')];
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-1 px-4 py-6 text-center">

@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { Keyboard, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { rich, useT, type I18n } from '../i18n';
 import { CloseButton, SCROLLBAR } from '../settings/settings-ui';
 import { SurfaceWindow, WindowButton } from '../ui/SurfaceWindow';
 import type { SurfaceTheme } from '../ui/surface-palette';
@@ -35,7 +36,7 @@ const ALL_ENTRIES = SHORTCUTS.flatMap((category) => category.entries);
  * What a search looks through for one shortcut: what it does, and its keys by
  * every name someone might type for them.
  */
-function searchTextOf(entry: ShortcutEntry, mac: boolean): string {
+function searchTextOf(entry: ShortcutEntry, mac: boolean, t: I18n['t']): string {
   const synonyms: Record<string, string> = {
     mod: mac ? 'cmd command' : 'ctrl control',
     alt: mac ? 'option opt alt' : 'alt',
@@ -47,7 +48,7 @@ function searchTextOf(entry: ShortcutEntry, mac: boolean): string {
       const names = formatShortcutKeys(keys);
       return keys.split('+').map((part, index) => `${names[index]} ${synonyms[part] ?? ''}`);
     });
-  return [entry.description, ...parts].join(' ').toLowerCase();
+  return [t(entry.descriptionKey), ...parts].join(' ').toLowerCase();
 }
 
 /**
@@ -142,6 +143,7 @@ type Said = { kind: 'found'; entry: ShortcutEntry } | { kind: 'missed'; combo: s
  * while the window is open lights up its row, and the foot says what it does.
  */
 export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
+  const t = useT();
   const titleId = useId();
   const mac = useMemo(() => isMac(), []);
   const [query, setQuery] = useState('');
@@ -166,8 +168,8 @@ export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
   useEffect(() => () => clearTimeout(flashTimer.current), []);
 
   const searchTexts = useMemo(
-    () => new Map(ALL_ENTRIES.map((entry) => [entry, searchTextOf(entry, mac)])),
-    [mac],
+    () => new Map(ALL_ENTRIES.map((entry) => [entry, searchTextOf(entry, mac, t)])),
+    [mac, t],
   );
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const searching = terms.length > 0;
@@ -248,18 +250,20 @@ export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
       >
         <div className="grid min-w-0 flex-1 gap-[4px] pt-[1px]">
           <h2 id={titleId} className="text-[18px] font-semibold tracking-[-0.01em]">
-            Keyboard shortcuts
+            {t('shortcuts.title')}
           </h2>
           <span className="flex items-center gap-[5px] text-[12px] text-[var(--surface-fg-muted)]">
             {searching ? (
               <>
                 <Search className="size-[12px]" aria-hidden="true" />
-                {`${shown} of ${TOTAL_SHORTCUTS} shortcuts`}
+                {t('shortcuts.shownOf', { shown, total: TOTAL_SHORTCUTS })}
               </>
             ) : (
               <>
                 <Keyboard className="size-[12px]" aria-hidden="true" />
-                {`${TOTAL_SHORTCUTS} shortcuts · keys shown for ${mac ? 'Mac' : 'Windows and Linux'}`}
+                {mac
+                  ? t('shortcuts.summaryMac', { count: TOTAL_SHORTCUTS })
+                  : t('shortcuts.summaryOther', { count: TOTAL_SHORTCUTS })}
               </>
             )}
           </span>
@@ -270,8 +274,8 @@ export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
             ref={searchRef}
             type="search"
             value={query}
-            placeholder="Search shortcuts"
-            aria-label="Search shortcuts"
+            placeholder={t('shortcuts.search')}
+            aria-label={t('shortcuts.search')}
             autoComplete="off"
             spellCheck={false}
             onChange={(event) => search(event.target.value)}
@@ -279,7 +283,7 @@ export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
           />
           {!query && <KeyCaps keys="/" size="sm" className="group-focus-within:hidden" />}
         </label>
-        <CloseButton label="Close" onClick={onClose} />
+        <CloseButton label={t('common.close')} onClick={onClose} />
       </div>
 
       <div
@@ -295,8 +299,9 @@ export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
           <div className="grid justify-items-center gap-[12px] py-[96px] text-center text-[12.5px] text-[var(--surface-fg-muted)]">
             <Search className="size-[16px]" aria-hidden="true" />
             <p>
-              No shortcut matches “
-              <b className="font-medium text-[var(--surface-fg)]">{query.trim()}</b>”.
+              {rich(t('shortcuts.noMatch'), {
+                query: <b className="font-medium text-[var(--surface-fg)]">{query.trim()}</b>,
+              })}
             </p>
             <WindowButton
               onClick={() => {
@@ -304,7 +309,7 @@ export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
                 searchRef.current?.focus();
               }}
             >
-              Clear search
+              {t('shortcuts.clearSearch')}
             </WindowButton>
           </div>
         ) : (
@@ -326,18 +331,18 @@ export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
                   return (
                     <section
                       key={category.title}
-                      aria-label={category.title}
+                      aria-label={t(category.titleKey)}
                       className={cn('grid min-w-0', searching && 'break-inside-avoid pb-[16px]')}
                     >
                       <h3 className="mb-[3px] flex items-baseline justify-between text-[12px] font-semibold">
-                        {category.title}
+                        {t(category.titleKey)}
                         <span className="text-[11px] font-normal text-[var(--surface-fg-faint)] tabular-nums">
                           {category.entries.length}
                         </span>
                       </h3>
                       {entries.map((entry) => (
                         <ShortcutRow
-                          key={entry.keys + entry.description}
+                          key={entry.keys + entry.descriptionKey}
                           entry={entry}
                           terms={terms}
                           flashing={flashing === entry.keys}
@@ -362,20 +367,29 @@ export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
             <>
               <KeyCaps keys={said.entry.keys} size="sm" />
               <span>
-                is <b className="font-medium text-[var(--surface-fg)]">{said.entry.description}</b>
+                {rich(t('shortcuts.is'), {
+                  what: (
+                    <b className="font-medium text-[var(--surface-fg)]">
+                      {t(said.entry.descriptionKey)}
+                    </b>
+                  ),
+                })}
               </span>
             </>
           ) : said?.kind === 'missed' ? (
             <>
-              <span>Nothing is on</span>
-              <KeyCaps keys={said.combo} size="sm" />
+              <span>
+                {rich(t('shortcuts.nothingOn'), {
+                  keys: <KeyCaps keys={said.combo} size="sm" />,
+                })}
+              </span>
             </>
           ) : (
-            <span>Press any shortcut to find it</span>
+            <span>{t('shortcuts.pressAny')}</span>
           )}
         </p>
         <WindowButton variant="primary" onClick={onClose}>
-          Done
+          {t('common.done')}
         </WindowButton>
       </div>
     </SurfaceWindow>
@@ -395,6 +409,7 @@ function ShortcutRow({
   terms: string[];
   flashing: boolean;
 }) {
+  const t = useT();
   return (
     <div
       data-shortcut={entry.keys}
@@ -402,13 +417,15 @@ function ShortcutRow({
       className="relative -mx-[6px] flex min-h-[28px] items-center gap-[12px] rounded-[6px] px-[6px] py-[3px] transition-colors duration-[600ms] before:absolute before:inset-x-[6px] before:top-0 before:h-px before:bg-[var(--surface-line)] first-of-type:before:hidden data-[flash]:bg-[var(--surface-flash)] data-[flash]:duration-0 data-[flash]:before:hidden"
     >
       <span className="min-w-0 flex-1 text-[12px] leading-[1.35]">
-        {highlight(entry.description, terms)}
+        {highlight(t(entry.descriptionKey), terms)}
       </span>
       <span className="inline-flex shrink-0 items-center gap-[3px]">
         <KeyCaps keys={entry.keys} />
         {entry.altKeys && (
           <>
-            <span className="px-[3px] text-[10.5px] text-[var(--surface-fg-faint)]">or</span>
+            <span className="px-[3px] text-[10.5px] text-[var(--surface-fg-faint)]">
+              {t('shortcuts.or')}
+            </span>
             <KeyCaps keys={entry.altKeys} />
           </>
         )}

@@ -1,4 +1,5 @@
 import { env } from '@/lib/env';
+import { t } from '../i18n';
 import type { BoardSummary, WorkspaceRole } from './workspace-api';
 
 /**
@@ -113,10 +114,10 @@ async function failureMessage(res: Response): Promise<string> {
 /** Why a request failed, in words, with the gateway's code when it gave one. */
 async function failure(res: Response): Promise<WorkspaceRequestError> {
   if (res.status === 401) {
-    return new WorkspaceRequestError('Your session expired. Reload the board and try again.', null);
+    return new WorkspaceRequestError(t('errors.sessionExpired'), null);
   }
   if (res.status === 429) {
-    return new WorkspaceRequestError('Too many tries at once. Wait a moment and try again.', null);
+    return new WorkspaceRequestError(t('errors.tooManyTries'), null);
   }
   let body: { message?: unknown; code?: unknown } = {};
   try {
@@ -132,11 +133,11 @@ async function failure(res: Response): Promise<WorkspaceRequestError> {
     res.status === 404 &&
     (typeof body.message !== 'string' || body.message === 'Workspace not found')
   ) {
-    return new WorkspaceRequestError('That workspace is no longer available to you.', code);
+    return new WorkspaceRequestError(t('errors.workspaceGoneForYou'), code);
   }
   if (typeof body.message === 'string' && body.message)
     return new WorkspaceRequestError(body.message, code);
-  return new WorkspaceRequestError(`Something went wrong (${res.status}).`, code);
+  return new WorkspaceRequestError(t('errors.status', { status: res.status }), code);
 }
 
 /** Everyone in the workspace, and everyone else on its boards. */

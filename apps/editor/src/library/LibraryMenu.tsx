@@ -24,9 +24,10 @@ import {
 import { MenuBadge, menuChipClasses, menuSurfaceClasses } from '@/components/ui/menu-look';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { saveFile } from '../file/save-file';
+import { useT } from '../i18n';
 import { openedCatalogueEntry, type CatalogueLibrary } from './library-catalogue';
 import { LIBRARY_FILE_ACCEPT, readLibraryFile, writeLibraryFile } from './library-files';
-import { LIBRARY_PACKS, type LibraryPack } from './library-packs';
+import { LIBRARY_PACKS, localizePack, type LibraryPack } from './library-packs';
 import { readLibraryPinned, storeLibraryPinned } from './library-storage';
 import { LibraryBrowse } from './LibraryBrowse';
 import { TileGrid, focusRing, mutedText, wash, type TileActions } from './LibraryTiles';
@@ -83,6 +84,7 @@ export function LibraryMenu({
   onNotify,
   container,
 }: LibraryMenuProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(readLibraryPinned);
   const button = useRef<HTMLButtonElement>(null);
@@ -107,8 +109,8 @@ export function LibraryMenu({
         <button
           ref={button}
           type="button"
-          aria-label="Library"
-          title="Library"
+          aria-label={t('library.title')}
+          title={t('library.title')}
           className="relative flex size-9 items-center justify-center rounded-full border border-(--default-border-color) bg-(--island-bg-color) text-(--icon-fill-color) transition-colors hover:bg-(--button-hover-bg) focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none data-[state=open]:bg-(--button-hover-bg)"
           data-testid="library-button"
         >
@@ -121,7 +123,7 @@ export function LibraryMenu({
         alignOffset={-overhang}
         sideOffset={8}
         collisionPadding={8}
-        aria-label="Library"
+        aria-label={t('library.title')}
         className={cn(
           menuSurfaceClasses,
           'flex h-[min(420px,calc(100dvh-80px))] w-[min(620px,calc(100vw-16px))] flex-col p-0 shadow-none data-[state=open]:animate-none',
@@ -203,9 +205,11 @@ export function LibraryPanel({
   onDropped,
   onNotify,
   container,
-  packs = LIBRARY_PACKS,
+  packs: givenPacks = LIBRARY_PACKS,
   initialView = PERSONAL,
 }: LibraryPanelProps) {
+  const t = useT();
+  const packs = useMemo(() => givenPacks.map((p) => localizePack(p, t)), [givenPacks, t]);
   const [view, setView] = useState<View>(initialView);
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
@@ -239,31 +243,31 @@ export function LibraryPanel({
   const keep = (entry: LibraryEntry) => () => {
     library
       .add(entry.shapes, entry.name)
-      .then(() => onNotify(`Added “${entry.name}” to Personal`))
-      .catch(notifyFailure('Couldn’t add that to your library'));
+      .then(() => onNotify(t('library.addedToPersonal', { name: entry.name })))
+      .catch(notifyFailure(t('library.addFailed')));
   };
   const personalActions = (entry: LibraryEntry): TileActions => ({
     rename: (name) => {
-      library.rename(entry.id, name).catch(notifyFailure('Couldn’t rename that'));
+      library.rename(entry.id, name).catch(notifyFailure(t('library.renameFailed')));
     },
     remove: () => {
-      library.remove(entry.id).catch(notifyFailure('Couldn’t delete that'));
+      library.remove(entry.id).catch(notifyFailure(t('library.deleteFailed')));
     },
   });
 
   const importFile = async (file: File) => {
     if (file.size > IMPORT_MAX_BYTES) {
-      onNotify('That file is too large to be a library', 'warn');
+      onNotify(t('library.fileTooLarge'), 'warn');
       return;
     }
-    const title = file.name.replace(/\.[^.]*$/, '').trim() || 'Imported';
+    const title = file.name.replace(/\.[^.]*$/, '').trim() || t('library.imported');
     const read = readLibraryFile(await file.text(), importShapeId, title);
     if (!read) {
-      onNotify('That isn’t a library file', 'warn');
+      onNotify(t('library.notAFile'), 'warn');
       return;
     }
     if (read.items.length === 0) {
-      onNotify('Nothing in that library can be drawn here', 'warn');
+      onNotify(t('library.nothingDrawable'), 'warn');
       return;
     }
     setImporting(true);
@@ -272,15 +276,23 @@ export function LibraryPanel({
     show(PERSONAL);
     const total = read.items.length;
     if (result.error) {
-      onNotify(`Imported ${result.imported} of ${total}. ${result.error}`, 'warn');
+      onNotify(
+        t('library.importedPartly', { imported: result.imported, total, error: result.error }),
+        'warn',
+      );
       return;
     }
     const notes = [
-      result.tooLarge > 0 && `${result.tooLarge} too large`,
-      read.imagesLeftOut > 0 && 'images left out',
+      result.tooLarge > 0 && t('library.tooLargeCount', { count: result.tooLarge }),
+      read.imagesLeftOut > 0 && t('library.imagesLeftOut'),
     ].filter(Boolean);
     onNotify(
-      `Imported ${plural(result.imported, 'item')}${notes.length > 0 ? ` (${notes.join(', ')})` : ''}`,
+      notes.length > 0
+        ? t('library.importedWithNotes', {
+            items: t('library.itemCount', { count: result.imported }),
+            notes: notes.join(', '),
+          })
+        : t('library.importedItems', { items: t('library.itemCount', { count: result.imported }) }),
       notes.length > 0 ? 'warn' : undefined,
     );
   };
@@ -288,23 +300,27 @@ export function LibraryPanel({
   const exportPersonal = async () => {
     try {
       const saved = await saveFile({
-        boardName: 'Personal library',
+        boardName: t('library.personalFileName'),
         data: writeLibraryFile(library.items),
         format: 'library',
       });
-      if (saved.status === 'saved') onNotify(`Exported ${plural(library.items.length, 'item')}`);
+      if (saved.status === 'saved') {
+        onNotify(
+          t('library.exported', { items: t('library.itemCount', { count: library.items.length }) }),
+        );
+      }
     } catch {
-      onNotify('Couldn’t save the library file', 'warn');
+      onNotify(t('library.saveFailed'), 'warn');
     }
   };
 
   const addFromCatalogue = async (chosen: CatalogueLibrary) => {
     try {
       const added = await library.addFromCatalogue(chosen);
-      onNotify(`Added ${chosen.name}`);
+      onNotify(t('library.added', { name: chosen.name }));
       show({ kind: 'added', id: added.id });
     } catch (err) {
-      notifyFailure('Couldn’t add that library')(err);
+      notifyFailure(t('library.addLibraryFailed'))(err);
     }
   };
 
@@ -312,7 +328,7 @@ export function LibraryPanel({
     const needle = query.trim().toLowerCase();
     return needle ? entries.filter((item) => item.name.toLowerCase().includes(needle)) : entries;
   };
-  const noMatch = <PanelNote title={`Nothing called “${query.trim()}”`} />;
+  const noMatch = <PanelNote title={t('library.nothingCalled', { query: query.trim() })} />;
   const grid = (entries: readonly LibraryEntry[], actionsFor: (e: LibraryEntry) => TileActions) => {
     const shown = filter(entries);
     return shown.length === 0 ? (
@@ -333,9 +349,9 @@ export function LibraryPanel({
     library.enabled ? { keep: keep(entry) } : {};
 
   let body: ReactNode;
-  let searchLabel = 'Search Personal';
+  let searchLabel = t('library.search', { name: t('library.personal') });
   if (view.kind === 'browse') {
-    searchLabel = 'Search the catalogue';
+    searchLabel = t('library.searchCatalogue');
     body = (
       <LibraryBrowse
         query={query}
@@ -346,7 +362,7 @@ export function LibraryPanel({
       />
     );
   } else if (pack) {
-    searchLabel = `Search ${pack.name}`;
+    searchLabel = t('library.search', { name: pack.name });
     body = (
       <>
         <PaneHeader title={pack.name} detail={pack.description} />
@@ -354,13 +370,13 @@ export function LibraryPanel({
       </>
     );
   } else if (addedLibrary) {
-    searchLabel = `Search ${addedLibrary.name}`;
+    searchLabel = t('library.search', { name: addedLibrary.name });
     const state = catalogue.state;
     body = (
       <>
         <PaneHeader
           title={addedLibrary.name}
-          detail={addedLibrary.credit ? `by ${addedLibrary.credit}` : null}
+          detail={addedLibrary.credit ? t('library.by', { credit: addedLibrary.credit }) : null}
           action={
             <button
               type="button"
@@ -369,18 +385,18 @@ export function LibraryPanel({
                 show(PERSONAL);
                 library
                   .removeAdded(addedLibrary.id)
-                  .catch(notifyFailure('Couldn’t remove that library'));
+                  .catch(notifyFailure(t('library.removeFailed')));
               }}
               data-testid="library-remove-added"
             >
-              Remove
+              {t('library.remove')}
             </button>
           }
         />
         {state.status === 'loading' ? (
-          <PanelNote title={`Opening ${addedLibrary.name}…`} />
+          <PanelNote title={t('library.opening', { name: addedLibrary.name })} />
         ) : state.status === 'error' ? (
-          <PanelNote title={`Couldn’t open ${addedLibrary.name}`}>
+          <PanelNote title={t('library.openFailed', { name: addedLibrary.name })}>
             {state.error}
             <button
               type="button"
@@ -390,17 +406,17 @@ export function LibraryPanel({
               )}
               onClick={catalogue.retry}
             >
-              Try again
+              {t('common.tryAgain')}
             </button>
           </PanelNote>
         ) : state.value.entries.length === 0 ? (
-          <PanelNote title="Nothing in this library can be drawn here" />
+          <PanelNote title={t('library.nothingDrawableHere')} />
         ) : (
           <>
             {grid(state.value.entries, keepActions)}
             {state.value.imagesLeftOut > 0 && (
               <p className={cn('px-1 pt-2 text-[11px]', mutedText)}>
-                Images in this library can’t be shown here yet.
+                {t('library.imagesNotShown')}
               </p>
             )}
           </>
@@ -411,27 +427,25 @@ export function LibraryPanel({
     library.status === 'idle' ||
     (library.status === 'loading' && library.items.length === 0)
   ) {
-    body = <PanelNote title="Opening your library…" />;
+    body = <PanelNote title={t('library.openingYours')} />;
   } else if (library.status === 'error') {
     body = (
-      <PanelNote title="Couldn’t open your library">
+      <PanelNote title={t('library.openYoursFailed')}>
         {library.error}
         <button
           type="button"
           className={cn(menuChipClasses, 'mt-2 border border-neutral-300 dark:border-neutral-600')}
           onClick={library.load}
         >
-          Try again
+          {t('common.tryAgain')}
         </button>
       </PanelNote>
     );
   } else if (view.kind === 'recent') {
-    searchLabel = 'Search Recently used';
+    searchLabel = t('library.search', { name: t('library.recent') });
     body =
       recentItems.length === 0 ? (
-        <PanelNote title="Nothing placed yet">
-          What you place from the library gathers here.
-        </PanelNote>
+        <PanelNote title={t('library.nothingPlaced')}>{t('library.nothingPlacedHint')}</PanelNote>
       ) : (
         grid(recentItems, (entry) =>
           library.items.some((item) => item.id === entry.id)
@@ -441,10 +455,8 @@ export function LibraryPanel({
       );
   } else if (library.items.length === 0) {
     body = (
-      <PanelNote title="Nothing in your library yet">
-        {canAdd
-          ? 'Add the selection to start it.'
-          : 'Select something on the board to add it here, or import a library file.'}
+      <PanelNote title={t('library.empty')}>
+        {canAdd ? t('library.emptyCanAdd') : t('library.emptyHint')}
       </PanelNote>
     );
   } else {
@@ -493,8 +505,8 @@ export function LibraryPanel({
           <InlineDropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label="Import and export"
-              title="Import and export"
+              aria-label={t('library.importExport')}
+              title={t('library.importExport')}
               disabled={!library.enabled || importing}
               className={cn(menuChipClasses, 'size-8 disabled:opacity-40')}
               data-testid="library-file-menu"
@@ -508,7 +520,7 @@ export function LibraryPanel({
               onSelect={() => picker.current?.click()}
               data-testid="library-import"
             >
-              Import library…
+              {t('library.import')}
             </InlineDropdownMenuItem>
             <InlineDropdownMenuItem
               icon={<Download aria-hidden="true" />}
@@ -516,7 +528,7 @@ export function LibraryPanel({
               onSelect={() => void exportPersonal()}
               data-testid="library-export"
             >
-              Export Personal
+              {t('library.exportPersonal')}
             </InlineDropdownMenuItem>
           </InlineDropdownMenuContent>
         </InlineDropdownMenu>
@@ -536,24 +548,24 @@ export function LibraryPanel({
 
       <div className="flex min-h-0 flex-1 flex-col border-t border-neutral-300 sm:flex-row dark:border-neutral-700">
         <nav
-          aria-label="Libraries"
+          aria-label={t('library.libraries')}
           className="flex flex-none gap-px overflow-x-auto border-b border-neutral-300 p-1.5 sm:w-46 sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto sm:border-r sm:border-b-0 dark:border-neutral-700"
         >
           <ShelfButton
             icon={<Folder />}
-            label="Personal"
+            label={t('library.personal')}
             count={library.status === 'ready' ? library.items.length : null}
             current={view.kind === 'personal'}
             onClick={() => show(PERSONAL)}
           />
           <ShelfButton
             icon={<Clock />}
-            label="Recently used"
+            label={t('library.recent')}
             count={library.status === 'ready' ? recentItems.length : null}
             current={view.kind === 'recent'}
             onClick={() => show({ kind: 'recent' })}
           />
-          <ShelfLabel>Packs</ShelfLabel>
+          <ShelfLabel>{t('library.packs')}</ShelfLabel>
           {packs.map((p) => (
             <ShelfButton
               key={p.id}
@@ -564,7 +576,7 @@ export function LibraryPanel({
               onClick={() => show({ kind: 'pack', id: p.id })}
             />
           ))}
-          {library.added.length > 0 && <ShelfLabel>Added</ShelfLabel>}
+          {library.added.length > 0 && <ShelfLabel>{t('library.addedShelf')}</ShelfLabel>}
           {library.added.map((a: AddedLibrary) => (
             <ShelfButton
               key={a.id}
@@ -575,11 +587,11 @@ export function LibraryPanel({
             />
           ))}
           <hr className="my-1 hidden h-px w-full flex-none border-0 bg-neutral-300 sm:block dark:bg-neutral-700" />
-          <ShelfButton icon={<Users />} label="Workspace" soon />
+          <ShelfButton icon={<Users />} label={t('workspace.title')} soon />
           <span className="hidden flex-1 sm:block" />
           <ShelfButton
             icon={<Globe />}
-            label="Browse libraries"
+            label={t('library.browse')}
             current={view.kind === 'browse'}
             onClick={() => show({ kind: 'browse' })}
           />
@@ -591,8 +603,8 @@ export function LibraryPanel({
         <button
           type="button"
           aria-pressed={pinned}
-          aria-label="Keep open after placing"
-          title="Keep open after placing"
+          aria-label={t('library.keepOpen')}
+          title={t('library.keepOpen')}
           className={menuChipClasses}
           onClick={() => onPin(!pinned)}
           data-testid="library-pin"
@@ -601,19 +613,17 @@ export function LibraryPanel({
         </button>
         <span className={cn('mr-auto truncate text-xs', mutedText)}>
           {importing
-            ? 'Importing…'
+            ? t('library.importing')
             : !canPlace
-              ? 'View only: you can’t place items on this board'
+              ? t('library.viewOnly')
               : pinned
-                ? 'Stays open after placing'
-                : 'Closes after placing'}
+                ? t('library.staysOpen')
+                : t('library.closes')}
         </span>
         <button
           type="button"
           disabled={!canAdd || !library.enabled || adding}
-          title={
-            canAdd ? 'Add the selection to Personal' : 'Select something on the board to add it'
-          }
+          title={canAdd ? t('library.addSelectionHint') : t('library.selectToAdd')}
           className={cn(
             'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-neutral-950 px-2.5 text-xs font-medium text-neutral-50 hover:bg-neutral-800 disabled:pointer-events-none disabled:opacity-40 dark:bg-neutral-50 dark:text-neutral-950 dark:hover:bg-neutral-200 [&_svg]:size-3.5',
             focusRing,
@@ -625,7 +635,7 @@ export function LibraryPanel({
           data-testid="library-add"
         >
           <Plus aria-hidden="true" />
-          {adding ? 'Adding…' : 'Add selection'}
+          {adding ? t('common.adding') : t('library.addSelection')}
         </button>
       </div>
     </div>
@@ -636,10 +646,6 @@ export function LibraryPanel({
 // id again as it is placed.
 let nextShapeId = 0;
 const importShapeId = () => `import-${(nextShapeId += 1)}`;
-
-function plural(count: number, word: string): string {
-  return `${count} ${word}${count === 1 ? '' : 's'}`;
-}
 
 function PaneHeader({
   title,
@@ -689,6 +695,7 @@ function ShelfButton({
   soon?: boolean;
   onClick?: () => void;
 }) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -709,7 +716,7 @@ function ShelfButton({
       {icon}
       <span className="min-w-0 truncate">{label}</span>
       {soon ? (
-        <MenuBadge className="ml-auto">Soon</MenuBadge>
+        <MenuBadge className="ml-auto">{t('common.soon')}</MenuBadge>
       ) : (
         count !== null && (
           <span className={cn('ml-auto font-normal tabular-nums', mutedText)}>{count}</span>
