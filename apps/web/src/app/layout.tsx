@@ -68,9 +68,15 @@ const fontVariables = [
   jetBrainsMono.variable,
 ].join(' ');
 
+const title = 'CanvasFlow — Collaborative Whiteboard';
+const description = 'Enterprise collaborative whiteboard platform';
+
 export const metadata: Metadata = {
-  title: 'CanvasFlow — Collaborative Whiteboard',
-  description: 'Enterprise collaborative whiteboard platform',
+  // What the image addresses below resolve against. Link previews need a full
+  // address, and preview builds point at the live site like the sitemap does.
+  metadataBase: new URL('https://canvasflowapp.com'),
+  title,
+  description,
   // One icon for every tab in every theme: the logo sits on its own white
   // square, so it reads on light and dark tab strips alike. The editor serves
   // the same file for its own tabs.
@@ -78,8 +84,30 @@ export const metadata: Metadata = {
   // Versioned, because browsers hold on to the icon a page last had: a new
   // address is the one thing certain to make them fetch this one. Bump it
   // whenever the icon changes.
+  //
+  // The SVG is the same mark drawn as a vector, for browsers that prefer one;
+  // the Apple icon is what iOS puts on the home screen.
   icons: {
-    icon: [{ url: '/favicon.ico?v=2', sizes: 'any' }],
+    icon: [
+      { url: '/favicon.ico?v=2', sizes: 'any' },
+      { url: '/brand/icon.svg', type: 'image/svg+xml' },
+    ],
+    apple: '/brand/apple-touch-icon.png',
+  },
+  // The card WhatsApp, X, Slack and LinkedIn show when somebody pastes a link.
+  openGraph: {
+    type: 'website',
+    siteName: 'CanvasFlow',
+    title,
+    description,
+    url: '/',
+    images: [{ url: '/brand/og.png', width: 1200, height: 630, alt: 'CanvasFlow' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title,
+    description,
+    images: ['/brand/og.png'],
   },
 };
 
