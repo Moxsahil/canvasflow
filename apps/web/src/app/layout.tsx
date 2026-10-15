@@ -68,8 +68,11 @@ const fontVariables = [
   jetBrainsMono.variable,
 ].join(' ');
 
-const title = 'CanvasFlow — Collaborative Whiteboard';
-const description = 'Enterprise collaborative whiteboard platform';
+// What search results and link previews show for the site. "Online whiteboard"
+// is the phrase people search for, so it is in both.
+const title = 'CanvasFlow — Collaborative Online Whiteboard for Teams';
+const description =
+  'CanvasFlow is an enterprise-grade online whiteboard. Sketch diagrams, wireframes and flowcharts on an infinite canvas and work on them together in real time.';
 
 export const metadata: Metadata = {
   // What the image addresses below resolve against. Link previews need a full
