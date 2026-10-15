@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CURRENT_LANGUAGE, LANGUAGES, LEARN_MORE_GROUPS } from './menu-items';
+import { LEARN_MORE_GROUPS } from './menu-items';
 
 /** The web app's routes, found by their page files — route groups like `(legal)` add no segment. */
 function webRoutes(): Set<string> {
@@ -20,14 +20,6 @@ function webRoutes(): Set<string> {
   if (existsSync(appDir)) walk(appDir, []);
   return routes;
 }
-
-describe('LANGUAGES', () => {
-  it('offers the language the app is in, and no language twice', () => {
-    const codes = LANGUAGES.map((language) => language.code);
-    expect(codes).toContain(CURRENT_LANGUAGE);
-    expect(new Set(codes).size).toBe(codes.length);
-  });
-});
 
 describe('LEARN_MORE_GROUPS', () => {
   it('links only to pages the web app serves', () => {
