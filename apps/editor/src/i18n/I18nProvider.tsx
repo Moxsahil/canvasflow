@@ -16,10 +16,11 @@ import {
   initialLocale,
   loadMessages,
   readStoredLocale,
+  setCurrentLanguage,
   storeLocale,
   translate,
   type Messages,
-  type TranslationKey,
+  type WordKey,
   type TranslationValues,
 } from './i18n';
 
@@ -27,13 +28,13 @@ export interface I18n {
   /** The language on screen now — the one being fetched takes over only once it has arrived. */
   locale: string;
   dir: 'ltr' | 'rtl';
-  t: (key: TranslationKey, values?: TranslationValues) => string;
+  t: (key: WordKey, values?: TranslationValues) => string;
   /** Codes that can be switched to; anything else in the menu reads "Soon". */
   available: readonly string[];
   setLocale: (code: string) => void;
 }
 
-const englishT = (key: TranslationKey, values?: TranslationValues) =>
+const englishT = (key: WordKey, values?: TranslationValues) =>
   translate(ENGLISH, DEFAULT_LOCALE, key, values);
 
 /**
@@ -62,17 +63,19 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   );
   // English until the requested language's file is in: words in two
   // languages at once would be worse than a moment more of the old one.
-  const [active, setActive] = useState<Active>(() =>
-    isTestLocale(requested)
-      ? { locale: requested, messages: ENGLISH }
-      : { locale: DEFAULT_LOCALE, messages: ENGLISH },
-  );
+  const [active, setActive] = useState<Active>(() => {
+    const locale = isTestLocale(requested) ? requested : DEFAULT_LOCALE;
+    setCurrentLanguage(locale, ENGLISH);
+    return { locale, messages: ENGLISH };
+  });
 
   useEffect(() => {
     let cancelled = false;
     void loadMessages(requested).then(
       (messages) => {
-        if (!cancelled) setActive({ locale: requested, messages });
+        if (cancelled) return;
+        setCurrentLanguage(requested, messages);
+        setActive({ locale: requested, messages });
       },
       () => {
         // A file that won't load leaves the language as it was.
@@ -102,7 +105,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   );
 
   const t = useCallback(
-    (key: TranslationKey, values?: TranslationValues) =>
+    (key: WordKey, values?: TranslationValues) =>
       translate(active.messages, active.locale, key, values),
     [active],
   );

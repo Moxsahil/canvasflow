@@ -4,6 +4,7 @@ import type { PresenceTheme } from '@canvasflow/canvas-engine';
 import { cn } from '@/lib/utils';
 import { menuDangerButtonClasses, menuSurfaceClasses } from '@/components/ui/menu-look';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { rich, useT } from '../i18n';
 import { CommentAvatar } from './CommentAvatar';
 import { CommentBody } from './CommentBody';
 import { CommentComposer } from './CommentComposer';
@@ -81,6 +82,7 @@ export function CommentThreadPanel({
   // put the caret back in the field once their name is in it.
   const [replyingTo, setReplyingTo] = useState<CommentAuthor[]>([]);
   const [replyFocus, setReplyFocus] = useState(0);
+  const t = useT();
   const [editing, setEditing] = useState<{ id: string; body: string } | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -114,7 +116,7 @@ export function CommentThreadPanel({
   const replyTo = (comment: Comment) => {
     const author = people.find((person) => person.id === comment.authorId) ?? {
       id: comment.authorId,
-      name: comment.authorName || 'Someone',
+      name: comment.authorName || t('comments.someone'),
       ...(comment.authorUsername ? { username: comment.authorUsername } : {}),
     };
     const mention = `@${author.name}`;
@@ -139,7 +141,7 @@ export function CommentThreadPanel({
   return (
     <div
       role="dialog"
-      aria-label="Comment thread"
+      aria-label={t('comments.thread')}
       className={cn(menuSurfaceClasses, 'flex flex-col text-xs')}
       style={{ width: THREAD_PANEL_WIDTH }}
       data-testid="comment-thread"
@@ -152,7 +154,7 @@ export function CommentThreadPanel({
       >
         {confirmingDelete ? (
           <>
-            <span className="font-medium">Delete this thread?</span>
+            <span className="font-medium">{t('comments.deleteThreadQuestion')}</span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -162,7 +164,7 @@ export function CommentThreadPanel({
                 )}
                 onClick={() => setConfirmingDelete(false)}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -173,35 +175,47 @@ export function CommentThreadPanel({
                 onClick={onDeleteThread}
                 data-testid="comment-thread-delete-confirm"
               >
-                Delete
+                {t('common.delete')}
               </button>
             </div>
           </>
         ) : (
           <>
-            <span className={mutedText}>{count === 1 ? '1 comment' : `${count} comments`}</span>
+            <span className={mutedText}>{t('comments.count', { count })}</span>
             <div className="flex items-center gap-0.5">
               {canComment &&
                 user &&
                 (resolved ? (
-                  <HeaderButton label="Reopen" onClick={onReopen} testId="comment-thread-reopen">
+                  <HeaderButton
+                    label={t('comments.reopen')}
+                    onClick={onReopen}
+                    testId="comment-thread-reopen"
+                  >
                     <RotateCcw aria-hidden="true" />
                   </HeaderButton>
                 ) : (
-                  <HeaderButton label="Resolve" onClick={onResolve} testId="comment-thread-resolve">
+                  <HeaderButton
+                    label={t('comments.resolve')}
+                    onClick={onResolve}
+                    testId="comment-thread-resolve"
+                  >
                     <Check aria-hidden="true" />
                   </HeaderButton>
                 ))}
               {mayDeleteThread && (
                 <HeaderButton
-                  label="Delete thread"
+                  label={t('comments.deleteThread')}
                   onClick={() => setConfirmingDelete(true)}
                   testId="comment-thread-delete"
                 >
                   <Trash2 aria-hidden="true" />
                 </HeaderButton>
               )}
-              <HeaderButton label="Close" onClick={onClose} testId="comment-thread-close">
+              <HeaderButton
+                label={t('common.close')}
+                onClick={onClose}
+                testId="comment-thread-close"
+              >
                 <X aria-hidden="true" />
               </HeaderButton>
             </div>
@@ -211,8 +225,10 @@ export function CommentThreadPanel({
 
       {resolved && (
         <p className={cn('m-0 border-b px-3 py-2', hairline, mutedText)}>
-          Resolved by {resolved.byName || 'someone'} ·{' '}
-          <time title={fullDateTime(resolved.at)}>{relativeTime(resolved.at)}</time>
+          {rich(t('comments.resolvedBy'), {
+            name: resolved.byName || t('comments.someoneLower'),
+            when: <time title={fullDateTime(resolved.at)}>{relativeTime(resolved.at)}</time>,
+          })}
         </p>
       )}
 
@@ -229,8 +245,8 @@ export function CommentThreadPanel({
                 setEditing(null);
               }}
               onCancel={() => setEditing(null)}
-              placeholder="Edit comment"
-              sendLabel="Save"
+              placeholder={t('comments.edit')}
+              sendLabel={t('common.save')}
               named={comment.mentions}
               autoFocus
             />
@@ -268,8 +284,8 @@ export function CommentThreadPanel({
           onSubmit={send}
           onCancel={onClose}
           onEditPrevious={editLast}
-          placeholder="Reply, @mention someone…"
-          sendLabel="Post reply"
+          placeholder={t('comments.replyPlaceholder')}
+          sendLabel={t('comments.postReply')}
           leading={
             <CommentAvatar
               userId={user.id}
@@ -324,7 +340,8 @@ function CommentCard({
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
-  const name = comment.authorName || 'Someone';
+  const t = useT();
+  const name = comment.authorName || t('comments.someone');
   const you = comment.authorId === userId;
   return (
     <article
@@ -375,7 +392,7 @@ function CommentCard({
           )}
           <time className="shrink-0" title={fullDateTime(comment.createdAt)}>
             {relativeTime(comment.createdAt)}
-            {comment.editedAt !== null && <span className="italic"> · edited</span>}
+            {comment.editedAt !== null && <span className="italic"> · {t('comments.edited')}</span>}
           </time>
           <CommentActions
             name={name}
@@ -423,6 +440,7 @@ function CommentActions({
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
+  const t = useT();
   const { container } = useCommentEnvironment();
   const [open, setOpen] = useState(false);
   if (!canReact && !onReply && !onEdit && !onDelete) return null;
@@ -430,16 +448,18 @@ function CommentActions({
   return (
     <div
       role="toolbar"
-      aria-label="Comment actions"
+      aria-label={t('comments.actions')}
       className="flex shrink-0 items-center opacity-0 transition-opacity group-focus-within/card:opacity-100 group-hover/card:opacity-100 has-[[data-state=open]]:opacity-100"
       data-testid="comment-actions"
     >
-      {canReact && <EmojiPopover label="Add reaction" onPick={onReact} testId="comment-react" />}
+      {canReact && (
+        <EmojiPopover label={t('comments.addReaction')} onPick={onReact} testId="comment-react" />
+      )}
       {onReply && (
         <button
           type="button"
-          aria-label={`Reply to ${name}`}
-          title="Reply"
+          aria-label={t('comments.replyTo', { name })}
+          title={t('comments.reply')}
           className={actionButton}
           onClick={onReply}
           data-testid="comment-reply"
@@ -452,8 +472,8 @@ function CommentActions({
           <PopoverTrigger asChild>
             <button
               type="button"
-              aria-label="More actions"
-              title="More actions"
+              aria-label={t('comments.moreActions')}
+              title={t('comments.moreActions')}
               className={actionButton}
               data-testid="comment-more"
             >
@@ -480,8 +500,8 @@ function CommentActions({
             {onEdit && (
               <button
                 type="button"
-                aria-label="Edit"
-                title="Edit"
+                aria-label={t('common.edit')}
+                title={t('common.edit')}
                 className={cn(actionButton, 'text-neutral-700 dark:text-neutral-200')}
                 onClick={() => {
                   setOpen(false);
@@ -495,8 +515,8 @@ function CommentActions({
             {onDelete && (
               <button
                 type="button"
-                aria-label="Delete"
-                title="Delete"
+                aria-label={t('common.delete')}
+                title={t('common.delete')}
                 // Red in both themes: the muted grey's dark variant would
                 // otherwise outrank the danger red, which has none.
                 className={cn(

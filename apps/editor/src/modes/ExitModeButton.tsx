@@ -2,6 +2,7 @@ import { Eye, Maximize } from 'lucide-react';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
 import { cn } from '@/lib/utils';
 import { formatShortcut } from '../help/platform';
+import { useT } from '../i18n';
 
 /** The two preferences that put the chrome away; see preferences.ts. */
 export type ChromeHiddenMode = 'focus' | 'view';
@@ -43,8 +44,9 @@ interface ExitModeButtonProps {
  * and the button are recognisably the same thing.
  */
 export function ExitModeButton({ mode, onExit }: ExitModeButtonProps) {
-  const name = mode === 'view' ? 'View mode' : 'Focus mode';
-  const exit = mode === 'view' ? 'Exit view mode' : 'Exit focus mode';
+  const t = useT();
+  const name = mode === 'view' ? t('preferences.viewMode') : t('preferences.focusMode');
+  const exit = mode === 'view' ? t('modes.exitView') : t('modes.exitFocus');
   const shortcut = formatShortcut(mode === 'view' ? 'alt+r' : 'alt+z');
 
   return (

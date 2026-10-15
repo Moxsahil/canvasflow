@@ -15,6 +15,7 @@ import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button
 import { AvatarStack } from '@/components/kibo-ui/avatar-stack';
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import { useT } from '../i18n';
 import { useAvatarUrls } from '../profile';
 import type { RosterEntry } from './usePeerPresence';
 
@@ -62,6 +63,7 @@ export function PeerList({
   readOnly = false,
   portalContainer,
 }: PeerListProps) {
+  const t = useT();
   const others = roster.filter((entry) => !entry.isSelf);
   const isLive = others.length > 0;
 
@@ -93,8 +95,8 @@ export function PeerList({
   return (
     <>
       {readOnly && (
-        <span className="cf-peer-list__badge" title="You can watch this board, but not change it">
-          View only
+        <span className="cf-peer-list__badge" title={t('collab.viewOnlyHint')}>
+          {t('collab.viewOnly')}
         </span>
       )}
 
@@ -105,8 +107,8 @@ export function PeerList({
               <button
                 type="button"
                 className="cf-peer-stack__trigger"
-                title={`${others.length} ${others.length === 1 ? 'person' : 'people'} here`}
-                aria-label={`${others.length} ${others.length === 1 ? 'collaborator' : 'collaborators'} — show who is here`}
+                title={t('collab.peopleHere', { count: others.length })}
+                aria-label={t('collab.showWhoIsHere', { count: others.length })}
               >
                 <AvatarStack size={AVATAR} animate>
                   {visible.map((entry) => (
@@ -130,7 +132,7 @@ export function PeerList({
 
             <DropdownMenuContent align="end" container={portalContainer} className="min-w-60">
               <DropdownMenuLabel className="text-(--keybinding-color)">
-                Click someone to follow them
+                {t('collab.clickToFollow')}
               </DropdownMenuLabel>
               {ordered.map((entry) => (
                 <PeerRow
@@ -159,10 +161,10 @@ export function PeerList({
       <span className="relative inline-flex">
         <InteractiveHoverButton
           type="button"
-          text="Share"
+          text={t('share.button')}
           onClick={onShare}
-          title={isLive ? 'Collaboration is live — manage links' : 'Share this board'}
-          aria-label={isLive ? 'Collaboration is live — manage links' : 'Share this board'}
+          title={isLive ? t('share.liveManage') : t('share.thisBoard')}
+          aria-label={isLive ? t('share.liveManage') : t('share.thisBoard')}
           className={cn(
             // Chrome tokens rather than the component palette, so this reads as
             // one family with the search button sitting next to it.
@@ -231,6 +233,7 @@ function PeerRow({
   isFollowing: boolean;
   onSelect: () => void;
 }) {
+  const t = useT();
   const color = presenceColorFor(entry.userId, theme, entry.color);
 
   return (
@@ -260,11 +263,17 @@ function PeerRow({
       </span>
       <span className="cf-peer-list__name">{entry.name}</span>
       {entry.isSelf ? (
-        <span className="cf-peer-list__hint">(You)</span>
+        <span className="cf-peer-list__hint">{t('collab.you')}</span>
       ) : isFollowing ? (
-        <span className="cf-peer-list__hint cf-peer-list__hint--active">Following</span>
+        <span className="cf-peer-list__hint cf-peer-list__hint--active">
+          {t('collab.followingShort')}
+        </span>
       ) : (
-        entry.activity !== 'active' && <span className="cf-peer-list__hint">{entry.activity}</span>
+        entry.activity !== 'active' && (
+          <span className="cf-peer-list__hint">
+            {entry.activity === 'idle' ? t('collab.idle') : t('collab.away')}
+          </span>
+        )
       )}
     </button>
   );

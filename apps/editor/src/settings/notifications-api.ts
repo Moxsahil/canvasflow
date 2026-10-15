@@ -1,5 +1,6 @@
 import type { NotificationSettings } from '@canvasflow/types';
 import { env } from '@/lib/env';
+import { t } from '../i18n';
 
 /**
  * The account's email switches, from the API gateway at
@@ -20,10 +21,10 @@ function request(token: string | null, init: RequestInit = {}) {
 
 /** The gateway's own sentence where it has one, and a plain one where it does not. */
 async function failure(res: Response): Promise<Error> {
-  if (res.status === 401) return new Error('Your session has ended. Sign in again.');
-  if (res.status === 429) return new Error('Too many changes at once. Wait a moment.');
+  if (res.status === 401) return new Error(t('library.sessionEnded'));
+  if (res.status === 429) return new Error(t('errors.tooManyChanges'));
   const body = (await res.json().catch(() => null)) as { message?: string } | null;
-  return new Error(body?.message ?? `Something went wrong (${res.status}).`);
+  return new Error(body?.message ?? t('errors.status', { status: res.status }));
 }
 
 /**

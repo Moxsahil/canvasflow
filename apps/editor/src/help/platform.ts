@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+
 /**
  * Detect if the user is on a Mac. Used to choose the right modifier
  * symbol in keyboard shortcut labels (⌘ on Mac, Ctrl on Windows/Linux).
@@ -34,16 +36,16 @@ export function formatShortcutKeys(keys: string): string[] {
     const p = part.toLowerCase().trim();
     switch (p) {
       case 'mod':
-        symbols.push(mac ? '⌘' : 'Ctrl');
+        symbols.push(mac ? '⌘' : t('keys.ctrl'));
         break;
       case 'shift':
-        symbols.push(mac ? '⇧' : 'Shift');
+        symbols.push(mac ? '⇧' : t('keys.shift'));
         break;
       case 'alt':
-        symbols.push(mac ? '⌥' : 'Alt');
+        symbols.push(mac ? '⌥' : t('keys.alt'));
         break;
       case 'ctrl':
-        symbols.push('Ctrl');
+        symbols.push(t('keys.ctrl'));
         break;
       case 'cmd':
         symbols.push('⌘');
@@ -61,28 +63,28 @@ export function formatShortcutKeys(keys: string): string[] {
         symbols.push('↓');
         break;
       case 'space':
-        symbols.push('Space');
+        symbols.push(t('keys.space'));
         break;
       case 'enter':
-        symbols.push('Enter');
+        symbols.push(t('keys.enter'));
         break;
       case 'escape':
-        symbols.push('Esc');
+        symbols.push(t('keys.escape'));
         break;
       case 'delete':
-        symbols.push(mac ? 'Delete' : 'Del');
+        symbols.push(mac ? t('keys.delete') : t('keys.del'));
         break;
       case 'backspace':
-        symbols.push('Backspace');
+        symbols.push(t('keys.backspace'));
         break;
       case 'tab':
-        symbols.push('Tab');
+        symbols.push(t('keys.tab'));
         break;
       case 'scroll':
-        symbols.push('Scroll');
+        symbols.push(t('keys.scroll'));
         break;
       case 'drag':
-        symbols.push('Drag');
+        symbols.push(t('keys.drag'));
         break;
       default:
         // Single chars — uppercase for display

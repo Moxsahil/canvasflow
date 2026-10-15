@@ -5,7 +5,7 @@ describe('the emoji the picker offers', () => {
   it('are all emoji, each with a name, and none twice in a group', () => {
     for (const group of EMOJI_GROUPS) {
       const chars = group.emoji.map(([char]) => char);
-      expect(new Set(chars).size, group.label).toBe(chars.length);
+      expect(new Set(chars).size, group.id).toBe(chars.length);
       for (const [char, name] of group.emoji) {
         expect(char).toMatch(/\p{Extended_Pictographic}/u);
         expect(name.trim()).not.toBe('');

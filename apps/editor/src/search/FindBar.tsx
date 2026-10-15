@@ -2,9 +2,11 @@ import { useEffect, useRef } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ExpandingSearchDock } from '@/components/ui/expanding-search-dock';
+import { useT } from '../i18n';
 import type { CanvasSearch } from './useCanvasSearch';
 
 export function FindBar({ search }: { search: CanvasSearch }) {
+  const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Keyed on the request counter, not on `open`, so a second ⌘F while the
@@ -29,8 +31,8 @@ export function FindBar({ search }: { search: CanvasSearch }) {
         onQueryChange={search.setQuery}
         onSubmit={search.goToNext}
         inputRef={inputRef}
-        placeholder="Find on canvas"
-        label="Find on canvas"
+        placeholder={t('menu.findOnCanvas')}
+        label={t('menu.findOnCanvas')}
         onInputKeyDown={(event) => {
           if (event.key === 'Enter') {
             // Shift+Enter walks backwards; the plain form submit goes forward.
@@ -56,19 +58,19 @@ export function FindBar({ search }: { search: CanvasSearch }) {
             >
               {hasQuery
                 ? search.matchCount === 0
-                  ? 'No results'
+                  ? t('search.noResults')
                   : `${search.focusPosition}/${total}`
                 : ''}
             </span>
             <NavButton
-              label="Previous match"
+              label={t('search.previous')}
               disabled={search.matchCount === 0}
               onClick={search.goToPrevious}
             >
               <ChevronUp className="h-4 w-4" aria-hidden="true" />
             </NavButton>
             <NavButton
-              label="Next match"
+              label={t('search.next')}
               disabled={search.matchCount === 0}
               onClick={search.goToNext}
             >

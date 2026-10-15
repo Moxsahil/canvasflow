@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { useAvatarUrls } from '../profile/useAvatar';
+import { t as translate } from '../i18n';
 import { surfaceThemeVars, type SurfaceTheme } from '../ui/surface-palette';
 import { BACKDROP, WINDOW } from '../settings/settings-ui';
 import {
@@ -195,7 +196,7 @@ export function ShareDialog({
         setUrl(stored && nextLinks[0] && stored.linkId === nextLinks[0].id ? stored.url : null);
       } catch (err) {
         if (quiet) return;
-        setError(err instanceof Error ? err.message : 'Could not load sharing details.');
+        setError(err instanceof Error ? err.message : translate('share.loadFailed'));
       }
     },
     [boardId],
@@ -341,7 +342,7 @@ export function ShareDialog({
       setUrl(link.url);
       void refresh({ quiet: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not start the session.');
+      setError(err instanceof Error ? err.message : translate('share.startFailed'));
     } finally {
       setBusy(false);
     }
@@ -361,7 +362,7 @@ export function ShareDialog({
       setUrl(null);
       void refresh({ quiet: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not stop the session.');
+      setError(err instanceof Error ? err.message : translate('share.stopFailed'));
     } finally {
       setBusy(false);
     }
@@ -375,7 +376,7 @@ export function ShareDialog({
       if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
       copyTimer.current = window.setTimeout(() => setCopied(false), 2000);
     } catch {
-      setError('Could not copy. Select the link and copy it manually.');
+      setError(translate('share.copyFailed'));
     }
   };
 
@@ -387,7 +388,7 @@ export function ShareDialog({
     try {
       await setMemberRole(boardId, memberId, next);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not change that role.');
+      setError(err instanceof Error ? err.message : translate('share.roleFailed'));
       await refresh();
     }
   };
@@ -400,7 +401,7 @@ export function ShareDialog({
       if (person?.isGuest) setRemovedGuest(person.name);
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not remove that person.');
+      setError(err instanceof Error ? err.message : translate('share.removeFailed'));
     }
   };
 
@@ -415,7 +416,7 @@ export function ShareDialog({
     try {
       await addMemberBack(boardId, memberId, member.role === 'viewer' ? 'viewer' : 'editor');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not add that person back.');
+      setError(err instanceof Error ? err.message : translate('share.addBackFailed'));
       await refresh();
     }
   };
@@ -533,7 +534,7 @@ export function ShareDialog({
               variants={WINDOW}
               role="dialog"
               aria-modal="true"
-              aria-label={`Share ${name}`}
+              aria-label={translate('share.dialogLabel', { name })}
               tabIndex={-1}
               data-testid="share-dialog"
               data-theme-variant={theme}

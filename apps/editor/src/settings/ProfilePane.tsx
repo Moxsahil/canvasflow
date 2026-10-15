@@ -4,6 +4,7 @@ import { PRESENCE_PALETTE, type PresenceTheme } from '@canvasflow/canvas-engine'
 import {
   normalizeUsername,
   USERNAME_MAX_LENGTH,
+  USERNAME_MIN_LENGTH,
   usernameProblem,
   type CursorColor,
 } from '@canvasflow/types';
@@ -17,6 +18,7 @@ import {
   type UsernameCheck,
 } from '../profile';
 import { usernameCandidates } from '../profile/username-suggestions';
+import { t as translate, useT, type TranslationKey } from '../i18n';
 import { PhotoDialog } from './PhotoDialog';
 import { useBand, useEscape } from './settings-frame';
 import {
@@ -51,8 +53,9 @@ interface ProfilePaneProps {
  * than offering a save that would be refused.
  */
 export function ProfilePane({ user, account, avatar, theme }: ProfilePaneProps) {
+  const t = useT();
   const { profile, error, save } = account;
-  const savedName = profile?.name ?? (user?.name?.trim() || 'Account');
+  const savedName = profile?.name ?? (user?.name?.trim() || t('menu.account'));
   const editable = profile !== null;
 
   // The file waiting to be positioned. Set by the picker, cleared when the
@@ -68,7 +71,7 @@ export function ProfilePane({ user, account, avatar, theme }: ProfilePaneProps) 
   const saveName = async (next: string) => {
     // An emptied field is a mistake, not a request to be nameless.
     if (next.length === 0) {
-      setNameProblem('Display name is required.');
+      setNameProblem(t('profile.nameRequired'));
       return false;
     }
     const saved = await save({ name: next });
@@ -78,7 +81,7 @@ export function ProfilePane({ user, account, avatar, theme }: ProfilePaneProps) 
 
   return (
     <SettingsPage
-      lead="How you appear to collaborators on shared boards."
+      lead={t('settings.section.profile.lead')}
       dialog={
         picked && (
           <PhotoDialog
@@ -100,7 +103,7 @@ export function ProfilePane({ user, account, avatar, theme }: ProfilePaneProps) 
         )
       }
     >
-      <Band title="Identity">
+      <Band title={t('settings.group.identity')}>
         <PhotoRow
           avatar={avatar}
           name={savedName}
@@ -112,10 +115,10 @@ export function ProfilePane({ user, account, avatar, theme }: ProfilePaneProps) 
 
         <InlineTextField
           setting="display-name"
-          label="Display name"
-          hint="Shown on your cursor while collaborating"
+          label={t('settings.row.display-name')}
+          hint={t('profile.nameHint')}
           value={savedName}
-          placeholder="Your name"
+          placeholder={t('profile.namePlaceholder')}
           maxLength={80}
           disabled={!editable}
           onSave={saveName}
@@ -129,11 +132,50 @@ export function ProfilePane({ user, account, avatar, theme }: ProfilePaneProps) 
         <UsernameField profile={profile} error={error} save={save} />
       </Band>
 
-      <Band title="Presence">
+      <Band title={t('settings.group.presence')}>
         <CursorColour profile={profile} save={save} theme={theme} editable={editable} />
       </Band>
     </SettingsPage>
   );
+}
+
+/** Each cursor colour's name, for the swatch that shows it. */
+const CURSOR_COLOUR_NAMES: Readonly<Record<CursorColor, TranslationKey>> = {
+  red: 'color.red',
+  orange: 'color.orange',
+  amber: 'color.amber',
+  lime: 'color.lime',
+  green: 'color.green',
+  teal: 'color.teal',
+  sky: 'color.sky',
+  blue: 'color.blue',
+  fuchsia: 'color.fuchsia',
+  pink: 'color.pink',
+};
+
+/**
+ * The username rules are shared with the gateway, which words them in
+ * English; a problem it or they name is put into the language on screen here.
+ * One this does not know is shown as it came.
+ */
+function localizeUsernameProblem(problem: string): string {
+  const fixed: Record<string, TranslationKey> = {
+    'Use only letters, numbers, underscores and periods.': 'username.onlyChars',
+    'Include at least one letter.': 'username.needsLetter',
+    'Start and end with a letter, number or underscore.': 'username.edges',
+    'Use one period at a time.': 'username.onePeriod',
+    'That username is reserved.': 'username.reserved',
+    'That username is taken.': 'username.taken',
+  };
+  const key = fixed[problem];
+  if (key) return translate(key);
+  if (problem === `Use at least ${USERNAME_MIN_LENGTH} characters.`) {
+    return translate('username.tooShort', { count: USERNAME_MIN_LENGTH });
+  }
+  if (problem === `Use ${USERNAME_MAX_LENGTH} characters or fewer.`) {
+    return translate('username.tooLong', { count: USERNAME_MAX_LENGTH });
+  }
+  return problem;
 }
 
 /** How long typing has to pause before the field asks whether a name is free. */
@@ -158,7 +200,9 @@ function rememberAnswers(answers: Map<string, RememberedAnswer>, results: Userna
   for (const result of results) {
     if (!result.username) continue;
     answers.set(result.username, {
-      problem: result.available ? null : (result.problem ?? 'That username is taken.'),
+      problem: result.available
+        ? null
+        : localizeUsernameProblem(result.problem ?? translate('username.taken')),
       at,
     });
   }
@@ -199,6 +243,7 @@ function UsernameField({
   error: string | null;
   save: ProfileState['save'];
 }) {
+  const t = useT();
   const id = useId();
   const band = useBand();
   const saved = profile?.username ?? '';
@@ -245,7 +290,8 @@ function UsernameField({
   const name = normalizeUsername(draft);
   const dirty = name !== saved;
   // A username can be changed but not taken away again.
-  const ruleBroken = dirty ? (name ? usernameProblem(name) : 'Username is required.') : null;
+  const rule = name ? usernameProblem(name) : t('username.required');
+  const ruleBroken = dirty && rule ? localizeUsernameProblem(rule) : null;
 
   useEffect(() => {
     if (!dirty || !editable) return;
@@ -315,16 +361,16 @@ function UsernameField({
     </span>
   ) : answer ? (
     <span className="text-[var(--surface-ok)]">
-      {name === suggested ? 'Suggested for you, and available' : 'Available'}
+      {name === suggested ? t('username.suggested') : t('username.available')}
     </span>
   ) : isGuest ? (
-    'Create an account to choose a username'
+    t('username.guest')
   ) : (
-    'Lets people find you in @mentions'
+    t('username.hint')
   );
 
   return (
-    <StackedField setting="username" label="Username" htmlFor={id} hint={hint}>
+    <StackedField setting="username" label={t('settings.row.username')} htmlFor={id} hint={hint}>
       <span className="relative inline-flex items-center">
         <span
           aria-hidden="true"
@@ -336,7 +382,7 @@ function UsernameField({
           id={id}
           type="text"
           value={draft}
-          placeholder="username"
+          placeholder={t('username.placeholder')}
           disabled={!editable}
           maxLength={USERNAME_MAX_LENGTH}
           autoComplete="off"
@@ -382,8 +428,8 @@ function UsernameField({
           <span className="absolute right-[4px] flex gap-[2px]">
             <button
               type="button"
-              aria-label="Cancel"
-              title="Cancel"
+              aria-label={t('common.cancel')}
+              title={t('common.cancel')}
               disabled={busy}
               onClick={revert}
               className={INLINE_ACTION}
@@ -392,8 +438,8 @@ function UsernameField({
             </button>
             <button
               type="button"
-              aria-label={busy ? 'Saving…' : 'Save'}
-              title="Save"
+              aria-label={busy ? t('common.saving') : t('common.save')}
+              title={t('common.save')}
               disabled={busy || ruleBroken !== null || Boolean(answer?.problem)}
               onClick={() => void claim()}
               className={cn(INLINE_ACTION, 'text-[var(--surface-accent)]')}
@@ -424,6 +470,7 @@ function PhotoRow({
   onAnnounced: () => void;
   onPick: (file: File) => void;
 }) {
+  const t = useT();
   const band = useBand();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -442,8 +489,8 @@ function PhotoRow({
   return (
     <SettingRow
       setting="photo"
-      title="Profile photo"
-      hint="JPG, PNG or WebP. 2 MB max."
+      title={t('settings.row.photo')}
+      hint={t('profile.photoHint')}
       leading={
         avatar.url && !photoFailed ? (
           <img
@@ -480,7 +527,7 @@ function PhotoRow({
         disabled={!editable || avatar.busy}
         onClick={() => fileInputRef.current?.click()}
       >
-        Upload
+        {t('profile.upload')}
       </SettingsButton>
       <SettingsButton
         variant="ghost"
@@ -488,11 +535,11 @@ function PhotoRow({
         onClick={() => {
           void avatar.remove().then((removed) => {
             if (removed) band?.saved();
-            else band?.failed(avatar.error ?? 'That did not go through. Try again.');
+            else band?.failed(avatar.error ?? t('profile.didNotGoThrough'));
           });
         }}
       >
-        Remove
+        {t('library.remove')}
       </SettingsButton>
     </SettingRow>
   );
@@ -516,6 +563,7 @@ function CursorColour({
   theme: PresenceTheme;
   editable: boolean;
 }) {
+  const t = useT();
   const band = useBand();
   const saved = profile?.cursorColor ?? null;
   const [picked, setPicked] = useState<CursorColor | null>(saved);
@@ -538,19 +586,19 @@ function CursorColour({
       band?.saved();
     } else {
       setPicked(before);
-      band?.failed('That colour did not save. Try again.');
+      band?.failed(t('profile.colourFailed'));
     }
   };
 
   return (
     <StackedField
       setting="cursor-colour"
-      label="Cursor colour"
-      hint="Identifies you in real time on shared boards"
+      label={t('settings.row.cursor-colour')}
+      hint={t('profile.colourHint')}
     >
       <div
         role="radiogroup"
-        aria-label="Cursor colour"
+        aria-label={t('settings.row.cursor-colour')}
         className="flex items-center gap-[8px] py-[3px] pl-[3px]"
       >
         {PRESENCE_PALETTE.map((entry) => {
@@ -561,7 +609,7 @@ function CursorColour({
               type="button"
               role="radio"
               aria-checked={selected}
-              aria-label={entry.name}
+              aria-label={t(CURSOR_COLOUR_NAMES[entry.name])}
               disabled={!editable}
               onClick={() => void choose(entry.name)}
               style={{ backgroundColor: theme === 'dark' ? entry.dark : entry.light }}

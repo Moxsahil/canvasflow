@@ -1,4 +1,5 @@
 import { formatShortcut } from '../help/platform';
+import { t } from '../i18n';
 import type { Notice } from '../ui/NoticeDialog';
 
 /**
@@ -11,22 +12,22 @@ import type { Notice } from '../ui/NoticeDialog';
  * that can be helped, and the keystroke that follows is treated as the rest of
  * the same paste.
  */
-function pasteNotice(here: boolean): Notice {
+export function pasteNotice(here: boolean): Notice {
   const key = formatShortcut('mod+v');
-  return {
-    title: here ? `Press ${key} to paste here` : `Press ${key} to paste`,
-    body:
-      'There is nothing on the clipboard that a menu is allowed to read. If you copied a file ' +
-      `from a folder, your browser only hands it over on ${key} — press it now and it will ` +
-      (here ? 'land where you pointed.' : 'be pasted.'),
+  const notice: Notice = {
+    title: here ? t('paste.pressHere', { key }) : t('paste.press', { key }),
+    body: here ? t('paste.bodyHere', { key }) : t('paste.body', { key }),
     tone: 'warn',
   };
+  // Worded when shown, in the language on screen, so it is known by this
+  // rather than by being one of two fixed objects.
+  pasteNotices.add(notice);
+  return notice;
 }
 
-export const PASTE_NOTICE = pasteNotice(false);
-export const PASTE_HERE_NOTICE = pasteNotice(true);
+const pasteNotices = new WeakSet<Notice>();
 
-/** Whether the notice on show is one of the two asking for the paste keystroke. */
+/** Whether the notice on show is one asking for the paste keystroke. */
 export function isPasteNotice(notice: Notice | null): boolean {
-  return notice === PASTE_NOTICE || notice === PASTE_HERE_NOTICE;
+  return notice !== null && pasteNotices.has(notice);
 }

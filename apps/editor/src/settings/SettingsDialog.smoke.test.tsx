@@ -10,6 +10,7 @@ import { SettingsDialog } from './SettingsDialog';
 import { WorkspacePane, type WorkspaceSettingsSource } from './WorkspacePane';
 import { MembersDialog } from './WorkspaceDialogs';
 import type { WorkspacePeople } from '../workspace/people-api';
+import { t } from '../i18n';
 import { SETTINGS_INDEX, SETTINGS_SECTIONS, searchSettings } from './settings-sections';
 import { PRESENCE_PALETTE } from '@canvasflow/canvas-engine';
 import type { AvatarState, Profile, ProfileState } from '../profile';
@@ -114,8 +115,8 @@ describe('SettingsDialog', () => {
     const html = render();
     expect(html).toContain('role="tablist"');
     expect(html.match(/role="tab"/g)).toHaveLength(SETTINGS_SECTIONS.length);
-    for (const { id, label } of SETTINGS_SECTIONS) {
-      expect(html).toContain(label.replace('&', '&amp;'));
+    for (const { id, labelKey } of SETTINGS_SECTIONS) {
+      expect(html).toContain(t(labelKey).replace('&', '&amp;'));
       expect(html).toContain(`data-testid="settings-tab-${id}"`);
     }
     expect(html.match(/aria-selected="true"/g)).toHaveLength(1);
@@ -146,9 +147,9 @@ describe('SettingsDialog', () => {
   });
 
   it('gives every section a page of its own', () => {
-    for (const { id, lead } of SETTINGS_SECTIONS) {
+    for (const { id, leadKey } of SETTINGS_SECTIONS) {
       const pane = renderPane(id);
-      expect(pane, id).toContain(lead);
+      expect(pane, id).toContain(t(leadKey));
       expect(pane, id).not.toContain('not built yet');
     }
   });
@@ -571,7 +572,8 @@ describe('SettingsDialog', () => {
   it('offers the board’s own palette, with nothing marked until a colour is picked', () => {
     const html = render();
     for (const entry of PRESENCE_PALETTE) {
-      expect(html).toContain(`aria-label="${entry.name}"`);
+      const named = entry.name.charAt(0).toUpperCase() + entry.name.slice(1);
+      expect(html).toContain(`aria-label="${named}"`);
     }
     // No choice yet means the colour still comes from the account id, and
     // marking a swatch would claim otherwise.

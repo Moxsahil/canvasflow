@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useT } from '../i18n';
 import { ErrorLine, SettingsButton, SettingsModal } from './settings-ui';
 
 /**
@@ -54,6 +55,7 @@ interface Layout {
 }
 
 export function PhotoDialog({ file, busy, error = null, onCancel, onUse }: PhotoDialogProps) {
+  const t = useT();
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [failed, setFailed] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -181,23 +183,23 @@ export function PhotoDialog({ file, busy, error = null, onCancel, onUse }: Photo
 
   return (
     <SettingsModal
-      title="Position your photo"
-      description="Drag the photo to place it, and zoom until it fills the circle the way you want. The circle is exactly what others will see."
+      title={t('photo.title')}
+      description={t('photo.description')}
       onClose={onCancel}
       width={400}
       actions={
         <>
           <SettingsButton variant="ghost" onClick={onCancel}>
-            Cancel
+            {t('common.cancel')}
           </SettingsButton>
           <SettingsButton variant="primary" onClick={handleUse} disabled={!image || busy}>
-            {busy ? 'Uploading…' : 'Use photo'}
+            {busy ? t('photo.uploading') : t('photo.use')}
           </SettingsButton>
         </>
       }
     >
       {failed ? (
-        <ErrorLine>That file could not be opened as an image.</ErrorLine>
+        <ErrorLine>{t('photo.unreadable')}</ErrorLine>
       ) : (
         <div
           onPointerDown={handlePointerDown}
@@ -224,7 +226,7 @@ export function PhotoDialog({ file, busy, error = null, onCancel, onUse }: Photo
       )}
 
       <label className="flex items-center gap-[10px] self-center text-[11.5px] text-[var(--surface-fg-muted)]">
-        Zoom
+        {t('photo.zoom')}
         <input
           type="range"
           min={MIN_ZOOM}

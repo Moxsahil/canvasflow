@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { env } from '@/lib/env';
 
 /** What the boards you own take up, from the API gateway. */
@@ -18,6 +19,6 @@ export async function fetchStorageUsage(token: string | null): Promise<StorageUs
     credentials: 'include',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
-  if (!res.ok) throw new Error(`Storage could not be read (${res.status}).`);
+  if (!res.ok) throw new Error(t('storage.readFailed', { status: res.status }));
   return ((await res.json()) as { data: StorageUsage }).data;
 }

@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ariaKeyShortcut, formatShortcut } from '../help/platform';
+import { useT } from '../i18n';
 import { ColorDot, formatUpdatedAt } from '../workspace/board-presentation';
 import type { BoardSwitcherState } from '../workspace';
 import {
@@ -49,6 +50,7 @@ const cardButtonClasses =
  * collapsed rail the card has no room, and all of them sit behind one button.
  */
 export function BoardCard({ state, actions, portalContainer }: BoardCardProps) {
+  const t = useT();
   const entry = state.workspaceId ? state.boardsFor(state.workspaceId) : undefined;
   const board =
     (entry?.status === 'ready' ? entry.boards.find((it) => it.id === state.boardId) : undefined) ??
@@ -61,7 +63,7 @@ export function BoardCard({ state, actions, portalContainer }: BoardCardProps) {
     <>
       <SidebarGroup className="group-data-[collapsible=icon]:hidden">
         <section
-          aria-label="This board"
+          aria-label={t('board.thisBoard')}
           className="flex flex-col gap-2 rounded-lg border border-sidebar-border p-2"
         >
           <div className="flex min-w-0 items-center gap-2 px-1">
@@ -71,14 +73,16 @@ export function BoardCard({ state, actions, portalContainer }: BoardCardProps) {
             <div className="grid min-w-0 leading-tight">
               <span className="truncate text-sm font-medium">{state.title}</span>
               <span className="truncate text-xs text-sidebar-foreground/60">
-                {board ? `Edited ${formatUpdatedAt(board.updatedAt)}` : 'This board'}
+                {board
+                  ? t('board.edited', { when: formatUpdatedAt(board.updatedAt) })
+                  : t('board.thisBoard')}
               </span>
             </div>
           </div>
 
           <div
             role="group"
-            aria-label="Board actions"
+            aria-label={t('board.actions')}
             className="flex items-center justify-between"
           >
             {BOARD_CARD_ITEMS.map((id) =>
@@ -94,14 +98,14 @@ export function BoardCard({ state, actions, portalContainer }: BoardCardProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <InlineDropdownMenuTrigger
-                      aria-label="More board actions"
+                      aria-label={t('board.moreActions')}
                       data-testid="menu-board-more"
                       className={cardButtonClasses}
                     >
                       <Ellipsis aria-hidden="true" />
                     </InlineDropdownMenuTrigger>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom">More</TooltipContent>
+                  <TooltipContent side="bottom">{t('common.more')}</TooltipContent>
                 </Tooltip>
               }
             />
@@ -118,10 +122,10 @@ export function BoardCard({ state, actions, portalContainer }: BoardCardProps) {
               actions={actions}
               portalContainer={portalContainer}
               trigger={
-                <SidebarMenuButton asChild tooltip="Board actions">
+                <SidebarMenuButton asChild tooltip={t('board.actions')}>
                   <InlineDropdownMenuTrigger data-testid="menu-board-actions">
                     <Files aria-hidden="true" />
-                    <span>Board actions</span>
+                    <span>{t('board.actions')}</span>
                   </InlineDropdownMenuTrigger>
                 </SidebarMenuButton>
               }
@@ -140,11 +144,17 @@ export function BoardCard({ state, actions, portalContainer }: BoardCardProps) {
  * swallows the pointer events a tooltip opens on.
  */
 function CardAction({ id, onSelect }: { id: MenuItemId; onSelect?: (() => void) | null }) {
-  const { label, icon: Icon, shortcut } = MENU_ITEMS[id];
+  const t = useT();
+  const { labelKey, icon: Icon, shortcut } = MENU_ITEMS[id];
+  const label = t(labelKey);
   const hint = onSelect && shortcut ? formatShortcut(shortcut) : null;
   // Only an unbuilt feature is "coming soon" — see MenuActions.
   const tip =
-    onSelect === undefined ? `${label} — coming soon` : hint ? `${label} · ${hint}` : label;
+    onSelect === undefined
+      ? t('common.comingSoon', { label })
+      : hint
+        ? `${label} · ${hint}`
+        : label;
 
   return (
     <Tooltip>
@@ -184,6 +194,7 @@ function BoardActionsMenu({
   caption,
   trigger,
 }: BoardActionsMenuProps) {
+  const t = useT();
   return (
     <InlineDropdownMenu>
       {trigger}
@@ -193,7 +204,7 @@ function BoardActionsMenu({
         sideOffset={8}
         collisionPadding={8}
         container={portalContainer}
-        aria-label="Board actions"
+        aria-label={t('board.actions')}
       >
         {caption && (
           <InlineDropdownMenuLabel className="truncate">{caption}</InlineDropdownMenuLabel>
@@ -214,20 +225,23 @@ function BoardActionsMenu({
 }
 
 function ActionItem({ id, onSelect }: { id: MenuItemId; onSelect?: (() => void) | null }) {
-  const { label, icon: Icon, shortcut, destructive } = MENU_ITEMS[id];
+  const t = useT();
+  const { labelKey, icon: Icon, shortcut, destructive } = MENU_ITEMS[id];
   return (
     <InlineDropdownMenuItem
       disabled={!onSelect}
       onSelect={onSelect ?? undefined}
       icon={<Icon aria-hidden="true" />}
       badge={
-        onSelect === undefined ? <InlineDropdownMenuBadge>Soon</InlineDropdownMenuBadge> : null
+        onSelect === undefined ? (
+          <InlineDropdownMenuBadge>{t('common.soon')}</InlineDropdownMenuBadge>
+        ) : null
       }
       aria-keyshortcuts={onSelect && shortcut ? ariaKeyShortcut(shortcut) : undefined}
       data-testid={`menu-item-${id}`}
       className={cn(destructive && menuDangerRowClasses)}
     >
-      {label}
+      {t(labelKey)}
     </InlineDropdownMenuItem>
   );
 }

@@ -12,6 +12,7 @@ import {
   type Shape,
 } from '@canvasflow/canvas-engine';
 import { withFrameMembers } from '../frames/frame-ops';
+import { t, type TranslationKey, type WordKey } from '../i18n';
 
 /** The gateway's limit on a name. */
 export const LIBRARY_NAME_MAX = 80;
@@ -24,16 +25,29 @@ export const LIBRARY_NAME_MAX = 80;
 export const LIBRARY_DRAG_TYPE = 'application/x-canvasflow-library';
 
 /** Where an item's name comes from when nothing in it is worded. */
-const KIND_NAMES: Readonly<Record<Shape['kind'], string>> = {
-  rectangle: 'Rectangle',
-  ellipse: 'Ellipse',
-  diamond: 'Diamond',
-  line: 'Line',
-  arrow: 'Arrow',
-  freehand: 'Drawing',
-  text: 'Text',
-  frame: 'Frame',
-  image: 'Image',
+const KIND_NAMES: Readonly<Record<Shape['kind'], TranslationKey>> = {
+  rectangle: 'shapes.rectangle',
+  ellipse: 'shapes.ellipse',
+  diamond: 'shapes.diamond',
+  line: 'shapes.line',
+  arrow: 'shapes.arrow',
+  freehand: 'shapes.freehand',
+  text: 'shapes.text',
+  frame: 'shapes.frame',
+  image: 'shapes.image',
+};
+
+/** "3 rectangles": a run of one kind, counted. */
+const KIND_COUNTS: Readonly<Record<Shape['kind'], WordKey>> = {
+  rectangle: 'library.count.rectangle',
+  ellipse: 'library.count.ellipse',
+  diamond: 'library.count.diamond',
+  line: 'library.count.line',
+  arrow: 'library.count.arrow',
+  freehand: 'library.count.freehand',
+  text: 'library.count.text',
+  frame: 'library.count.frame',
+  image: 'library.count.image',
 };
 
 export interface LibraryShapes {
@@ -102,12 +116,12 @@ export function libraryItemName(shapes: readonly Shape[]): string {
   const worded = wordedItemName(shapes);
   if (worded !== null) return worded;
 
-  if (shapes.length === 1) return KIND_NAMES[shapes[0]!.kind];
+  if (shapes.length === 1) return t(KIND_NAMES[shapes[0]!.kind]);
   const kinds = new Set(shapes.map((shape) => shape.kind));
   if (kinds.size === 1 && shapes[0]) {
-    return `${shapes.length} ${KIND_NAMES[shapes[0].kind].toLowerCase()}s`;
+    return t(KIND_COUNTS[shapes[0].kind], { count: shapes.length });
   }
-  return `${shapes.length} shapes`;
+  return t('stats.shapeCount', { count: shapes.length });
 }
 
 /** What an item's words say — a frame's name, text, a caption — or null where it has none. */

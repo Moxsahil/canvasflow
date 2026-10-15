@@ -3,6 +3,7 @@ import { Search, Smile } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { menuSurfaceClasses } from '@/components/ui/menu-look';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useT } from '../i18n';
 import { useCommentEnvironment } from './comment-environment';
 import { searchEmoji } from './emoji-data';
 
@@ -15,6 +16,7 @@ const mutedText = 'text-neutral-500 dark:text-neutral-400';
  * reaction is chosen in.
  */
 export function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const groups = searchEmoji(query);
 
@@ -25,8 +27,8 @@ export function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
         <input
           type="search"
           value={query}
-          placeholder="Search emoji"
-          aria-label="Search emoji"
+          placeholder={t('emoji.search')}
+          aria-label={t('emoji.search')}
           autoComplete="off"
           spellCheck={false}
           autoFocus
@@ -37,12 +39,12 @@ export function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
 
       <div className="max-h-56 overflow-y-auto px-2 pb-2">
         {groups.length === 0 ? (
-          <p className={cn('m-0 px-1 py-5 text-center', mutedText)}>No emoji by that name</p>
+          <p className={cn('m-0 px-1 py-5 text-center', mutedText)}>{t('emoji.none')}</p>
         ) : (
           groups.map((group) => (
-            <section key={group.id} aria-label={group.label}>
+            <section key={group.id} aria-label={t(group.labelKey)}>
               <h3 className={cn('m-0 px-1 pt-1.5 pb-1 text-[11px] font-medium', mutedText)}>
-                {group.label}
+                {t(group.labelKey)}
               </h3>
               <div className="grid grid-cols-8">
                 {group.emoji.map(([char, name]) => (

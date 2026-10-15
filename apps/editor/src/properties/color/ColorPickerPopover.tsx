@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { menuLabelClasses, menuSeparatorClasses } from '@/components/ui/menu-look';
 import { InspectorPopover, keepSliderKeys, PickerCell, Swatch } from '../inspector';
+import { useT, type TranslationKey } from '../../i18n';
 import { ColorWheel } from './ColorWheel';
 import { hexToHsv, hsvToHex, parseHex, rgbToHex, type Hsv } from './hsv';
 
@@ -11,7 +12,7 @@ interface ColorPickerPopoverProps {
   title: string;
   value: string | null;
   /** The quick picks. A `null` one is "no colour", which only fill offers. */
-  swatches: ReadonlyArray<{ readonly value: string | null; readonly label: string }>;
+  swatches: ReadonlyArray<{ readonly value: string | null; readonly labelKey: TranslationKey }>;
   /** How the board paints a colour, when that differs from the stored one. */
   paint?: (value: string) => string;
   /** Where it sits within its containing block — see InspectorPopover. */
@@ -42,6 +43,7 @@ export function ColorPickerPopover({
   onChange,
   onClose,
 }: ColorPickerPopoverProps) {
+  const t = useT();
   const [hsv, setHsv] = useState<Hsv>(() =>
     value ? (hexToHsv(value) ?? FALLBACK_HSV) : FALLBACK_HSV,
   );
@@ -89,9 +91,9 @@ export function ColorPickerPopover({
       >
         {swatches.map((swatch) => (
           <PickerCell
-            key={swatch.label}
+            key={swatch.labelKey}
             variant="colour"
-            label={swatch.label}
+            label={t(swatch.labelKey)}
             selected={swatch.value === value}
             className="h-6"
             onPick={() => {
@@ -116,14 +118,14 @@ export function ColorPickerPopover({
         <ColorWheel value={hsv} onChange={applyHsv} />
 
         <label className="flex flex-col gap-1.5">
-          <span className={cn(menuLabelClasses, 'p-0')}>Brightness</span>
+          <span className={cn(menuLabelClasses, 'p-0')}>{t('style.brightness')}</span>
           <input
             className="cf-color-popover__value"
             type="range"
             min={0}
             max={100}
             value={Math.round(hsv.v * 100)}
-            aria-label="Brightness"
+            aria-label={t('style.brightness')}
             style={{
               // Track previews the current hue at full saturation.
               backgroundImage: `linear-gradient(to right, #000, ${hsvToHex({ h: hsv.h, s: hsv.s, v: 1 })})`,
@@ -136,7 +138,7 @@ export function ColorPickerPopover({
         </label>
 
         <label className="flex flex-col gap-1.5">
-          <span className={cn(menuLabelClasses, 'p-0')}>Hex code</span>
+          <span className={cn(menuLabelClasses, 'p-0')}>{t('style.hexCode')}</span>
           <span className="flex items-center gap-1 rounded-[5px] bg-neutral-950/5 px-2 py-1.5 font-mono text-xs dark:bg-neutral-50/5">
             <span aria-hidden="true" className="text-neutral-500 dark:text-neutral-400">
               #
@@ -144,7 +146,7 @@ export function ColorPickerPopover({
             <input
               value={hexDraft.replace(/^#/, '')}
               spellCheck={false}
-              aria-label="Hex code"
+              aria-label={t('style.hexCode')}
               className="w-full border-0 bg-transparent p-0 font-mono text-xs uppercase outline-none"
               onChange={(e) => setHexDraft(e.target.value)}
               onBlur={commitHexDraft}

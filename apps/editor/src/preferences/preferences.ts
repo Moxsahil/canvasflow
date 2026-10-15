@@ -1,3 +1,5 @@
+import type { TranslationKey } from '../i18n';
+
 /**
  * Every choice the preferences menu offers.
  *
@@ -120,7 +122,7 @@ export function storePenSeen(): void {
 
 export interface PreferenceItemMeta {
   readonly id: PreferenceId;
-  readonly label: string;
+  readonly labelKey: TranslationKey;
   /** Key combo in the `mod+o` notation of help/platform, formatted for display. */
   readonly shortcut?: string;
   /**
@@ -128,7 +130,7 @@ export interface PreferenceItemMeta {
    * name and nothing else, and half of these names — "dynamic size", "select on
    * wrap" — mean nothing until they are spelled out somewhere.
    */
-  readonly hint: string;
+  readonly hintKey: TranslationKey;
 }
 
 export interface PreferenceGroupMeta {
@@ -147,21 +149,21 @@ export const PREFERENCE_GROUPS: readonly PreferenceGroupMeta[] = [
     items: [
       {
         id: 'showGrid',
-        label: 'Show grid',
+        labelKey: 'preferences.showGrid',
         shortcut: "mod+'",
-        hint: 'A grid of dots behind the board',
+        hintKey: 'preferences.showGrid.hint',
       },
       {
         id: 'snapToObjects',
-        label: 'Snap to objects',
+        labelKey: 'preferences.snapToObjects',
         shortcut: 'alt+s',
-        hint: 'Line up with nearby shapes as you draw',
+        hintKey: 'preferences.snapToObjects.hint',
       },
 
       {
         id: 'edgeScrolling',
-        label: 'Edge scrolling',
-        hint: 'Pan the board when a drag reaches its edge',
+        labelKey: 'preferences.edgeScrolling',
+        hintKey: 'preferences.edgeScrolling.hint',
       },
     ],
   },
@@ -170,34 +172,34 @@ export const PREFERENCE_GROUPS: readonly PreferenceGroupMeta[] = [
     items: [
       {
         id: 'toolLock',
-        label: 'Tool lock',
+        labelKey: 'preferences.toolLock',
         shortcut: 'q',
-        hint: 'Keep the tool after a shape, instead of returning to select',
+        hintKey: 'preferences.toolLock.hint',
       },
       {
         id: 'selectOnWrap',
-        label: 'Select on wrap',
-        hint: 'Take only the shapes a marquee encloses, not every one it touches',
+        labelKey: 'preferences.selectOnWrap',
+        hintKey: 'preferences.selectOnWrap.hint',
       },
       {
         id: 'arrowBinding',
-        label: 'Arrow binding',
-        hint: 'Arrows stay attached to the shapes they touch',
+        labelKey: 'preferences.arrowBinding',
+        hintKey: 'preferences.arrowBinding.hint',
       },
       {
         id: 'dynamicSize',
-        label: 'Dynamic size',
-        hint: 'Draw at the size things look now, however far out the board is',
+        labelKey: 'preferences.dynamicSize',
+        hintKey: 'preferences.dynamicSize.hint',
       },
       {
         id: 'pasteAtCursor',
-        label: 'Paste at cursor',
-        hint: 'Paste where the pointer is, not in the middle of the view',
+        labelKey: 'preferences.pasteAtCursor',
+        hintKey: 'preferences.pasteAtCursor.hint',
       },
       {
         id: 'penMode',
-        label: 'Pen mode',
-        hint: 'Only a pen draws; fingers and a resting hand leave the board alone',
+        labelKey: 'preferences.penMode',
+        hintKey: 'preferences.penMode.hint',
       },
     ],
   },
@@ -206,37 +208,37 @@ export const PREFERENCE_GROUPS: readonly PreferenceGroupMeta[] = [
     items: [
       {
         id: 'focusMode',
-        label: 'Focus mode',
+        labelKey: 'preferences.focusMode',
         shortcut: 'alt+z',
-        hint: 'Put away everything but the canvas; the shortcuts still work',
+        hintKey: 'preferences.focusMode.hint',
       },
       {
         id: 'viewMode',
-        label: 'View mode',
+        labelKey: 'preferences.viewMode',
         shortcut: 'alt+r',
-        hint: 'Look around the board without editing it',
+        hintKey: 'preferences.viewMode.hint',
       },
       {
         id: 'floatingStyleBar',
-        label: 'Floating style bar',
-        hint: 'Style controls float in a bar over the selection instead of docking at the right',
+        labelKey: 'preferences.floatingStyleBar',
+        hintKey: 'preferences.floatingStyleBar.hint',
       },
       {
         id: 'canvasStats',
-        label: 'Canvas stats',
+        labelKey: 'preferences.canvasStats',
         shortcut: 'alt+/',
-        hint: 'Dimensions and coordinates for the canvas and the selection',
+        hintKey: 'preferences.canvasStats.hint',
       },
       {
         id: 'showComments',
-        label: 'Show comments',
+        labelKey: 'preferences.showComments',
         shortcut: 'shift+c',
-        hint: 'The pins of the comments left on this board',
+        hintKey: 'preferences.showComments.hint',
       },
       {
         id: 'debugMode',
-        label: 'Debug mode',
-        hint: 'Draw the geometry the editor works from over the board',
+        labelKey: 'preferences.debugMode',
+        hintKey: 'preferences.debugMode.hint',
       },
     ],
   },

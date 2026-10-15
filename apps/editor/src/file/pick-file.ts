@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { BoardFileError, BOARD_FILE_EXTENSION } from './board-file';
 
 /** Files this big aren't boards, and reading one would hang the tab. */
@@ -44,7 +45,7 @@ function isPng(file: File): boolean {
 
 async function readFile(file: File): Promise<{ text: string; bytes?: Uint8Array }> {
   if (file.size > MAX_FILE_BYTES) {
-    throw new BoardFileError('That file is over 10 MB — too large to be a board.');
+    throw new BoardFileError(t('file.tooLarge'));
   }
   // Reading a PNG as text would mangle it; its scene lives in a chunk.
   if (isPng(file)) {
@@ -67,7 +68,7 @@ export async function pickBoardFile(): Promise<PickedFile | null> {
         multiple: false,
         types: [
           {
-            description: 'CanvasFlow board, Excalidraw drawing, or exported image',
+            description: t('file.openTypes'),
             accept: { 'application/json': ACCEPTED_EXTENSIONS },
           },
         ],

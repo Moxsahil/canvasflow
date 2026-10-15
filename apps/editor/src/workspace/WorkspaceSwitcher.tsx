@@ -9,6 +9,7 @@ import {
 import { MenuBadge, MenuRowEnd, menuButtonRowClasses } from '@/components/ui/menu-look';
 import { SidebarMenuItem } from '@/components/ui/sidebar';
 import { Workspaces, WorkspaceContent, WorkspaceTrigger } from '@/components/ui/workspaces';
+import { t as translate, useT } from '../i18n';
 import { SHARED_WITH_YOU, type BoardSwitcherState } from './useBoardSwitcher';
 
 interface WorkspaceSwitcherProps {
@@ -22,7 +23,7 @@ const noteClasses = 'px-2 py-1.5 text-xs text-neutral-500 dark:text-neutral-400'
 
 const errorClasses = 'text-red-500 dark:text-red-400';
 
-const boardCount = (count: number) => (count === 1 ? '1 board' : `${count} boards`);
+const boardCount = (count: number) => translate('boards.count', { count });
 
 /** A row of the menu: one of one's workspaces, or the boards shared from others'. */
 interface Entry {
@@ -62,6 +63,7 @@ function SharedBadge({ className }: { className?: string }) {
  * board's name as a plain header instead of a menu that could only be empty.
  */
 export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [namingWorkspace, setNamingWorkspace] = useState(false);
 
@@ -86,7 +88,7 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
   const entries: Entry[] | null = workspaces && [
     ...workspaces,
     ...(state.openBoardIsShared || shared > 0
-      ? [{ id: SHARED_WITH_YOU, name: 'Shared with you', boardCount: shared, shared: true }]
+      ? [{ id: SHARED_WITH_YOU, name: t('boards.sharedWithYou'), boardCount: shared, shared: true }]
       : []),
   ];
   const listed = entries?.find((entry) => entry.id === state.listedId);
@@ -97,7 +99,7 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
         {/* Not interactive, so it takes the row's shape without its affordances. */}
         <div className={cn(identityRowClasses, 'hover:bg-transparent')} title={state.title}>
           <InitialBadge label={state.title} className="rounded-full" />
-          <Lines primary={state.title} secondary="Board" />
+          <Lines primary={state.title} secondary={t('workspace.board')} />
         </div>
       </SidebarMenuItem>
     );
@@ -110,7 +112,7 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
       <SidebarMenuItem>
         <div className={cn(identityRowClasses, 'hover:bg-transparent')} aria-busy="true">
           <span aria-hidden="true" className="size-8 shrink-0 rounded-full bg-sidebar-accent" />
-          <Lines primary="Workspace" secondary="Loading…" />
+          <Lines primary={t('workspace.title')} secondary={t('common.loading')} />
         </div>
       </SidebarMenuItem>
     );
@@ -127,7 +129,7 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
       >
         <WorkspaceTrigger
           title={listed.name}
-          aria-label={`${listed.name} — switch workspace`}
+          aria-label={t('workspace.switch', { name: listed.name })}
           data-testid="workspace-switcher"
           className={identityRowClasses}
           renderTrigger={() => (
@@ -201,7 +203,7 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
               disabled={state.busy}
               onClick={() => setNamingWorkspace(true)}
             >
-              <span>Create workspace</span>
+              <span>{t('workspace.create')}</span>
               <MenuRowEnd icon={<Plus aria-hidden="true" />} />
             </button>
           )}
@@ -217,7 +219,7 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
               handleOpenChange(false);
             }}
           >
-            <span>Manage workspaces</span>
+            <span>{t('workspace.manage')}</span>
             <MenuRowEnd icon={<Settings2 aria-hidden="true" />} />
           </button>
         </WorkspaceContent>
@@ -246,6 +248,7 @@ interface NewWorkspaceFormProps {
 
 /** Naming happens in place: a dialog for one text field would be heavier than the act. */
 function NewWorkspaceForm({ busy, onCreate, onCancel }: NewWorkspaceFormProps) {
+  const t = useT();
   const [name, setName] = useState('');
   const trimmed = name.trim();
 
@@ -263,8 +266,8 @@ function NewWorkspaceForm({ busy, onCreate, onCancel }: NewWorkspaceFormProps) {
         autoFocus
         value={name}
         maxLength={60}
-        placeholder="Workspace name"
-        aria-label="Workspace name"
+        placeholder={t('workspace.name')}
+        aria-label={t('workspace.name')}
         onChange={(event) => setName(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
@@ -280,7 +283,7 @@ function NewWorkspaceForm({ busy, onCreate, onCancel }: NewWorkspaceFormProps) {
         disabled={busy || !trimmed}
         className={cn(menuButtonRowClasses, 'w-auto shrink-0')}
       >
-        Add
+        {t('common.add')}
       </button>
     </form>
   );

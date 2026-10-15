@@ -8,6 +8,7 @@ import {
   cataloguePreviewUrl,
   type CatalogueLibrary,
 } from './library-catalogue';
+import { rich, useT } from '../i18n';
 import { focusRing, mutedText, wash } from './LibraryTiles';
 import { PanelNote } from './PanelNote';
 import { useCatalogue } from './useCatalogue';
@@ -32,16 +33,17 @@ interface LibraryBrowseProps {
  * catalogue whenever it is opened, and it sits down the left with the rest.
  */
 export function LibraryBrowse({ query, added, canAdd, onAdd, onOpen }: LibraryBrowseProps) {
+  const t = useT();
   const { state, retry } = useCatalogue(true);
   const [adding, setAdding] = useState<string | null>(null);
 
-  if (state.status === 'loading') return <PanelNote title="Opening the library catalogue…" />;
+  if (state.status === 'loading') return <PanelNote title={t('library.catalogueOpening')} />;
   if (state.status === 'error') {
     return (
-      <PanelNote title="Couldn’t open the library catalogue">
+      <PanelNote title={t('library.catalogueFailed')}>
         {state.error}
         <button type="button" className={cn(outlinedChip, 'mt-2')} onClick={retry}>
-          Try again
+          {t('common.tryAgain')}
         </button>
       </PanelNote>
     );
@@ -64,9 +66,9 @@ export function LibraryBrowse({ query, added, canAdd, onAdd, onOpen }: LibraryBr
   return (
     <div className="flex flex-col gap-2">
       {shown.length === 0 ? (
-        <PanelNote title={`No library matches “${query.trim()}”`} />
+        <PanelNote title={t('library.noMatch', { query: query.trim() })} />
       ) : (
-        <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2" aria-label="Library catalogue">
+        <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2" aria-label={t('library.catalogue')}>
           {shown.map((library) => {
             const preview = cataloguePreviewUrl(library.preview);
             const mine = addedBySource.get(library.source);
@@ -95,7 +97,7 @@ export function LibraryBrowse({ query, added, canAdd, onAdd, onOpen }: LibraryBr
                     </p>
                     {credit && (
                       <p className={cn('truncate text-[11px]', mutedText)} title={credit}>
-                        by {credit}
+                        {t('library.by', { credit })}
                       </p>
                     )}
                   </div>
@@ -106,7 +108,7 @@ export function LibraryBrowse({ query, added, canAdd, onAdd, onOpen }: LibraryBr
                       onClick={() => onOpen(mine)}
                     >
                       <Check aria-hidden="true" />
-                      Open
+                      {t('library.open')}
                     </button>
                   ) : (
                     <button
@@ -122,7 +124,7 @@ export function LibraryBrowse({ query, added, canAdd, onAdd, onOpen }: LibraryBr
                       }}
                       data-testid="catalogue-add"
                     >
-                      {adding === library.id ? 'Adding…' : 'Add'}
+                      {adding === library.id ? t('common.adding') : t('common.add')}
                     </button>
                   )}
                 </div>
@@ -137,16 +139,18 @@ export function LibraryBrowse({ query, added, canAdd, onAdd, onOpen }: LibraryBr
         </ul>
       )}
       <p className={cn('px-1 pb-1 text-[11px]', mutedText)}>
-        From{' '}
-        <a
-          href={CATALOGUE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={cn('underline underline-offset-2', focusRing)}
-        >
-          libraries.excalidraw.com
-        </a>
-        , shared by the people who made them under the MIT licence.
+        {rich(t('library.catalogueCredit'), {
+          site: (
+            <a
+              href={CATALOGUE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn('underline underline-offset-2', focusRing)}
+            >
+              libraries.excalidraw.com
+            </a>
+          ),
+        })}
       </p>
     </div>
   );

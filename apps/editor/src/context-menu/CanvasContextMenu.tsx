@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/context-menu';
 import { menuDangerRowClasses } from '@/components/ui/menu-look';
 import { ariaKeyShortcut } from '../help/platform';
+import { useT } from '../i18n';
 import { BoardTitle } from '../workspace/board-presentation';
 import type { WorkspaceBoards } from '../workspace/useBoardSwitcher';
 import {
@@ -112,6 +113,7 @@ export function CanvasContextMenu({
   container,
   children,
 }: CanvasContextMenuProps) {
+  const t = useT();
   const short = useSyncExternalStore(subscribeToShortScreen, isShortScreen, isShortOnServer);
   const groups = useMemo(
     () => contextMenuFor(target, { readOnly, canShareLinks, short }),
@@ -126,7 +128,7 @@ export function CanvasContextMenu({
         collisionPadding={8}
         loop
         onCloseAutoFocus={onCloseAutoFocus}
-        aria-label={target === 'selection' ? 'Selection' : 'Canvas'}
+        aria-label={target === 'selection' ? t('contextMenu.selection') : t('contextMenu.canvas')}
         data-testid={`context-menu-${target}`}
       >
         {groups.map((group, index) => (
@@ -160,7 +162,8 @@ export function CanvasContextMenu({
 }
 
 function Soon() {
-  return <ContextMenuBadge>Soon</ContextMenuBadge>;
+  const t = useT();
+  return <ContextMenuBadge>{t('common.soon')}</ContextMenuBadge>;
 }
 
 interface RowProps {
@@ -172,9 +175,11 @@ interface RowProps {
 }
 
 function Row({ id, actions, checks, label: labelOverride }: RowProps) {
+  const t = useT();
   const meta = CONTEXT_MENU_ITEMS[id];
-  const { icon: Icon, shortcut, destructive, toggle, choice, hint } = meta;
-  const label = labelOverride ?? meta.label;
+  const { icon: Icon, shortcut, destructive, toggle, choice, hintKey } = meta;
+  const label = labelOverride ?? t(meta.labelKey);
+  const hint = hintKey && t(hintKey);
   const action = actions[id];
   // Only an unbuilt row says "Soon". A built one that does not apply to what
   // is selected is disabled and says nothing, so it never reads as missing.
@@ -239,6 +244,7 @@ function Submenu({
   moveTo: MoveToBoards | null;
   container: HTMLElement | null;
 }) {
+  const t = useT();
   const rows = submenu.items.map((id) => (
     <Row key={id} id={id} actions={actions} checks={checks} />
   ));
@@ -249,7 +255,7 @@ function Submenu({
   return (
     <ContextMenuSub>
       <ContextMenuSubTrigger data-testid={`context-menu-${submenu.submenu}`}>
-        {submenu.label}
+        {t(submenu.labelKey)}
       </ContextMenuSubTrigger>
       <ContextMenuSubContent
         container={container}
@@ -279,13 +285,14 @@ function Submenu({
  * does in the board switcher.
  */
 function BoardRows({ moveTo }: { moveTo: MoveToBoards }) {
+  const t = useT();
   const { workspaceName, currentBoardId, boards, onMove } = moveTo;
 
   let rows: ReactNode;
   if (boards === undefined || boards.status === 'loading') {
-    rows = <ContextMenuItem disabled>Loading boards…</ContextMenuItem>;
+    rows = <ContextMenuItem disabled>{t('manage.loadingBoards')}</ContextMenuItem>;
   } else if (boards.status === 'error') {
-    rows = <ContextMenuItem disabled>Couldn’t load the boards</ContextMenuItem>;
+    rows = <ContextMenuItem disabled>{t('contextMenu.boardsFailed')}</ContextMenuItem>;
   } else {
     rows = boards.boards.map((board) => {
       const current = board.id === currentBoardId;
@@ -299,7 +306,7 @@ function BoardRows({ moveTo }: { moveTo: MoveToBoards }) {
           data-testid={`context-menu-board-${board.id}`}
         >
           <BoardTitle title={board.title} color={board.color} />
-          {current && <span className="sr-only"> (current board)</span>}
+          {current && <span className="sr-only"> {t('contextMenu.currentBoard')}</span>}
         </ContextMenuItem>
       );
     });

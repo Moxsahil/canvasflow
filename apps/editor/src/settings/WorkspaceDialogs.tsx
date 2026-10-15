@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/inline-dropdown-menu';
 import { menuDangerRowClasses } from '@/components/ui/menu-look';
 import { PersonAvatar } from '../ui/PersonAvatar';
+import { t as translate, useT, type TranslationKey } from '../i18n';
 import {
   changeMemberRole,
   inviteToWorkspace,
@@ -53,16 +54,16 @@ import {
 } from './settings-ui';
 import { useEscape } from './settings-frame';
 
-export const ROLE_LABELS: Record<WorkspaceRole, string> = {
-  owner: 'Owner',
-  admin: 'Admin',
-  member: 'Member',
+export const ROLE_LABELS: Record<WorkspaceRole, TranslationKey> = {
+  owner: 'role.owner',
+  admin: 'role.admin',
+  member: 'role.member',
 };
 
-const BOARD_ROLE_LABELS: Record<GuestBoardRole, string> = {
-  owner: 'Owner',
-  editor: 'Can edit',
-  viewer: 'Can view',
+const BOARD_ROLE_LABELS: Record<GuestBoardRole, TranslationKey> = {
+  owner: 'role.owner',
+  editor: 'access.canEdit',
+  viewer: 'access.canView',
 };
 
 /** Their handle and, for whoever runs the workspace, their address. */
@@ -74,15 +75,24 @@ function detailOf(person: { username: string | null; email: string | null }): st
 /** The boards a guest is on, named while there are few enough to name. */
 function boardsLine(guest: WorkspaceGuest): string {
   const titles = guest.boards.map((board) => board.title);
-  if (titles.length <= 2) return `On ${titles.join(' and ')}`;
-  return `On ${titles[0]} and ${titles.length - 1} more boards`;
+  if (titles.length <= 2) {
+    return translate('members.on', {
+      boards:
+        titles.length === 2
+          ? translate('common.listAnd', { rest: titles[0]!, last: titles[1]! })
+          : (titles[0] ?? ''),
+    });
+  }
+  return translate('members.onMore', { first: titles[0]!, count: titles.length - 1 });
 }
 
 /** What a guest may do, when it is the same on every board they are on. */
 function guestRole(guest: WorkspaceGuest): string {
   const roles = new Set(guest.boards.map((board) => board.role));
   const [only] = roles;
-  return roles.size === 1 && only ? BOARD_ROLE_LABELS[only] : 'Mixed access';
+  return roles.size === 1 && only
+    ? translate(BOARD_ROLE_LABELS[only])
+    : translate('members.mixedAccess');
 }
 
 const PILL =
@@ -106,6 +116,7 @@ function PersonRow({
   detail: string;
   end: ReactNode;
 }) {
+  const t = useT();
   return (
     <li
       data-testid={testId}
@@ -116,7 +127,9 @@ function PersonRow({
         <p className="flex min-w-0 items-center gap-[6px] text-[12.5px] font-medium">
           <span className="truncate">
             {name}
-            {you && <span className="font-normal text-[var(--surface-fg-muted)]"> (you)</span>}
+            {you && (
+              <span className="font-normal text-[var(--surface-fg-muted)]"> {t('share.you')}</span>
+            )}
           </span>
           {tag}
         </p>
@@ -144,9 +157,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  */
 function expiryLine(invite: WorkspaceInvite, now: number): string {
   const left = Date.parse(invite.expiresAt) - now;
-  if (left < DAY_MS) return 'Expires within a day';
-  const days = Math.ceil(left / DAY_MS);
-  return `Expires in ${days} days`;
+  if (left < DAY_MS) return translate('members.expiresWithinDay');
+  return translate('members.expiresIn', { count: Math.ceil(left / DAY_MS) });
 }
 
 /**
@@ -162,10 +174,11 @@ function RoleSwitch({
   onChange: (role: InvitableRole) => void;
   disabled: boolean;
 }) {
+  const t = useT();
   return (
     <div
       role="radiogroup"
-      aria-label="Invite as"
+      aria-label={t('members.inviteAs')}
       className="flex h-[32px] shrink-0 items-center rounded-[7px] border border-[var(--surface-border)] bg-[var(--surface-input)] p-[2px]"
     >
       {(['member', 'admin'] as const).map((role) => (
@@ -184,7 +197,7 @@ function RoleSwitch({
               : 'text-[var(--surface-fg-muted)] hover:text-[var(--surface-fg)]',
           )}
         >
-          {ROLE_LABELS[role]}
+          {t(ROLE_LABELS[role])}
         </button>
       ))}
     </div>
@@ -211,12 +224,15 @@ function NoticeLine({ notice }: { notice: Notice }) {
 
 /** The sentence for an email that did or did not go. */
 function sentNotice(email: string, emailSent: boolean, again: boolean): Notice {
-  if (emailSent)
-    return { tone: 'ok', text: `${again ? 'Sent again' : 'Invitation sent'} to ${email}.` };
-  return {
-    tone: 'caution',
-    text: `The invitation is saved, but its email to ${email} didn’t go. Try Send again in a minute.`,
-  };
+  if (emailSent) {
+    return {
+      tone: 'ok',
+      text: again
+        ? translate('members.sentAgainTo', { email })
+        : translate('members.invitationSentTo', { email }),
+    };
+  }
+  return { tone: 'caution', text: translate('members.emailFailed', { email }) };
 }
 
 /**
@@ -230,6 +246,7 @@ function InviteForm({
   workspaceId: string;
   onSent: (notice: Notice) => void;
 }) {
+  const t = useT();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<InvitableRole>('member');
   const [busy, setBusy] = useState(false);
@@ -247,7 +264,7 @@ function InviteForm({
       setEmail('');
       onSent(sentNotice(sent.invite.email, sent.emailSent, false));
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not send the invitation.');
+      setError(err instanceof Error ? err.message : t('members.inviteFailed'));
     } finally {
       setBusy(false);
     }
@@ -259,7 +276,7 @@ function InviteForm({
         htmlFor="invite-email"
         className="text-[11.5px] font-medium text-[var(--surface-fg-muted)]"
       >
-        Invite by email
+        {t('members.inviteByEmail')}
       </label>
       <div className="flex items-center gap-[8px]">
         <input
@@ -286,7 +303,7 @@ function InviteForm({
           data-testid="invite-send"
           className="h-[32px]"
         >
-          {busy ? 'Sending…' : 'Invite'}
+          {busy ? t('common.sending') : t('members.invite')}
         </SettingsButton>
       </div>
       <ErrorLine>{error}</ErrorLine>
@@ -309,6 +326,7 @@ function InviteRow({
   now: number;
   onDone: (notice: Notice) => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState<'resend' | 'revoke' | null>(null);
 
   const run = async (action: 'resend' | 'revoke') => {
@@ -321,19 +339,19 @@ function InviteRow({
         onDone(sentNotice(invite.email, sent.emailSent, true));
       } else {
         await revokeInvite(workspaceId, invite.id);
-        onDone({ tone: 'ok', text: `Invitation to ${invite.email} taken back.` });
+        onDone({ tone: 'ok', text: t('members.invitationTakenBack', { email: invite.email }) });
       }
     } catch (err: unknown) {
       onDone({
         tone: 'caution',
-        text: err instanceof Error ? err.message : 'That didn’t work. Try again.',
+        text: err instanceof Error ? err.message : t('common.didNotWork'),
       });
     } finally {
       setBusy(null);
     }
   };
 
-  const detail = [ROLE_LABELS[invite.role], invite.expired ? null : expiryLine(invite, now)]
+  const detail = [t(ROLE_LABELS[invite.role]), invite.expired ? null : expiryLine(invite, now)]
     .filter(Boolean)
     .join(' · ');
 
@@ -348,10 +366,10 @@ function InviteRow({
       <div className="flex min-w-0 flex-1 flex-col gap-[1px]">
         <p className="flex min-w-0 items-center gap-[6px] text-[12.5px] font-medium">
           <span className="truncate">{invite.email}</span>
-          {invite.expired && <StatusTag tone="caution">Expired</StatusTag>}
+          {invite.expired && <StatusTag tone="caution">{t('members.expired')}</StatusTag>}
         </p>
         <p className="truncate text-[11.5px] text-[var(--surface-fg-muted)]">
-          {`${detail} · from ${invite.invitedByName}`}
+          {`${detail} · ${t('members.from', { name: invite.invitedByName })}`}
         </p>
       </div>
       <SettingsButton
@@ -359,12 +377,12 @@ function InviteRow({
         onClick={() => void run('resend')}
         data-testid={`invite-resend-${invite.id}`}
       >
-        {busy === 'resend' ? 'Sending…' : 'Send again'}
+        {busy === 'resend' ? t('common.sending') : t('members.sendAgain')}
       </SettingsButton>
       <SettingsButton
         variant="ghost"
-        aria-label={`Take back the invitation to ${invite.email}`}
-        title="Take back"
+        aria-label={t('members.takeBackInvitation', { email: invite.email })}
+        title={t('members.takeBack')}
         disabled={busy !== null}
         onClick={() => void run('revoke')}
         data-testid={`invite-revoke-${invite.id}`}
@@ -422,6 +440,7 @@ function MemberMenu({
   onWithdraw: () => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   useEscape(open ? () => setOpen(false) : null);
   const role = member.role === 'owner' ? 'admin' : member.role;
@@ -431,13 +450,13 @@ function MemberMenu({
     <InlineDropdownMenu open={open} onOpenChange={setOpen}>
       <InlineDropdownMenuTrigger asChild>
         <SettingsButton
-          aria-label={`Role for ${member.name}`}
+          aria-label={t('share.roleFor', { name: member.name })}
           data-testid={`member-menu-${member.userId}`}
           disabled={busy}
           className="gap-[6px] pr-[7px] pl-[9px] data-[state=open]:bg-[var(--surface-wash-hover)] [&[data-state=open]>svg:last-child]:rotate-180"
         >
           <RoleIcon className="size-[12px]" aria-hidden="true" />
-          {ROLE_LABELS[role]}
+          {t(ROLE_LABELS[role])}
           <ChevronDown
             className="size-[12px] text-[var(--surface-fg-muted)] transition-transform duration-200"
             aria-hidden="true"
@@ -449,7 +468,7 @@ function MemberMenu({
         sideOffset={4}
         collisionPadding={8}
         container={container}
-        aria-label={`Role for ${member.name}`}
+        aria-label={t('share.roleFor', { name: member.name })}
         className="min-w-48"
       >
         <InlineDropdownMenuRadioGroup
@@ -457,10 +476,10 @@ function MemberMenu({
           onValueChange={(value) => onRole(value as InvitableRole)}
         >
           <InlineDropdownMenuChoiceItem value="admin" icon={<Shield aria-hidden="true" />}>
-            Admin
+            {t('role.admin')}
           </InlineDropdownMenuChoiceItem>
           <InlineDropdownMenuChoiceItem value="member" icon={<UserRound aria-hidden="true" />}>
-            Member
+            {t('role.member')}
           </InlineDropdownMenuChoiceItem>
         </InlineDropdownMenuRadioGroup>
         {viewerIsOwner && (
@@ -468,11 +487,11 @@ function MemberMenu({
             <InlineDropdownMenuSeparator />
             {offered ? (
               <InlineDropdownMenuItem icon={<Undo2 aria-hidden="true" />} onSelect={onWithdraw}>
-                Take back ownership offer
+                {t('members.takeBackOwnership')}
               </InlineDropdownMenuItem>
             ) : (
               <InlineDropdownMenuItem icon={<Crown aria-hidden="true" />} onSelect={onHandOver}>
-                Make owner…
+                {t('members.makeOwner')}
               </InlineDropdownMenuItem>
             )}
           </>
@@ -483,7 +502,7 @@ function MemberMenu({
           onSelect={onRemove}
           className={menuDangerRowClasses}
         >
-          Remove from workspace
+          {t('members.removeFromWorkspace')}
         </InlineDropdownMenuItem>
       </InlineDropdownMenuContent>
     </InlineDropdownMenu>
@@ -509,6 +528,7 @@ function GuestMenu({
   onRole: (role: GuestRole) => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   useEscape(open ? () => setOpen(false) : null);
   const roles = new Set(guest.boards.map((board) => board.role));
@@ -522,7 +542,7 @@ function GuestMenu({
     <InlineDropdownMenu open={open} onOpenChange={setOpen}>
       <InlineDropdownMenuTrigger asChild>
         <SettingsButton
-          aria-label={`Access for ${guest.name}`}
+          aria-label={t('members.accessFor', { name: guest.name })}
           data-testid={`guest-menu-${guest.userId}`}
           disabled={busy}
           className="gap-[6px] pr-[7px] pl-[9px] data-[state=open]:bg-[var(--surface-wash-hover)] [&[data-state=open]>svg:last-child]:rotate-180"
@@ -540,7 +560,7 @@ function GuestMenu({
         sideOffset={4}
         collisionPadding={8}
         container={container}
-        aria-label={`Access for ${guest.name}`}
+        aria-label={t('members.accessFor', { name: guest.name })}
         className="min-w-48"
       >
         <InlineDropdownMenuRadioGroup
@@ -548,10 +568,10 @@ function GuestMenu({
           onValueChange={(value) => onRole(value as GuestRole)}
         >
           <InlineDropdownMenuChoiceItem value="editor" icon={<Pencil aria-hidden="true" />}>
-            Can edit
+            {t('access.canEdit')}
           </InlineDropdownMenuChoiceItem>
           <InlineDropdownMenuChoiceItem value="viewer" icon={<Eye aria-hidden="true" />}>
-            Can view
+            {t('access.canView')}
           </InlineDropdownMenuChoiceItem>
         </InlineDropdownMenuRadioGroup>
         <InlineDropdownMenuSeparator />
@@ -560,7 +580,7 @@ function GuestMenu({
           onSelect={onRemove}
           className={menuDangerRowClasses}
         >
-          {guest.boards.length === 1 ? 'Remove from board' : 'Remove from boards'}
+          {guest.boards.length === 1 ? t('share.removeFromBoard') : t('members.removeFromBoards')}
         </InlineDropdownMenuItem>
       </InlineDropdownMenuContent>
     </InlineDropdownMenu>
@@ -589,6 +609,7 @@ export function ConfirmDialog({
   onConfirm: () => Promise<void>;
   onClose: () => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -599,7 +620,7 @@ export function ConfirmDialog({
     try {
       await onConfirm();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'That didn’t work. Try again.');
+      setError(err instanceof Error ? err.message : t('common.didNotWork'));
       setBusy(false);
     }
   };
@@ -612,7 +633,7 @@ export function ConfirmDialog({
       actions={
         <>
           <SettingsButton onClick={onClose} disabled={busy}>
-            Cancel
+            {t('common.cancel')}
           </SettingsButton>
           <SettingsButton
             variant={danger ? 'danger' : 'primary'}
@@ -620,7 +641,7 @@ export function ConfirmDialog({
             disabled={busy}
             data-testid={testId}
           >
-            {busy ? 'Working…' : confirmLabel}
+            {busy ? t('common.working') : confirmLabel}
           </SettingsButton>
         </>
       }
@@ -632,7 +653,7 @@ export function ConfirmDialog({
 
 /** "Their 3 boards pass to Sam", or nothing to say when they own none here. */
 function boardsWord(count: number): string {
-  return count === 1 ? '1 board' : `${count} boards`;
+  return translate('boards.count', { count });
 }
 
 /**
@@ -669,6 +690,7 @@ export function MembersDialog({
   onChanged?: () => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const { members, guests } = people;
   const editable = workspaceId !== null && viewerRole !== null;
   const inviting = editable && can(viewerRole, 'invite');
@@ -698,29 +720,34 @@ export function MembersDialog({
       await run();
       done({ tone: 'ok', text: said });
     } catch (err: unknown) {
-      done({ tone: 'caution', text: err instanceof Error ? err.message : 'That didn’t work.' });
+      done({
+        tone: 'caution',
+        text: err instanceof Error ? err.message : t('members.didNotWork'),
+      });
     } finally {
       setWorking(null);
     }
   };
 
   const description = inviting
-    ? `Everyone in ${workspaceName}. Invite people by email to join it and all its boards.`
+    ? t('members.descriptionInviting', { workspace: workspaceName })
     : hasGuests
-      ? `Everyone in ${workspaceName}, and the people let onto its boards by link.`
-      : `Everyone in ${workspaceName}.`;
+      ? t('members.descriptionGuests', { workspace: workspaceName })
+      : t('members.description', { workspace: workspaceName });
+  const ownerWord =
+    owner?.userId === userId ? t('workspacePane.you') : (owner?.name ?? t('share.theOwner'));
 
   return (
     <>
       <SettingsModal
-        title="Members"
+        title={t('settings.row.members')}
         description={description}
         onClose={onClose}
         width={inviting ? 520 : 460}
         layerRef={setLayer}
         actions={
           <SettingsButton variant="primary" onClick={onClose}>
-            Done
+            {t('common.done')}
           </SettingsButton>
         }
       >
@@ -731,7 +758,9 @@ export function MembersDialog({
         )}
         <NoticeLine notice={notice} />
         <div className={cn('max-h-[340px] overflow-y-auto pr-[2px]', SCROLLBAR)}>
-          {captioned && <GroupCaption>{`Members · ${members.length}`}</GroupCaption>}
+          {captioned && (
+            <GroupCaption>{t('members.membersCaption', { count: members.length })}</GroupCaption>
+          )}
           <ul>
             {members.map((member: WorkspaceMember) => {
               const offered = offer?.toUserId === member.userId;
@@ -744,8 +773,10 @@ export function MembersDialog({
                   photo={member.photo}
                   name={member.name}
                   you={member.userId === userId}
-                  tag={offered && <StatusTag tone="caution">Ownership offered</StatusTag>}
-                  detail={detailOf(member) ?? 'No username yet'}
+                  tag={
+                    offered && <StatusTag tone="caution">{t('members.ownershipOffered')}</StatusTag>
+                  }
+                  detail={detailOf(member) ?? t('members.noUsername')}
                   end={
                     manageable && workspaceId ? (
                       <MemberMenu
@@ -758,7 +789,9 @@ export function MembersDialog({
                           void act(
                             member.userId,
                             () => changeMemberRole(workspaceId, member.userId, role),
-                            `${member.name} is now ${role === 'admin' ? 'an admin' : 'a member'}.`,
+                            role === 'admin'
+                              ? t('members.nowAdmin', { name: member.name })
+                              : t('members.nowMember', { name: member.name }),
                           )
                         }
                         onHandOver={() => setPending({ kind: 'hand-over', member })}
@@ -766,7 +799,7 @@ export function MembersDialog({
                           void act(
                             member.userId,
                             () => withdrawOwnershipOffer(workspaceId),
-                            `Ownership offer to ${member.name} taken back.`,
+                            t('members.offerTakenBack', { name: member.name }),
                           )
                         }
                         onRemove={() => setPending({ kind: 'remove', member })}
@@ -776,7 +809,7 @@ export function MembersDialog({
                         {member.role === 'owner' && (
                           <Crown className="size-[12px]" aria-hidden="true" />
                         )}
-                        {ROLE_LABELS[member.role]}
+                        {t(ROLE_LABELS[member.role])}
                       </span>
                     )
                   }
@@ -786,7 +819,7 @@ export function MembersDialog({
           </ul>
           {inviting && invites.length > 0 && workspaceId && (
             <>
-              <GroupCaption>{`Invited · ${invites.length}`}</GroupCaption>
+              <GroupCaption>{t('members.invitedCaption', { count: invites.length })}</GroupCaption>
               <ul>
                 {invites.map((invite) => (
                   <InviteRow
@@ -802,7 +835,7 @@ export function MembersDialog({
           )}
           {hasGuests && (
             <>
-              <GroupCaption>{`Guests on boards · ${guests.length}`}</GroupCaption>
+              <GroupCaption>{t('members.guestsCaption', { count: guests.length })}</GroupCaption>
               <ul>
                 {guests.map((guest) => {
                   const handle = detailOf(guest);
@@ -813,7 +846,11 @@ export function MembersDialog({
                       photo={guest.photo}
                       name={guest.name}
                       you={guest.userId === userId}
-                      tag={guest.isGuest && <StatusTag tone="neutral">No account</StatusTag>}
+                      tag={
+                        guest.isGuest && (
+                          <StatusTag tone="neutral">{t('share.noAccount')}</StatusTag>
+                        )
+                      }
                       detail={handle ? `${boardsLine(guest)} · ${handle}` : boardsLine(guest)}
                       end={
                         managesGuests && workspaceId && guest.userId !== userId ? (
@@ -825,11 +862,20 @@ export function MembersDialog({
                               void act(
                                 guest.userId,
                                 () => setGuestRole(workspaceId, guest.userId, role),
-                                `${guest.name} can now ${role === 'viewer' ? 'view' : 'edit'} ${
-                                  guest.boards.length === 1
-                                    ? guest.boards[0]?.title
-                                    : `the ${guest.boards.length} boards they’re on`
-                                }.`,
+                                t(
+                                  role === 'viewer'
+                                    ? 'members.guestCanView'
+                                    : 'members.guestCanEdit',
+                                  {
+                                    name: guest.name,
+                                    boards:
+                                      guest.boards.length === 1
+                                        ? (guest.boards[0]?.title ?? '')
+                                        : t('members.theBoardsTheyreOn', {
+                                            count: guest.boards.length,
+                                          }),
+                                  },
+                                ),
                               )
                             }
                             onRemove={() => setPending({ kind: 'remove-guest', guest })}
@@ -849,11 +895,9 @@ export function MembersDialog({
 
       {pending?.kind === 'remove' && workspaceId && (
         <ConfirmDialog
-          title={`Remove ${pending.member.name}?`}
-          description={`They lose ${workspaceName} and every board in it at once. What they drew stays on the boards, and any boards they own pass to ${
-            owner?.userId === userId ? 'you' : (owner?.name ?? 'the owner')
-          }.`}
-          confirmLabel="Remove"
+          title={t('members.removeTitle', { name: pending.member.name })}
+          description={t('members.removeBody', { workspace: workspaceName, owner: ownerWord })}
+          confirmLabel={t('library.remove')}
           danger
           testId="confirm-remove"
           onClose={() => setPending(null)}
@@ -865,27 +909,29 @@ export function MembersDialog({
               tone: 'ok',
               text:
                 departed.boardsPassed > 0
-                  ? `${member.name} was removed. Their ${boardsWord(departed.boardsPassed)} passed to ${
-                      owner?.userId === userId ? 'you' : (owner?.name ?? 'the owner')
-                    }.`
-                  : `${member.name} was removed.`,
+                  ? t('members.removedPassed', {
+                      name: member.name,
+                      boards: boardsWord(departed.boardsPassed),
+                      owner: ownerWord,
+                    })
+                  : t('members.removed', { name: member.name }),
             });
           }}
         />
       )}
       {pending?.kind === 'remove-guest' && workspaceId && (
         <ConfirmDialog
-          title={`Remove ${pending.guest.name}?`}
-          description={`They lose ${
-            pending.guest.boards.length === 1
-              ? pending.guest.boards[0]?.title
-              : `all ${pending.guest.boards.length} boards they’re on in ${workspaceName}`
-          } at once. What they drew stays, and a board’s owner can add them back from Share. ${
-            pending.guest.isGuest
-              ? 'They joined without an account, so a share link that lets guests in could let them in again as a new guest — reset it from Share to keep them out.'
-              : 'Share links won’t let them back.'
-          }`}
-          confirmLabel="Remove"
+          title={t('members.removeTitle', { name: pending.guest.name })}
+          description={`${t('members.removeGuestBody', {
+            boards:
+              pending.guest.boards.length === 1
+                ? (pending.guest.boards[0]?.title ?? '')
+                : t('members.allBoardsIn', {
+                    count: pending.guest.boards.length,
+                    workspace: workspaceName,
+                  }),
+          })} ${pending.guest.isGuest ? t('members.guestMayReturn') : t('members.linksWontLetBack')}`}
+          confirmLabel={t('library.remove')}
           danger
           testId="confirm-remove-guest"
           onClose={() => setPending(null)}
@@ -893,15 +939,15 @@ export function MembersDialog({
             const { guest } = pending;
             await removeGuest(workspaceId, guest.userId);
             setPending(null);
-            done({ tone: 'ok', text: `${guest.name} was removed from the boards.` });
+            done({ tone: 'ok', text: t('members.guestRemoved', { name: guest.name }) });
           }}
         />
       )}
       {pending?.kind === 'hand-over' && workspaceId && (
         <ConfirmDialog
-          title={`Make ${pending.member.name} the owner?`}
-          description={`They’re asked first, by email and in Settings. Once they accept they have full control of ${workspaceName}, including deleting it, and you become an admin. Until then nothing changes.`}
-          confirmLabel="Offer ownership"
+          title={t('members.makeOwnerTitle', { name: pending.member.name })}
+          description={t('members.makeOwnerBody', { workspace: workspaceName })}
+          confirmLabel={t('members.offerOwnership')}
           testId="confirm-hand-over"
           onClose={() => setPending(null)}
           onConfirm={async () => {
@@ -910,7 +956,7 @@ export function MembersDialog({
             setPending(null);
             done({
               tone: 'ok',
-              text: `Ownership offered to ${member.name}. It’s theirs once they accept.`,
+              text: t('members.ownershipOfferedTo', { name: member.name }),
             });
           }}
         />
@@ -939,6 +985,7 @@ export function HandOverDialog({
   onOffered: () => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const others = members.filter((member) => member.userId !== userId);
   const [chosen, setChosen] = useState<string | null>(others[0]?.userId ?? null);
   const [busy, setBusy] = useState(false);
@@ -952,21 +999,21 @@ export function HandOverDialog({
       await offerOwnership(workspaceId, chosen);
       onOffered();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not offer the ownership.');
+      setError(err instanceof Error ? err.message : t('members.offerFailed'));
       setBusy(false);
     }
   };
 
   return (
     <SettingsModal
-      title="Hand over the workspace"
-      description={`Choose who should own ${workspaceName}. They’re asked by email and in Settings, and once they accept you become an admin and can leave.`}
+      title={t('members.handOverTitle')}
+      description={t('members.handOverBody', { workspace: workspaceName })}
       onClose={onClose}
       width={460}
       actions={
         <>
           <SettingsButton onClick={onClose} disabled={busy}>
-            Cancel
+            {t('common.cancel')}
           </SettingsButton>
           <SettingsButton
             variant="primary"
@@ -974,14 +1021,14 @@ export function HandOverDialog({
             disabled={busy || !chosen}
             data-testid="hand-over-offer"
           >
-            {busy ? 'Offering…' : 'Offer ownership'}
+            {busy ? t('members.offering') : t('members.offerOwnership')}
           </SettingsButton>
         </>
       }
     >
       <ul
         role="radiogroup"
-        aria-label="New owner"
+        aria-label={t('members.newOwner')}
         className={cn('max-h-[300px] overflow-y-auto pr-[2px]', SCROLLBAR)}
       >
         {others.map((member) => {
@@ -1007,7 +1054,7 @@ export function HandOverDialog({
                 <span className="flex min-w-0 flex-1 flex-col gap-[1px]">
                   <span className="truncate text-[12.5px] font-medium">{member.name}</span>
                   <span className="truncate text-[11.5px] text-[var(--surface-fg-muted)]">
-                    {detailOf(member) ?? ROLE_LABELS[member.role]}
+                    {detailOf(member) ?? t(ROLE_LABELS[member.role])}
                   </span>
                 </span>
                 <span

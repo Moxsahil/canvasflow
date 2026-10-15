@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { readLibraryData, type LibraryFile } from './library-files';
 import type { LibraryEntry } from './useLibrary';
 
@@ -99,7 +100,10 @@ export function cataloguePreviewUrl(preview: string | null): string | null {
 export function catalogueCredit(authors: readonly CatalogueAuthor[]): string {
   const names = authors.map((author) => author.name);
   if (names.length <= 1) return names[0] ?? '';
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return t('common.listAnd', {
+    rest: names.slice(0, -1).join(', '),
+    last: names[names.length - 1]!,
+  });
 }
 
 let index: Promise<CatalogueLibrary[]> | null = null;
@@ -111,7 +115,7 @@ let index: Promise<CatalogueLibrary[]> | null = null;
 export function fetchCatalogue(): Promise<CatalogueLibrary[]> {
   index ??= fetch(`${CATALOGUE_URL}/libraries.json`)
     .then(async (res) => {
-      if (!res.ok) throw new Error(`The catalogue answered ${res.status}`);
+      if (!res.ok) throw new Error(t('library.catalogueStatus', { status: res.status }));
       return parseCatalogue(await res.json());
     })
     .catch((err: unknown) => {
@@ -139,12 +143,12 @@ export function fetchCatalogueLibrary(
   const loading = (
     url
       ? fetch(url).then(async (res) => {
-          if (!res.ok) throw new Error(`The catalogue answered ${res.status}`);
+          if (!res.ok) throw new Error(t('library.catalogueStatus', { status: res.status }));
           const file = readLibraryData(await res.json(), genId, title);
-          if (!file) throw new Error('That is not a library file');
+          if (!file) throw new Error(t('library.notLibraryFile'));
           return file;
         })
-      : Promise.reject(new Error('That is not a library from the catalogue'))
+      : Promise.reject(new Error(t('library.notFromCatalogue')))
   ).catch((err: unknown) => {
     files.delete(source);
     throw err;

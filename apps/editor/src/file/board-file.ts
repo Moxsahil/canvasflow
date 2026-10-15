@@ -1,5 +1,6 @@
 import { isImage, isSupportedImageMimeType, type Shape } from '@canvasflow/canvas-engine';
 import { excalidrawElementsToShapes } from '../clipboard/excalidraw-adapter';
+import { t } from '../i18n';
 import { sanitizeShapes } from './shape-sanitizer';
 import { extractSceneFromPng, extractSceneFromSvg } from './scene-metadata';
 
@@ -83,11 +84,11 @@ export function parseBoardFile(text: string, genId: () => string): ParsedBoardFi
   try {
     data = JSON.parse(text);
   } catch {
-    throw new BoardFileError("That file isn't valid JSON, so it can't be a board.");
+    throw new BoardFileError(t('file.notJson'));
   }
 
   if (!isRecord(data)) {
-    throw new BoardFileError("That file doesn't look like a board.");
+    throw new BoardFileError(t('file.notBoard'));
   }
 
   switch (data.type) {
@@ -95,12 +96,10 @@ export function parseBoardFile(text: string, genId: () => string): ParsedBoardFi
     case 'canvasflow/clipboard': {
       const version = typeof data.version === 'number' ? data.version : 1;
       if (version > BOARD_FILE_VERSION) {
-        throw new BoardFileError(
-          `That board was saved by a newer version of CanvasFlow (file version ${version}).`,
-        );
+        throw new BoardFileError(t('file.newerVersion', { version }));
       }
       if (!Array.isArray(data.shapes)) {
-        throw new BoardFileError('That board file has no shapes in it.');
+        throw new BoardFileError(t('file.noShapes'));
       }
       const files = readEmbeddedFiles(data.files);
       const { shapes, skipped } = sanitizeShapes(data.shapes, genId, {
@@ -115,7 +114,7 @@ export function parseBoardFile(text: string, genId: () => string): ParsedBoardFi
     case 'excalidraw':
     case 'excalidraw/clipboard': {
       if (!Array.isArray(data.elements)) {
-        throw new BoardFileError('That Excalidraw file has no elements in it.');
+        throw new BoardFileError(t('file.noElements'));
       }
       const converted = fromExcalidrawElements(data.elements, genId);
       const { shapes } = sanitizeShapes(converted, genId);
@@ -128,7 +127,7 @@ export function parseBoardFile(text: string, genId: () => string): ParsedBoardFi
     }
 
     default:
-      throw new BoardFileError("That file isn't a CanvasFlow board or an Excalidraw drawing.");
+      throw new BoardFileError(t('file.unknownFormat'));
   }
 }
 
@@ -139,9 +138,7 @@ export function parseImageFile(
   const embedded = file.bytes ? extractSceneFromPng(file.bytes) : extractSceneFromSvg(file.text);
 
   if (!embedded) {
-    throw new BoardFileError(
-      'That image has no board inside it. Only images exported with \u201cembed scene\u201d can be opened.',
-    );
+    throw new BoardFileError(t('file.noScene'));
   }
   return parseBoardFile(embedded, genId);
 }

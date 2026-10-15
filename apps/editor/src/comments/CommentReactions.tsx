@@ -1,10 +1,14 @@
 import { cn } from '@/lib/utils';
+import { t as translate, useT } from '../i18n';
 import type { CommentReaction } from './comment-model';
 
 /** "Ada", "Ada and Grace", "Ada, Grace and Linus". */
 function listed(names: readonly string[]): string {
   if (names.length <= 1) return names[0] ?? '';
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return translate('common.listAnd', {
+    rest: names.slice(0, -1).join(', '),
+    last: names[names.length - 1]!,
+  });
 }
 
 /**
@@ -29,6 +33,7 @@ export function CommentReactions({
   /** Which side of the comment they hang from: under your own, on the right. */
   align?: 'start' | 'end';
 }) {
+  const t = useT();
   if (reactions.length === 0) return null;
 
   return (
@@ -39,14 +44,16 @@ export function CommentReactions({
       {reactions.map(({ emoji, by }) => {
         const mine = by.some((person) => person.id === userId);
         const who = listed(
-          by.map((person) => (person.id === userId ? 'You' : person.name || 'Someone')),
+          by.map((person) =>
+            person.id === userId ? t('comments.you') : person.name || t('comments.someone'),
+          ),
         );
         return (
           <button
             key={emoji}
             type="button"
             aria-pressed={mine}
-            aria-label={`${emoji} ${by.length}, from ${who}`}
+            aria-label={t('comments.reactionFrom', { emoji, count: by.length, who })}
             title={who}
             disabled={!canReact}
             className={cn(

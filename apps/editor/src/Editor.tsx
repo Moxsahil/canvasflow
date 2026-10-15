@@ -75,8 +75,7 @@ import {
   type SnapTargets,
 } from './snapping';
 import {
-  PASTE_HERE_NOTICE,
-  PASTE_NOTICE,
+  pasteNotice,
   canWriteClipboardItems,
   clipboardContentFrom,
   copyDataFor,
@@ -251,6 +250,7 @@ import { TermsNotice } from './profile/TermsNotice';
 import { AnalyticsNotice, track, useUsageAnalytics } from './analytics';
 
 import { ConfirmDialog } from './ui';
+import { rich, t as translate, useT } from './i18n';
 import { NoticeDialog, type Notice } from './ui/NoticeDialog';
 import { Toast, useToast } from './ui/Toast';
 
@@ -260,18 +260,18 @@ const THREAD_LEAD = 160;
 const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 /** A link to shapes that have all gone from the board, opened or followed. */
-const SHAPES_NOT_FOUND: Notice = {
-  title: 'Shapes not found',
-  body: 'The shapes this link points to are no longer on this board. They may have been deleted.',
+const shapesNotFound = (): Notice => ({
+  title: translate('notices.shapesNotFound'),
+  body: translate('notices.shapesNotFoundBody'),
   tone: 'warn',
-};
+});
 
 /** A link to a comment thread that has since been deleted, opened from an email. */
-const COMMENT_NOT_FOUND: Notice = {
-  title: 'Comment not found',
-  body: 'The comment this link points to is no longer on this board. It may have been deleted.',
+const commentNotFound = (): Notice => ({
+  title: translate('notices.commentNotFound'),
+  body: translate('notices.commentNotFoundBody'),
   tone: 'warn',
-};
+});
 
 /** `?comment=<thread id>` — the thread a link, such as a mention email's, opens. */
 const COMMENT_PARAM = 'comment';
@@ -565,6 +565,7 @@ let lastChromeUser: {
 } | null = null;
 
 export function Editor({ boardId }: EditorProps) {
+  const t = useT();
   /** The editor root. Every popup portals here, for the theme tokens on it. */
   const editorRef = useRef<HTMLDivElement>(null);
   /** The space left of the sidebar: what the canvas fills and measures. */
@@ -672,11 +673,11 @@ export function Editor({ boardId }: EditorProps) {
   const { show: showToast } = toast;
   const dismissNotice = useCallback(() => setNotice(null), []);
   const showOpenNotice = useCallback(
-    (body: string) => setNotice({ title: 'Open board', body, tone: 'warn' }),
+    (body: string) => setNotice({ title: translate('notices.openBoard'), body, tone: 'warn' }),
     [],
   );
   const showSaveNotice = useCallback(
-    (body: string) => setNotice({ title: 'Save board', body, tone: 'warn' }),
+    (body: string) => setNotice({ title: translate('notices.saveBoard'), body, tone: 'warn' }),
     [],
   );
 
@@ -1303,7 +1304,7 @@ export function Editor({ boardId }: EditorProps) {
   );
 
   const showImageNotice = useCallback(
-    (body: string) => setNotice({ title: 'Image', body, tone: 'warn' }),
+    (body: string) => setNotice({ title: translate('tools.image'), body, tone: 'warn' }),
     [],
   );
 
@@ -1354,7 +1355,7 @@ export function Editor({ boardId }: EditorProps) {
         const files = await pickImageFiles();
         if (files.length > 0) await images.insertFiles(files, centre);
       } catch {
-        showImageNotice("That file couldn't be opened.");
+        showImageNotice(translate('notices.fileUnopenable'));
       }
     })();
   }, [images, viewportCentre, showImageNotice, readOnly]);
@@ -1920,7 +1921,7 @@ export function Editor({ boardId }: EditorProps) {
 
     const rect = shapeLinkRect(arrivalLink, shownShapes);
     if (!rect) {
-      setNotice(SHAPES_NOT_FOUND);
+      setNotice(shapesNotFound());
       return;
     }
     didInitialViewFitRef.current = true;
@@ -1951,7 +1952,7 @@ export function Editor({ boardId }: EditorProps) {
     window.history.replaceState(window.history.state, '', here.href);
 
     if (!thread) {
-      setNotice(COMMENT_NOT_FOUND);
+      setNotice(commentNotFound());
       return;
     }
     didInitialViewFitRef.current = true;
@@ -2720,7 +2721,7 @@ export function Editor({ boardId }: EditorProps) {
     storePenSeen();
     if (preferences.values.penMode) return;
     preferences.set('penMode', true);
-    showToast('Pen mode on: only the pen draws. Turn it off in Preferences');
+    showToast(translate('notices.penModeOn'));
   }, [preferences, showToast]);
 
   const handlePointerUp = useCallback(
@@ -3485,15 +3486,15 @@ export function Editor({ boardId }: EditorProps) {
     try {
       await navigator.clipboard.writeText(url);
       setNotice({
-        title: 'Link copied',
-        body: 'Anyone who already has access can open this board with it. To invite someone new, use Live collaboration.',
+        title: translate('notices.linkCopied'),
+        body: translate('notices.linkCopiedBody'),
         tone: 'ok',
         link: { url, copied: true },
       });
     } catch {
       setNotice({
-        title: 'Couldn’t copy the link',
-        body: 'Your browser didn’t allow it. Copy the link from the address bar instead.',
+        title: translate('notices.linkCopyFailed'),
+        body: translate('notices.linkCopyFailedAddressBar'),
         tone: 'warn',
         link: { url, copied: false },
       });
@@ -3513,11 +3514,11 @@ export function Editor({ boardId }: EditorProps) {
     const url = shapeLinkFor(window.location.href, selected);
     try {
       await navigator.clipboard.writeText(url);
-      showToast('Link copied to clipboard');
+      showToast(translate('notices.linkCopiedToClipboard'));
     } catch {
       setNotice({
-        title: 'Couldn’t copy the link',
-        body: 'Your browser didn’t allow it. Copy the link below instead.',
+        title: translate('notices.linkCopyFailed'),
+        body: translate('notices.linkCopyFailedBelow'),
         tone: 'warn',
         link: { url, copied: false },
       });
@@ -3541,7 +3542,18 @@ export function Editor({ boardId }: EditorProps) {
   const showCopied = useCallback(
     (format: string) => {
       track('copied_as', { format });
-      showToast(`Copied ${copySubjectFor(selectedShapes)} as ${format}`);
+      const shown = format === 'text' ? translate('copy.formatText') : format;
+      const subject = copySubjectFor(selectedShapes);
+      showToast(
+        translate(
+          subject === 'board'
+            ? 'copy.copiedBoard'
+            : subject === 'frame'
+              ? 'copy.copiedFrame'
+              : 'copy.copiedSelection',
+          { format: shown },
+        ),
+      );
     },
     [selectedShapes, showToast],
   );
@@ -3552,10 +3564,10 @@ export function Editor({ boardId }: EditorProps) {
       const ours = err instanceof Error && !(err instanceof DOMException);
       showToast(
         err instanceof ExportTooLargeError
-          ? 'Too large to copy as an image. Try copying less.'
+          ? translate('copy.tooLarge')
           : ours
             ? err.message
-            : 'Couldn’t copy to the clipboard',
+            : translate('copy.failed'),
         'warn',
       );
     },
@@ -3617,7 +3629,8 @@ export function Editor({ boardId }: EditorProps) {
   const copyAsPlainText = useCallback(
     (text: string, format: string) => {
       const written =
-        navigator.clipboard?.writeText(text) ?? Promise.reject(new Error('No clipboard'));
+        navigator.clipboard?.writeText(text) ??
+        Promise.reject(new Error(translate('copy.noClipboard')));
       written.then(() => showCopied(format), showCopyFailed);
     },
     [showCopied, showCopyFailed],
@@ -3647,7 +3660,7 @@ export function Editor({ boardId }: EditorProps) {
     const { shapes: kept, imagesLeftOut } = libraryShapesFor(selectedIds, shapes);
     if (kept.length === 0) {
       showToast(
-        imagesLeftOut > 0 ? 'Images can’t go in the library yet' : 'Nothing to add',
+        imagesLeftOut > 0 ? translate('libraryAdd.noImages') : translate('libraryAdd.nothing'),
         'warn',
       );
       return;
@@ -3657,11 +3670,11 @@ export function Editor({ boardId }: EditorProps) {
       track('library_item_added');
       showToast(
         imagesLeftOut === 0
-          ? 'Added to library'
-          : `Added to library, without ${imagesLeftOut === 1 ? 'the image' : `${imagesLeftOut} images`}`,
+          ? translate('libraryAdd.added')
+          : translate('libraryAdd.addedWithout', { count: imagesLeftOut }),
       );
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Couldn’t add that to your library', 'warn');
+      showToast(err instanceof Error ? err.message : translate('library.addFailed'), 'warn');
     }
   }, [libraryEnabled, addToLibrary, selectedIds, shapes, showToast]);
 
@@ -3721,7 +3734,7 @@ export function Editor({ boardId }: EditorProps) {
           camera: fitRectToViewport(rect, { width, height }, { maxZoom: 1 }),
         });
       } else {
-        setNotice(SHAPES_NOT_FOUND);
+        setNotice(shapesNotFound());
       }
       return true;
     },
@@ -3872,7 +3885,7 @@ export function Editor({ boardId }: EditorProps) {
       if (readOnly) return;
 
       pasteTargetRef.current = { at };
-      setNotice(at ? PASTE_HERE_NOTICE : PASTE_NOTICE);
+      setNotice(pasteNotice(Boolean(at)));
     },
     [pasteClipboard, readOnly],
   );
@@ -4384,8 +4397,8 @@ export function Editor({ boardId }: EditorProps) {
                 stylePanelHalo: preferences.values.floatingStyleBar,
               }}
               labels={{
-                addLink: linkShape?.link ? 'Edit link' : 'Add link',
-                lock: selectionLocked ? 'Unlock' : 'Lock',
+                addLink: linkShape?.link ? t('commands.editLink') : t('contextMenu.addLink'),
+                lock: selectionLocked ? t('lock.unlock') : t('contextMenu.lock'),
               }}
               onCloseAutoFocus={handleMenuCloseAutoFocus}
             >
@@ -4572,7 +4585,7 @@ export function Editor({ boardId }: EditorProps) {
                     onToggle={toggleToolLock}
                   />
                 )}
-                <GlassDock aria-label="Editing tools">
+                <GlassDock aria-label={t('toolbar.editingTools')}>
                   {!readOnly && (
                     <>
                       <HistoryPanel
@@ -4723,17 +4736,18 @@ export function Editor({ boardId }: EditorProps) {
 
             <ConfirmDialog
               open={pendingReplace !== null}
-              title="Replace board contents?"
-              confirmLabel="Replace"
+              title={t('replace.title')}
+              confirmLabel={t('replace.confirm')}
               destructive
               icon={<FileInput aria-hidden="true" />}
               theme={presenceTheme}
               onConfirm={confirmReplace}
               onClose={cancelReplace}
             >
-              Opening <strong>{lastReplace.current?.fileName}</strong> replaces the{' '}
-              {replaceShapeCount.current} shape{replaceShapeCount.current === 1 ? '' : 's'} on this
-              board for everyone in it. You can undo this with <KeyCaps keys="mod+z" size="sm" />.
+              {rich(t('replace.body', { count: replaceShapeCount.current }), {
+                file: <strong>{lastReplace.current?.fileName}</strong>,
+                undo: <KeyCaps keys="mod+z" size="sm" />,
+              })}
             </ConfirmDialog>
 
             <ExportImageDialog
@@ -4753,8 +4767,8 @@ export function Editor({ boardId }: EditorProps) {
                 other thing in the app that is not framing the canvas. */}
             <ConfirmDialog
               open={resetOpen}
-              title="Reset the canvas?"
-              confirmLabel="Reset"
+              title={t('reset.title')}
+              confirmLabel={t('reset.confirm')}
               // Nothing to discard on an empty board, so nothing dressed as
               // discarding — but the row is still live, and it still
               // recentres the view.
@@ -4764,19 +4778,11 @@ export function Editor({ boardId }: EditorProps) {
               onConfirm={confirmReset}
               onClose={hideReset}
             >
-              {resetShapeCount.current > 0 ? (
-                <>
-                  This clears all {resetShapeCount.current} shape
-                  {resetShapeCount.current === 1 ? '' : 's'} from this board for everyone in it, and
-                  returns the view to where a new board starts. You can undo it with{' '}
-                  <KeyCaps keys="mod+z" size="sm" />.
-                </>
-              ) : (
-                <>
-                  This board is already empty, so this only returns the view to where a new board
-                  starts.
-                </>
-              )}
+              {resetShapeCount.current > 0
+                ? rich(t('reset.body', { count: resetShapeCount.current }), {
+                    undo: <KeyCaps keys="mod+z" size="sm" />,
+                  })
+                : t('reset.emptyBody')}
             </ConfirmDialog>
 
             <NoticeDialog

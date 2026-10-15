@@ -1,5 +1,6 @@
 import type { Shape } from '@canvasflow/canvas-engine';
 import { env } from '@/lib/env';
+import { t } from '../i18n';
 
 /**
  * A person's library, from the API gateway.
@@ -40,12 +41,12 @@ function request(path: string, token: string, init: RequestInit = {}) {
 async function failure(res: Response): Promise<LibraryError> {
   const body = (await res.json().catch(() => null)) as { message?: unknown } | null;
   if (res.status === 401) {
-    return new LibraryError('Your session has ended. Sign in again.', 401);
+    return new LibraryError(t('library.sessionEnded'), 401);
   }
   const message =
     typeof body?.message === 'string'
       ? body.message
-      : `Something went wrong with the library (${res.status}).`;
+      : t('library.statusError', { status: res.status });
   return new LibraryError(message, res.status);
 }
 

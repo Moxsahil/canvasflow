@@ -3,6 +3,7 @@ import { Crosshair, Link as LinkIcon } from 'lucide-react';
 import type { Shape } from '@canvasflow/canvas-engine';
 import { menuSurfaceClasses } from '@/components/ui/menu-look';
 import { cn } from '@/lib/utils';
+import { useT } from '../i18n';
 import type { Camera } from '../machine/tool-machine.types';
 import type { Size } from '../properties/halo-placement';
 import {
@@ -34,6 +35,7 @@ interface LinkBadgesProps {
  * the board to select or drag the shape beneath.
  */
 export function LinkBadges({ shapes, camera, board, except, onFollow }: LinkBadgesProps) {
+  const t = useT();
   const badges = useMemo(
     () => linkBadgePlacements(shapes, camera, board, except),
     [shapes, camera, board, except],
@@ -60,7 +62,7 @@ export function LinkBadges({ shapes, camera, board, except, onFollow }: LinkBadg
             rel="noopener noreferrer"
             draggable={false}
             title={label}
-            aria-label={onThisBoard ? `Go to ${label}` : `Open link: ${label}`}
+            aria-label={onThisBoard ? t('links.goTo', { label }) : t('links.open', { label })}
             data-testid="link-badge"
             data-on-board
             className={cn(

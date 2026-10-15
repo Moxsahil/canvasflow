@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Info, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { rich, useT } from '../i18n';
 import type { Profile } from './profile-api';
 import { useVerificationStatus } from './useVerificationStatus';
 import { forgetDismissalsByEmail, rememberDismissed, wasDismissed } from './verification-dismissal';
@@ -27,6 +28,7 @@ export function VerificationNotice({
   /** Fired once, when confirmation lands, so the rest of the editor re-reads. */
   onVerified?: () => void;
 }) {
+  const t = useT();
   const [dismissed, setDismissed] = useState(false);
 
   // Once per page: clears what older versions left behind in this browser.
@@ -56,16 +58,15 @@ export function VerificationNotice({
       >
         <Info className={cn('mt-0.5 size-5 shrink-0', 'text-foreground')} aria-hidden="true" />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="text-sm font-semibold">Confirm your email</span>
+          <span className="text-sm font-semibold">{t('verify.title')}</span>
           <span className="text-xs text-foreground/70">
-            We sent a link to <span className="break-all">{email}</span>. Click it to confirm your
-            address — your boards are saved either way.
+            {rich(t('verify.body'), { email: <span className="break-all">{email}</span> })}
           </span>
         </div>
         <button
           type="button"
           onClick={dismiss}
-          aria-label="Dismiss"
+          aria-label={t('common.dismiss')}
           className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
         >
           <X className="size-4" aria-hidden="true" />

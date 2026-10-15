@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sha256Hex } from '../images/prepare-image';
 import { AvatarError, deleteAvatar, fetchAvatarUrl, uploadAvatar } from './avatar-client';
+import { t } from '../i18n';
 
 /**
  * One person's photo: where to read it from, and — for your own — how to
@@ -114,7 +115,7 @@ interface UseAvatarOptions {
 
 function messageOf(cause: unknown): string {
   if (cause instanceof AvatarError) return cause.message;
-  return cause instanceof Error ? cause.message : 'Something went wrong.';
+  return cause instanceof Error ? cause.message : t('common.somethingWentWrong');
 }
 
 export function useAvatar({

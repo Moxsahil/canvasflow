@@ -17,6 +17,7 @@ import {
   type WorkspaceSummary,
 } from './workspace-api';
 import { track } from '../analytics/analytics';
+import { t } from '../i18n';
 import { mergeBoards } from './merge-boards';
 import { listSharedBoards, type SharedBoard } from './people-api';
 import { useWorkspaceChanges } from './workspace-events';
@@ -192,7 +193,7 @@ function workspaceHolding(boardId: string, boards: Record<string, WorkspaceBoard
 }
 
 function messageOf(err: unknown): string {
-  return err instanceof Error ? err.message : 'Something went wrong.';
+  return err instanceof Error ? err.message : t('common.somethingWentWrong');
 }
 
 /**

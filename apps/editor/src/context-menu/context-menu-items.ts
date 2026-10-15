@@ -16,6 +16,7 @@ import {
   WrapText,
 } from 'lucide-react';
 import { COMMANDS_BY_ID, type CommandIcon, type CommandId } from '../commands/commands';
+import type { TranslationKey } from '../i18n';
 import { MENU_ITEMS, type MenuItemId } from '../menu/menu-items';
 import { PREFERENCE_GROUPS, type PreferenceId } from '../preferences/preferences';
 
@@ -89,7 +90,7 @@ export type ContextMenuItemId =
   | 'stylePanelHalo';
 
 export interface ContextMenuItemMeta {
-  readonly label: string;
+  readonly labelKey: TranslationKey;
   /** At the right-hand end of the row. A toggle draws its on/off box there instead. */
   readonly icon?: CommandIcon;
   /**
@@ -108,7 +109,7 @@ export interface ContextMenuItemMeta {
    */
   readonly choice?: boolean;
   /** Says what the row does, on hover, where its label alone may not. */
-  readonly hint?: string;
+  readonly hintKey?: TranslationKey;
   /**
    * Changes the board. Left out of the menu for anyone who cannot, rather
    * than shown disabled: a viewer has no use for a row they can never press.
@@ -120,10 +121,10 @@ export interface ContextMenuItemMeta {
  * A row for something the palette already runs. Its icon and key come from
  * there, so the two places cannot drift apart.
  */
-function fromCommand(id: CommandId, label: string, edits = true): ContextMenuItemMeta {
+function fromCommand(id: CommandId, labelKey: TranslationKey, edits = true): ContextMenuItemMeta {
   const command = COMMANDS_BY_ID.get(id);
   return {
-    label,
+    labelKey,
     icon: command?.icon,
     shortcut: command?.shortcut,
     destructive: command?.destructive,
@@ -133,103 +134,112 @@ function fromCommand(id: CommandId, label: string, edits = true): ContextMenuIte
 
 /** Likewise for a row the sidebar already has. */
 function fromMenu(id: MenuItemId): ContextMenuItemMeta {
-  const { label, icon, shortcut } = MENU_ITEMS[id];
-  return { label, icon, shortcut };
+  const { labelKey, icon, shortcut } = MENU_ITEMS[id];
+  return { labelKey, icon, shortcut };
 }
 
 /** A preference ticked on and off from here, labelled as the preferences menu labels it. */
-function fromPreference(id: PreferenceId, label: string, edits = false): ContextMenuItemMeta {
+function fromPreference(
+  id: PreferenceId,
+  labelKey: TranslationKey,
+  edits = false,
+): ContextMenuItemMeta {
   const preference = PREFERENCE_GROUPS.flatMap((group) => group.items).find(
     (item) => item.id === id,
   );
-  return { label: preference?.label ?? label, shortcut: preference?.shortcut, toggle: true, edits };
+  return {
+    labelKey: preference?.labelKey ?? labelKey,
+    shortcut: preference?.shortcut,
+    toggle: true,
+    edits,
+  };
 }
 
 /** A row whose feature is not built. It says "Soon" before its icon. */
-const soon = (label: string, icon: CommandIcon, edits = true): ContextMenuItemMeta => ({
-  label,
+const soon = (labelKey: TranslationKey, icon: CommandIcon, edits = true): ContextMenuItemMeta => ({
+  labelKey,
   icon,
   edits,
 });
 
 export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuItemMeta>> = {
-  cut: fromCommand('cut', 'Cut'),
-  copy: fromCommand('copy', 'Copy', false),
-  paste: fromCommand('paste', 'Paste'),
+  cut: fromCommand('cut', 'contextMenu.cut'),
+  copy: fromCommand('copy', 'contextMenu.copy', false),
+  paste: fromCommand('paste', 'contextMenu.paste'),
   // Built, but run from this menu alone: there is no command to take an icon
   // and a key from, and no key of its own.
-  pasteHere: { label: 'Paste here', icon: MousePointerClick, edits: true },
-  duplicate: fromCommand('duplicate', 'Duplicate'),
+  pasteHere: { labelKey: 'contextMenu.pasteHere', icon: MousePointerClick, edits: true },
+  duplicate: fromCommand('duplicate', 'contextMenu.duplicate'),
 
-  copyAsPng: fromCommand('copyAsPng', 'PNG', false),
-  copyAsSvg: fromCommand('copyAsSvg', 'SVG', false),
-  copyAsText: fromCommand('copyAsText', 'Text', false),
+  copyAsPng: fromCommand('copyAsPng', 'contextMenu.copyAsPng', false),
+  copyAsSvg: fromCommand('copyAsSvg', 'contextMenu.copyAsSvg', false),
+  copyAsText: fromCommand('copyAsText', 'contextMenu.copyAsText', false),
   // Named for its format, as the rows around it are: "Code" alone would not
   // say which.
   copyAsMermaid: {
-    ...fromCommand('copyAsMermaid', 'Mermaid', false),
-    hint: 'A flowchart of the boxes and arrows, as Mermaid code',
+    ...fromCommand('copyAsMermaid', 'contextMenu.copyAsMermaid', false),
+    hintKey: 'contextMenu.copyAsMermaid.hint',
   },
-  copyAsJson: fromCommand('copyAsJson', 'JSON', false),
+  copyAsJson: fromCommand('copyAsJson', 'contextMenu.copyAsJson', false),
   exportImage: fromMenu('exportImage'),
 
-  flatten: soon('Flatten', Layers),
-  outlineStroke: soon('Outline stroke', PenTool),
-  useAsMask: soon('Use as mask', VenetianMask),
-  editLine: soon('Edit line points', Spline),
-  cropImage: soon('Crop image', Crop),
-  textAutoSize: soon('Auto-size text', ALargeSmall),
-  bindText: soon('Bind text to container', TextCursorInput),
-  unbindText: soon('Unbind text', RemoveFormatting),
-  wrapTextInContainer: soon('Wrap text in container', WrapText),
-  convertToEmbed: soon('Convert to embed', AppWindow),
-  convertToBookmark: soon('Convert to bookmark', Bookmark),
+  flatten: soon('contextMenu.flatten', Layers),
+  outlineStroke: soon('contextMenu.outlineStroke', PenTool),
+  useAsMask: soon('contextMenu.useAsMask', VenetianMask),
+  editLine: soon('contextMenu.editLine', Spline),
+  cropImage: soon('contextMenu.cropImage', Crop),
+  textAutoSize: soon('contextMenu.textAutoSize', ALargeSmall),
+  bindText: soon('contextMenu.bindText', TextCursorInput),
+  unbindText: soon('contextMenu.unbindText', RemoveFormatting),
+  wrapTextInContainer: soon('contextMenu.wrapTextInContainer', WrapText),
+  convertToEmbed: soon('contextMenu.convertToEmbed', AppWindow),
+  convertToBookmark: soon('contextMenu.convertToBookmark', Bookmark),
 
-  moveToNewBoard: soon('New board', SquarePlus),
+  moveToNewBoard: soon('contextMenu.moveToNewBoard', SquarePlus),
 
-  bringToFront: fromCommand('bringToFront', 'Bring to front'),
-  bringForward: fromCommand('bringForward', 'Bring forward'),
-  sendBackward: fromCommand('sendBackward', 'Send backward'),
-  sendToBack: fromCommand('sendToBack', 'Send to back'),
+  bringToFront: fromCommand('bringToFront', 'contextMenu.bringToFront'),
+  bringForward: fromCommand('bringForward', 'contextMenu.bringForward'),
+  sendBackward: fromCommand('sendBackward', 'contextMenu.sendBackward'),
+  sendToBack: fromCommand('sendToBack', 'contextMenu.sendToBack'),
 
-  flipHorizontal: fromCommand('flipHorizontal', 'Flip horizontal'),
-  flipVertical: fromCommand('flipVertical', 'Flip vertical'),
+  flipHorizontal: fromCommand('flipHorizontal', 'contextMenu.flipHorizontal'),
+  flipVertical: fromCommand('flipVertical', 'contextMenu.flipVertical'),
 
-  addLink: fromCommand('editLink', 'Add link'),
-  copyLinkToSelection: fromCommand('copyLinkToSelection', 'Copy link to selection', false),
+  addLink: fromCommand('editLink', 'contextMenu.addLink'),
+  copyLinkToSelection: fromCommand('copyLinkToSelection', 'contextMenu.copyLinkToSelection', false),
 
-  addToLibrary: fromCommand('addToLibrary', 'Add to library', false),
+  addToLibrary: fromCommand('addToLibrary', 'contextMenu.addToLibrary', false),
 
-  hide: fromCommand('hideSelection', 'Hide'),
-  lock: fromCommand('toggleLock', 'Lock'),
-  unlockAll: fromCommand('unlockAll', 'Unlock all'),
-  showAll: fromCommand('showAll', 'Show all'),
-  deleteSelection: fromCommand('deleteSelection', 'Delete'),
+  hide: fromCommand('hideSelection', 'contextMenu.hide'),
+  lock: fromCommand('toggleLock', 'contextMenu.lock'),
+  unlockAll: fromCommand('unlockAll', 'contextMenu.unlockAll'),
+  showAll: fromCommand('showAll', 'contextMenu.showAll'),
+  deleteSelection: fromCommand('deleteSelection', 'contextMenu.deleteSelection'),
 
-  selectAll: fromCommand('selectAll', 'Select all'),
-  showGrid: fromPreference('showGrid', 'Show grid'),
-  snapToObjects: fromPreference('snapToObjects', 'Snap to objects', true),
+  selectAll: fromCommand('selectAll', 'contextMenu.selectAll'),
+  showGrid: fromPreference('showGrid', 'preferences.showGrid'),
+  snapToObjects: fromPreference('snapToObjects', 'preferences.snapToObjects', true),
   // Not in the preferences menu, which dropped it; still read by snapping.
-  snapToMidpoints: fromPreference('snapToMidpoints', 'Snap to midpoints', true),
-  arrowBinding: fromPreference('arrowBinding', 'Arrow binding', true),
-  focusMode: fromPreference('focusMode', 'Focus mode'),
-  viewMode: fromPreference('viewMode', 'View mode'),
-  canvasStats: fromPreference('canvasStats', 'Canvas stats'),
-  showComments: fromPreference('showComments', 'Show comments'),
+  snapToMidpoints: fromPreference('snapToMidpoints', 'contextMenu.snapToMidpoints', true),
+  arrowBinding: fromPreference('arrowBinding', 'preferences.arrowBinding', true),
+  focusMode: fromPreference('focusMode', 'preferences.focusMode'),
+  viewMode: fromPreference('viewMode', 'preferences.viewMode'),
+  canvasStats: fromPreference('canvasStats', 'preferences.canvasStats'),
+  showComments: fromPreference('showComments', 'preferences.showComments'),
   commandPalette: fromMenu('commandPalette'),
 
   // A viewer has no style controls for either to show.
   stylePanelInspector: {
-    label: 'Inspector',
+    labelKey: 'contextMenu.stylePanelInspector',
     icon: PanelRight,
-    hint: 'Style controls docked at the right edge',
+    hintKey: 'contextMenu.stylePanelInspector.hint',
     choice: true,
     edits: true,
   },
   stylePanelHalo: {
-    label: 'Halo',
+    labelKey: 'contextMenu.stylePanelHalo',
     icon: RectangleEllipsis,
-    hint: 'Style controls in a bar that floats over the selection',
+    hintKey: 'contextMenu.stylePanelHalo.hint',
     choice: true,
     edits: true,
   },
@@ -238,7 +248,7 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
 /** A row that opens a list of its own. */
 export interface ContextSubmenu {
   readonly submenu: string;
-  readonly label: string;
+  readonly labelKey: TranslationKey;
   readonly items: readonly ContextMenuItemId[];
   /** Followed by the boards of this workspace — see `MoveToBoards`. */
   readonly listsBoards?: boolean;
@@ -256,14 +266,14 @@ export type ContextMenuGroup = readonly ContextMenuEntry[];
 
 const COPY_AS: ContextSubmenu = {
   submenu: 'copyAs',
-  label: 'Copy as',
+  labelKey: 'contextMenu.submenu.copyAs',
   items: ['copyAsPng', 'copyAsSvg', 'copyAsText', 'copyAsMermaid', 'copyAsJson'],
   compact: true,
 };
 
 const EDIT: ContextSubmenu = {
   submenu: 'edit',
-  label: 'Edit',
+  labelKey: 'contextMenu.submenu.edit',
   items: [
     'flatten',
     'outlineStroke',
@@ -286,7 +296,7 @@ const EDIT: ContextSubmenu = {
  */
 const MOVE_TO: ContextSubmenu = {
   submenu: 'moveTo',
-  label: 'Move to',
+  labelKey: 'contextMenu.submenu.moveTo',
   items: ['moveToNewBoard'],
   listsBoards: true,
 };
@@ -294,7 +304,7 @@ const MOVE_TO: ContextSubmenu = {
 /** Where the style controls live: docked at the side, or over the selection. */
 const STYLE_PANEL: ContextSubmenu = {
   submenu: 'stylePanel',
-  label: 'Style panel',
+  labelKey: 'contextMenu.submenu.stylePanel',
   items: ['stylePanelInspector', 'stylePanelHalo'],
   compact: true,
 };
@@ -331,7 +341,7 @@ export const CANVAS_MENU: readonly ContextMenuGroup[] = [
 /** The order rows and the flips: how a selection sits among the rest. */
 const ARRANGE: ContextSubmenu = {
   submenu: 'arrange',
-  label: 'Arrange',
+  labelKey: 'contextMenu.submenu.arrange',
   items: [
     'bringToFront',
     'bringForward',
@@ -344,13 +354,13 @@ const ARRANGE: ContextSubmenu = {
 
 const GRID_AND_SNAPPING: ContextSubmenu = {
   submenu: 'gridAndSnapping',
-  label: 'Grid and snapping',
+  labelKey: 'contextMenu.submenu.gridAndSnapping',
   items: ['showGrid', 'snapToObjects', 'snapToMidpoints', 'arrowBinding'],
 };
 
 const VIEW: ContextSubmenu = {
   submenu: 'view',
-  label: 'View',
+  labelKey: 'contextMenu.submenu.view',
   items: ['focusMode', 'viewMode', 'canvasStats', 'showComments'],
   compact: true,
 };

@@ -4,6 +4,7 @@ import { BoardFileError, parseBoardFile, parseImageFile, type ParsedBoardFile } 
 import { unpackImages, type CarriedImage } from './embedded-images';
 import { pickBoardFile } from './pick-file';
 import { track } from '../analytics/analytics';
+import { t } from '../i18n';
 
 interface PendingReplace {
   fileName: string;
@@ -41,13 +42,11 @@ interface OpenBoardFile {
 }
 
 function describeLoad({ shapes, skipped }: ParsedBoardFile, fileName: string): string {
-  const loaded = `Loaded ${shapes.length} shape${shapes.length === 1 ? '' : 's'} from ${fileName}.`;
+  const loaded = t('file.loaded', { count: shapes.length, fileName });
   if (skipped === 0) return loaded;
   // Images and frames are the usual cause — the adapter has no equivalent for
   // them — so the count is reported rather than silently swallowed.
-  return `${loaded} ${skipped} item${skipped === 1 ? '' : 's'} couldn't be opened and ${
-    skipped === 1 ? 'was' : 'were'
-  } skipped.`;
+  return `${loaded} ${t('file.skipped', { count: skipped })}`;
 }
 
 /**
@@ -99,7 +98,7 @@ export function useOpenBoardFile({
         const read = isImage ? parseImageFile(file, genId) : parseBoardFile(file.text, genId);
         const { parsed, images } = await unpackImages(read);
         if (parsed.shapes.length === 0) {
-          onNotice(`There were no shapes CanvasFlow could open in ${file.name}.`);
+          onNotice(t('file.nothingToOpen', { fileName: file.name }));
           return;
         }
 
@@ -112,11 +111,7 @@ export function useOpenBoardFile({
           setPendingReplace(pending);
         }
       } catch (error) {
-        onNotice(
-          error instanceof BoardFileError
-            ? error.message
-            : "That file couldn't be opened. It may be unreadable or corrupt.",
-        );
+        onNotice(error instanceof BoardFileError ? error.message : t('file.openFailed'));
       }
     })();
   }, [apply, genId, onNotice, shapeCount]);

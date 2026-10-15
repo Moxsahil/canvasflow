@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useT } from '../i18n';
 import { needsTermsNotice } from '../profile/TermsNotice';
 import type { Profile } from '../profile/profile-api';
 
@@ -38,6 +39,7 @@ export function AnalyticsNotice({
   /** Saves the answer; resolves false when it could not. */
   onAnswer: (allow: boolean) => Promise<boolean>;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -64,25 +66,24 @@ export function AnalyticsNotice({
           <BarChart3 className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span id="cf-analytics-notice-title" className="text-sm font-semibold">
-              Help improve CanvasFlow?
+              {t('analytics.title')}
             </span>
             <span id="cf-analytics-notice-body" className="text-xs text-foreground/70">
-              Share anonymous usage data, like which tools you use. Never what’s on your boards. You
-              can change this any time in Settings → Data &amp; Privacy.
+              {t('analytics.body')}
             </span>
             {failed && (
               <span role="alert" className="text-xs text-destructive">
-                Your answer couldn’t be saved. Try again.
+                {t('analytics.saveFailed')}
               </span>
             )}
           </div>
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" size="sm" disabled={busy} onClick={() => void answer(false)}>
-            No thanks
+            {t('analytics.decline')}
           </Button>
           <Button size="sm" disabled={busy} onClick={() => void answer(true)}>
-            Allow
+            {t('analytics.allow')}
           </Button>
         </div>
       </div>

@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/cnippet-toolbar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatShortcut } from '../help/platform';
+import { t as translate, useT } from '../i18n';
 import { MAX_ZOOM, MIN_ZOOM } from '../machine/tool-machine.types';
 import type { SyncStatus } from '../sync/sync-status';
 import { BREAKPOINT, getBreakpoint } from '../ui/breakpoints';
@@ -71,6 +72,7 @@ export function ZoomPanel({
   onResetZoom,
   onZoomToFit,
 }: ZoomPanelProps) {
+  const t = useT();
   const zoomPercent = Math.round(zoom * 100);
   const breakpoint = getBreakpoint(canvasWidth);
 
@@ -80,7 +82,7 @@ export function ZoomPanel({
     <Tooltip>
       <TooltipTrigger asChild>
         <ToolbarButton
-          aria-label={`Reset zoom to 100%, currently ${zoomPercent}%`}
+          aria-label={t('zoom.resetCurrently', { percent: zoomPercent })}
           onClick={onResetZoom}
           render={
             <Button
@@ -92,13 +94,15 @@ export function ZoomPanel({
           {`${zoomPercent}%`}
         </ToolbarButton>
       </TooltipTrigger>
-      <TooltipContent>Reset zoom · {formatShortcut('mod+0')}</TooltipContent>
+      <TooltipContent>
+        {t('zoom.reset')} · {formatShortcut('mod+0')}
+      </TooltipContent>
     </Tooltip>
   );
 
   return (
     <Toolbar
-      aria-label="View controls"
+      aria-label={t('zoom.viewControls')}
       // What a toast stands on: it measures where this panel is.
       data-zoom-panel=""
       // Surface, radius, padding, gap and row alignment are the dock's, class
@@ -124,7 +128,7 @@ export function ZoomPanel({
             <Tooltip>
               <TooltipTrigger asChild>
                 <ToolbarButton
-                  aria-label="Zoom out"
+                  aria-label={t('commands.zoomOut')}
                   disabled={zoom <= MIN_ZOOM + ZOOM_EPSILON}
                   onClick={onZoomOut}
                   render={<Button className={BUTTON_CLASS} size="icon" variant="ghost" />}
@@ -132,7 +136,9 @@ export function ZoomPanel({
                   <Minus />
                 </ToolbarButton>
               </TooltipTrigger>
-              <TooltipContent>Zoom out · {formatShortcut('mod+-')}</TooltipContent>
+              <TooltipContent>
+                {t('commands.zoomOut')} · {formatShortcut('mod+-')}
+              </TooltipContent>
             </Tooltip>
 
             {readout}
@@ -140,7 +146,7 @@ export function ZoomPanel({
             <Tooltip>
               <TooltipTrigger asChild>
                 <ToolbarButton
-                  aria-label="Zoom in"
+                  aria-label={t('commands.zoomIn')}
                   disabled={zoom >= MAX_ZOOM - ZOOM_EPSILON}
                   onClick={onZoomIn}
                   render={<Button className={BUTTON_CLASS} size="icon" variant="ghost" />}
@@ -148,7 +154,9 @@ export function ZoomPanel({
                   <Plus />
                 </ToolbarButton>
               </TooltipTrigger>
-              <TooltipContent>Zoom in · {formatShortcut('mod+=')}</TooltipContent>
+              <TooltipContent>
+                {t('commands.zoomIn')} · {formatShortcut('mod+=')}
+              </TooltipContent>
             </Tooltip>
           </ToolbarGroup>
 
@@ -165,7 +173,7 @@ export function ZoomPanel({
             <Tooltip>
               <TooltipTrigger asChild>
                 <ToolbarButton
-                  aria-label="Zoom to fit all shapes"
+                  aria-label={t('zoom.fitAll')}
                   disabled={!canZoomToFit}
                   onClick={onZoomToFit}
                   render={<Button className={BUTTON_CLASS} size="icon" variant="ghost" />}
@@ -173,7 +181,9 @@ export function ZoomPanel({
                   <Maximize />
                 </ToolbarButton>
               </TooltipTrigger>
-              <TooltipContent>Zoom to fit · {formatShortcut('mod+2')}</TooltipContent>
+              <TooltipContent>
+                {t('commands.zoomToFit')} · {formatShortcut('mod+2')}
+              </TooltipContent>
             </Tooltip>
           </ToolbarGroup>
         </>
@@ -225,24 +235,24 @@ function describeSyncStatus(status: SyncStatus): {
 } {
   switch (status) {
     case 'idle':
-      return { color: '#a1a1aa', label: 'Not connected', pulse: false };
+      return { color: '#a1a1aa', label: translate('sync.idle'), pulse: false };
     case 'loading':
-      return { color: '#f59e0b', label: 'Loading board...', pulse: true };
+      return { color: '#f59e0b', label: translate('sync.loading'), pulse: true };
     case 'connecting':
-      return { color: '#f59e0b', label: 'Connecting...', pulse: true };
+      return { color: '#f59e0b', label: translate('sync.connecting'), pulse: true };
     case 'connected':
-      return { color: '#22c55e', label: 'Live', pulse: false };
+      return { color: '#22c55e', label: translate('sync.connected'), pulse: false };
     case 'reconnecting':
-      return { color: '#f59e0b', label: 'Reconnecting...', pulse: true };
+      return { color: '#f59e0b', label: translate('sync.reconnecting'), pulse: true };
     case 'offline':
       return {
         color: '#ef4444',
-        label: 'Offline - changes will sync when reconnected',
+        label: translate('sync.offline'),
         pulse: false,
       };
     case 'error':
-      return { color: '#ef4444', label: 'Sync error', pulse: false };
+      return { color: '#ef4444', label: translate('sync.error'), pulse: false };
     default:
-      return { color: '#a1a1aa', label: 'Unknown', pulse: false };
+      return { color: '#a1a1aa', label: translate('sync.unknown'), pulse: false };
   }
 }

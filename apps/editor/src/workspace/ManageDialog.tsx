@@ -19,6 +19,7 @@ import {
   InlineDropdownMenuSeparator,
   InlineDropdownMenuTrigger,
 } from '@/components/ui/inline-dropdown-menu';
+import { rich, useT } from '../i18n';
 import { INPUT, SCROLLBAR, SLIDE } from '../settings/settings-ui';
 import {
   SurfaceWindow,
@@ -30,6 +31,7 @@ import {
 import type { SurfaceTheme } from '../ui/surface-palette';
 import { ColorDot, formatUpdatedAt } from './board-presentation';
 import { DeleteWarningDialog } from './DeleteWarningDialog';
+import { ROLE_KEYS, YOU_ARE_KEYS } from './role-words';
 import type { BoardSwitcherState } from './useBoardSwitcher';
 import type { BoardSummary, WorkspaceSummary } from './workspace-api';
 
@@ -67,6 +69,7 @@ interface ManageDialogProps {
  * the server would refuse. The rules themselves live in the routes.
  */
 export function ManageDialog({ state, theme }: ManageDialogProps) {
+  const t = useT();
   const target = state.manageTarget;
   const { loadWorkspaceBoards, endManage, beginManage } = state;
   const titleId = useId();
@@ -138,10 +141,10 @@ export function ManageDialog({ state, theme }: ManageDialogProps) {
         // Left open with the typed name in it, so it can be corrected rather
         // than typed again.
         (err: unknown) =>
-          setListError(err instanceof Error ? err.message : 'Something went wrong.'),
+          setListError(err instanceof Error ? err.message : t('common.somethingWentWrong')),
       );
     },
-    [draft, editingId, state],
+    [draft, editingId, state, t],
   );
 
   const askToDelete = useCallback((next: PendingDelete) => {
@@ -161,9 +164,9 @@ export function ManageDialog({ state, theme }: ManageDialogProps) {
     done.then(
       () => setPending(null),
       (err: unknown) =>
-        setDeleteError(err instanceof Error ? err.message : 'Something went wrong.'),
+        setDeleteError(err instanceof Error ? err.message : t('common.somethingWentWrong')),
     );
-  }, [pending, state]);
+  }, [pending, state, t]);
 
   const workspaces = state.workspaces ?? [];
   const openWorkspace =
@@ -178,13 +181,13 @@ export function ManageDialog({ state, theme }: ManageDialogProps) {
     const entry = state.boardsFor(shown.workspaceId);
     const count = entry?.status === 'ready' ? entry.boards.length : openWorkspace?.boardCount;
     footLine = [
-      count === undefined ? null : boardCountPhrase(count),
-      openWorkspace && `you are ${roleWithArticle(openWorkspace.role)}`,
+      count === undefined ? null : t('boards.count', { count }),
+      openWorkspace && t(YOU_ARE_KEYS[openWorkspace.role]),
     ]
       .filter(Boolean)
       .join(' · ');
   } else {
-    footLine = 'Only the owner can delete a workspace.';
+    footLine = t('manage.onlyOwnerDeletes');
   }
 
   return (
@@ -205,11 +208,13 @@ export function ManageDialog({ state, theme }: ManageDialogProps) {
       >
         <WindowHeader
           titleId={titleId}
-          title={shown?.kind === 'boards' ? (openWorkspace?.name ?? 'Boards') : 'Workspaces'}
-          description={
+          title={
             shown?.kind === 'boards'
-              ? 'Rename or delete the boards in this workspace.'
-              : 'Rename or delete the workspaces you belong to.'
+              ? (openWorkspace?.name ?? t('boards.title'))
+              : t('manage.workspaces')
+          }
+          description={
+            shown?.kind === 'boards' ? t('manage.boardsHint') : t('manage.workspacesHint')
           }
           lead={
             shown?.kind === 'boards' && openWorkspace ? (
@@ -242,7 +247,7 @@ export function ManageDialog({ state, theme }: ManageDialogProps) {
                 }}
               >
                 <ChevronLeft className="size-[14px]" aria-hidden="true" />
-                All workspaces
+                {t('manage.allWorkspaces')}
               </button>
             )}
 
@@ -277,7 +282,7 @@ export function ManageDialog({ state, theme }: ManageDialogProps) {
 
         <WindowFooter status={listError ?? footLine} danger={listError !== null}>
           <WindowButton variant="primary" onClick={endManage}>
-            Done
+            {t('common.done')}
           </WindowButton>
         </WindowFooter>
       </SurfaceWindow>
@@ -293,27 +298,23 @@ export function ManageDialog({ state, theme }: ManageDialogProps) {
         onConfirm={confirmDelete}
         title={
           asking?.kind === 'workspace'
-            ? `Delete “${asking.workspace.name}”?`
-            : `Delete “${asking?.board.title ?? 'this board'}”?`
+            ? t('boards.deleteTitle', { title: asking.workspace.name })
+            : t('boards.deleteTitle', { title: asking?.board.title ?? t('boards.thisBoard') })
         }
         // Only the workspace asks for its name to be typed: it is the delete
         // that takes other things with it.
         confirmText={asking?.kind === 'workspace' ? asking.workspace.name : undefined}
-        confirmLabel={asking?.kind === 'workspace' ? 'Delete workspace' : 'Delete board'}
+        confirmLabel={
+          asking?.kind === 'workspace' ? t('manage.deleteWorkspace') : t('boards.deleteConfirm')
+        }
         description={
-          asking?.kind === 'workspace' ? (
-            <>
-              This deletes the workspace and{' '}
-              <strong>{boardCountPhrase(asking.workspace.boardCount)}</strong> in it. Everyone in
-              the workspace loses access, and anyone with one of its boards open is disconnected.
-              You can’t undo this here.
-            </>
-          ) : (
-            <>
-              This deletes the board for everyone who can reach it, and disconnects anyone who has
-              it open. You can’t undo this here.
-            </>
-          )
+          asking?.kind === 'workspace'
+            ? rich(t('manage.deleteWorkspaceWarning'), {
+                boards: (
+                  <strong>{t('boards.count', { count: asking.workspace.boardCount })}</strong>
+                ),
+              })
+            : t('boards.deleteWarning')
         }
       />
     </>
@@ -368,7 +369,8 @@ function WorkspaceList({
   onOpenBoards,
   onDelete,
 }: WorkspaceListProps) {
-  if (workspaces.length === 0) return <ListNote>No workspaces yet.</ListNote>;
+  const t = useT();
+  if (workspaces.length === 0) return <ListNote>{t('manage.noWorkspaces')}</ListNote>;
 
   return (
     <>
@@ -393,7 +395,7 @@ function WorkspaceList({
                 <input
                   value={draft}
                   maxLength={MAX_WORKSPACE_NAME}
-                  aria-label="Workspace name"
+                  aria-label={t('workspace.name')}
                   // It replaced the row that was just chosen, and is the only
                   // thing in the form to reach for.
                   ref={focusOnceShown}
@@ -402,10 +404,10 @@ function WorkspaceList({
                   className={cn(INPUT, 'min-w-0 flex-1')}
                 />
                 <WindowButton variant="ghost" onClick={onCancelEditing}>
-                  Cancel
+                  {t('common.cancel')}
                 </WindowButton>
                 <WindowButton variant="primary" type="submit" disabled={busy || !draft.trim()}>
-                  Save
+                  {t('common.save')}
                 </WindowButton>
               </div>
             </form>
@@ -425,22 +427,22 @@ function WorkspaceList({
                 {workspace.name}
               </span>
               <span className="text-[11.5px] text-[var(--surface-fg-muted)]">
-                {`${boardCountPhrase(workspace.boardCount)} · ${capitalise(workspace.role)}`}
+                {`${t('boards.count', { count: workspace.boardCount })} · ${t(ROLE_KEYS[workspace.role])}`}
               </span>
             </button>
-            <RowMenu label={`More for ${workspace.name}`}>
+            <RowMenu label={t('manage.moreFor', { name: workspace.name })}>
               <InlineDropdownMenuItem
                 icon={<ChevronRight aria-hidden="true" />}
                 onSelect={() => onOpenBoards(workspace.id)}
               >
-                Open boards
+                {t('manage.openBoards')}
               </InlineDropdownMenuItem>
               <InlineDropdownMenuItem
                 icon={<Pencil aria-hidden="true" />}
                 disabled={!canRename}
                 onSelect={() => onStartEditing(workspace.id, workspace.name)}
               >
-                Rename…
+                {t('common.renameEllipsis')}
               </InlineDropdownMenuItem>
               <InlineDropdownMenuSeparator />
               {/* Shown but dimmed for anyone but the owner, and the foot says
@@ -451,12 +453,12 @@ function WorkspaceList({
                 onSelect={() => onDelete(workspace)}
                 className={menuDangerRowClasses}
               >
-                Delete…
+                {t('common.deleteEllipsis')}
               </InlineDropdownMenuItem>
             </RowMenu>
             <button
               type="button"
-              aria-label={`Boards in ${workspace.name}`}
+              aria-label={t('manage.boardsIn', { name: workspace.name })}
               className={ICON_BUTTON}
               onClick={() => onOpenBoards(workspace.id)}
             >
@@ -477,12 +479,13 @@ interface BoardListProps {
 }
 
 function BoardList({ state, workspaceId, onRename, onDelete }: BoardListProps) {
+  const t = useT();
   const entry = state.boardsFor(workspaceId);
 
   if (entry === undefined || entry.status === 'loading')
-    return <ListNote>Loading boards…</ListNote>;
+    return <ListNote>{t('manage.loadingBoards')}</ListNote>;
   if (entry.status === 'error') return <ListNote error>{entry.error}</ListNote>;
-  if (entry.boards.length === 0) return <ListNote>No boards yet.</ListNote>;
+  if (entry.boards.length === 0) return <ListNote>{t('boards.none')}</ListNote>;
 
   return (
     <>
@@ -494,22 +497,22 @@ function BoardList({ state, workspaceId, onRename, onDelete }: BoardListProps) {
               <span className="truncate">{board.title}</span>
               {board.id === state.boardId && (
                 <span className="inline-flex h-[20px] shrink-0 items-center rounded-full bg-[var(--surface-wash)] px-[7px] text-[10.5px] font-medium text-[var(--surface-fg-muted)]">
-                  Open
+                  {t('manage.openNow')}
                 </span>
               )}
             </span>
             <span className="text-[11.5px] text-[var(--surface-fg-muted)]">
-              {`Edited ${formatUpdatedAt(board.updatedAt)}`}
+              {t('board.edited', { when: formatUpdatedAt(board.updatedAt) })}
             </span>
           </div>
           {/* Renaming a board also tags it with a colour, so it opens its own
               window on top of this one, and comes back here when done. */}
-          <RowMenu label={`More for ${board.title}`}>
+          <RowMenu label={t('manage.moreFor', { name: board.title })}>
             <InlineDropdownMenuItem
               icon={<Pencil aria-hidden="true" />}
               onSelect={() => onRename(board)}
             >
-              Rename…
+              {t('common.renameEllipsis')}
             </InlineDropdownMenuItem>
             <InlineDropdownMenuSeparator />
             <InlineDropdownMenuItem
@@ -517,7 +520,7 @@ function BoardList({ state, workspaceId, onRename, onDelete }: BoardListProps) {
               onSelect={() => onDelete(board)}
               className={menuDangerRowClasses}
             >
-              Delete…
+              {t('common.deleteEllipsis')}
             </InlineDropdownMenuItem>
           </RowMenu>
         </div>
@@ -563,19 +566,4 @@ function RowMenu({ label, children }: { label: string; children: ReactNode }) {
  */
 function focusOnceShown(input: HTMLInputElement | null) {
   if (input) requestAnimationFrame(() => input.focus());
-}
-
-/** "1 board" / "4 boards", so the count reads as a phrase wherever it lands. */
-function boardCountPhrase(count: number): string {
-  return count === 1 ? '1 board' : `${count} boards`;
-}
-
-function capitalise(word: string): string {
-  return word.charAt(0).toUpperCase() + word.slice(1);
-}
-
-/** "the owner", "an admin", "a member". */
-function roleWithArticle(role: string): string {
-  if (role === 'owner') return 'the owner';
-  return `${/^[aeiou]/i.test(role) ? 'an' : 'a'} ${role}`;
 }

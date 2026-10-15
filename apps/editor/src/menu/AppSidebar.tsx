@@ -13,6 +13,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { formatShortcut } from '../help/platform';
+import { useT } from '../i18n';
 import {
   ManageDialog,
   RenameBoardDialog,
@@ -139,8 +140,9 @@ export function AppSidebar({
  * once it has been, where it comes back from. Named for what it will do.
  */
 function CollapseButton() {
+  const t = useT();
   const { state } = useSidebar();
-  const label = state === 'collapsed' ? 'Expand sidebar' : 'Collapse sidebar';
+  const label = state === 'collapsed' ? t('sidebar.expand') : t('sidebar.collapse');
 
   return (
     <SidebarTrigger
@@ -163,22 +165,24 @@ interface RowProps {
 }
 
 /** What the right-hand column of a row shows: its shortcut, or why it can't be used. */
-function rowHint(onSelect: RowProps['onSelect'], shortcut?: string) {
+function rowHint(onSelect: RowProps['onSelect'], soon: string, shortcut?: string) {
   const hint = shortcut ? formatShortcut(shortcut) : null;
-  return { hint, badge: onSelect === undefined ? 'Soon' : hint };
+  return { hint, badge: onSelect === undefined ? soon : hint };
 }
 
 /** A row that stands on its own, with its icon in the collapsed column. */
 function MenuRow({ id, onSelect }: RowProps) {
-  const { label, icon: Icon, shortcut, destructive } = MENU_ITEMS[id];
-  const { hint, badge } = rowHint(onSelect, shortcut);
+  const t = useT();
+  const { labelKey, icon: Icon, shortcut, destructive } = MENU_ITEMS[id];
+  const label = t(labelKey);
+  const { hint, badge } = rowHint(onSelect, t('common.soon'), shortcut);
 
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         onClick={onSelect ?? undefined}
         disabled={!onSelect}
-        tooltip={onSelect === undefined ? `${label} — coming soon` : label}
+        tooltip={onSelect === undefined ? t('common.comingSoon', { label }) : label}
         aria-keyshortcuts={hint ?? undefined}
         data-testid={`menu-${id}`}
         className={cn(destructive && menuDangerButtonClasses)}

@@ -1,6 +1,7 @@
 import { SUPPORTED_IMAGE_MIME_TYPES, type Shape } from '@canvasflow/canvas-engine';
 import { isCanvasFlowClipboard, isExcalidrawClipboard, type CanvasFlowClipboard } from './schema';
 import { excalidrawElementsToShapes } from './excalidraw-adapter';
+import { t } from '../i18n';
 import { withFreshIds } from './paste-placement';
 import { pastedText } from './paste-text';
 
@@ -83,11 +84,7 @@ export function canWriteClipboardItems(): boolean {
  */
 export function writeClipboardItem(type: string, data: Promise<Blob>): Promise<void> {
   if (!canWriteClipboardItems()) {
-    return Promise.reject(
-      new Error(
-        "This browser can't copy images to the clipboard. Firefox needs dom.events.asyncClipboard.clipboardItem enabled.",
-      ),
-    );
+    return Promise.reject(new Error(t('clipboard.noImageCopy')));
   }
   return navigator.clipboard
     .write([new ClipboardItem({ [type]: data })])

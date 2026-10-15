@@ -1,12 +1,16 @@
+import type { TranslationKey } from '../i18n';
 import type { CommentThread } from './comment-model';
 
 /** Which threads the list is showing. */
 export type CommentListFilter = 'open' | 'resolved' | 'all';
 
-export const COMMENT_LIST_FILTERS: readonly { id: CommentListFilter; label: string }[] = [
-  { id: 'open', label: 'Open' },
-  { id: 'resolved', label: 'Resolved' },
-  { id: 'all', label: 'All' },
+export const COMMENT_LIST_FILTERS: readonly {
+  id: CommentListFilter;
+  labelKey: TranslationKey;
+}[] = [
+  { id: 'open', labelKey: 'comments.filter.open' },
+  { id: 'resolved', labelKey: 'comments.filter.resolved' },
+  { id: 'all', labelKey: 'comments.filter.all' },
 ];
 
 /** When a thread was last added to: its newest comment. */

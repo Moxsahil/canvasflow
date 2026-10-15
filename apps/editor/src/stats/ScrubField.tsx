@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { cn } from '@/lib/utils';
+import { useT } from '../i18n';
 import type { StatsValue } from './stats-ops';
 
 /** The smallest change worth writing: the two decimals a field shows. */
@@ -12,6 +13,10 @@ interface ScrubFieldProps {
   label: string;
   /** What the field is, read out in full: "Width", where the label is "W". */
   name: string;
+  /** What dragging the label does, as its tooltip says. */
+  dragHint: string;
+  /** Names the field for tests, whatever the language on screen. */
+  testId: string;
   value: StatsValue;
   /** Off, the value is shown and can be neither typed over nor dragged. */
   editable: boolean;
@@ -39,6 +44,8 @@ interface ScrubFieldProps {
 export function ScrubField({
   label,
   name,
+  dragHint,
+  testId,
   value,
   editable,
   onSet,
@@ -48,8 +55,10 @@ export function ScrubField({
   onScrubEnd,
   sensitivity = 1,
 }: ScrubFieldProps) {
+  const t = useT();
+  const shown = typeof value === 'number' ? String(value) : t('stats.mixed');
   const inputRef = useRef<HTMLInputElement>(null);
-  const [text, setText] = useState(String(value));
+  const [text, setText] = useState(shown);
   // Whether the field holds something typed and not yet entered.
   const pendingRef = useRef(false);
   // Bumped to put the true value back in the field after an edit that came to
@@ -58,9 +67,9 @@ export function ScrubField({
   const [settled, setSettled] = useState(0);
 
   useEffect(() => {
-    setText(String(value));
+    setText(shown);
     pendingRef.current = false;
-  }, [value, settled]);
+  }, [shown, settled]);
 
   // The latest of each, for the listeners below that outlive the render they
   // were made in.
@@ -152,7 +161,6 @@ export function ScrubField({
     stopScrub.current = stop;
   };
 
-  const testId = `stats-${name.toLowerCase().replace(/\s+/g, '-')}`;
   const isMixed = typeof value !== 'number';
 
   return (
@@ -171,7 +179,7 @@ export function ScrubField({
           'touch-none text-[11px] font-semibold select-none',
           editable && 'cursor-ew-resize',
         )}
-        title={editable ? `Drag to change the ${name.toLowerCase()}` : undefined}
+        title={editable ? dragHint : undefined}
         onPointerDown={startScrub}
       >
         {label}
@@ -222,7 +230,7 @@ export function ScrubField({
           className={cn(mutedText, 'text-xs font-medium tabular-nums', isMixed && 'italic')}
           data-testid={testId}
         >
-          {value}
+          {shown}
         </output>
       )}
     </div>

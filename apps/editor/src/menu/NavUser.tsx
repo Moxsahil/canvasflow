@@ -22,7 +22,7 @@ import {
 import { SidebarMenuItem } from '@/components/ui/sidebar';
 import { ariaKeyShortcut } from '../help/platform';
 import { env } from '../lib/env';
-import { isTestLocale, listedLanguages, useI18n } from '../i18n';
+import { isTestLocale, listedLanguages, useI18n, useT } from '../i18n';
 import {
   liveAction,
   LEARN_MORE_GROUPS,
@@ -54,7 +54,8 @@ interface NavUserProps {
  * rather than only that there is one.
  */
 export function NavUser({ user, actions, portalContainer }: NavUserProps) {
-  const name = user?.name?.trim() || 'Account';
+  const t = useT();
+  const name = user?.name?.trim() || t('menu.account');
   const email = user?.email ?? null;
   // The username is what collaborators find you by, so it is the second line
   // once there is one; the address is still in the menu's caption above.
@@ -65,7 +66,7 @@ export function NavUser({ user, actions, portalContainer }: NavUserProps) {
       <InlineDropdownMenu>
         <InlineDropdownMenuTrigger
           title={name}
-          aria-label={`${name} — account actions`}
+          aria-label={t('menu.accountActions', { name })}
           data-testid="menu-account"
           className={identityRowClasses}
         >
@@ -107,7 +108,7 @@ export function NavUser({ user, actions, portalContainer }: NavUserProps) {
 
           <InlineDropdownMenuSub>
             <InlineDropdownMenuSubTrigger data-testid="menu-item-learnMore">
-              Learn more
+              {t('menu.learnMore')}
             </InlineDropdownMenuSubTrigger>
             <InlineDropdownMenuSubContent container={portalContainer} collisionPadding={8}>
               {LEARN_MORE_GROUPS.map((group, index) => (
@@ -167,12 +168,14 @@ function LanguageSub({ portalContainer }: { portalContainer: HTMLElement | null 
 }
 
 function Soon() {
-  return <InlineDropdownMenuBadge>Soon</InlineDropdownMenuBadge>;
+  const t = useT();
+  return <InlineDropdownMenuBadge>{t('common.soon')}</InlineDropdownMenuBadge>;
 }
 
 /** A row the sidebar's vocabulary already names, live exactly when it has a handler. */
 function AccountRow({ id, actions }: { id: MenuItemId; actions?: MenuActions }) {
-  const { label, icon: Icon, destructive } = MENU_ITEMS[id];
+  const t = useT();
+  const { labelKey, icon: Icon, destructive } = MENU_ITEMS[id];
   const action = liveAction(actions?.[id]);
   return (
     <InlineDropdownMenuItem
@@ -184,7 +187,7 @@ function AccountRow({ id, actions }: { id: MenuItemId; actions?: MenuActions }) 
       badge={action === undefined ? <Soon /> : null}
       data-testid={`menu-item-${id}`}
     >
-      {label}
+      {t(labelKey)}
     </InlineDropdownMenuItem>
   );
 }
@@ -195,7 +198,8 @@ function AccountRow({ id, actions }: { id: MenuItemId; actions?: MenuActions }) 
  * "Soon" until it does.
  */
 function LearnMoreRow({ item, actions }: { item: LearnMoreItem; actions?: MenuActions }) {
-  const { label, icon: Icon, path, action: actionId } = item;
+  const t = useT();
+  const { labelKey, icon: Icon, path, action: actionId } = item;
 
   let run: (() => void) | null | undefined;
   if (actionId) {
@@ -216,8 +220,8 @@ function LearnMoreRow({ item, actions }: { item: LearnMoreItem; actions?: MenuAc
       aria-keyshortcuts={run && shortcut ? ariaKeyShortcut(shortcut) : undefined}
       data-testid={`menu-learn-${item.id}`}
     >
-      {label}
-      {path && <span className="sr-only"> (opens in a new tab)</span>}
+      {t(labelKey)}
+      {path && <span className="sr-only"> {t('common.opensInNewTab')}</span>}
     </InlineDropdownMenuItem>
   );
 }

@@ -17,6 +17,7 @@ import type { OpenBoard } from './export-boards';
 import { ProfilePane } from './ProfilePane';
 import { WorkspacePane, type WorkspaceSettingsSource } from './WorkspacePane';
 import { surfaceThemeVars, type SurfaceTheme } from '../ui/surface-palette';
+import { useT } from '../i18n';
 import type { AvatarState, ProfileState } from '../profile';
 import {
   SETTINGS_SECTIONS,
@@ -110,6 +111,7 @@ export function SettingsDialog({
   chooseAnalytics,
   onClose,
 }: SettingsDialogProps) {
+  const t = useT();
   const [section, setSection] = useState<SettingsSectionId>(resumeDeletion ? 'privacy' : 'profile');
   const [direction, setDirection] = useState(1);
   // Only the first time Data & Privacy shows: leaving it and coming back is
@@ -246,10 +248,11 @@ export function SettingsDialog({
   const focusSearchRef = useRef(focusSearch);
   focusSearchRef.current = focusSearch;
 
+  const signedInEmail = account.profile?.email ?? user?.email;
   const signedInAs = isGuest
-    ? 'Joined as a guest'
-    : (account.profile?.email ?? user?.email)
-      ? `Signed in as ${account.profile?.email ?? user?.email}`
+    ? t('settings.joinedAsGuest')
+    : signedInEmail
+      ? t('settings.signedInAs', { email: signedInEmail })
       : null;
 
   const clearSearch = useCallback(() => setQuery(''), []);
@@ -380,7 +383,7 @@ export function SettingsDialog({
           ref={panelRef}
           role="dialog"
           aria-modal="true"
-          aria-label="Settings"
+          aria-label={t('menu.settings')}
           tabIndex={-1}
           data-testid="settings-dialog"
           data-theme-variant={theme}
@@ -399,7 +402,9 @@ export function SettingsDialog({
               )}
             >
               <div className="min-w-0 flex-1">
-                <h2 className="truncate text-[17px] font-semibold tracking-[-0.01em]">Settings</h2>
+                <h2 className="truncate text-[17px] font-semibold tracking-[-0.01em]">
+                  {t('menu.settings')}
+                </h2>
                 {signedInAs && (
                   <p className="mt-[2px] truncate text-[12px] text-[var(--surface-fg-muted)]">
                     {signedInAs}
@@ -422,8 +427,8 @@ export function SettingsDialog({
                     ref={searchRef}
                     type="search"
                     value={query}
-                    aria-label="Search settings"
-                    placeholder="Search settings"
+                    aria-label={t('settings.search')}
+                    placeholder={t('settings.search')}
                     autoComplete="off"
                     spellCheck={false}
                     aria-controls="settings-search-results"
@@ -454,7 +459,7 @@ export function SettingsDialog({
                   >
                     {results.length === 0 ? (
                       <p className="px-[10px] py-[12px] text-center text-[12px] text-[var(--surface-fg-muted)]">
-                        No setting matches that.
+                        {t('settings.noMatch')}
                       </p>
                     ) : (
                       results.map((entry) => (
@@ -482,10 +487,10 @@ export function SettingsDialog({
                           className="grid gap-[1px] rounded-[7px] px-[10px] py-[7px] text-left outline-none hover:bg-[var(--surface-wash)] focus-visible:bg-[var(--surface-wash)]"
                         >
                           <span className="text-[12.5px] text-[var(--surface-fg)]">
-                            {entry.title}
+                            {t(entry.titleKey)}
                           </span>
                           <small className="text-[11px] text-[var(--surface-fg-muted)]">
-                            {sectionLabel(entry.section)} · {entry.group}
+                            {sectionLabel(entry.section)} · {t(entry.groupKey)}
                           </small>
                         </button>
                       ))
@@ -494,16 +499,16 @@ export function SettingsDialog({
                 )}
               </div>
 
-              <CloseButton label="Close settings" onClick={onClose} />
+              <CloseButton label={t('settings.close')} onClick={onClose} />
             </div>
 
             <div className="flex items-end gap-[8px]">
               <div
                 role="tablist"
-                aria-label="Settings sections"
+                aria-label={t('settings.sections')}
                 className="-mb-px flex items-end gap-px"
               >
-                {SETTINGS_SECTIONS.map(({ id, label }) => {
+                {SETTINGS_SECTIONS.map(({ id, labelKey }) => {
                   const selected = id === section;
                   return (
                     <button
@@ -524,7 +529,7 @@ export function SettingsDialog({
                           : 'h-[34px] border-transparent text-[var(--surface-fg-muted)] hover:bg-[color-mix(in_srgb,var(--surface-panel)_55%,transparent)] hover:text-[var(--surface-fg)]',
                       )}
                     >
-                      {label}
+                      {t(labelKey)}
                     </button>
                   );
                 })}
@@ -537,14 +542,14 @@ export function SettingsDialog({
               >
                 <button
                   type="button"
-                  aria-label="Search settings"
-                  title="Search settings"
+                  aria-label={t('settings.search')}
+                  title={t('settings.search')}
                   onClick={focusSearch}
                   className="flex size-[28px] items-center justify-center rounded-[7px] text-[var(--surface-fg-muted)] transition-colors hover:bg-[var(--surface-wash)] hover:text-[var(--surface-fg)] focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] focus-visible:outline-none"
                 >
                   <Search className="size-[16px]" aria-hidden="true" />
                 </button>
-                <CloseButton label="Close settings" onClick={onClose} />
+                <CloseButton label={t('settings.close')} onClick={onClose} />
               </span>
             </div>
           </header>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { t } from '../i18n';
 import {
   catalogueItems,
   fetchCatalogue,
@@ -13,10 +14,10 @@ type Loaded<T> =
 
 const reason = (err: unknown) =>
   err instanceof TypeError
-    ? 'Couldn’t reach the library catalogue. Check your connection.'
+    ? t('library.catalogueOffline')
     : err instanceof Error
       ? err.message
-      : 'Couldn’t reach the library catalogue.';
+      : t('library.catalogueUnreachable');
 
 /** Something read from the catalogue, again on `retry`. Off while `active` is false. */
 function useLoaded<T>(active: boolean, key: string, load: () => Promise<T>) {

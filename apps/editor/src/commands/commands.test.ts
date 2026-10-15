@@ -30,7 +30,7 @@ describe('the command registry', () => {
 
   it('gives every command a label and an icon', () => {
     for (const command of COMMANDS) {
-      expect(command.label, command.id).toBeTruthy();
+      expect(command.labelKey, command.id).toBeTruthy();
       expect(command.icon, command.id).toBeTruthy();
     }
   });

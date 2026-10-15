@@ -12,6 +12,7 @@ import {
   type Shape,
 } from '@canvasflow/canvas-engine';
 import { writeClipboardItem } from '../clipboard/clipboard-ops';
+import { t } from '../i18n';
 
 export const EXPORT_SCALES = [1, 2, 3] as const;
 
@@ -37,7 +38,7 @@ export interface ImageExportSettings {
 
 export class ExportTooLargeError extends Error {
   constructor() {
-    super('That export is too large. Try a smaller scale.');
+    super(t('export.tooLarge'));
     this.name = 'ExportTooLargeError';
   }
 }

@@ -1,4 +1,6 @@
+import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { rich } from './rich';
 import {
   availableLocales,
   ENGLISH,
@@ -51,6 +53,32 @@ describe('translate', () => {
     expect(translate(english, TEST_RTL_LOCALE, 'menu.language', { n: 1 })).toContain(
       '[[menu.language(n)]]',
     );
+  });
+});
+
+describe('counted words', () => {
+  it('take the form the count asks for', () => {
+    expect(translate(ENGLISH, 'en', 'boards.count', { count: 1 })).toBe('1 board');
+    expect(translate(ENGLISH, 'en', 'boards.count', { count: 0 })).toBe('0 boards');
+    expect(translate(ENGLISH, 'en', 'boards.count', { count: 4 })).toBe('4 boards');
+  });
+
+  it("use the language's own forms, and English's when it has none", () => {
+    const polish = {
+      'boards.count_one': '{{count}} tablica',
+      'boards.count_few': '{{count}} tablice',
+      'boards.count_other': '{{count}} tablic',
+    } as Messages;
+    expect(translate(polish, 'pl', 'boards.count', { count: 3 })).toBe('3 tablice');
+    expect(translate(polish, 'pl', 'boards.count', { count: 5 })).toBe('5 tablic');
+    expect(translate({}, 'pl', 'boards.count', { count: 5 })).toBe('5 boards');
+  });
+});
+
+describe('rich', () => {
+  it('puts an element where its slot is, wherever the language puts it', () => {
+    const html = renderToString(<>{rich('Type {{name}} to confirm', { name: <b>Ada</b> })}</>);
+    expect(html).toBe('Type <b>Ada</b> to confirm');
   });
 });
 

@@ -31,6 +31,7 @@ import {
 } from '../file/export-image';
 import { saveFile } from '../file/save-file';
 import { track } from '../analytics/analytics';
+import { formatLocale, useT } from '../i18n';
 import { serializeBoardFile } from '../file/board-file';
 import { embedSceneInPng, embedSceneInSvg } from '../file/scene-metadata';
 
@@ -63,6 +64,7 @@ export function ExportImageDialog({
   images,
   resolveImageDataUrls,
 }: ExportImageDialogProps) {
+  const t = useT();
   const fieldId = useId();
   const hasSelection = selectedShapes.length > 0;
 
@@ -150,17 +152,20 @@ export function ExportImageDialog({
     };
   }, [open, exported, settings, images]);
 
-  const run = useCallback(async (action: () => Promise<void>) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await action();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'That export failed.');
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+  const run = useCallback(
+    async (action: () => Promise<void>) => {
+      setBusy(true);
+      setError(null);
+      try {
+        await action();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : t('export.failed'));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [t],
+  );
 
   const exportPng = useCallback(
     () =>
@@ -239,10 +244,13 @@ export function ExportImageDialog({
           <span className="flex items-center gap-[5px]">
             <ImageDown className="size-[12px]" aria-hidden="true" />
             {empty
-              ? 'Nothing on the canvas to export'
+              ? t('export.nothing')
               : dimensions
-                ? `${dimensions.width.toLocaleString('en-US')} × ${dimensions.height.toLocaleString('en-US')} px`
-                : 'Export as an image'}
+                ? t('export.dimensions', {
+                    width: dimensions.width.toLocaleString(formatLocale()),
+                    height: dimensions.height.toLocaleString(formatLocale()),
+                  })
+                : t('export.title')}
           </span>
         }
         lead={<WindowBadge tone="accent">{initialsOf(boardName)}</WindowBadge>}
@@ -259,20 +267,20 @@ export function ExportImageDialog({
           {preview ? (
             <img
               src={preview}
-              alt="Export preview"
+              alt={t('export.preview')}
               className="max-h-full max-w-full object-contain"
             />
           ) : (
             <span className="text-[11.5px] text-[var(--surface-fg-muted)]">
-              {empty ? 'Nothing to preview' : 'Preparing preview…'}
+              {empty ? t('export.nothingToPreview') : t('export.preparing')}
             </span>
           )}
         </div>
 
         <div className="grid min-w-0 content-start gap-[4px]">
-          <h3 className="text-[12px] font-semibold">File</h3>
+          <h3 className="text-[12px] font-semibold">{t('export.file')}</h3>
           <div className="flex flex-col">
-            <SettingLine title={<label htmlFor={`${fieldId}-name`}>Name</label>}>
+            <SettingLine title={<label htmlFor={`${fieldId}-name`}>{t('common.name')}</label>}>
               <input
                 id={`${fieldId}-name`}
                 type="text"
@@ -282,33 +290,37 @@ export function ExportImageDialog({
                 className={cn(INPUT, 'w-[184px] shrink-0')}
               />
             </SettingLine>
-            <SettingLine title="Scale" hint="Multiplies the exported size">
+            <SettingLine title={t('export.scale')} hint={t('export.scaleHint')}>
               <ScaleControl value={scale} onChange={setScale} />
             </SettingLine>
           </div>
 
-          <h3 className="mt-[10px] text-[12px] font-semibold">What to include</h3>
+          <h3 className="mt-[10px] text-[12px] font-semibold">{t('export.include')}</h3>
           <div className="flex flex-col">
             <SettingLine
-              title="Only the selection"
-              hint={hasSelection ? 'Just the selected shapes' : 'Nothing is selected'}
+              title={t('export.onlySelection')}
+              hint={hasSelection ? t('export.onlySelectionHint') : t('export.nothingSelected')}
               off={!hasSelection}
             >
               <Toggle
-                label="Only the selection"
+                label={t('export.onlySelection')}
                 on={selectionOnly && hasSelection}
                 disabled={!hasSelection}
                 onChange={setSelectionOnly}
               />
             </SettingLine>
-            <SettingLine title="With background" hint="The board colour behind the shapes">
-              <Toggle label="With background" on={withBackground} onChange={setWithBackground} />
+            <SettingLine title={t('export.background')} hint={t('export.backgroundHint')}>
+              <Toggle
+                label={t('export.background')}
+                on={withBackground}
+                onChange={setWithBackground}
+              />
             </SettingLine>
-            <SettingLine title="Dark mode" hint="Export using the dark palette">
-              <Toggle label="Dark mode" on={dark} onChange={setDark} />
+            <SettingLine title={t('export.dark')} hint={t('export.darkHint')}>
+              <Toggle label={t('export.dark')} on={dark} onChange={setDark} />
             </SettingLine>
-            <SettingLine title="Embed the scene" hint="The image opens again as a board">
-              <Toggle label="Embed the scene" on={embedScene} onChange={setEmbedScene} />
+            <SettingLine title={t('export.embed')} hint={t('export.embedHint')}>
+              <Toggle label={t('export.embed')} on={embedScene} onChange={setEmbedScene} />
             </SettingLine>
           </div>
         </div>
@@ -316,11 +328,11 @@ export function ExportImageDialog({
 
       <WindowFooter status={error} danger>
         <WindowButton variant="ghost" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </WindowButton>
         <WindowButton onClick={copyPng} disabled={empty || busy}>
           <Copy aria-hidden="true" />
-          Copy
+          {t('export.copy')}
         </WindowButton>
         <WindowButton onClick={exportSvg} disabled={empty || busy}>
           <FileCode2 aria-hidden="true" />
@@ -364,10 +376,11 @@ function SettingLine({
  * one click away. The arrow keys move between them, as in any radio group.
  */
 function ScaleControl({ value, onChange }: { value: number; onChange: (next: number) => void }) {
+  const t = useT();
   return (
     <div
       role="radiogroup"
-      aria-label="Export scale"
+      aria-label={t('export.scaleLabel')}
       className="inline-flex shrink-0 rounded-[8px] bg-[var(--surface-wash)] p-[2px]"
       onKeyDown={(event) => {
         if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;

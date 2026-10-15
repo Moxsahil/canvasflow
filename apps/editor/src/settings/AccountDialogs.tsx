@@ -3,6 +3,7 @@ import { Eye, EyeOff, Mail } from 'lucide-react';
 import { PASSWORD_MAX_LENGTH, PASSWORD_RULES, meetsPasswordRules } from '@canvasflow/types';
 import { cn } from '@/lib/utils';
 import { sessionResumeUrl } from '../auth/token';
+import { t as translate, useT, type TranslationKey } from '../i18n';
 import {
   AccountSecurityError,
   changePassword,
@@ -34,8 +35,16 @@ import {
 function messageOf(error: unknown): string {
   return error instanceof AccountSecurityError || error instanceof Error
     ? error.message
-    : 'Something went wrong. Try again.';
+    : translate('common.somethingWentWrongRetry');
 }
+
+/** The shared rules, in the order they are listed, put into the language on screen. */
+const PASSWORD_RULE_KEYS: readonly TranslationKey[] = [
+  'password.rule.length',
+  'password.rule.capital',
+  'password.rule.number',
+  'password.rule.special',
+];
 
 /**
  * A password field with its own show/hide. Each field owns its toggle, so
@@ -56,6 +65,7 @@ export function PasswordField({
   invalid?: boolean;
   autoFocus?: boolean;
 }) {
+  const t = useT();
   const [shown, setShown] = useState(false);
   return (
     <div className="relative">
@@ -79,7 +89,11 @@ export function PasswordField({
       <button
         type="button"
         onClick={() => setShown((v) => !v)}
-        aria-label={shown ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+        aria-label={
+          shown
+            ? t('password.hide', { label: label.toLowerCase() })
+            : t('password.show', { label: label.toLowerCase() })
+        }
         aria-pressed={shown}
         className="absolute inset-y-0 right-0 flex w-[34px] items-center justify-center text-[var(--surface-fg-faint)] transition-colors hover:text-[var(--surface-fg)] focus-visible:text-[var(--surface-fg)] focus-visible:outline-none"
       >
@@ -123,6 +137,7 @@ export function ChangePasswordDialog({
   /** The password changed; the page reads the account again. */
   onChanged: () => void;
 }) {
+  const t = useT();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -157,13 +172,13 @@ export function ChangePasswordDialog({
     const signIn = done === 'everywhere';
     return (
       <SettingsModal
-        title="Password changed"
+        title={t('password.changed')}
         description={
           done === 'other-devices'
-            ? 'Every other device has been signed out. This one stays signed in.'
+            ? t('password.changedOthers')
             : signIn
-              ? 'Every device has been signed out, this one too. Sign in again with your new password.'
-              : 'Devices that were already signed in stay signed in.'
+              ? t('password.changedEverywhere')
+              : t('password.changedNone')
         }
         onClose={onClose}
         actions={
@@ -177,7 +192,7 @@ export function ChangePasswordDialog({
                 : onClose
             }
           >
-            {signIn ? 'Sign in' : 'Done'}
+            {signIn ? t('revoked.signIn') : t('common.done')}
           </SettingsButton>
         }
       />
@@ -186,17 +201,17 @@ export function ChangePasswordDialog({
 
   return (
     <SettingsModal
-      title="Change password"
-      description="Enter your current password, then choose a new one. We'll email you to confirm the change."
+      title={t('password.changeTitle')}
+      description={t('password.changeDescription')}
       onClose={onClose}
       onSubmit={() => void submit()}
       actions={
         <>
           <SettingsButton variant="ghost" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </SettingsButton>
           <SettingsButton variant="primary" type="submit" disabled={!ready}>
-            {busy ? 'Changing…' : 'Change password'}
+            {busy ? t('password.changing') : t('password.changeTitle')}
           </SettingsButton>
         </>
       }
@@ -204,20 +219,20 @@ export function ChangePasswordDialog({
       {/* Tells a password manager which saved entry this replaces. */}
       <input type="email" autoComplete="username" value={email} readOnly hidden />
       <PasswordField
-        label="Current password"
+        label={t('password.current')}
         value={current}
         onChange={setCurrent}
         autoComplete="current-password"
         autoFocus
       />
       <PasswordField
-        label="New password"
+        label={t('password.new')}
         value={next}
         onChange={setNext}
         autoComplete="new-password"
       />
       <PasswordField
-        label="Confirm new password"
+        label={t('password.confirm')}
         value={confirm}
         onChange={setConfirm}
         autoComplete="new-password"
@@ -226,10 +241,13 @@ export function ChangePasswordDialog({
 
       {next.length > 0 && (
         <ul className="grid grid-cols-2 gap-x-[12px] gap-y-[4px]" aria-live="polite">
-          {PASSWORD_RULES.map((rule) => (
-            <Rule key={rule.label} label={rule.label} met={rule.test(next)} />
-          ))}
-          {confirm.length > 0 && <Rule label="Passwords match" met={!mismatched} />}
+          {PASSWORD_RULES.map((rule, index) => {
+            const key = PASSWORD_RULE_KEYS[index];
+            return (
+              <Rule key={rule.label} label={key ? t(key) : rule.label} met={rule.test(next)} />
+            );
+          })}
+          {confirm.length > 0 && <Rule label={t('password.match')} met={!mismatched} />}
         </ul>
       )}
 
@@ -241,9 +259,9 @@ export function ChangePasswordDialog({
           className="mt-[2px] size-[14px] shrink-0 accent-[var(--surface-accent)]"
         />
         <span>
-          Sign out other devices
+          {t('password.signOutOthers')}
           <span className="block text-[11px] text-[var(--surface-fg-muted)]">
-            Recommended if you think someone else knows your password.
+            {t('password.signOutOthersHint')}
           </span>
         </span>
       </label>
@@ -264,10 +282,11 @@ export function AddPasswordDialog({
   security: AccountSecurity;
   onClose: () => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const via = providerNames(security.providers) || 'your provider';
+  const via = providerNames(security.providers) || t('password.yourProvider');
 
   const send = async () => {
     setBusy(true);
@@ -285,12 +304,12 @@ export function AddPasswordDialog({
   if (sent) {
     return (
       <SettingsModal
-        title="Check your email"
-        description={`We sent a link to ${security.email}. It expires in 30 minutes. Once you set a password there, you'll be signed out everywhere and can sign in with either your password or ${via}.`}
+        title={t('password.checkEmail')}
+        description={t('password.checkEmailBody', { email: security.email, via })}
         onClose={onClose}
         actions={
           <SettingsButton variant="primary" onClick={onClose}>
-            Done
+            {t('common.done')}
           </SettingsButton>
         }
       />
@@ -299,16 +318,16 @@ export function AddPasswordDialog({
 
   return (
     <SettingsModal
-      title="Add a password"
-      description={`Your account signs in with ${via}. We'll email ${security.email} a link to set a password, so you can also sign in with your email. The link proves the inbox is yours, so nobody at an unlocked computer can add one for you.`}
+      title={t('password.addTitle')}
+      description={t('password.addBody', { via, email: security.email })}
       onClose={onClose}
       actions={
         <>
           <SettingsButton variant="ghost" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </SettingsButton>
           <SettingsButton variant="primary" onClick={() => void send()} disabled={busy}>
-            {busy ? 'Sending…' : 'Email me a link'}
+            {busy ? t('common.sending') : t('password.emailLink')}
           </SettingsButton>
         </>
       }
@@ -327,6 +346,7 @@ export function ConnectedAccountsDialog({
   security: AccountSecurity;
   onClose: () => void;
 }) {
+  const t = useT();
   const linked = (provider: 'google' | 'github') => security.providers.includes(provider);
   const tag = (on: boolean, yes: string, no: string) => (
     <StatusTag tone={on ? 'positive' : 'neutral'}>{on ? yes : no}</StatusTag>
@@ -334,12 +354,12 @@ export function ConnectedAccountsDialog({
 
   return (
     <SettingsModal
-      title="Connected accounts"
-      description="Every way you can sign in to CanvasFlow."
+      title={t('settings.row.connected-accounts')}
+      description={t('connected.description')}
       onClose={onClose}
       actions={
         <SettingsButton variant="primary" onClick={onClose}>
-          Done
+          {t('common.done')}
         </SettingsButton>
       }
     >
@@ -347,24 +367,23 @@ export function ConnectedAccountsDialog({
         {/* The envelope keeps the three names in one column beside the two marks. */}
         <DialogListRow
           icon={<Mail className="size-[16px] text-[var(--surface-fg-muted)]" aria-hidden="true" />}
-          title="Email and password"
+          title={t('account.emailAndPassword')}
           detail={security.email}
-          tag={tag(security.hasPassword, 'Set', 'Not set')}
+          tag={tag(security.hasPassword, t('connected.set'), t('account.notSet'))}
         />
         <DialogListRow
           icon={<GoogleMark />}
           title="Google"
-          tag={tag(linked('google'), 'Connected', 'Not connected')}
+          tag={tag(linked('google'), t('connected.connected'), t('connected.notConnected'))}
         />
         <DialogListRow
           icon={<GitHubMark />}
           title="GitHub"
-          tag={tag(linked('github'), 'Connected', 'Not connected')}
+          tag={tag(linked('github'), t('connected.connected'), t('connected.notConnected'))}
         />
       </DialogList>
       <p className="text-[11.5px] leading-[1.55] text-[var(--surface-fg-muted)]">
-        To connect Google or GitHub, sign in with it using {security.email}. An account with the
-        same confirmed email address is joined to this one automatically.
+        {t('connected.howTo', { email: security.email })}
       </p>
     </SettingsModal>
   );
@@ -379,14 +398,15 @@ export function SessionsDialog({
   security: AccountSecurity;
   onClose: () => void;
 }) {
+  const t = useT();
   return (
     <SettingsModal
-      title="Active sessions"
-      description="Where your account is signed in right now. Location is approximate."
+      title={t('settings.row.sessions')}
+      description={t('sessions.description')}
       onClose={onClose}
       actions={
         <SettingsButton variant="primary" onClick={onClose}>
-          Done
+          {t('common.done')}
         </SettingsButton>
       }
     >
@@ -394,11 +414,18 @@ export function SessionsDialog({
         {security.sessions.map((session) => (
           <DialogListRow
             key={session.id}
-            title={session.device ?? 'Unknown browser'}
-            detail={`${session.location ?? 'Location unknown'} · Active since ${formatDay(
-              session.signedInAt,
+            title={session.device ?? t('sessions.unknownBrowser')}
+            detail={`${session.location ?? t('sessions.unknownLocation')} · ${t(
+              'sessions.activeSince',
+              {
+                date: formatDay(session.signedInAt),
+              },
             )}`}
-            tag={session.current ? <StatusTag tone="positive">This device</StatusTag> : undefined}
+            tag={
+              session.current ? (
+                <StatusTag tone="positive">{t('sessions.thisDevice')}</StatusTag>
+              ) : undefined
+            }
           />
         ))}
       </DialogList>
@@ -417,6 +444,7 @@ export function SignOutEverywhereDialog({
   deviceCount: number;
   onClose: () => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -435,20 +463,22 @@ export function SignOutEverywhereDialog({
   };
 
   const devices =
-    deviceCount > 1 ? `all ${deviceCount} devices, including this one` : 'this device';
+    deviceCount > 1
+      ? t('signOutAll.allDevices', { count: deviceCount })
+      : t('signOutAll.thisDevice');
 
   return (
     <SettingsModal
-      title="Sign out everywhere?"
-      description={`This signs out ${devices}, and closes any board open on them. You'll need to sign in again.`}
+      title={t('signOutAll.title')}
+      description={t('signOutAll.body', { devices })}
       onClose={onClose}
       actions={
         <>
           <SettingsButton variant="ghost" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </SettingsButton>
           <SettingsButton variant="danger" onClick={() => void confirm()} disabled={busy}>
-            {busy ? 'Signing out…' : 'Sign out all'}
+            {busy ? t('signOutAll.busy') : t('account.signOutAll')}
           </SettingsButton>
         </>
       }

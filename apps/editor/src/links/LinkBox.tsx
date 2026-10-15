@@ -12,6 +12,7 @@ import { parseLinkInput } from '@canvasflow/canvas-engine';
 import { menuChipClasses, menuSurfaceClasses } from '@/components/ui/menu-look';
 import { cn } from '@/lib/utils';
 import { ariaKeyShortcut } from '../help/platform';
+import { useT } from '../i18n';
 import type { ScreenRect, Size } from '../properties/halo-placement';
 import { currentHref, currentOrigin, linkBoxPlacement, linkTarget } from './link-placement';
 import { describeLink, followLinkClick } from './shape-link';
@@ -60,6 +61,7 @@ export function LinkBox({
   onCancel,
   onFollow,
 }: LinkBoxProps) {
+  const t = useT();
   const boxRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
 
@@ -99,7 +101,7 @@ export function LinkBox({
       <div
         ref={boxRef}
         role="group"
-        aria-label="Link"
+        aria-label={t('links.link')}
         data-testid="link-box"
         className={cn(menuSurfaceClasses, 'rounded-card p-0.75')}
       >
@@ -146,6 +148,7 @@ function LinkView({
   onRemove: () => void;
   onFollow?: (link: string) => boolean;
 }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -187,8 +190,8 @@ function LinkView({
       <Separator />
       <button
         type="button"
-        title={copied ? 'Copied' : 'Copy link'}
-        aria-label={copied ? 'Copied' : 'Copy link'}
+        title={copied ? t('links.copied') : t('links.copy')}
+        aria-label={copied ? t('links.copied') : t('links.copy')}
         className={menuChipClasses}
         onClick={copy}
       >
@@ -198,8 +201,8 @@ function LinkView({
         <>
           <button
             type="button"
-            title="Edit link"
-            aria-label="Edit link"
+            title={t('commands.editLink')}
+            aria-label={t('commands.editLink')}
             aria-keyshortcuts={ariaKeyShortcut('mod+k')}
             className={menuChipClasses}
             onClick={onEdit}
@@ -208,8 +211,8 @@ function LinkView({
           </button>
           <button
             type="button"
-            title="Remove link"
-            aria-label="Remove link"
+            title={t('links.remove')}
+            aria-label={t('links.remove')}
             className={menuChipClasses}
             onClick={onRemove}
           >
@@ -232,6 +235,7 @@ function LinkField({
   onSave: (link: string | null) => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState(link ?? '');
   const [invalid, setInvalid] = useState(false);
   const errorId = useId();
@@ -294,8 +298,8 @@ function LinkField({
           type="text"
           inputMode="url"
           value={draft}
-          placeholder="Paste or type a link"
-          aria-label="Link address"
+          placeholder={t('links.placeholder')}
+          aria-label={t('links.address')}
           aria-invalid={invalid || undefined}
           aria-describedby={invalid ? errorId : undefined}
           autoComplete="off"
@@ -328,8 +332,8 @@ function LinkField({
         />
         <button
           type="button"
-          title="Save link (Enter)"
-          aria-label="Save link"
+          title={t('links.saveEnter')}
+          aria-label={t('links.save')}
           className={menuChipClasses}
           onClick={submit}
         >
@@ -342,7 +346,7 @@ function LinkField({
           role="alert"
           className="m-0 px-1.5 pt-0.5 pb-1 text-[11px] text-red-600 dark:text-red-400"
         >
-          Enter a web or email address, like example.com
+          {t('links.invalid')}
         </p>
       )}
     </div>

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createRectangle } from '@canvasflow/canvas-engine';
 import { clipboardContentFrom } from './clipboard-ops';
-import { PASTE_HERE_NOTICE, PASTE_NOTICE, isPasteNotice } from './paste-notice';
+import { isPasteNotice, pasteNotice } from './paste-notice';
+
+const PASTE_NOTICE = pasteNotice(false);
+const PASTE_HERE_NOTICE = pasteNotice(true);
 import { pastedText, pastedTextWidth, wrappedToWidth } from './paste-text';
 
 /** Ten units a character, so a test can say how wide a line is by counting. */

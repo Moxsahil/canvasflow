@@ -35,6 +35,7 @@ import {
   arrowheadLabel,
 } from './style-options';
 import { styleSections } from './style-sections';
+import { useT } from '../i18n';
 import './PropertiesPanel.css';
 
 export interface LayerActions {
@@ -87,6 +88,7 @@ export function PropertiesPanel({
   layerActions,
   darkMode,
 }: StyleSurfaceProps) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const [popover, setPopover] = useState<OpenPopover | null>(null);
 
@@ -106,9 +108,9 @@ export function PropertiesPanel({
   const paintStroke = (colour: string) => strokeColorFor(colour, darkMode);
 
   const strokeColourRow = (
-    <InspectorRow label="Colour">
+    <InspectorRow label={t('style.colour')}>
       <ColorChip
-        label={show.textOnly ? 'Text colour' : 'Stroke colour'}
+        label={show.textOnly ? t('style.textColour') : t('style.strokeColour')}
         value={style.strokeColor}
         paint={paintStroke}
         expanded={popover?.target === 'stroke'}
@@ -121,10 +123,10 @@ export function PropertiesPanel({
     const value = end === 'start' ? style.startArrowhead : style.endArrowhead;
     const Icon = ARROWHEAD_ICONS[value];
     return (
-      <InspectorRow label={end === 'start' ? 'Start' : 'End'}>
+      <InspectorRow label={end === 'start' ? t('style.start') : t('style.end')}>
         <ChoiceChip
-          label={end === 'start' ? 'Start arrowhead' : 'End arrowhead'}
-          valueLabel={arrowheadLabel(value)}
+          label={end === 'start' ? t('style.startArrowhead') : t('style.endArrowhead')}
+          valueLabel={t(arrowheadLabel(value))}
           icon={<Icon />}
           mirrored={end === 'start' && value !== 'none'}
           expanded={popover?.target === `${end}Arrowhead`}
@@ -140,27 +142,27 @@ export function PropertiesPanel({
     sections.push({
       key: 'text',
       node: (
-        <InspectorSection title="Text">
+        <InspectorSection title={t('style.text')}>
           {strokeColourRow}
-          <InspectorRow label="Font">
+          <InspectorRow label={t('style.font')}>
             <SegmentedControl
-              label="Font"
+              label={t('style.font')}
               value={style.fontFamily}
               options={FONT_OPTIONS}
               onChange={(fontFamily) => onStyleChange({ fontFamily })}
             />
           </InspectorRow>
-          <InspectorRow label="Size">
+          <InspectorRow label={t('style.size')}>
             <SegmentedControl
-              label="Font size"
+              label={t('style.fontSize')}
               value={style.fontSize}
               options={FONT_SIZE_OPTIONS}
               onChange={(fontSize) => onStyleChange({ fontSize })}
             />
           </InspectorRow>
-          <InspectorRow label="Align">
+          <InspectorRow label={t('style.align')}>
             <SegmentedControl
-              label="Text align"
+              label={t('style.textAlign')}
               value={style.textAlign}
               options={ALIGN_OPTIONS}
               onChange={(textAlign) => onStyleChange({ textAlign })}
@@ -173,25 +175,25 @@ export function PropertiesPanel({
     sections.push({
       key: 'stroke',
       node: (
-        <InspectorSection title="Stroke">
+        <InspectorSection title={t('style.stroke')}>
           {strokeColourRow}
           {show.stroke && (
-            <InspectorRow label="Weight">
+            <InspectorRow label={t('style.weight')}>
               <StepperControl
-                label="Stroke weight"
+                label={t('style.strokeWeight')}
                 value={style.strokeWidth}
                 steps={WEIGHT_STEPS}
                 format={(width) => `${width} px`}
-                decreaseLabel="Thinner"
-                increaseLabel="Thicker"
+                decreaseLabel={t('style.thinner')}
+                increaseLabel={t('style.thicker')}
                 onChange={(strokeWidth) => onStyleChange({ strokeWidth })}
               />
             </InspectorRow>
           )}
           {show.strokeTreatments && (
-            <InspectorRow label="Dash">
+            <InspectorRow label={t('style.dash')}>
               <SegmentedControl
-                label="Stroke dash"
+                label={t('style.strokeDash')}
                 value={style.strokeStyle}
                 options={DASH_OPTIONS}
                 onChange={(strokeStyle) => onStyleChange({ strokeStyle })}
@@ -199,9 +201,9 @@ export function PropertiesPanel({
             </InspectorRow>
           )}
           {show.pressure && (
-            <InspectorRow label="Pressure">
+            <InspectorRow label={t('style.pressure')}>
               <SegmentedControl
-                label="Pressure"
+                label={t('style.pressure')}
                 value={style.simulatePressure ? 'tapered' : 'constant'}
                 options={PRESSURE_OPTIONS}
                 onChange={(pressure) => onStyleChange({ simulatePressure: pressure === 'tapered' })}
@@ -217,19 +219,19 @@ export function PropertiesPanel({
     sections.push({
       key: 'fill',
       node: (
-        <InspectorSection title="Fill">
-          <InspectorRow label="Colour">
+        <InspectorSection title={t('style.fill')}>
+          <InspectorRow label={t('style.colour')}>
             <ColorChip
-              label="Fill colour"
+              label={t('style.fillColour')}
               value={style.fillColor}
               expanded={popover?.target === 'fill'}
               onOpen={openPopover('fill')}
             />
           </InspectorRow>
           {show.fillPattern && (
-            <InspectorRow label="Pattern">
+            <InspectorRow label={t('style.pattern')}>
               <SegmentedControl
-                label="Fill pattern"
+                label={t('style.fillPattern')}
                 value={style.fillStyle}
                 options={PATTERN_OPTIONS}
                 onChange={(fillStyle) => onStyleChange({ fillStyle })}
@@ -245,11 +247,11 @@ export function PropertiesPanel({
     sections.push({
       key: 'shape',
       node: (
-        <InspectorSection title="Shape">
+        <InspectorSection title={t('style.shape')}>
           {show.strokeTreatments && (
-            <InspectorRow label="Look">
+            <InspectorRow label={t('style.look')}>
               <SegmentedControl
-                label="Look"
+                label={t('style.look')}
                 value={style.roughness}
                 options={LOOK_OPTIONS}
                 onChange={(roughness) => onStyleChange({ roughness })}
@@ -257,9 +259,9 @@ export function PropertiesPanel({
             </InspectorRow>
           )}
           {show.corners && (
-            <InspectorRow label="Corners">
+            <InspectorRow label={t('style.corners')}>
               <SegmentedControl
-                label="Corners"
+                label={t('style.corners')}
                 value={style.edges}
                 options={CORNER_OPTIONS}
                 onChange={(edges) => onStyleChange({ edges })}
@@ -275,10 +277,10 @@ export function PropertiesPanel({
     sections.push({
       key: 'arrow',
       node: (
-        <InspectorSection title="Arrow">
-          <InspectorRow label="Type">
+        <InspectorSection title={t('style.arrow')}>
+          <InspectorRow label={t('style.type')}>
             <SegmentedControl
-              label="Arrow type"
+              label={t('style.arrowType')}
               value={style.arrowType}
               options={ARROW_TYPE_OPTIONS}
               onChange={(arrowType) => onStyleChange({ arrowType })}
@@ -294,16 +296,16 @@ export function PropertiesPanel({
   sections.push({
     key: 'layer',
     node: (
-      <InspectorSection title="Layer">
-        <InspectorRow label="Opacity">
+      <InspectorSection title={t('style.layer')}>
+        <InspectorRow label={t('style.opacity')}>
           <PercentControl
-            label="Opacity"
+            label={t('style.opacity')}
             value={style.opacity}
             onChange={(opacity) => onStyleChange({ opacity })}
           />
         </InspectorRow>
         {canReorder && (
-          <InspectorRow label="Arrange">
+          <InspectorRow label={t('style.arrange')}>
             <ArrangeButtons actions={layerActions} />
           </InspectorRow>
         )}
@@ -321,7 +323,7 @@ export function PropertiesPanel({
   return (
     <div className="cf-properties-container" ref={containerRef}>
       <aside
-        aria-label="Style"
+        aria-label={t('style.style')}
         className={cn(
           menuSurfaceClasses,
           // Never runs off a short viewport; the popovers sit outside it, so
@@ -343,10 +345,10 @@ export function PropertiesPanel({
           key={popover.target}
           title={
             popover.target === 'fill'
-              ? 'Fill colour'
+              ? t('style.fillColour')
               : show.textOnly
-                ? 'Text colour'
-                : 'Stroke colour'
+                ? t('style.textColour')
+                : t('style.strokeColour')
           }
           value={popover.target === 'stroke' ? style.strokeColor : style.fillColor}
           swatches={popover.target === 'stroke' ? STROKE_SWATCHES : BACKGROUND_SWATCHES}
@@ -369,7 +371,7 @@ export function PropertiesPanel({
       {popover && arrowheadEnd && (
         <InspectorPopover
           key={popover.target}
-          title={arrowheadEnd === 'start' ? 'Start arrowhead' : 'End arrowhead'}
+          title={arrowheadEnd === 'start' ? t('style.startArrowhead') : t('style.endArrowhead')}
           position={popoverPosition}
           trigger={popover.trigger}
           onClose={closePopover}
@@ -394,18 +396,19 @@ export function PropertiesPanel({
 
 /** Bring to front, forward, backward and to back, as the context menu orders them. */
 export function ArrangeButtons({ actions }: { actions: LayerActions }) {
+  const t = useT();
   return (
     <div className="flex gap-0.5">
-      <InspectorIconButton label="Bring to front" onClick={actions.onBringToFront}>
+      <InspectorIconButton label={t('style.bringToFront')} onClick={actions.onBringToFront}>
         <ArrowUpToLine aria-hidden="true" />
       </InspectorIconButton>
-      <InspectorIconButton label="Bring forward" onClick={actions.onBringForward}>
+      <InspectorIconButton label={t('style.bringForward')} onClick={actions.onBringForward}>
         <MoveUp aria-hidden="true" />
       </InspectorIconButton>
-      <InspectorIconButton label="Send backward" onClick={actions.onSendBackward}>
+      <InspectorIconButton label={t('style.sendBackward')} onClick={actions.onSendBackward}>
         <MoveDown aria-hidden="true" />
       </InspectorIconButton>
-      <InspectorIconButton label="Send to back" onClick={actions.onSendToBack}>
+      <InspectorIconButton label={t('style.sendToBack')} onClick={actions.onSendToBack}>
         <ArrowDownToLine aria-hidden="true" />
       </InspectorIconButton>
     </div>

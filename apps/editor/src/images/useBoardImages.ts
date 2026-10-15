@@ -13,6 +13,7 @@ import { downloadImage, uploadImage } from './image-client';
 import { ImageRejectedError, prepareImage } from './prepare-image';
 import type { CarriedImage } from '../file/embedded-images';
 import { track } from '../analytics/analytics';
+import { t } from '../i18n';
 import type { Point } from '../machine/tool-machine.types';
 
 /**
@@ -173,7 +174,7 @@ export function useBoardImages({
 
       const currentToken = tokenRef.current;
       if (!currentToken) {
-        onErrorRef.current('Still connecting — try adding that image again in a moment.');
+        onErrorRef.current(t('images.stillConnecting'));
         return;
       }
 
@@ -187,7 +188,7 @@ export function useBoardImages({
             onErrorRef.current(
               error instanceof ImageRejectedError
                 ? error.message
-                : `Couldn't read ${file.name || 'that image'}.`,
+                : t('images.couldNotRead', { name: file.name || t('images.thatImage') }),
             );
             return null;
           }
@@ -239,7 +240,7 @@ export function useBoardImages({
           } catch (error) {
             docRef.current.updateShape(shape.id, { status: 'error' } as Partial<Shape>);
             onErrorRef.current(
-              error instanceof Error ? error.message : "That image couldn't be uploaded.",
+              error instanceof Error ? error.message : t('images.uploadFailedPlain'),
             );
           } finally {
             setUploadCount((n) => n - 1);
@@ -269,14 +270,12 @@ export function useBoardImages({
             } catch {
               // Not decodable here; the upload still decides what everyone sees.
             }
-            if (!currentToken) throw new Error('Still connecting — the images were not saved.');
+            if (!currentToken) throw new Error(t('images.stillConnectingNotSaved'));
             await uploadImage(boardId, currentToken, fileId, image.mimeType, image.bytes);
             setImageStatus(docRef.current, fileId, 'saved');
           } catch (error) {
             setImageStatus(docRef.current, fileId, 'error');
-            onErrorRef.current(
-              error instanceof Error ? error.message : "An image from that file couldn't be saved.",
-            );
+            onErrorRef.current(error instanceof Error ? error.message : t('images.fromFileFailed'));
           } finally {
             setUploadCount((n) => n - 1);
           }

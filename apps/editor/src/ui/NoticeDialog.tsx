@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Check, Copy, Radio, TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isMac } from '../help/platform';
+import { useT } from '../i18n';
 import { INPUT } from '../settings/settings-ui';
 import {
   SurfaceWindow,
@@ -42,6 +43,7 @@ interface NoticeDialogProps {
  * it again. Got it takes focus, so Enter or Escape puts it away.
  */
 export function NoticeDialog({ notice, theme, onClose, onLiveCollaboration }: NoticeDialogProps) {
+  const t = useT();
   const titleId = useId();
   const bodyId = useId();
   const fieldRef = useRef<HTMLInputElement>(null);
@@ -60,10 +62,10 @@ export function NoticeDialog({ notice, theme, onClose, onLiveCollaboration }: No
   const copyAgain = () => {
     if (!link) return;
     navigator.clipboard.writeText(link.url).then(
-      () => setStatus('Copied again.'),
+      () => setStatus(t('notice.copiedAgain')),
       () => {
         fieldRef.current?.select();
-        setStatus(`Selected: press ${isMac() ? '⌘C' : 'Ctrl C'} to copy.`);
+        setStatus(t('notice.pressToCopy', { keys: isMac() ? '⌘C' : 'Ctrl C' }));
       },
     );
   };
@@ -102,13 +104,13 @@ export function NoticeDialog({ notice, theme, onClose, onLiveCollaboration }: No
               ref={fieldRef}
               readOnly
               value={link.url}
-              aria-label="Board link"
+              aria-label={t('notice.boardLink')}
               onFocus={(event) => event.currentTarget.select()}
               className={cn(INPUT, 'min-w-0 flex-1')}
             />
             <WindowButton onClick={copyAgain}>
               <Copy aria-hidden="true" />
-              {link.copied ? 'Copy again' : 'Try again'}
+              {link.copied ? t('notice.copyAgain') : t('common.tryAgain')}
             </WindowButton>
           </div>
         </WindowBody>
@@ -118,11 +120,11 @@ export function NoticeDialog({ notice, theme, onClose, onLiveCollaboration }: No
         {link && onLiveCollaboration && (
           <WindowButton variant="ghost" onClick={onLiveCollaboration}>
             <Radio aria-hidden="true" />
-            Live collaboration
+            {t('notice.liveCollaboration')}
           </WindowButton>
         )}
         <WindowButton variant="primary" autoFocus data-autofocus onClick={onClose}>
-          Got it
+          {t('common.gotIt')}
         </WindowButton>
       </WindowFooter>
     </SurfaceWindow>

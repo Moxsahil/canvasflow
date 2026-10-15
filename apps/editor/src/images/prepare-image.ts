@@ -6,6 +6,7 @@ import {
   isVectorImageMimeType,
   decodeBlob,
 } from '@canvasflow/canvas-engine';
+import { formatLocale, t } from '../i18n';
 
 /**
  * Turning a file the user picked into something a board can hold.
@@ -94,21 +95,22 @@ async function downscale(
 export async function prepareImage(file: File): Promise<PreparedImage> {
   if (!isSupportedImageMimeType(file.type)) {
     throw new ImageRejectedError(
-      file.type
-        ? `${file.type} isn't an image format we can place on a board.`
-        : "That file doesn't look like an image.",
+      file.type ? t('images.wrongFormat', { type: file.type }) : t('images.notAnImage'),
     );
   }
   if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
     throw new ImageRejectedError(
-      `That image is ${formatBytes(file.size)} — the limit is ${formatBytes(MAX_IMAGE_UPLOAD_BYTES)}.`,
+      t('images.tooLarge', {
+        size: formatBytes(file.size),
+        limit: formatBytes(MAX_IMAGE_UPLOAD_BYTES),
+      }),
     );
   }
 
   let blob: Blob = file;
   let mimeType = file.type;
   let bitmap = await decodeBlob(blob).catch(() => {
-    throw new ImageRejectedError("That image couldn't be read — it may be damaged.");
+    throw new ImageRejectedError(t('images.unreadable'));
   });
 
   // Vectors are resolution-independent, so shrinking one would throw away the
@@ -124,9 +126,10 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
 
   if (blob.size > MAX_STORED_IMAGE_BYTES) {
     throw new ImageRejectedError(
-      `That image is still ${formatBytes(blob.size)} after resizing — the limit is ${formatBytes(
-        MAX_STORED_IMAGE_BYTES,
-      )}.`,
+      t('images.tooLargeResized', {
+        size: formatBytes(blob.size),
+        limit: formatBytes(MAX_STORED_IMAGE_BYTES),
+      }),
     );
   }
 
@@ -146,6 +149,11 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  const number = (value: number, digits: number) =>
+    value.toLocaleString(formatLocale(), {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+  if (bytes < 1024 * 1024) return t('units.kb', { size: number(bytes / 1024, 0) });
+  return t('units.mb', { size: number(bytes / 1024 / 1024, 1) });
 }

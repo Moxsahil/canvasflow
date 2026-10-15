@@ -1,4 +1,5 @@
 import { env } from '../lib/env';
+import { t } from '../i18n';
 
 /**
  * Transport for image bytes.
@@ -70,9 +71,7 @@ export async function uploadImage(
   if (!upload.ok) {
     // The body here is the storage provider's XML, which is no use to anyone
     // looking at a canvas. The status is the only part worth keeping.
-    throw new ImageUploadError(
-      `That image couldn't be uploaded (${upload.status}). Try again in a moment.`,
-    );
+    throw new ImageUploadError(t('images.uploadFailedStatus', { status: upload.status }));
   }
 }
 
@@ -87,13 +86,15 @@ export async function uploadImage(
  */
 async function failureMessage(response: Response): Promise<string> {
   if (response.status >= 500) {
-    return "That image couldn't be saved. The board is still fine — try again in a moment.";
+    return t('images.saveFailed');
   }
   const detail = await response
     .json()
     .then((body: { message?: string }) => body?.message)
     .catch(() => undefined);
-  return typeof detail === 'string' && detail ? detail : `Upload failed (${response.status})`;
+  return typeof detail === 'string' && detail
+    ? detail
+    : t('images.uploadFailed', { status: response.status });
 }
 
 /**

@@ -173,7 +173,10 @@ describe('row metadata', () => {
   });
 
   it('takes the Copy as rows from their commands, and leaves them to a viewer', () => {
-    expect(CONTEXT_MENU_ITEMS.copyAsPng).toMatchObject({ label: 'PNG', shortcut: 'alt+shift+c' });
+    expect(CONTEXT_MENU_ITEMS.copyAsPng).toMatchObject({
+      labelKey: 'contextMenu.copyAsPng',
+      shortcut: 'alt+shift+c',
+    });
     for (const id of [
       'copyAsPng',
       'copyAsSvg',
@@ -222,11 +225,11 @@ describe('contextMenuFor', () => {
       .find((entry) => typeof entry !== 'string' && entry.submenu === 'moveTo');
 
     expect(moveTo).toMatchObject({
-      label: 'Move to',
+      labelKey: 'contextMenu.submenu.moveTo',
       items: ['moveToNewBoard'],
       listsBoards: true,
     });
-    expect(CONTEXT_MENU_ITEMS.moveToNewBoard.label).toBe('New board');
+    expect(CONTEXT_MENU_ITEMS.moveToNewBoard.labelKey).toBe('contextMenu.moveToNewBoard');
   });
 
   it('offers the style panels on the board menu as a submenu of two choices', () => {
@@ -235,15 +238,18 @@ describe('contextMenuFor', () => {
       .find((entry) => typeof entry !== 'string' && entry.submenu === 'stylePanel');
 
     expect(stylePanel).toMatchObject({
-      label: 'Style panel',
+      labelKey: 'contextMenu.submenu.stylePanel',
       items: ['stylePanelInspector', 'stylePanelHalo'],
       compact: true,
     });
     expect(CONTEXT_MENU_ITEMS.stylePanelInspector).toMatchObject({
-      label: 'Inspector',
+      labelKey: 'contextMenu.stylePanelInspector',
       choice: true,
     });
-    expect(CONTEXT_MENU_ITEMS.stylePanelHalo).toMatchObject({ label: 'Halo', choice: true });
+    expect(CONTEXT_MENU_ITEMS.stylePanelHalo).toMatchObject({
+      labelKey: 'contextMenu.stylePanelHalo',
+      choice: true,
+    });
   });
 
   it('keeps the style panels from a viewer, who has no style controls', () => {

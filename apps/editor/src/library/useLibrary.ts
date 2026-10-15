@@ -13,6 +13,7 @@ import {
   type AddedLibrary,
   type StoredLibraryItem,
 } from './library-client';
+import { t } from '../i18n';
 import { catalogueCredit, type CatalogueLibrary } from './library-catalogue';
 import { importableItems, type LibraryFileItem } from './library-files';
 import { readLibraryShapes } from './library-items';
@@ -143,9 +144,7 @@ export function useLibrary({
         setError(null);
       })
       .catch((err: unknown) => {
-        setError(
-          err instanceof LibraryError ? err.message : 'Couldn’t reach your library. Try again.',
-        );
+        setError(err instanceof LibraryError ? err.message : t('library.unreachable'));
         setStatus((was) => (was === 'ready' ? was : 'error'));
       })
       .finally(() => {
@@ -156,8 +155,7 @@ export function useLibrary({
   const add = useCallback(
     async (shapes: readonly Shape[], name: string) => {
       const current = tokenRef.current;
-      if (!enabled || !current)
-        throw new LibraryError('Sign up to keep a library of your own', 403);
+      if (!enabled || !current) throw new LibraryError(t('library.signUp'), 403);
       const entry = entryFrom(await createLibraryItem(current, { name, shapes }));
       setItems((was) => [entry, ...was.filter((item) => item.id !== entry.id)]);
       return entry;
@@ -216,7 +214,7 @@ export function useLibrary({
     async (fileItems: readonly LibraryFileItem[]): Promise<ImportResult> => {
       const current = tokenRef.current;
       if (!enabled || !current) {
-        return { imported: 0, tooLarge: 0, error: 'Sign up to keep a library of your own' };
+        return { imported: 0, tooLarge: 0, error: t('library.signUp') };
       }
       const { fit, tooLarge } = importableItems(fileItems);
 
@@ -252,7 +250,7 @@ export function useLibrary({
           return {
             imported,
             tooLarge,
-            error: err instanceof Error ? err.message : 'Couldn’t import the rest',
+            error: err instanceof Error ? err.message : t('library.importRestFailed'),
           };
         }
       }
@@ -264,8 +262,7 @@ export function useLibrary({
   const addFromCatalogue = useCallback(
     async (library: CatalogueLibrary) => {
       const current = tokenRef.current;
-      if (!enabled || !current)
-        throw new LibraryError('Sign up to keep a library of your own', 403);
+      if (!enabled || !current) throw new LibraryError(t('library.signUp'), 403);
       const saved = await addCatalogueLibrary(current, {
         catalogueId: library.id,
         name: library.name,

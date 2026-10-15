@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useT } from '../i18n';
 
 interface QRCodeProps {
   value: string;
@@ -9,6 +10,7 @@ interface QRCodeProps {
 type Matrix = boolean[][];
 
 export function QRCode({ value, size = 132 }: QRCodeProps) {
+  const t = useT();
   const [matrix, setMatrix] = useState<Matrix | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -54,7 +56,7 @@ export function QRCode({ value, size = 132 }: QRCodeProps) {
           height={size - 16}
           shapeRendering="crispEdges"
           role="img"
-          aria-label="QR code for the board link"
+          aria-label={t('share.qrLabel')}
         >
           {matrix.flatMap((row, y) =>
             row.map((filled, x) =>

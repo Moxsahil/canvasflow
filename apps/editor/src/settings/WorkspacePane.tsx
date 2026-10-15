@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { can } from '@canvasflow/types';
 import { env } from '@/lib/env';
+import { t as translate, useT, type TranslationKey } from '../i18n';
 import type { WorkspaceRole, WorkspaceSummary } from '../workspace/workspace-api';
 import {
   acceptOwnership,
@@ -22,8 +23,6 @@ import {
   ValueText,
 } from './settings-ui';
 
-const LEAD = 'Members, roles, and workspace-level settings.';
-
 const MAX_WORKSPACE_NAME = 60;
 
 /** Which workspace the tab is about: none (a guest), not known yet, or this one. */
@@ -38,17 +37,17 @@ export type WorkspaceSettingsSource =
   | { status: 'loading' }
   | { status: 'ready'; workspace: WorkspaceSummary };
 
-const ROLE_HINTS: Record<WorkspaceRole, string> = {
-  owner: 'Full control, including deleting the workspace',
-  admin: 'Can rename it, invite people, and change or remove members',
-  member: 'Can open, make and edit its boards',
+const ROLE_HINTS: Record<WorkspaceRole, TranslationKey> = {
+  owner: 'role.hint.owner',
+  admin: 'role.hint.admin',
+  member: 'role.hint.member',
 };
 
-/** "You're the owner here", and so on. */
-const ROLE_PHRASES: Record<WorkspaceRole, string> = {
-  owner: 'the owner',
-  admin: 'an admin',
-  member: 'a member',
+/** "You're the owner here", and so on — whole sentences, for the article. */
+const YOURE_HERE: Record<WorkspaceRole, TranslationKey> = {
+  owner: 'workspacePane.youreHere.owner',
+  admin: 'workspacePane.youreHere.admin',
+  member: 'workspacePane.youreHere.member',
 };
 
 /** Which dialog is up over the page. */
@@ -56,15 +55,19 @@ type Dialog = 'members' | 'leave' | 'hand-over' | null;
 
 /** "you", or the owner's name, for sentences about where boards go. */
 function ownerWord(owner: WorkspaceMember | null, userId: string | null): string {
-  if (!owner) return 'the owner';
-  return owner.userId === userId ? 'you' : owner.name;
+  if (!owner) return translate('share.theOwner');
+  return owner.userId === userId ? translate('workspacePane.you') : owner.name;
 }
 
 /** "Just you", "3 members", and the invitations and guests after them when there are any. */
 function peopleCount(members: number, invited: number, guests: number): string {
-  const parts = [members === 1 ? 'Just you' : `${members} members`];
-  if (invited > 0) parts.push(`${invited} invited`);
-  if (guests > 0) parts.push(guests === 1 ? '1 guest' : `${guests} guests`);
+  const parts = [
+    members === 1
+      ? translate('workspacePane.justYou')
+      : translate('share.memberCount', { count: members }),
+  ];
+  if (invited > 0) parts.push(translate('workspacePane.invited', { count: invited }));
+  if (guests > 0) parts.push(translate('workspacePane.guests', { count: guests }));
   return parts.join(' · ');
 }
 
@@ -88,18 +91,19 @@ export function WorkspacePane({
   onRename,
   onShowWorkspace,
 }: WorkspacePaneProps) {
+  const t = useT();
   if (source.status === 'shared') {
     return <SharedPane board={source.board} own={source.own} onShowWorkspace={onShowWorkspace} />;
   }
 
   if (source.status === 'none') {
     return (
-      <SettingsPage lead={LEAD}>
-        <Band title="Workspace">
+      <SettingsPage lead={t('settings.section.workspace.lead')}>
+        <Band title={t('settings.group.workspace')}>
           <SettingRow
             setting="workspace-name"
-            title="No workspace"
-            hint="You joined this board by link. Create an account to have boards of your own."
+            title={t('workspacePane.none')}
+            hint={t('workspacePane.noneHint')}
           />
         </Band>
       </SettingsPage>
@@ -128,6 +132,7 @@ function ReadyPane({
   userId: string | null;
   onRename?: (workspaceId: string, name: string) => Promise<void>;
 }) {
+  const t = useT();
   const people = useWorkspacePeople(workspace?.id ?? null);
   const [renameError, setRenameError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -155,7 +160,7 @@ function ReadyPane({
       await (accept ? acceptOwnership(workspace.id) : withdrawOwnershipOffer(workspace.id));
       reread();
     } catch (err: unknown) {
-      setOfferError(err instanceof Error ? err.message : 'That didn’t work. Try again.');
+      setOfferError(err instanceof Error ? err.message : t('common.didNotWork'));
     } finally {
       setOfferBusy(false);
     }
@@ -164,7 +169,7 @@ function ReadyPane({
   const save = async (next: string) => {
     if (!workspace || !onRename) return false;
     if (!next) {
-      setRenameError('A workspace needs a name.');
+      setRenameError(t('workspacePane.nameRequired'));
       return false;
     }
     try {
@@ -172,7 +177,7 @@ function ReadyPane({
       setRenameError(null);
       return true;
     } catch (err: unknown) {
-      setRenameError(err instanceof Error ? err.message : 'Could not rename the workspace.');
+      setRenameError(err instanceof Error ? err.message : t('workspacePane.renameFailed'));
       return false;
     }
   };
@@ -186,11 +191,11 @@ function ReadyPane({
         )
       : people.status === 'error'
         ? people.error
-        : 'Loading…';
+        : t('common.loading');
 
   return (
     <SettingsPage
-      lead={LEAD}
+      lead={t('settings.section.workspace.lead')}
       dialog={
         workspace && ready && dialog === 'members' ? (
           <MembersDialog
@@ -221,9 +226,9 @@ function ReadyPane({
         ) : workspace && dialog === 'leave' ? (
           <ConfirmDialog
             key="leave"
-            title={`Leave ${workspace.name}?`}
-            description={`You lose it and every board in it at once. What you drew stays on the boards, and any boards you own here pass to ${ownerWord(owner, userId)}. Someone in it can invite you back.`}
-            confirmLabel="Leave workspace"
+            title={t('workspacePane.leaveTitle', { name: workspace.name })}
+            description={t('workspacePane.leaveBody', { owner: ownerWord(owner, userId) })}
+            confirmLabel={t('settings.row.leave-workspace')}
             danger
             testId="confirm-leave"
             onClose={() => setDialog(null)}
@@ -237,18 +242,15 @@ function ReadyPane({
         ) : null
       }
     >
-      <Band title="Workspace">
+      <Band title={t('settings.group.workspace')}>
         {offeredToMe && (
           <SettingRow
             setting="ownership-offer"
-            title="Become the owner?"
-            badge={<StatusTag tone="caution">Waiting for you</StatusTag>}
+            title={t('workspacePane.becomeOwner')}
+            badge={<StatusTag tone="caution">{t('workspacePane.waitingForYou')}</StatusTag>}
             hint={
-              offerError ?? (
-                <>
-                  {`${owner?.name ?? 'The owner'} offered you this workspace. You’d have full control, including deleting it, and they’d become an admin.`}
-                </>
-              )
+              offerError ??
+              t('workspacePane.offeredYou', { owner: owner?.name ?? t('workspacePane.theOwner') })
             }
           >
             <SettingsButton
@@ -257,7 +259,7 @@ function ReadyPane({
               onClick={() => void answerOffer(false)}
               data-testid="ownership-decline"
             >
-              Decline
+              {t('workspacePane.decline')}
             </SettingsButton>
             <SettingsButton
               variant="primary"
@@ -265,17 +267,17 @@ function ReadyPane({
               onClick={() => void answerOffer(true)}
               data-testid="ownership-accept"
             >
-              Accept
+              {t('workspacePane.accept')}
             </SettingsButton>
           </SettingRow>
         )}
         {workspace && runs ? (
           <InlineTextField
             setting="workspace-name"
-            label="Workspace name"
-            hint="Shown at the top of the sidebar, for everyone in it"
+            label={t('workspace.name')}
+            hint={t('workspacePane.nameHint')}
             value={workspace.name}
-            placeholder="Workspace name"
+            placeholder={t('workspace.name')}
             maxLength={MAX_WORKSPACE_NAME}
             error={renameError}
             onEdit={() => setRenameError(null)}
@@ -284,33 +286,37 @@ function ReadyPane({
         ) : (
           <SettingRow
             setting="workspace-name"
-            title="Workspace name"
-            hint={workspace ? 'Only the owner or an admin can rename it' : 'Loading…'}
+            title={t('workspace.name')}
+            hint={workspace ? t('workspacePane.renameRestricted') : t('common.loading')}
           >
             {workspace && <ValueText>{workspace.name}</ValueText>}
           </SettingRow>
         )}
-        <SettingRow setting="role" title="Your role" hint={role ? ROLE_HINTS[role] : 'Loading…'}>
-          {role && <ValueText>{ROLE_LABELS[role]}</ValueText>}
+        <SettingRow
+          setting="role"
+          title={t('settings.row.role')}
+          hint={role ? t(ROLE_HINTS[role]) : t('common.loading')}
+        >
+          {role && <ValueText>{t(ROLE_LABELS[role])}</ValueText>}
         </SettingRow>
       </Band>
 
-      <Band title="People">
-        <SettingRow setting="members" title="Members" hint={membersHint}>
+      <Band title={t('settings.group.people')}>
+        <SettingRow setting="members" title={t('settings.row.members')} hint={membersHint}>
           <SettingsButton
             disabled={!ready}
             onClick={() => setDialog('members')}
             data-testid="workspace-members-open"
           >
-            {runs ? 'Manage' : 'View'}
+            {runs ? t('account.manage') : t('workspacePane.view')}
           </SettingsButton>
         </SettingRow>
         <SettingRow
           setting="board-access"
-          title="Default board access"
-          hint="Everyone in the workspace can open and edit its boards"
+          title={t('settings.row.board-access')}
+          hint={t('workspacePane.boardAccessHint')}
         >
-          <ValueText>Can edit</ValueText>
+          <ValueText>{t('access.canEdit')}</ValueText>
         </SettingRow>
         <LeaveRow
           role={role}
@@ -353,6 +359,7 @@ function LeaveRow({
   onHandOver: () => void;
   onWithdraw: () => Promise<void>;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -360,8 +367,8 @@ function LeaveRow({
     return (
       <SettingRow
         setting="leave-workspace"
-        title="Leave workspace"
-        hint="You’ll lose access to its boards. Boards you own here pass to the owner."
+        title={t('settings.row.leave-workspace')}
+        hint={t('workspacePane.leaveHint')}
       >
         <SettingsButton
           variant="danger"
@@ -369,7 +376,7 @@ function LeaveRow({
           onClick={onLeave}
           data-testid="workspace-leave"
         >
-          Leave
+          {t('workspacePane.leave')}
         </SettingsButton>
       </SettingRow>
     );
@@ -379,11 +386,11 @@ function LeaveRow({
     return (
       <SettingRow
         setting="leave-workspace"
-        title="Leave workspace"
-        hint={ready ? 'You’re the only one here. Delete the workspace instead.' : 'Loading…'}
+        title={t('settings.row.leave-workspace')}
+        hint={ready ? t('workspacePane.onlyOne') : t('common.loading')}
       >
         <SettingsButton variant="danger" disabled data-testid="workspace-leave">
-          Leave
+          {t('workspacePane.leave')}
         </SettingsButton>
       </SettingRow>
     );
@@ -393,12 +400,9 @@ function LeaveRow({
     return (
       <SettingRow
         setting="leave-workspace"
-        title="Leave workspace"
-        badge={<StatusTag tone="caution">Handing over</StatusTag>}
-        hint={
-          error ??
-          `Waiting for ${offeredTo.name} to accept the ownership. You can leave once they do.`
-        }
+        title={t('settings.row.leave-workspace')}
+        badge={<StatusTag tone="caution">{t('workspacePane.handingOver')}</StatusTag>}
+        hint={error ?? t('workspacePane.waitingFor', { name: offeredTo.name })}
       >
         <SettingsButton
           disabled={busy}
@@ -408,12 +412,12 @@ function LeaveRow({
             setError(null);
             onWithdraw()
               .catch((err: unknown) =>
-                setError(err instanceof Error ? err.message : 'That didn’t work. Try again.'),
+                setError(err instanceof Error ? err.message : t('common.didNotWork')),
               )
               .finally(() => setBusy(false));
           }}
         >
-          Take back offer
+          {t('workspacePane.takeBackOffer')}
         </SettingsButton>
       </SettingRow>
     );
@@ -422,11 +426,11 @@ function LeaveRow({
   return (
     <SettingRow
       setting="leave-workspace"
-      title="Leave workspace"
-      hint="You’re the owner. Hand the workspace to someone first; you can leave once they accept."
+      title={t('settings.row.leave-workspace')}
+      hint={t('workspacePane.ownerLeaveHint')}
     >
       <SettingsButton onClick={onHandOver} data-testid="workspace-hand-over">
-        Hand over…
+        {t('workspacePane.handOver')}
       </SettingsButton>
     </SettingRow>
   );
@@ -449,48 +453,54 @@ function SharedPane({
   own: WorkspaceSummary | null;
   onShowWorkspace?: (workspaceId: string) => void;
 }) {
+  const t = useT();
   return (
-    <SettingsPage lead={LEAD}>
-      <Band title="This board">
+    <SettingsPage lead={t('settings.section.workspace.lead')}>
+      <Band title={t('board.thisBoard')}>
         <SettingRow
           setting="workspace-name"
-          title={board ? `Shared with you from ${board.workspaceName}` : 'Shared with you'}
+          title={
+            board
+              ? t('workspacePane.sharedFrom', { workspace: board.workspaceName })
+              : t('boards.sharedWithYou')
+          }
           hint={
             board
-              ? `${board.ownerName} shared it with you by link. You’re not in ${board.workspaceName}, so its members and settings aren’t yours to manage.`
-              : 'Boards shared with you by link, from workspaces you’re not in. Their members and settings aren’t yours to manage.'
+              ? t('workspacePane.sharedHint', {
+                  owner: board.ownerName,
+                  workspace: board.workspaceName,
+                })
+              : t('workspacePane.sharedListHint')
           }
         />
         {board && (
           <SettingRow
             setting="role"
-            title="Your access"
-            hint="Set by the board’s owner, from the board’s Share window"
+            title={t('workspacePane.yourAccess')}
+            hint={t('workspacePane.yourAccessHint')}
           >
-            <ValueText>{board.role === 'viewer' ? 'Can view' : 'Can edit'}</ValueText>
+            <ValueText>
+              {board.role === 'viewer' ? t('access.canView') : t('access.canEdit')}
+            </ValueText>
           </SettingRow>
         )}
       </Band>
-      <Band title="Your workspace">
+      <Band title={t('workspacePane.yourWorkspace')}>
         {own ? (
-          <SettingRow
-            setting="members"
-            title={own.name}
-            hint={`You’re ${ROLE_PHRASES[own.role]} here. Open it to manage its members and settings.`}
-          >
+          <SettingRow setting="members" title={own.name} hint={t(YOURE_HERE[own.role])}>
             <SettingsButton
               onClick={() => onShowWorkspace?.(own.id)}
               disabled={!onShowWorkspace}
               data-testid="workspace-show-own"
             >
-              Open
+              {t('library.open')}
             </SettingsButton>
           </SettingRow>
         ) : (
           <SettingRow
             setting="members"
-            title="No workspace of your own yet"
-            hint="Create one from the menu at the top of the sidebar to make boards of your own."
+            title={t('workspacePane.noOwn')}
+            hint={t('workspacePane.noOwnHint')}
           />
         )}
       </Band>

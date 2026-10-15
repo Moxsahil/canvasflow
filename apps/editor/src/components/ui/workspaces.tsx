@@ -2,6 +2,7 @@ import * as React from 'react';
 import { CheckIcon, ChevronsUpDownIcon } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   menuButtonRowClasses,
@@ -184,7 +185,7 @@ function WorkspaceContent({
   className,
   children,
   renderWorkspace,
-  title = 'Workspaces',
+  title,
   searchable = false,
   onSearch,
   ...props
@@ -192,6 +193,7 @@ function WorkspaceContent({
   const { workspaces, selectedWorkspace, onWorkspaceSelect, getWorkspaceId, getWorkspaceName } =
     useWorkspaceContext();
 
+  const t = useT();
   const [searchQuery, setSearchQuery] = React.useState('');
 
   const filteredWorkspaces = React.useMemo(() => {
@@ -225,12 +227,12 @@ function WorkspaceContent({
       align={props.align || 'start'}
       {...props}
     >
-      <p className={menuLabelClasses}>{title}</p>
+      <p className={menuLabelClasses}>{title ?? t('manage.workspaces')}</p>
 
       {searchable && (
         <input
           type="text"
-          placeholder="Search workspaces..."
+          placeholder={t('workspace.search')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full rounded bg-transparent px-2 py-1.5 text-xs outline-none placeholder:text-neutral-500 dark:placeholder:text-neutral-400"
@@ -240,7 +242,7 @@ function WorkspaceContent({
       <div className="flex max-h-75 w-full flex-col gap-y-1 overflow-y-auto">
         {filteredWorkspaces.length === 0 ? (
           <p className="px-2 py-1.5 text-xs text-neutral-500 dark:text-neutral-400">
-            No workspaces found
+            {t('workspace.noneFound')}
           </p>
         ) : (
           filteredWorkspaces.map((workspace) => {

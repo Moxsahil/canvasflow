@@ -51,26 +51,97 @@ export function findLanguage(code: string): Language | undefined {
   return [...LANGUAGES, ...TEST_LANGUAGES].find((language) => language.code === code);
 }
 
+/**
+ * A word whose form depends on a number. Its forms sit in en.json under the
+ * key plus `_one`, `_other` and whatever else a language needs (`_few`,
+ * `_many`…), and it is asked for by the key alone with a `count`.
+ */
+type PluralKey<K> = K extends `${infer Base}_other` ? Base : never;
+
+/** Anything `t()` takes: a plain word's key, or a counted word's key without its form. */
+export type WordKey = TranslationKey | PluralKey<TranslationKey>;
+
+function lookup(
+  messages: Messages,
+  locale: string,
+  key: string,
+  count: unknown,
+): string | undefined {
+  const words = messages as Readonly<Record<string, string | undefined>>;
+  if (typeof count === 'number') {
+    const form = new Intl.PluralRules(locale).select(count);
+    return words[`${key}_${form}`] ?? words[`${key}_other`] ?? words[key];
+  }
+  return words[key];
+}
+
 export function translate(
   messages: Messages,
   locale: string,
-  key: TranslationKey,
+  key: WordKey,
   values?: TranslationValues,
 ): string {
   if (isTestLocale(locale)) {
     const slots = values ? `(${Object.keys(values).join(', ')})` : '';
     // Isolated, so a bracketed key keeps its own direction inside the
     // right-to-left test language instead of having its brackets flipped.
-    return `⁨[[${key}${slots}]]⁩`;
+    return `\u2068[[${key}${slots}]]\u2069`;
   }
 
-  let text = messages[key] ?? ENGLISH[key] ?? key;
+  const count = values?.count;
+  let text =
+    lookup(messages, locale, key, count) ?? lookup(ENGLISH, DEFAULT_LOCALE, key, count) ?? key;
   if (values) {
     for (const [name, value] of Object.entries(values)) {
       text = text.replaceAll(`{{${name}}}`, String(value));
     }
   }
   return text;
+}
+
+let current: { locale: string; messages: Messages } = {
+  locale: DEFAULT_LOCALE,
+  messages: ENGLISH,
+};
+
+/** Called by the provider as each language arrives, so `t` below follows it. */
+export function setCurrentLanguage(locale: string, messages: Messages): void {
+  current = { locale, messages };
+}
+
+/**
+ * The locale to format dates and numbers in: the browser's own, while it is
+ * the language on screen — so someone in Britain keeps day-before-month — and
+ * otherwise the language on screen.
+ */
+export function formatLocale(): string {
+  const lang = isTestLocale(current.locale) ? DEFAULT_LOCALE : current.locale;
+  return browserLocales().find((code) => languagePart(code) === languagePart(lang)) ?? lang;
+}
+
+/**
+ * Spelled out rather than taken from Intl in English: the short month names
+ * differ between ICU versions ("Sep" in one, "Sept" in the next), so the same
+ * date would read differently in different browsers.
+ */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "24 Sep 2026" in English, and the language's own short date otherwise. */
+export function formatShortDate(date: Date): string {
+  const locale = formatLocale();
+  if (languagePart(locale) === DEFAULT_LOCALE) {
+    return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+  }
+  return date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/**
+ * The lookup for code outside components — command lists, error messages,
+ * anything worked out when it is called rather than rendered. Components use
+ * `useT()` instead, which re-renders them when the language changes.
+ */
+export function t(key: WordKey, values?: TranslationValues): string {
+  return translate(current.messages, current.locale, key, values);
 }
 
 function languagePart(code: string): string {

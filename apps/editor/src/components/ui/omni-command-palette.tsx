@@ -4,6 +4,7 @@ import { ChevronRight, Search, SearchX, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { useT } from '@/i18n';
 
 /** A half-open `[start, end)` slice of the label to emphasise. */
 export type OmniHighlight = readonly [number, number];
@@ -68,13 +69,14 @@ export function OmniCommandPalette({
   onActiveIdChange,
   onSelect,
   onKeyDown,
-  placeholder = 'Search for a command…',
+  placeholder,
   hintKeys,
-  emptyMessage = 'No commands match that.',
+  emptyMessage,
   portalContainer,
   className,
   contentClassName,
 }: OmniCommandPaletteProps) {
+  const t = useT();
   const listRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
@@ -111,7 +113,7 @@ export function OmniCommandPalette({
         }}
         onKeyDown={onKeyDown}
       >
-        <DialogTitle className="sr-only">Command palette</DialogTitle>
+        <DialogTitle className="sr-only">{t('menu.commandPalette')}</DialogTitle>
 
         <Card className="w-full p-0">
           <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
@@ -123,10 +125,10 @@ export function OmniCommandPalette({
               aria-expanded="true"
               aria-controls="cf-command-list"
               aria-activedescendant={activeId ? `cf-command-${activeId}` : undefined}
-              aria-label="Search for a command"
+              aria-label={t('palette.search')}
               autoComplete="off"
               spellCheck={false}
-              placeholder={placeholder}
+              placeholder={placeholder ?? t('palette.placeholder')}
               value={query}
               onChange={(event) => onQueryChange(event.target.value)}
               className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
@@ -140,7 +142,7 @@ export function OmniCommandPalette({
             )}
             <button
               type="button"
-              aria-label="Close"
+              aria-label={t('common.close')}
               onClick={() => onOpenChange(false)}
               className="rounded-ele p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
@@ -152,7 +154,7 @@ export function OmniCommandPalette({
             id="cf-command-list"
             ref={listRef}
             role="listbox"
-            aria-label="Commands"
+            aria-label={t('palette.commands')}
             // No scrollbar: the list is driven by the arrow keys as much as by
             // the wheel, and a grey stripe down a list you are typing to filter
             // is furniture rather than information. The row left half-visible
@@ -167,7 +169,9 @@ export function OmniCommandPalette({
                 <span className="flex size-9 items-center justify-center rounded-full bg-muted">
                   <SearchX className="size-4 text-muted-foreground" aria-hidden="true" />
                 </span>
-                <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+                <p className="text-sm text-muted-foreground">
+                  {emptyMessage ?? t('palette.noMatches')}
+                </p>
               </div>
             ) : (
               sections.map((section) => (
@@ -190,9 +194,9 @@ export function OmniCommandPalette({
           </div>
 
           <div className="flex items-center gap-4 border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
-            <Hint keys={['↑', '↓']}>to navigate</Hint>
-            <Hint keys={['↵']}>to run</Hint>
-            <Hint keys={['esc']}>to close</Hint>
+            <Hint keys={['↑', '↓']}>{t('palette.toNavigate')}</Hint>
+            <Hint keys={['↵']}>{t('palette.toRun')}</Hint>
+            <Hint keys={['esc']}>{t('palette.toClose')}</Hint>
           </div>
         </Card>
       </DialogContent>

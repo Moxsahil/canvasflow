@@ -8,6 +8,7 @@ import type {
   SnapGuide,
 } from '@canvasflow/canvas-engine';
 import type { Camera, Point } from '../machine/tool-machine.types';
+import { useT } from '../i18n';
 import type { Tool } from '../tools/tool';
 import { Grid } from './Grid';
 import { useCanvasResize } from './hooks/useCanvasResize';
@@ -151,6 +152,7 @@ export function CanvasStack({
   onWheelPan,
   isPanning,
 }: CanvasStackProps) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const staticCanvasRef = useRef<HTMLCanvasElement>(null);
   const newElementCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -321,9 +323,13 @@ export function CanvasStack({
           inset: 0,
         }}
       >
-        <canvas ref={staticCanvasRef} style={canvasStyle} aria-label="Static canvas" />
-        <canvas ref={newElementCanvasRef} style={canvasStyle} aria-label="New element canvas" />
-        <canvas ref={interactiveCanvasRef} style={canvasStyle} aria-label="Interactive canvas" />
+        <canvas ref={staticCanvasRef} style={canvasStyle} aria-label={t('canvas.static')} />
+        <canvas ref={newElementCanvasRef} style={canvasStyle} aria-label={t('canvas.newElement')} />
+        <canvas
+          ref={interactiveCanvasRef}
+          style={canvasStyle}
+          aria-label={t('canvas.interactive')}
+        />
       </div>
     </div>
   );
