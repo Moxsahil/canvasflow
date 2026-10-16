@@ -5,7 +5,9 @@ import {
   FolderOpen,
   ImageDown,
   Keyboard,
+  LayoutGrid,
   Link2,
+  LogIn,
   LogOut,
   Pencil,
   Save,
@@ -13,6 +15,7 @@ import {
   Settings,
   Settings2,
   Trash2,
+  UserPlus,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -31,7 +34,10 @@ export type MenuItemId =
   | 'help'
   | 'preferences'
   | 'settings'
-  | 'signOut';
+  | 'signOut'
+  | 'signIn'
+  | 'signUp'
+  | 'yourBoards';
 
 export interface MenuItemMeta {
   readonly id: MenuItemId;
@@ -86,6 +92,11 @@ export const MENU_ITEMS: Readonly<Record<MenuItemId, MenuItemMeta>> = {
   preferences: { id: 'preferences', labelKey: 'menu.preferences', icon: Settings2 },
   settings: { id: 'settings', labelKey: 'menu.settings', icon: Settings },
   signOut: { id: 'signOut', labelKey: 'menu.signOut', icon: LogOut, destructive: true },
+  // The board kept in this browser has no account behind it: these are its
+  // ways to one, and back to an account's own boards for someone signed in.
+  signIn: { id: 'signIn', labelKey: 'menu.signIn', icon: LogIn },
+  signUp: { id: 'signUp', labelKey: 'menu.signUp', icon: UserPlus },
+  yourBoards: { id: 'yourBoards', labelKey: 'menu.yourBoards', icon: LayoutGrid },
 };
 
 /**

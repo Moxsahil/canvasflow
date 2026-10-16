@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 /** Move this whenever the text below changes: the page tells readers it did. */
-const LAST_UPDATED = '2026-10-14';
+const LAST_UPDATED = '2026-10-16';
 
 const privacyEmail = <a href={`mailto:${CONTACT.privacy}`}>{CONTACT.privacy}</a>;
 const supportEmail = <a href={`mailto:${CONTACT.support}`}>{CONTACT.support}</a>;
@@ -25,7 +25,9 @@ const supportEmail = <a href={`mailto:${CONTACT.support}`}>{CONTACT.support}</a>
  * cloud only after a yes saved on the account: the editor sends a short list
  * of named events (apps/editor/src/analytics), with page addresses stripped,
  * keeps PostHog's id in local storage rather than a cookie, and deletes it on
- * a no; the project discards IP addresses. Change the product, change this.
+ * a no; the project discards IP addresses. The board at the editor's own
+ * address, drawn on without an account, never leaves the browser
+ * (apps/editor/src/local). Change the product, change this.
  */
 const SECTIONS: LegalSection[] = [
   {
@@ -272,6 +274,11 @@ const SECTIONS: LegalSection[] = [
           The editor also keeps copies of the boards you open in your browser, so they keep working
           offline and catch up when you reconnect, along with your editor settings. Clearing your
           browser’s data for CanvasFlow removes them.
+        </p>
+        <p>
+          You can also draw at app.canvasflowapp.com without an account. That board, and any
+          pictures you add to it, are kept only in your browser: we never receive them, and clearing
+          your browser’s data for CanvasFlow deletes them for good.
         </p>
         <p>
           If you allow usage analytics, the editor also keeps a random ID in your browser’s storage

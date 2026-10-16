@@ -248,6 +248,15 @@ import { useAvatar, useAvatarUrls, useProfile } from './profile';
 import { VerificationNotice } from './profile/VerificationNotice';
 import { TermsNotice } from './profile/TermsNotice';
 import { AnalyticsNotice, track, useUsageAnalytics } from './analytics';
+import {
+  LOCAL_USER,
+  LocalAccountButton,
+  SignUpPrompt,
+  leaveForAccount,
+  useCarryLocalBoard,
+  useSignedIn,
+  type SignUpReason,
+} from './local';
 
 import { ConfirmDialog } from './ui';
 import { rich, t as translate, useT } from './i18n';
@@ -548,6 +557,13 @@ function resizeCanSnap(shape: Shape, handle: HandleIndex): boolean {
 
 interface EditorProps {
   boardId: string;
+  /**
+   * The board kept in this browser, at the editor's own address: drawn on
+   * without an account, saved in IndexedDB, and never sent to the server.
+   * Whatever needs an account — sharing, comments, the library, settings —
+   * offers one instead.
+   */
+  local?: boolean;
 }
 
 /**
@@ -564,7 +580,7 @@ let lastChromeUser: {
   username: string | null;
 } | null = null;
 
-export function Editor({ boardId }: EditorProps) {
+export function Editor({ boardId, local = false }: EditorProps) {
   const t = useT();
   /** The editor root. Every popup portals here, for the theme tokens on it. */
   const editorRef = useRef<HTMLDivElement>(null);
@@ -599,7 +615,12 @@ export function Editor({ boardId }: EditorProps) {
     refresh: refreshAuthToken,
     refreshNow: refreshAuthTokenNow,
     accessDenied: tokenAccessDenied,
-  } = useAuthToken(boardId);
+  } = useAuthToken(boardId, { enabled: !local });
+  /** Whether this browser has an account signed in, asked only on the local board. */
+  const signedIn = useSignedIn(local) === true;
+  /** What was asked of the local board that only an account's board can do. */
+  const [signUpReason, setSignUpReason] = useState<SignUpReason | null>(null);
+  const hideSignUp = useCallback(() => setSignUpReason(null), []);
 
   const [helpOpen, setHelpOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -650,7 +671,11 @@ export function Editor({ boardId }: EditorProps) {
   const [accessRevoked, setAccessRevoked] = useState(false);
   const showExport = useCallback(() => setExportOpen(true), []);
   const hideExport = useCallback(() => setExportOpen(false), []);
-  const showShare = useCallback(() => setShareOpen(true), []);
+  // The local board has nothing to share yet: asking is asking for an account.
+  const showShare = useCallback(
+    () => (local ? setSignUpReason('share') : setShareOpen(true)),
+    [local],
+  );
   const hideShare = useCallback(() => setShareOpen(false), []);
   const showSettings = useCallback(() => setSettingsOpen(true), []);
   const hideSettings = useCallback(() => {
@@ -693,7 +718,10 @@ export function Editor({ boardId }: EditorProps) {
   // The token has always carried the user's name and role alongside the id;
   // until presence needed them the editor only read the id, which is why the
   // menu's account row has been showing a raw UUID.
-  const user = useMemo(() => (authToken ? decodeJwtUser(authToken) : null), [authToken]);
+  const user = useMemo(
+    () => (local ? LOCAL_USER : authToken ? decodeJwtUser(authToken) : null),
+    [local, authToken],
+  );
   const userId = user?.id ?? null;
   // The account's own library, kept across boards. A guest has none.
   const library = useLibrary({ userId, token: authToken, isGuest: user?.isGuest ?? true });
@@ -774,12 +802,15 @@ export function Editor({ boardId }: EditorProps) {
     onChanged: account.reload,
   });
 
+  // Nobody on the local board: its account row offers one instead.
   const chromeUser = useMemo(
     () =>
-      user
-        ? { name: user.name, email: user.email, avatarUrl: avatar.url, username: ownUsername }
-        : lastChromeUser,
-    [user, avatar.url, ownUsername],
+      local
+        ? null
+        : user
+          ? { name: user.name, email: user.email, avatarUrl: avatar.url, username: ownUsername }
+          : lastChromeUser,
+    [local, user, avatar.url, ownUsername],
   );
   // A guest's identity is the share link's, not an account worth carrying to
   // the next board.
@@ -793,12 +824,18 @@ export function Editor({ boardId }: EditorProps) {
   const boardSwitcher = useBoardSwitcher({
     boardId,
     workspaceId: authToken ? decodeJwtWorkspaceId(authToken) : null,
+    local,
+    localTitle: t('local.boardTitle'),
   });
   // Someone outside the board's workspace — let in by a share link — has no
   // board list to name it from, and the sidebar falls back to the id. The
   // gateway names it for anyone on the board, and says whose it is, which the
   // Share window tells a non-owner.
-  const overview = useBoardOverview(boardId, authToken, user !== null && user.role !== 'owner');
+  const overview = useBoardOverview(
+    boardId,
+    authToken,
+    !local && user !== null && user.role !== 'owner',
+  );
   const boardTitle =
     boardSwitcher.title === boardId && overview ? overview.title : boardSwitcher.title;
   // With no argument it targets the board on screen, which is what the
@@ -1314,6 +1351,7 @@ export function Editor({ boardId }: EditorProps) {
     shapes,
     token: authToken,
     canEdit: !readOnly,
+    local,
     onError: showImageNotice,
   });
 
@@ -2984,6 +3022,11 @@ export function Editor({ boardId }: EditorProps) {
       // the document, which would show the shape for a frame and take it back.
       if (readOnly && !VIEW_ONLY_TOOLS.has(tool)) return;
       if (viewMode && tool !== VIEW_MODE_TOOL) return;
+      // A comment needs someone to sign it, and people to read it.
+      if (local && tool === 'comment') {
+        setSignUpReason('comment');
+        return;
+      }
       setActiveLock(null);
       if (actorRef.getSnapshot().matches('editingText')) {
         const active = document.activeElement;
@@ -3002,7 +3045,7 @@ export function Editor({ boardId }: EditorProps) {
       }
       actorRef.send({ type: 'SELECT_TOOL', tool });
     },
-    [actorRef, handlePickImage, readOnly, viewMode, preferences],
+    [actorRef, handlePickImage, readOnly, viewMode, preferences, local],
   );
   const handleEscape = useCallback(() => {
     setActiveLock(null);
@@ -3333,6 +3376,30 @@ export function Editor({ boardId }: EditorProps) {
     adoptImages: images.adoptImages,
     fileHandleRef,
     onNotice: showOpenNotice,
+  });
+
+  // The local board, brought into the account by signing in from it.
+  useCarryLocalBoard({
+    ready: !local && user !== null && !user.isGuest && !user.readOnly && !readOnly && boardSynced,
+    boardId,
+    owns: user?.role === 'owner',
+    workspaceId: authToken ? decodeJwtWorkspaceId(authToken) : null,
+    doc,
+    title: t('local.carry.boardTitle'),
+    addBoard: boardSwitcher.addBoard,
+    openBoard: boardSwitcher.openBoard,
+    adoptImages: images.adoptImages,
+    onCarried: (carried) => {
+      handleBoardFileLoaded(carried);
+      showToast(t('local.carry.done'));
+    },
+    onShare: () => setShareOpen(true),
+    onFailed: () =>
+      setNotice({
+        title: t('local.carry.failedTitle'),
+        body: t('local.carry.failedBody'),
+        tone: 'warn',
+      }),
   });
 
   const { saveBoardFileToDisk } = useSaveBoardFile({
@@ -4117,6 +4184,7 @@ export function Editor({ boardId }: EditorProps) {
       helpOpen ||
       exportOpen ||
       shareOpen ||
+      signUpReason !== null ||
       settingsOpen ||
       paletteOpen ||
       // The menu moves between its rows with the arrow keys, which would
@@ -4202,6 +4270,7 @@ export function Editor({ boardId }: EditorProps) {
       canCopyAsText,
       canCopyAsMermaid,
       canShareLinks: runsSharing,
+      hasAccount: !local,
     },
   );
 
@@ -4317,8 +4386,17 @@ export function Editor({ boardId }: EditorProps) {
             commandPalette: togglePalette,
             findOnCanvas: search.openSearch,
             help: handleShowHelp,
-            settings: showSettings,
-            signOut: showSignOut,
+            // The local board has no account to set up or leave; it offers
+            // one, or the account's own boards to someone signed in.
+            settings: local ? false : showSettings,
+            signOut: local ? false : showSignOut,
+            ...(local &&
+              (signedIn
+                ? { yourBoards: () => leaveForAccount('yourBoards') }
+                : {
+                    signIn: () => leaveForAccount('signIn'),
+                    signUp: () => leaveForAccount('signUp'),
+                  })),
           }}
         />
 
@@ -4535,7 +4613,7 @@ export function Editor({ boardId }: EditorProps) {
                   container={editorRoot}
                 />
               )}
-              {!chromeHidden && (
+              {!chromeHidden && !local && (
                 <CommentsMenu
                   threads={comments.threads}
                   photos={commentPhotos}
@@ -4549,18 +4627,23 @@ export function Editor({ boardId }: EditorProps) {
               {chromeHidden ? (
                 <ExitModeButton mode={viewMode ? 'view' : 'focus'} onExit={exitMode} />
               ) : (
-                <PeerList
-                  roster={roster}
-                  boardId={boardId}
-                  authToken={authToken}
-                  theme={presenceTheme}
-                  following={follow.following}
-                  onFollow={follow.follow}
-                  onStopFollowing={follow.stop}
-                  onShare={showShare}
-                  readOnly={readOnly}
-                  portalContainer={editorRoot}
-                />
+                <>
+                  {local && <LocalAccountButton signedIn={signedIn} />}
+                  <PeerList
+                    // Nobody else can be on the local board, and its one
+                    // person has no account to show a face for.
+                    roster={local ? [] : roster}
+                    boardId={boardId}
+                    authToken={authToken}
+                    theme={presenceTheme}
+                    following={follow.following}
+                    onFollow={follow.follow}
+                    onStopFollowing={follow.stop}
+                    onShare={showShare}
+                    readOnly={readOnly}
+                    portalContainer={editorRoot}
+                  />
+                </>
               )}
             </div>
 
@@ -4732,6 +4815,13 @@ export function Editor({ boardId }: EditorProps) {
               ownerName={overview?.ownerName ?? null}
               ownerId={overview?.ownerId ?? null}
               roster={roster}
+            />
+
+            <SignUpPrompt
+              reason={signUpReason}
+              signedIn={signedIn}
+              theme={presenceTheme}
+              onClose={hideSignUp}
             />
 
             <ConfirmDialog

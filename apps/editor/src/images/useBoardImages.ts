@@ -10,6 +10,7 @@ import {
   type Shape,
 } from '@canvasflow/canvas-engine';
 import { downloadImage, uploadImage } from './image-client';
+import { readLocalImage, saveLocalImage } from '../local/local-images';
 import { ImageRejectedError, prepareImage } from './prepare-image';
 import type { CarriedImage } from '../file/embedded-images';
 import { track } from '../analytics/analytics';
@@ -60,7 +61,21 @@ interface UseBoardImagesOptions {
   token: string | null;
   /** Viewers may see images but never add them. */
   canEdit: boolean;
+  /**
+   * The board kept in this browser: its pictures are kept here too, since
+   * there is no server for them to go to and no token to send.
+   */
+  local?: boolean;
   onError: (message: string) => void;
+}
+
+/** Where a board's picture bytes are kept, and how to reach them. */
+interface ImageTransport {
+  /** False while the token an upload or a download needs is on its way. */
+  ready: () => boolean;
+  upload: (fileId: string, mimeType: string, bytes: Uint8Array) => Promise<void>;
+  /** Null when the bytes are not there, or not there yet. */
+  download: (fileId: string) => Promise<Blob | null>;
 }
 
 export interface BoardImages {
@@ -87,6 +102,7 @@ export function useBoardImages({
   shapes,
   token,
   canEdit,
+  local = false,
   onError,
 }: UseBoardImagesOptions): BoardImages {
   const [revision, setRevision] = useState(0);
@@ -103,16 +119,32 @@ export function useBoardImages({
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
 
+  const transport = useMemo<ImageTransport>(() => {
+    if (local) {
+      return { ready: () => true, upload: saveLocalImage, download: readLocalImage };
+    }
+    const tokenNow = () => {
+      const current = tokenRef.current;
+      if (!current) throw new Error(t('images.stillConnecting'));
+      return current;
+    };
+    return {
+      ready: () => tokenRef.current !== null,
+      upload: (fileId, mimeType, bytes) =>
+        uploadImage(boardId, tokenNow(), fileId, mimeType, bytes),
+      download: (fileId) => downloadImage(boardId, tokenNow(), fileId),
+    };
+  }, [local, boardId]);
+
   const cache = useMemo(
     () =>
       new ImageCache({
         fetch: async (fileId) => {
-          const current = tokenRef.current;
           // No token yet is the same situation as no bytes yet: not an error,
           // just not now. Returning null leaves the id untracked so the next
           // pass retries once the token arrives.
-          if (!current) return null;
-          return downloadImage(boardId, current, fileId);
+          if (!transport.ready()) return null;
+          return transport.download(fileId);
         },
         onError: (fileId) => {
           // Marking the shape rather than only the cache is what makes the
@@ -128,7 +160,7 @@ export function useBoardImages({
           setImageStatus(docRef.current, fileId, 'saved');
         },
       }),
-    [boardId],
+    [transport],
   );
 
   useEffect(() => cache.subscribe(() => setRevision((n) => n + 1)), [cache]);
@@ -172,8 +204,7 @@ export function useBoardImages({
       if (files.length === 0) return;
       if (!canEdit) return;
 
-      const currentToken = tokenRef.current;
-      if (!currentToken) {
+      if (!transport.ready()) {
         onErrorRef.current(t('images.stillConnecting'));
         return;
       }
@@ -233,7 +264,7 @@ export function useBoardImages({
       await Promise.all(
         placed.map(async ({ shape, item }) => {
           try {
-            await uploadImage(boardId, currentToken, item.fileId, item.mimeType, item.bytes);
+            await transport.upload(item.fileId, item.mimeType, item.bytes);
             // The one field that changes after insert, and the signal every
             // other client is waiting for.
             docRef.current.updateShape(shape.id, { status: 'saved' } as Partial<Shape>);
@@ -248,13 +279,13 @@ export function useBoardImages({
         }),
       );
     },
-    [boardId, cache, canEdit],
+    [transport, cache, canEdit],
   );
 
   const adoptImages = useCallback(
     async (images: ReadonlyMap<string, CarriedImage>) => {
       if (images.size === 0 || !canEdit) return;
-      const currentToken = tokenRef.current;
+      const ready = transport.ready();
 
       setUploadCount((n) => n + images.size);
       await Promise.all(
@@ -270,8 +301,8 @@ export function useBoardImages({
             } catch {
               // Not decodable here; the upload still decides what everyone sees.
             }
-            if (!currentToken) throw new Error(t('images.stillConnectingNotSaved'));
-            await uploadImage(boardId, currentToken, fileId, image.mimeType, image.bytes);
+            if (!ready) throw new Error(t('images.stillConnectingNotSaved'));
+            await transport.upload(fileId, image.mimeType, image.bytes);
             setImageStatus(docRef.current, fileId, 'saved');
           } catch (error) {
             setImageStatus(docRef.current, fileId, 'error');
@@ -282,7 +313,7 @@ export function useBoardImages({
         }),
       );
     },
-    [boardId, cache, canEdit],
+    [transport, cache, canEdit],
   );
 
   /**
@@ -296,16 +327,15 @@ export function useBoardImages({
    */
   const resolveDataUrls = useCallback(
     async (subject: readonly Shape[]): Promise<ReadonlyMap<string, string>> => {
-      const currentToken = tokenRef.current;
       const resolved = new Map<string, string>();
-      if (!currentToken) return resolved;
+      if (!transport.ready()) return resolved;
 
       const fileIds = [...new Set(subject.filter(isImage).map((shape) => shape.fileId))];
 
       await Promise.all(
         fileIds.map(async (fileId) => {
           try {
-            const blob = await downloadImage(boardId, currentToken, fileId);
+            const blob = await transport.download(fileId);
             if (!blob) return;
             resolved.set(fileId, await blobToDataUrl(blob));
           } catch {
@@ -317,7 +347,7 @@ export function useBoardImages({
 
       return resolved;
     },
-    [boardId],
+    [transport],
   );
 
   return {

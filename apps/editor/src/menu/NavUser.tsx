@@ -1,5 +1,5 @@
-import { Fragment } from 'react';
-import { Check, ChevronsUpDown } from 'lucide-react';
+import { Fragment, type ReactNode } from 'react';
+import { Check, ChevronsUpDown, UserRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { menuDangerRowClasses } from '@/components/ui/menu-look';
 import {
@@ -52,14 +52,25 @@ interface NavUserProps {
  * The account at the foot of the sidebar: who you are, and what you can do
  * about it. Two lines of identity, so the row says which account this is
  * rather than only that there is one.
+ *
+ * On the board kept in this browser there is no account in it. The row says
+ * so, and offers one — or, to someone already signed in, their own boards.
  */
 export function NavUser({ user, actions, portalContainer }: NavUserProps) {
   const t = useT();
-  const name = user?.name?.trim() || t('menu.account');
+  const toBoards = typeof actions?.yourBoards === 'function';
+  const accountless = !user && (toBoards || typeof actions?.signIn === 'function');
+  const name = accountless
+    ? t(toBoards ? 'local.account.signedIn' : 'local.account.notSignedIn')
+    : user?.name?.trim() || t('menu.account');
   const email = user?.email ?? null;
   // The username is what collaborators find you by, so it is the second line
   // once there is one; the address is still in the menu's caption above.
-  const detail = user?.username ? `@${user.username}` : email;
+  const detail = accountless
+    ? t(toBoards ? 'local.account.toBoards' : 'local.account.offer')
+    : user?.username
+      ? `@${user.username}`
+      : email;
 
   return (
     <SidebarMenuItem>
@@ -74,6 +85,8 @@ export function NavUser({ user, actions, portalContainer }: NavUserProps) {
             name={name}
             detail={detail}
             avatarUrl={user?.avatarUrl ?? null}
+            // No name to take letters from: "Not signed in" is not one.
+            icon={accountless ? <UserRound className="size-4" aria-hidden="true" /> : undefined}
             className={identityDetailClasses}
           />
           <ChevronsUpDown className={cn('ml-auto size-4 shrink-0', identityDetailClasses)} />
@@ -100,7 +113,16 @@ export function NavUser({ user, actions, portalContainer }: NavUserProps) {
               items rather than as a row of its own, which is why it is quiet
               and unseparated. */}
           <InlineDropdownMenuLabel>{email ?? name}</InlineDropdownMenuLabel>
-          <AccountRow id="settings" actions={actions} />
+          {!accountless ? (
+            <AccountRow id="settings" actions={actions} />
+          ) : toBoards ? (
+            <AccountRow id="yourBoards" actions={actions} />
+          ) : (
+            <>
+              <AccountRow id="signIn" actions={actions} />
+              <AccountRow id="signUp" actions={actions} />
+            </>
+          )}
 
           {/* Both open beside the menu, out over the canvas: up the rail there
               is only the menu itself, and below it nothing at all. */}
@@ -122,8 +144,12 @@ export function NavUser({ user, actions, portalContainer }: NavUserProps) {
             </InlineDropdownMenuSubContent>
           </InlineDropdownMenuSub>
 
-          <InlineDropdownMenuSeparator />
-          <AccountRow id="signOut" actions={actions} />
+          {!accountless && (
+            <>
+              <InlineDropdownMenuSeparator />
+              <AccountRow id="signOut" actions={actions} />
+            </>
+          )}
         </InlineDropdownMenuContent>
       </InlineDropdownMenu>
     </SidebarMenuItem>
@@ -230,19 +256,21 @@ function Identity({
   name,
   detail,
   avatarUrl,
+  icon,
   className,
 }: {
   name: string;
   /** The line under the name: their username, else their address. */
   detail: string | null;
   avatarUrl?: string | null;
+  icon?: ReactNode;
   className?: string;
 }) {
   return (
     <>
       {/* A person, so: a circle, two letters, and the quiet fill — the board
           and workspace rows above keep the square accent badge. */}
-      <InitialBadge label={name} src={avatarUrl} person />
+      <InitialBadge label={name} src={avatarUrl} icon={icon} person />
       <span className={cn('grid min-w-0 flex-1 text-left text-sm leading-tight', className)}>
         <span className="truncate font-medium">{name}</span>
         {detail && <span className="truncate text-xs opacity-70">{detail}</span>}

@@ -55,7 +55,8 @@ interface AuthTokenState {
  * If either token is present but its boardId claim doesn't match the
  * current board, we drop it — never reuse a cross-board token.
  */
-function readInitialToken(boardId: string): AuthTokenState {
+function readInitialToken(boardId: string, enabled: boolean): AuthTokenState {
+  if (!enabled) return { token: null, expiresAt: null };
   const fromHash = getAuthTokenFromHash();
   if (fromHash) {
     const claimedBoardId = decodeJwtBoardId(fromHash);
@@ -90,8 +91,14 @@ function readInitialToken(boardId: string): AuthTokenState {
  *
  * The token is scoped to a specific board. Passing a different boardId
  * on re-render triggers a fresh initial-token read for that board.
+ *
+ * `enabled: false` is the board kept in this browser, which no account owns:
+ * there is nothing to mint, and asking would only be refused.
  */
-export function useAuthToken(boardId: string): {
+export function useAuthToken(
+  boardId: string,
+  { enabled = true }: { enabled?: boolean } = {},
+): {
   authToken: string | null;
   refresh: () => Promise<void>;
   /**
@@ -107,7 +114,7 @@ export function useAuthToken(boardId: string): {
    */
   accessDenied: boolean;
 } {
-  const [state, setState] = useState<AuthTokenState>(() => readInitialToken(boardId));
+  const [state, setState] = useState<AuthTokenState>(() => readInitialToken(boardId, enabled));
   const tokenRef = useRef<string | null>(state.token);
   tokenRef.current = state.token;
   const [accessDenied, setAccessDenied] = useState(false);
@@ -208,9 +215,9 @@ export function useAuthToken(boardId: string): {
 
   // When boardId changes, re-read initial token for the new board
   useEffect(() => {
-    setState(readInitialToken(boardId));
+    setState(readInitialToken(boardId, enabled));
     setAccessDenied(false);
-  }, [boardId]);
+  }, [boardId, enabled]);
 
   /**
    * Arriving with no token at all — someone pasted a board URL rather than
@@ -225,9 +232,9 @@ export function useAuthToken(boardId: string): {
    * effect only re-fires when that value changes.
    */
   useEffect(() => {
-    if (state.token !== null) return;
+    if (!enabled || state.token !== null) return;
     void refresh();
-  }, [state.token, refresh]);
+  }, [enabled, state.token, refresh]);
 
   // Schedule automatic refresh before expiry
   useEffect(() => {

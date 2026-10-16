@@ -61,6 +61,7 @@ function SharedBadge({ className }: { className?: string }) {
  *
  * A guest let in by share link has no workspace at all, and gets the open
  * board's name as a plain header instead of a menu that could only be empty.
+ * So does the board kept in this browser, which says that is where it is.
  */
 export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherProps) {
   const t = useT();
@@ -99,7 +100,10 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
         {/* Not interactive, so it takes the row's shape without its affordances. */}
         <div className={cn(identityRowClasses, 'hover:bg-transparent')} title={state.title}>
           <InitialBadge label={state.title} className="rounded-full" />
-          <Lines primary={state.title} secondary={t('workspace.board')} />
+          <Lines
+            primary={state.title}
+            secondary={state.local ? t('local.savedHere') : t('workspace.board')}
+          />
         </div>
       </SidebarMenuItem>
     );

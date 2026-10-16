@@ -1,13 +1,17 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Editor } from './Editor';
 import { useT } from './i18n';
+import { LOCAL_BOARD_ID } from './local';
 
 export function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* The editor's own address opens a board straight away, with no
+            account: the one kept in this browser. */}
+        <Route path="/" element={<Editor key={LOCAL_BOARD_ID} boardId={LOCAL_BOARD_ID} local />} />
         <Route path="/boards/:boardId" element={<EditorRoute />} />
-        <Route path="*" element={<Navigate to="/boards/dev-local" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

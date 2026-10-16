@@ -19,4 +19,24 @@ describe('NavUser', () => {
     expect(html).toContain('ada@example.com');
     expect(html).not.toContain('>@');
   });
+
+  it('says nobody is signed in on the local board, and offers an account', () => {
+    const html = renderToString(
+      <NavUser
+        user={null}
+        actions={{ signIn: () => {}, signUp: () => {} }}
+        portalContainer={null}
+      />,
+    );
+    expect(html).toContain('Not signed in');
+    expect(html).toContain('Sign in or sign up');
+  });
+
+  it('offers their own boards to someone signed in on the local board', () => {
+    const html = renderToString(
+      <NavUser user={null} actions={{ yourBoards: () => {} }} portalContainer={null} />,
+    );
+    expect(html).toContain('Signed in');
+    expect(html).toContain('Open your boards');
+  });
 });
