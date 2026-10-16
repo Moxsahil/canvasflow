@@ -56,6 +56,7 @@ interface EditorTokenClaims {
   boardId?: string;
   workspaceId?: string;
   role?: string;
+  archived?: boolean;
   exp?: number;
 }
 
@@ -127,8 +128,13 @@ export interface EditorUser {
   readonly name: string;
   readonly email: string | null;
   readonly role: EditorRole | null;
-  /** True when this session may not write. Viewers, and anything unrecognised. */
+  /**
+   * True when this session may not write. Viewers, anything unrecognised, and
+   * everyone on an archived board.
+   */
   readonly readOnly: boolean;
+  /** The board is archived: read-only for everyone until it is unarchived. */
+  readonly archived: boolean;
   /**
    * Someone who joined by share link without an account.
    *
@@ -157,6 +163,7 @@ export function decodeJwtUser(token: string): EditorUser | null {
   const claimed = claims.role;
   const role: EditorRole | null =
     claimed === 'owner' || claimed === 'editor' || claimed === 'viewer' ? claimed : null;
+  const archived = claims.archived === true;
 
   return {
     id: claims.id,
@@ -168,7 +175,8 @@ export function decodeJwtUser(token: string): EditorUser | null {
     // Unrecognised roles read as read-only rather than as full access: an
     // older token, or one this build doesn't understand, must not be treated
     // as permission to write.
-    readOnly: role !== 'owner' && role !== 'editor',
+    readOnly: archived || (role !== 'owner' && role !== 'editor'),
+    archived,
     isGuest: claims.isGuest === true,
   };
 }

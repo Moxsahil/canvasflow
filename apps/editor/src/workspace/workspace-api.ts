@@ -35,6 +35,16 @@ export interface BoardSummary {
   color: BoardColor;
   /** ISO-8601, as JSON leaves it. */
   updatedAt: string;
+  /** Who made it — with the workspace's admins, who may archive or delete it. */
+  ownerId: string;
+  /** ISO-8601 while the board is archived: out of the lists, read-only for everyone. */
+  archivedAt: string | null;
+  /**
+   * Your own pin's order key, lowest first, or null when you have not pinned
+   * it. Only the board list says; a board a change hands back leaves it out,
+   * and whatever the list said stands.
+   */
+  pin?: string | null;
 }
 
 /** A rename, a re-tag, or both. An absent field is left as it is. */
@@ -214,4 +224,52 @@ export async function deleteBoard(boardId: string): Promise<BoardSummary> {
   if (!res.ok) throw await failure(res, 'board');
   const body = (await res.json()) as { data: BoardSummary };
   return body.data;
+}
+
+/**
+ * Archive a board: out of everyone's lists and read-only for everyone until it
+ * is unarchived. The board's owner or a workspace admin; the server decides.
+ */
+export async function archiveBoard(boardId: string): Promise<BoardSummary> {
+  const res = await fetch(`${boardUrl(boardId)}/archive`, {
+    method: 'PUT',
+    credentials: 'include',
+  });
+  if (!res.ok) throw await failure(res, 'board');
+  const body = (await res.json()) as { data: BoardSummary };
+  return body.data;
+}
+
+/** Bring an archived board back: listed again, and editable again. */
+export async function unarchiveBoard(boardId: string): Promise<BoardSummary> {
+  const res = await fetch(`${boardUrl(boardId)}/archive`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) throw await failure(res, 'board');
+  const body = (await res.json()) as { data: BoardSummary };
+  return body.data;
+}
+
+/**
+ * Pin a board to the top of your own sidebar, or move your pin. `position`
+ * is the order key it should sort by among your pins, lowest first.
+ */
+export async function pinBoard(boardId: string, position: string): Promise<void> {
+  const res = await fetch(`${boardUrl(boardId)}/pin`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ position }),
+  });
+  if (!res.ok) throw await failure(res, 'board');
+}
+
+/** Take a board off your pins. */
+export async function unpinBoard(boardId: string): Promise<void> {
+  const res = await fetch(`${boardUrl(boardId)}/pin`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) throw await failure(res, 'board');
 }

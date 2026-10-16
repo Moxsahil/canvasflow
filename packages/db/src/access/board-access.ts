@@ -21,6 +21,13 @@ export interface BoardAccess {
    * delete, say — needs no second lookup.
    */
   workspaceRole: MembershipRow['role'] | null;
+  /**
+   * Archived boards are read-only for everyone, owner included, until they
+   * are unarchived. `role` still says what the caller would be — it is what
+   * decides who may unarchive or share — so whether they may write is
+   * `canEdit(access)`, never the role alone.
+   */
+  archived: boolean;
 }
 
 /**
@@ -65,6 +72,7 @@ export async function resolveBoardAccess(
       memberRole: boardMembers.role,
       memberStatus: boardMembers.status,
       workspaceRole: memberships.role,
+      archivedAt: boards.archivedAt,
     })
     .from(boards)
     .leftJoin(
@@ -86,6 +94,7 @@ export async function resolveBoardAccess(
     workspaceId: row.workspaceId,
     ownerId: row.ownerId,
     workspaceRole: row.workspaceRole,
+    archived: row.archivedAt !== null,
   };
 
   if (row.ownerId === userId) {
@@ -106,9 +115,27 @@ export async function resolveBoardAccess(
   return null;
 }
 
-/** Roles permitted to mutate document state. Viewers are read-only. */
-export function canEdit(role: BoardRole): boolean {
-  return role === 'owner' || role === 'editor';
+/**
+ * Whether this access may change the board: its document, its name, its
+ * pictures. Viewers never may, and nobody may while the board is archived.
+ *
+ * Takes the whole access rather than the role so a caller cannot forget the
+ * archive: a role on its own no longer answers this.
+ */
+export function canEdit(access: Pick<BoardAccess, 'role' | 'archived'>): boolean {
+  return !access.archived && (access.role === 'owner' || access.role === 'editor');
+}
+
+/**
+ * Whether this access may archive the board, unarchive it, or delete it: the
+ * board's owner, or an owner or admin of its workspace. Every workspace member
+ * may edit its boards, which is fine for a title and far too loose for taking
+ * someone's work out of everyone's list.
+ */
+export function canManageBoard(access: Pick<BoardAccess, 'role' | 'workspaceRole'>): boolean {
+  return (
+    access.role === 'owner' || access.workspaceRole === 'owner' || access.workspaceRole === 'admin'
+  );
 }
 
 /** Roles permitted to manage membership: approve/reject requests, revoke access. */

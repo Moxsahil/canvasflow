@@ -1,7 +1,8 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { Database } from '../client.js';
 import { boards } from '../schema/boards.js';
 import { users } from '../schema/users.js';
+import { boardPins } from '../schema/board-pins.js';
 import { toBoardSummary, type BoardSummary } from './workspaces.js';
 
 /**
@@ -72,6 +73,66 @@ export async function softDeleteBoard(db: Database, boardId: string): Promise<Bo
     .returning();
 
   return board ? toBoardSummary(board) : null;
+}
+
+/**
+ * Archive a board, or bring it back.
+ *
+ * Nothing is removed: the board leaves the lists and turns read-only for
+ * everyone — `resolveBoardAccess` reports it, and `canEdit` refuses — until
+ * it is unarchived. `updatedAt` stays where it was, since nothing in the board
+ * changed; it goes back into the list where it used to sit.
+ *
+ * Null for a board that doesn't exist, is deleted, or is already in the state
+ * asked for, so a double-submit answers "not found" rather than a second
+ * success.
+ */
+export async function setBoardArchived(
+  db: Database,
+  boardId: string,
+  archived: boolean,
+): Promise<BoardSummary | null> {
+  const [board] = await db
+    .update(boards)
+    .set({ archivedAt: archived ? new Date() : null })
+    .where(
+      and(
+        eq(boards.id, boardId),
+        isNull(boards.deletedAt),
+        archived ? isNull(boards.archivedAt) : isNotNull(boards.archivedAt),
+      ),
+    )
+    .returning();
+
+  return board ? toBoardSummary(board) : null;
+}
+
+/**
+ * Pin a board to the top of one person's sidebar, or move their pin.
+ *
+ * One statement either way: the (user, board) key makes a second pin a move.
+ * Whether they may see the board at all is decided before this, as for every
+ * writer here.
+ */
+export async function pinBoard(
+  db: Database,
+  userId: string,
+  boardId: string,
+  position: string,
+): Promise<void> {
+  await db
+    .insert(boardPins)
+    .values({ userId, boardId, position })
+    .onConflictDoUpdate({ target: [boardPins.userId, boardPins.boardId], set: { position } });
+}
+
+/** Take a board off one person's pins. False when it was not pinned. */
+export async function unpinBoard(db: Database, userId: string, boardId: string): Promise<boolean> {
+  const removed = await db
+    .delete(boardPins)
+    .where(and(eq(boardPins.userId, userId), eq(boardPins.boardId, boardId)))
+    .returning({ boardId: boardPins.boardId });
+  return removed.length > 0;
 }
 
 /** What anyone on a board may know about it, whoever they are. */

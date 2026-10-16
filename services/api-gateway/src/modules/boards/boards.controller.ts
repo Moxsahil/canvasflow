@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ConflictException,
   ForbiddenException,
   Get,
   Header,
@@ -13,6 +14,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
@@ -21,8 +23,12 @@ import { BoardsService } from './boards.service.js';
 import {
   boardOverview,
   canEdit,
+  canManageBoard,
+  pinBoard,
   resolveBoardAccess,
+  setBoardArchived,
   softDeleteBoard,
+  unpinBoard,
   updateBoardDetails,
   type BoardAccess,
   type BoardOverview,
@@ -38,7 +44,7 @@ import { JwtAuthGuard } from '../auth/jwt.guard.js';
 import type { AuthenticatedUser } from '../auth/jwt.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { WorkspaceEventsService } from '../workspaces/workspace-events.service.js';
-import { readBoardDetails } from './board-details.js';
+import { readBoardDetails, readPinPosition } from './board-details.js';
 
 const DEFAULT_BOARD_TITLE = 'Untitled board';
 
@@ -138,7 +144,10 @@ export class BoardsController {
     if (typeof patch === 'string') throw new BadRequestException(patch);
 
     const access = await this.enter(id, user, origin);
-    if (!canEdit(access.role)) throw new ForbiddenException('Not allowed to rename this board');
+    if (access.archived) {
+      throw new ForbiddenException('This board is archived. Unarchive it to change it.');
+    }
+    if (!canEdit(access)) throw new ForbiddenException('Not allowed to rename this board');
 
     const board = await updateBoardDetails(this.database.db, id, patch);
     // Access resolved a moment ago, so a miss here means it was deleted in
@@ -167,8 +176,7 @@ export class BoardsController {
     @Headers('origin') origin: string | undefined,
   ): Promise<{ data: BoardSummary }> {
     const access = await this.enter(id, user, origin);
-    const administers = access.workspaceRole === 'owner' || access.workspaceRole === 'admin';
-    if (access.role !== 'owner' && !administers) {
+    if (!canManageBoard(access)) {
       throw new ForbiddenException(
         'Only the board owner or a workspace admin can delete this board.',
       );
@@ -180,6 +188,115 @@ export class BoardsController {
 
     this.events.changed(board.workspaceId);
     return { data: board };
+  }
+
+  /**
+   * Archive a board: out of everyone's lists and read-only for everyone,
+   * owner included, until it is unarchived. Nothing in it is removed.
+   *
+   * The same bar as deleting it, since it takes the board away from the whole
+   * workspace. The caller's own open copy is re-checked at once, so it turns
+   * read-only under them; everyone else's follows within the sync-server's
+   * five-second sweep.
+   */
+  @Put(':id/archive')
+  @UseGuards(AccountThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  async archive(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<{ data: BoardSummary }> {
+    return { data: await this.setArchived(id, true, user, origin) };
+  }
+
+  /** Bring an archived board back: listed again, and editable again. */
+  @Delete(':id/archive')
+  @UseGuards(AccountThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  async unarchive(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<{ data: BoardSummary }> {
+    return { data: await this.setArchived(id, false, user, origin) };
+  }
+
+  /**
+   * Pin a board to the top of the caller's own sidebar, or move their pin.
+   *
+   * Personal: nobody else's sidebar changes, so there is nothing to announce.
+   * The editor picks the order key — it is the one that knows the neighbours
+   * the board was dropped between — and this checks it is a well-formed one.
+   * Sixty a minute, as dragging a pin about is a run of quick moves.
+   */
+  @Put(':id/pin')
+  @HttpCode(204)
+  @UseGuards(AccountThrottlerGuard)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  async pin(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AuthenticatedUser,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<void> {
+    const position = readPinPosition(body);
+    if (position === null) throw new BadRequestException('A pin needs a valid position.');
+
+    // Only a board they can open: a pin is a way back to it.
+    await this.enter(id, user, origin);
+    await pinBoard(this.database.db, user.id, id, position);
+  }
+
+  /**
+   * Take a board off the caller's pins. Touches only their own row, so it
+   * needs no access check — and still works for a board they have since
+   * lost, which is when they most want it gone.
+   */
+  @Delete(':id/pin')
+  @HttpCode(204)
+  @UseGuards(AccountThrottlerGuard)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  async unpin(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<void> {
+    if (!isAllowedOrigin(origin, this.env)) {
+      throw new ForbiddenException('Cross-origin requests are not allowed');
+    }
+    await unpinBoard(this.database.db, user.id, id);
+  }
+
+  private async setArchived(
+    id: string,
+    archived: boolean,
+    user: AuthenticatedUser,
+    origin: string | undefined,
+  ): Promise<BoardSummary> {
+    const access = await this.enter(id, user, origin);
+    if (!canManageBoard(access)) {
+      throw new ForbiddenException(
+        archived
+          ? 'Only the board owner or a workspace admin can archive this board.'
+          : 'Only the board owner or a workspace admin can unarchive this board.',
+      );
+    }
+
+    const board = await setBoardArchived(this.database.db, id, archived);
+    // Access was resolved a moment ago, so a miss means it is already where
+    // it was asked to go — a second click, or somebody else just now.
+    if (!board) {
+      throw new ConflictException(
+        archived ? 'This board is already archived.' : 'This board is not archived.',
+      );
+    }
+
+    this.events.changed(board.workspaceId);
+    // Their own open copy turns read-only, or editable, now rather than at
+    // the next sweep.
+    this.events.boardAccessChanged([id], user.id);
+    return board;
   }
 
   /**

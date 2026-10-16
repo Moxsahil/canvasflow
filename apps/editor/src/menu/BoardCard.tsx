@@ -21,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { ariaKeyShortcut, formatShortcut } from '../help/platform';
 import { useT } from '../i18n';
 import { ColorDot, formatUpdatedAt } from '../workspace/board-presentation';
+import { isSecondPress } from './double-press';
 import type { BoardSwitcherState } from '../workspace';
 import {
   liveAction,
@@ -71,7 +72,16 @@ export function BoardCard({ state, actions, portalContainer }: BoardCardProps) {
                 purple board is worse than no dot at all. */}
             {board && <ColorDot color={board.color} />}
             <div className="grid min-w-0 leading-tight">
-              <span className="truncate text-sm font-medium">{state.title}</span>
+              {/* A double press on the name renames the board, as the pencil does. */}
+              <span
+                className="truncate text-sm font-medium"
+                data-testid="board-card-title"
+                onClick={(event) => {
+                  if (state.canRename && isSecondPress('board-card', event)) state.beginRename();
+                }}
+              >
+                {state.title}
+              </span>
               <span className="truncate text-xs text-sidebar-foreground/60">
                 {board
                   ? t('board.edited', { when: formatUpdatedAt(board.updatedAt) })

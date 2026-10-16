@@ -1,10 +1,23 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentPropsWithoutRef,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import {
   Archive,
+  ArchiveRestore,
   ChevronDown,
+  ChevronRight,
   Ellipsis,
   Pencil,
   Pin,
+  PinOff,
   Plus,
   RotateCw,
   Search,
@@ -15,7 +28,6 @@ import { cn } from '@/lib/utils';
 import { menuDangerRowClasses } from '@/components/ui/menu-look';
 import {
   InlineDropdownMenu,
-  InlineDropdownMenuBadge,
   InlineDropdownMenuChoiceItem,
   InlineDropdownMenuContent,
   InlineDropdownMenuItem,
@@ -40,6 +52,8 @@ import { useT } from '../i18n';
 import { ColorDot, formatUpdatedAt } from '../workspace/board-presentation';
 import { DeleteWarningDialog } from '../workspace/DeleteWarningDialog';
 import { SHARED_WITH_YOU } from '../workspace';
+import { pinnedOf } from '../workspace/useBoardSwitcher';
+import { carryRename, isSecondPress, takeCarriedRename } from './double-press';
 import type { BoardColor, BoardSummary, BoardSwitcherState } from '../workspace';
 import type { SharedBoard } from '../workspace/people-api';
 import type { BoardDetailsPatch } from '../workspace/workspace-api';
@@ -86,7 +100,11 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
   const [pendingDelete, setPendingDelete] = useState<BoardSummary | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   // The row being renamed in place, if any: one at a time.
-  const [renamingId, setRenamingId] = useState<string | null>(null);
+  // Or the board a double press on it opened, which the sidebar it was
+  // pressed in did not live to rename.
+  const [renamingId, setRenamingId] = useState<string | null>(takeCarriedRename);
+  // Archived boards wait folded away under one row until asked for.
+  const [archivedOpen, setArchivedOpen] = useState(false);
 
   const askToDelete = useCallback((board: BoardSummary) => {
     setDeleteError(null);
@@ -113,6 +131,11 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
     setFindRequested(false);
   }, [findRequested, collapsed]);
 
+  // An archived board that is open is shown where it now lives.
+  useEffect(() => {
+    if (state.archived) setArchivedOpen(true);
+  }, [state.archived]);
+
   const workspaceId = state.listedId;
   if (!state.available || !workspaceId) return null;
 
@@ -123,9 +146,34 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
   const entry = state.boardsFor(workspaceId);
   const boards = entry?.status === 'ready' ? entry.boards : [];
   const needle = query.trim().toLowerCase();
-  const shown = needle
-    ? boards.filter((board) => board.title.toLowerCase().includes(needle))
-    : boards;
+  const matches = (board: BoardSummary) => !needle || board.title.toLowerCase().includes(needle);
+  // Three runs out of one list: your pins, top first; the rest, most recently
+  // changed first; and the archived, out of the way at the foot.
+  const pinned = pinnedOf(boards).filter(matches);
+  const listed = boards.filter((board) => !board.archivedAt && !board.pin && matches(board));
+  const archived = boards.filter((board) => board.archivedAt && matches(board));
+  const liveCount = boards.filter((board) => !board.archivedAt).length;
+  const shownCount = pinned.length + listed.length + archived.length;
+  // A search reaches into the archive too, and shows what it found there.
+  const archiveShown = archivedOpen || (needle !== '' && archived.length > 0);
+
+  const rowProps = (board: BoardSummary) => ({
+    board,
+    current: board.id === state.boardId,
+    portalContainer,
+    onOpen: () => state.openBoard(board.id),
+    renaming: renamingId === board.id,
+    onRename: () => setRenamingId(board.id),
+    onRenameSave: (patch: BoardDetailsPatch) => state.renameBoard(board.id, patch),
+    onRenameEnd: () => setRenamingId(null),
+    onDelete: () => askToDelete(board),
+    canManage: state.canManageBoard(board),
+    onPin: () => state.pinBoard(board.id),
+    onUnpin: () => state.unpinBoard(board.id),
+    // The failure is said by the switcher, which also puts the row back.
+    onArchive: () => void state.archiveBoard(board.id).catch(() => {}),
+    onUnarchive: () => void state.unarchiveBoard(board.id).catch(() => {}),
+  });
 
   return (
     // No padding under the list in the rail: the rule after it keeps the
@@ -157,6 +205,39 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
           />
         </div>
 
+        <SidebarMenu className="hidden group-data-[collapsible=icon]:flex">
+          <RailOnly>
+            <SidebarMenuButton
+              tooltip={t('boards.find')}
+              onClick={() => {
+                setOpen(true);
+                setFindRequested(true);
+              }}
+            >
+              <Search aria-hidden="true" />
+              <span>{t('boards.find')}</span>
+            </SidebarMenuButton>
+          </RailOnly>
+          <li aria-hidden="true" className={cn(railSeparatorClasses, 'my-1')} />
+        </SidebarMenu>
+
+        {pinned.length > 0 && (
+          <>
+            <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">
+              {t('boards.pinned')}
+            </SidebarGroupLabel>
+            <PinnedList
+              boards={pinned}
+              // Dragged only in the full list: a search shows a part of it,
+              // and the rail has no room to aim a drop.
+              reorderable={!needle && !collapsed && renamingId === null}
+              onReorder={state.reorderPins}
+              rowProps={rowProps}
+            />
+            <div aria-hidden="true" className={cn(railSeparatorClasses, 'my-1')} />
+          </>
+        )}
+
         <div className="flex items-center gap-0.5 pr-1 group-data-[collapsible=icon]:hidden">
           <SidebarGroupLabel className="flex-1">{t('boards.title')}</SidebarGroupLabel>
           <button
@@ -183,20 +264,6 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
         </div>
 
         <SidebarMenu className="max-h-[min(40vh,22rem)] overflow-y-auto [scrollbar-width:thin] group-data-[collapsible=icon]:max-h-none group-data-[collapsible=icon]:[scrollbar-width:none]">
-          <RailOnly>
-            <SidebarMenuButton
-              tooltip={t('boards.find')}
-              onClick={() => {
-                setOpen(true);
-                setFindRequested(true);
-              }}
-            >
-              <Search aria-hidden="true" />
-              <span>{t('boards.find')}</span>
-            </SidebarMenuButton>
-          </RailOnly>
-          <li aria-hidden="true" className={cn(railSeparatorClasses, 'my-1')} />
-
           {(entry === undefined || entry.status === 'loading') &&
             [0, 1, 2].map((key) => (
               <SidebarMenuItem key={key}>
@@ -217,30 +284,19 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
             </SidebarMenuItem>
           )}
 
-          {entry?.status === 'ready' && boards.length === 0 && (
+          {entry?.status === 'ready' && liveCount === 0 && !needle && (
             <li className={`${noteClasses} group-data-[collapsible=icon]:hidden`}>
               {t('boards.none')}
             </li>
           )}
-          {entry?.status === 'ready' && boards.length > 0 && shown.length === 0 && (
+          {entry?.status === 'ready' && boards.length > 0 && needle && shownCount === 0 && (
             <li className={`${noteClasses} group-data-[collapsible=icon]:hidden`}>
               {t('boards.noMatch')}
             </li>
           )}
 
-          {shown.map((board) => (
-            <BoardRow
-              key={board.id}
-              board={board}
-              current={board.id === state.boardId}
-              portalContainer={portalContainer}
-              onOpen={() => state.openBoard(board.id)}
-              renaming={renamingId === board.id}
-              onRename={() => setRenamingId(board.id)}
-              onRenameSave={(patch) => state.renameBoard(board.id, patch)}
-              onRenameEnd={() => setRenamingId(null)}
-              onDelete={() => askToDelete(board)}
-            />
+          {listed.map((board) => (
+            <BoardRow key={board.id} {...rowProps(board)} />
           ))}
 
           <RailOnly>
@@ -253,6 +309,34 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
               <span>{t('boards.new')}</span>
             </SidebarMenuButton>
           </RailOnly>
+
+          {archived.length > 0 && (
+            <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
+              <SidebarMenuButton
+                aria-expanded={archiveShown}
+                onClick={() => setArchivedOpen(!archiveShown)}
+                data-testid="sidebar-archived-toggle"
+                className="text-sidebar-foreground/70"
+              >
+                <ChevronRight
+                  aria-hidden="true"
+                  className={cn('transition-transform', archiveShown && 'rotate-90')}
+                />
+                <span className="flex-1">{t('boards.archived')}</span>
+                <span className="text-xs text-sidebar-foreground/50 tabular-nums">
+                  {archived.length}
+                </span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+          {archiveShown &&
+            archived.map((board) => (
+              <BoardRow
+                key={board.id}
+                {...rowProps(board)}
+                className="group-data-[collapsible=icon]:hidden"
+              />
+            ))}
         </SidebarMenu>
       </SidebarGroupContent>
 
@@ -273,6 +357,220 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
       />
     </SidebarGroup>
   );
+}
+
+/** How long a finger rests on a pin before it lifts to be dragged. */
+const PIN_HOLD_MS = 350;
+/** How far a mouse moves with its button down before that is a drag, not a click. */
+const PIN_DRAG_SLOP = 4;
+/** How far a finger may wander while resting, before it is a scroll instead. */
+const PIN_HOLD_SLOP = 8;
+/** How long a mouse button stays down on a pin before the hand closes on it. */
+const PIN_GRAB_MS = 150;
+
+/**
+ * The closed hand, over the whole editor while a pin is held: the pointer
+ * leaves the row as it drags, and every button it passes would otherwise put
+ * its own cursor back. A quick click never shows it.
+ */
+function setGrabbing(on: boolean) {
+  if (on) document.documentElement.setAttribute('data-pin-grabbing', '');
+  else document.documentElement.removeAttribute('data-pin-grabbing');
+}
+
+interface PinDrag {
+  id: string;
+  from: number;
+  to: number;
+  /** How far the pointer has moved since the row was picked up. */
+  dy: number;
+  /** From one row's top to the next, measured as it was picked up. */
+  pitch: number;
+}
+
+/**
+ * Your pins, in the order you put them, and the way to change it: press a pin
+ * and drag it up or down — with a mouse, as soon as it moves; with a finger,
+ * after resting on it a moment, so a swipe still scrolls the list. Alt with
+ * the up and down arrows moves the focused pin from the keyboard.
+ *
+ * The rows trade places as the pin passes their middles, and the one in hand
+ * follows the pointer. Only the moved pin is written, between its new
+ * neighbours, once it is let go.
+ */
+function PinnedList({
+  boards,
+  reorderable,
+  onReorder,
+  rowProps,
+}: {
+  boards: BoardSummary[];
+  reorderable: boolean;
+  onReorder: (orderedIds: readonly string[], movedId: string) => void;
+  rowProps: (board: BoardSummary) => Omit<BoardRowProps, 'className'>;
+}) {
+  const t = useT();
+  const listRef = useRef<HTMLUListElement>(null);
+  const [drag, setDrag] = useState<PinDrag | null>(null);
+  // A press is followed by a click; one that ended a drag must not open the board.
+  const swallowClick = useRef(false);
+  // Torn down when the press ends, however it ends.
+  const endPress = useRef<(() => void) | null>(null);
+  useEffect(() => () => endPress.current?.(), []);
+
+  const ids = boards.map((board) => board.id);
+  const byId = new Map(boards.map((board) => [board.id, board]));
+  const order = drag ? moved(ids, drag.from, drag.to) : ids;
+
+  const press = (event: ReactPointerEvent<HTMLLIElement>, id: string) => {
+    if (!reorderable || event.button !== 0 || endPress.current) return;
+    // The row's ⋯ menu is a button of its own.
+    if ((event.target as Element).closest('[data-sidebar="menu-action"]')) return;
+    const rows = listRef.current?.querySelectorAll<HTMLElement>('[data-pin-row]');
+    if (!rows || rows.length < 2) return;
+
+    const from = ids.indexOf(id);
+    const first = rows[0]!.getBoundingClientRect();
+    const pitch = rows[1]!.getBoundingClientRect().top - first.top;
+    const count = rows.length;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const pointerId = event.pointerId;
+    const byTouch = event.pointerType !== 'mouse';
+    let lifted = false;
+    let target = from;
+
+    const lift = () => {
+      lifted = true;
+      if (byTouch) navigator.vibrate?.(10);
+      else setGrabbing(true);
+      setDrag({ id, from, to: from, dy: 0, pitch });
+    };
+    const hold = byTouch
+      ? window.setTimeout(lift, PIN_HOLD_MS)
+      : window.setTimeout(() => setGrabbing(true), PIN_GRAB_MS);
+
+    const move = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+      if (!lifted) {
+        if (byTouch) {
+          // Moving before the hold is up is a scroll, not a drag.
+          if (Math.hypot(dx, dy) > PIN_HOLD_SLOP) finish(false);
+          return;
+        }
+        if (Math.abs(dy) < PIN_DRAG_SLOP) return;
+        lift();
+      }
+      target = Math.max(0, Math.min(count - 1, Math.round(from + dy / pitch)));
+      setDrag({ id, from, to: target, dy, pitch });
+    };
+    // Once a finger has lifted a pin, the page must not scroll under it.
+    const holdStill = (touchEvent: TouchEvent) => {
+      if (lifted) touchEvent.preventDefault();
+    };
+    const keys = (keyEvent: KeyboardEvent) => {
+      if (keyEvent.key === 'Escape') {
+        keyEvent.stopPropagation();
+        finish(false);
+      }
+    };
+    const up = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId === pointerId) finish(true);
+    };
+    const cancel = (cancelEvent: PointerEvent) => {
+      if (cancelEvent.pointerId === pointerId) finish(false);
+    };
+
+    const finish = (commit: boolean) => {
+      window.clearTimeout(hold);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('touchmove', holdStill);
+      window.removeEventListener('keydown', keys, true);
+      setGrabbing(false);
+      endPress.current = null;
+      if (!lifted) return;
+      swallowClick.current = true;
+      // Cleared after the click this press may still send has been swallowed.
+      window.setTimeout(() => {
+        swallowClick.current = false;
+      }, 0);
+      setDrag(null);
+      if (commit && target !== from) onReorder(moved(ids, from, target), id);
+    };
+
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('touchmove', holdStill, { passive: false });
+    window.addEventListener('keydown', keys, true);
+    endPress.current = () => finish(false);
+  };
+
+  const nudge = (event: ReactKeyboardEvent<HTMLLIElement>, id: string) => {
+    if (!reorderable || !event.altKey) return;
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+    event.preventDefault();
+    const from = ids.indexOf(id);
+    const to = event.key === 'ArrowUp' ? from - 1 : from + 1;
+    if (to < 0 || to >= ids.length) return;
+    onReorder(moved(ids, from, to), id);
+  };
+
+  return (
+    <SidebarMenu
+      ref={listRef}
+      aria-label={t('boards.pinned')}
+      data-testid="sidebar-pinned-boards"
+      className="max-h-[min(30vh,16rem)] overflow-y-auto [scrollbar-width:thin] group-data-[collapsible=icon]:max-h-none group-data-[collapsible=icon]:[scrollbar-width:none]"
+    >
+      {order.map((id) => {
+        const board = byId.get(id)!;
+        const held = drag?.id === id;
+        return (
+          <BoardRow
+            key={id}
+            {...rowProps(board)}
+            data-pin-row=""
+            title={reorderable ? t('boards.dragToReorder') : undefined}
+            aria-keyshortcuts={reorderable ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
+            onPointerDown={(event) => press(event, id)}
+            onKeyDown={(event) => nudge(event, id)}
+            onClickCapture={(event) => {
+              if (!swallowClick.current) return;
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            // A long press is the start of a drag here, not a call for the
+            // browser's own menu or text selection.
+            onContextMenu={(event) => {
+              if (endPress.current) event.preventDefault();
+            }}
+            className={cn(
+              'select-none [-webkit-touch-callout:none]',
+              held && 'z-10 rounded-md bg-sidebar-accent shadow-lg',
+            )}
+            style={
+              held && drag
+                ? { transform: `translateY(${drag.dy - (drag.to - drag.from) * drag.pitch}px)` }
+                : undefined
+            }
+          />
+        );
+      })}
+    </SidebarMenu>
+  );
+}
+
+/** `ids` with the one at `from` taken out and put back at `to`. */
+function moved(ids: readonly string[], from: number, to: number): string[] {
+  const next = [...ids];
+  const [id] = next.splice(from, 1);
+  next.splice(to, 0, id!);
+  return next;
 }
 
 /**
@@ -430,12 +728,21 @@ interface BoardRowProps {
   onRenameSave: (patch: BoardDetailsPatch) => Promise<void>;
   onRenameEnd: () => void;
   onDelete: () => void;
+  /** You may archive, unarchive and delete it: you made it, or run its workspace. */
+  canManage: boolean;
+  onPin: () => void;
+  onUnpin: () => void;
+  onArchive: () => void;
+  onUnarchive: () => void;
+  className?: string;
 }
 
 /**
  * The colour tag, the name, and when it last changed. Hovering the row, or
  * focusing it from the keyboard, reveals a menu button in the date's place, so
  * the list stays a list of names rather than of controls.
+ *
+ * An archived board's row is quieter, and opens the board read-only.
  */
 function BoardRow({
   board,
@@ -447,10 +754,17 @@ function BoardRow({
   onRenameSave,
   onRenameEnd,
   onDelete,
-}: BoardRowProps) {
+  canManage,
+  onPin,
+  onUnpin,
+  onArchive,
+  onUnarchive,
+  className,
+  ...item
+}: BoardRowProps & Omit<ComponentPropsWithoutRef<'li'>, keyof BoardRowProps | 'children'>) {
   if (renaming) {
     return (
-      <SidebarMenuItem>
+      <SidebarMenuItem className={className} {...item}>
         <BoardNameField
           board={board}
           portalContainer={portalContainer}
@@ -461,20 +775,32 @@ function BoardRow({
     );
   }
 
+  const archived = Boolean(board.archivedAt);
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem className={className} {...item}>
       <SidebarMenuButton
         isActive={current}
         aria-current={current ? 'page' : undefined}
         tooltip={board.title}
-        onClick={onOpen}
+        onClick={(event) => {
+          onOpen();
+          // A double press renames the board where it stands, as the menu's
+          // Rename does — not an archived one, which is read-only.
+          if (archived || !isSecondPress(board.id, event)) return;
+          // The first press opened it; this sidebar may go before the rename shows.
+          if (!current) carryRename(board.id);
+          onRename();
+        }}
         data-testid={`sidebar-board-${board.id}`}
         // The date runs to the edge; the menu button covers it on hover rather
         // than the row keeping a gap for a button that isn't there.
-        className="group-has-data-[sidebar=menu-action]/menu-item:pr-2"
+        className={cn(
+          'group-has-data-[sidebar=menu-action]/menu-item:pr-2',
+          archived && 'text-sidebar-foreground/60',
+        )}
       >
         {/* Sized as an icon, so the dot sits in the rail's icon column. */}
-        <span className="grid size-4 shrink-0 place-items-center">
+        <span className={cn('grid size-4 shrink-0 place-items-center', archived && 'opacity-60')}>
           <ColorDot color={board.color} />
         </span>
         <span className="min-w-0 flex-1 truncate">{board.title}</span>
@@ -487,6 +813,11 @@ function BoardRow({
       <BoardRowMenu
         board={board}
         portalContainer={portalContainer}
+        canManage={canManage}
+        onPin={onPin}
+        onUnpin={onUnpin}
+        onArchive={onArchive}
+        onUnarchive={onUnarchive}
         onRename={onRename}
         onDelete={onDelete}
       />
@@ -538,7 +869,12 @@ function BoardNameField({
   // would go straight back to the menu, which holds on to it until it closes.
   const attach = useCallback((input: HTMLInputElement | null) => {
     inputRef.current = input;
-    if (input) requestAnimationFrame(() => input.focus());
+    if (!input) return;
+    // At once as well, while the double press that asked for it is still
+    // going on: a phone only brings its keyboard up for a field focused from
+    // the tap itself.
+    input.focus();
+    requestAnimationFrame(() => input.focus());
   }, []);
 
   const save = () => {
@@ -694,24 +1030,40 @@ function BoardNameField({
   );
 }
 
-function Soon() {
-  const t = useT();
-  return <InlineDropdownMenuBadge>{t('common.soon')}</InlineDropdownMenuBadge>;
-}
-
 /**
  * What can be done to one board, beside the sidebar over the canvas as its
- * other menus open. Pinning and archiving are listed ahead of being built,
- * and read "Soon" until then. Delete is last and apart, the one entry that
- * discards work.
+ * other menus open.
+ *
+ * Pinning is yours alone, so it is offered on every board you can see.
+ * Archiving takes the board out of everyone's list, so only whoever may
+ * delete it is offered it. An archived board can only be brought back or
+ * deleted: it is read-only until it is unarchived. Delete is last and apart,
+ * the one entry that discards work.
  */
 function BoardRowMenu({
   board,
   portalContainer,
+  canManage,
+  onPin,
+  onUnpin,
+  onArchive,
+  onUnarchive,
   onRename,
   onDelete,
-}: Pick<BoardRowProps, 'board' | 'portalContainer' | 'onRename' | 'onDelete'>) {
+}: Pick<
+  BoardRowProps,
+  | 'board'
+  | 'portalContainer'
+  | 'canManage'
+  | 'onPin'
+  | 'onUnpin'
+  | 'onArchive'
+  | 'onUnarchive'
+  | 'onRename'
+  | 'onDelete'
+>) {
   const t = useT();
+  const archived = Boolean(board.archivedAt);
   return (
     <InlineDropdownMenu>
       <SidebarMenuAction showOnHover asChild>
@@ -733,34 +1085,61 @@ function BoardRowMenu({
         container={portalContainer}
         aria-label={board.title}
       >
-        <InlineDropdownMenuItem
-          disabled
-          icon={<Pin aria-hidden="true" />}
-          badge={<Soon />}
-          data-testid="board-menu-pin"
-        >
-          {t('boards.pin')}
-        </InlineDropdownMenuItem>
-        <InlineDropdownMenuItem
-          disabled
-          icon={<Archive aria-hidden="true" />}
-          badge={<Soon />}
-          data-testid="board-menu-archive"
-        >
-          {t('boards.archive')}
-        </InlineDropdownMenuItem>
-        <InlineDropdownMenuSeparator />
-        {/* In place, on the row itself — no window, so no ellipsis. The board
-            card's pencil and Manage still open Rename board, which also sets
-            the colour. */}
-        <InlineDropdownMenuItem
-          icon={<Pencil aria-hidden="true" />}
-          onSelect={onRename}
-          data-testid="board-menu-rename"
-        >
-          {t('common.rename')}
-        </InlineDropdownMenuItem>
-        <InlineDropdownMenuSeparator />
+        {archived ? (
+          canManage && (
+            <>
+              <InlineDropdownMenuItem
+                icon={<ArchiveRestore aria-hidden="true" />}
+                onSelect={onUnarchive}
+                data-testid="board-menu-unarchive"
+              >
+                {t('boards.unarchive')}
+              </InlineDropdownMenuItem>
+              <InlineDropdownMenuSeparator />
+            </>
+          )
+        ) : (
+          <>
+            {board.pin ? (
+              <InlineDropdownMenuItem
+                icon={<PinOff aria-hidden="true" />}
+                onSelect={onUnpin}
+                data-testid="board-menu-unpin"
+              >
+                {t('boards.unpin')}
+              </InlineDropdownMenuItem>
+            ) : (
+              <InlineDropdownMenuItem
+                icon={<Pin aria-hidden="true" />}
+                onSelect={onPin}
+                data-testid="board-menu-pin"
+              >
+                {t('boards.pin')}
+              </InlineDropdownMenuItem>
+            )}
+            {canManage && (
+              <InlineDropdownMenuItem
+                icon={<Archive aria-hidden="true" />}
+                onSelect={onArchive}
+                data-testid="board-menu-archive"
+              >
+                {t('boards.archive')}
+              </InlineDropdownMenuItem>
+            )}
+            <InlineDropdownMenuSeparator />
+            {/* In place, on the row itself — no window, so no ellipsis. The board
+                card's pencil and Manage still open Rename board, which also sets
+                the colour. */}
+            <InlineDropdownMenuItem
+              icon={<Pencil aria-hidden="true" />}
+              onSelect={onRename}
+              data-testid="board-menu-rename"
+            >
+              {t('common.rename')}
+            </InlineDropdownMenuItem>
+            <InlineDropdownMenuSeparator />
+          </>
+        )}
         <InlineDropdownMenuItem
           icon={<Trash2 aria-hidden="true" />}
           onSelect={onDelete}

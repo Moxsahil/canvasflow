@@ -69,6 +69,8 @@ export class EditorTokenService {
       workspaceId: access.workspaceId,
       role: access.role,
       accessSource: access.source,
+      // Read-only for everyone while it is; the editor greys its tools on it.
+      archived: access.archived,
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setExpirationTime(Math.floor(expiresAt / 1000))

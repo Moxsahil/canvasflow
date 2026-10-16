@@ -2,6 +2,7 @@ export { WorkspaceSwitcher } from './WorkspaceSwitcher';
 export { ManageDialog } from './ManageDialog';
 export { RenameBoardDialog } from './RenameBoardDialog';
 export {
+  liveBoards,
   useBoardSwitcher,
   SHARED_WITH_YOU,
   type BoardSwitcherState,

@@ -179,7 +179,7 @@ const hocuspocus = Server.configure({
 
     // Use the live role, not the one baked into the token — role could
     // have been changed since mint time.
-    const readOnly = !canEdit(access.role);
+    const readOnly = !canEdit(access);
 
     /**
      * Mark the connection read-only for viewers.

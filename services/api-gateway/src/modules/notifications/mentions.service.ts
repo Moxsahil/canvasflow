@@ -82,7 +82,7 @@ export class MentionsService {
     // Somebody who cannot comment here has nothing here to report. Said the
     // same way whether the board is missing or theirs to view only.
     const access = await resolveBoardAccess(db, actorId, boardId);
-    if (!access || !canEdit(access.role)) throw new NotFoundException('Board not found');
+    if (!access || !canEdit(access)) throw new NotFoundException('Board not found');
 
     const comment = await this.lookUp(boardId, threadId, commentId);
     if (!comment) throw new NotFoundException('Comment not found');

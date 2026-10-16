@@ -128,3 +128,10 @@
 .canvas-stack[data-tool='eraser'] {
   cursor: var(--cursor-eraser);
 }
+
+/* A pin held in the sidebar, being dragged to a new place: the closed hand
+   wherever the pointer goes until it is let go. See setGrabbing in BoardList. */
+html[data-pin-grabbing] .cf-editor,
+html[data-pin-grabbing] .cf-editor * {
+  cursor: var(--cursor-grabbing) !important;
+}

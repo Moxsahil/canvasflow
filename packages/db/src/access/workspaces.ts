@@ -1,9 +1,10 @@
-import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { can } from '@canvasflow/types';
 import type { Database } from '../client.js';
 import { boardMembers, type BoardRole } from '../schema/board-access.js';
 import { boards, type BoardRow } from '../schema/boards.js';
+import { boardPins } from '../schema/board-pins.js';
 import { users } from '../schema/users.js';
 import {
   memberships,
@@ -53,6 +54,16 @@ export interface BoardSummary {
   /** The tag colour beside the title in the switcher. `gray` is untagged. */
   color: BoardRow['color'];
   updatedAt: Date;
+  /** Who made it — with the workspace's admins, who may archive or delete it. */
+  ownerId: string;
+  /** Set while the board is archived: out of the lists, read-only for everyone. */
+  archivedAt: Date | null;
+}
+
+/** A board as the sidebar lists it: the board, and the caller's own pin on it. */
+export interface ListedBoard extends BoardSummary {
+  /** The caller's pin order key, or null when they have not pinned it. */
+  pin: string | null;
 }
 
 export const DEFAULT_BOARD_TITLE = 'Untitled board';
@@ -66,6 +77,8 @@ export function toBoardSummary(row: BoardRow): BoardSummary {
     visibility: row.visibility,
     color: row.color,
     updatedAt: row.updatedAt,
+    ownerId: row.ownerId,
+    archivedAt: row.archivedAt,
   };
 }
 
@@ -94,7 +107,14 @@ export async function listWorkspacesForUser(
     .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
     // Joined rather than counted in a subquery so one round trip fills the
     // whole switcher; the null-check keeps soft-deleted boards out of the count.
-    .leftJoin(boards, and(eq(boards.workspaceId, workspaces.id), isNull(boards.deletedAt)))
+    .leftJoin(
+      boards,
+      and(
+        eq(boards.workspaceId, workspaces.id),
+        isNull(boards.deletedAt),
+        isNull(boards.archivedAt),
+      ),
+    )
     // Membership rows outlive a deleted workspace — the row is kept so the
     // delete can be undone — so the workspace's own tombstone is what hides it.
     .where(and(eq(memberships.userId, userId), isNull(workspaces.deletedAt)))
@@ -303,20 +323,23 @@ export async function listWorkspaceGuests(
 }
 
 /**
- * Boards in one workspace, most recently touched first.
+ * Boards in one workspace, most recently touched first, archived ones
+ * included — the sidebar sorts them into Pinned, Boards and Archived — each
+ * with the caller's own pin on it.
  *
  * Returns null when the caller isn't a member — the same answer a missing
  * workspace gives, so callers surface 404 for both.
  *
  * One round trip: the caller's membership is the row the boards are joined
  * onto, so no row at all means not a member, and a single row with no board
- * means an empty workspace. Only the columns the switcher reads are fetched.
+ * means an empty workspace. Their pins join on the (user, board) key. Only the
+ * columns the sidebar reads are fetched.
  */
 export async function listWorkspaceBoards(
   db: Database,
   userId: string,
   workspaceId: string,
-): Promise<BoardSummary[] | null> {
+): Promise<ListedBoard[] | null> {
   const rows = await db
     .select({
       id: boards.id,
@@ -325,6 +348,9 @@ export async function listWorkspaceBoards(
       visibility: boards.visibility,
       color: boards.color,
       updatedAt: boards.updatedAt,
+      ownerId: boards.ownerId,
+      archivedAt: boards.archivedAt,
+      pin: boardPins.position,
     })
     .from(memberships)
     .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
@@ -332,6 +358,7 @@ export async function listWorkspaceBoards(
       boards,
       and(eq(boards.workspaceId, memberships.workspaceId), isNull(boards.deletedAt)),
     )
+    .leftJoin(boardPins, and(eq(boardPins.boardId, boards.id), eq(boardPins.userId, userId)))
     .where(
       and(
         eq(memberships.workspaceId, workspaceId),
@@ -343,11 +370,12 @@ export async function listWorkspaceBoards(
 
   if (rows.length === 0) return null;
 
-  const list: BoardSummary[] = [];
+  const list: ListedBoard[] = [];
   for (const row of rows) {
     // The empty workspace's lone row, every board column null.
     if (row.id === null || row.workspaceId === null || row.title === null) continue;
     if (row.visibility === null || row.color === null || row.updatedAt === null) continue;
+    if (row.ownerId === null) continue;
     list.push({
       id: row.id,
       workspaceId: row.workspaceId,
@@ -355,6 +383,9 @@ export async function listWorkspaceBoards(
       visibility: row.visibility,
       color: row.color,
       updatedAt: row.updatedAt,
+      ownerId: row.ownerId,
+      archivedAt: row.archivedAt,
+      pin: row.pin,
     });
   }
   return list;
@@ -474,7 +505,9 @@ export async function renameWorkspace(
   const [counted] = await db
     .select({ boardCount: sql<number>`count(${boards.id})`.mapWith(Number) })
     .from(boards)
-    .where(and(eq(boards.workspaceId, workspaceId), isNull(boards.deletedAt)));
+    .where(
+      and(eq(boards.workspaceId, workspaceId), isNull(boards.deletedAt), isNull(boards.archivedAt)),
+    );
 
   return {
     id: workspace.id,
@@ -556,7 +589,9 @@ export async function createBoardInWorkspace(
 ): Promise<BoardSummary | null> {
   const title = input.title?.trim() || DEFAULT_BOARD_TITLE;
 
-  const result = await db.execute<{ updatedAt: string } & Omit<BoardSummary, 'updatedAt'>>(sql`
+  const result = await db.execute<
+    { updatedAt: string; archivedAt: null } & Omit<BoardSummary, 'updatedAt' | 'archivedAt'>
+  >(sql`
     INSERT INTO boards (workspace_id, owner_id, title, visibility)
     SELECT ${input.workspaceId}::uuid, ${input.userId}::uuid, ${title}, 'workspace'::board_visibility
     WHERE EXISTS (
@@ -572,7 +607,9 @@ export async function createBoardInWorkspace(
       title,
       visibility,
       color,
-      updated_at AS "updatedAt"
+      updated_at AS "updatedAt",
+      owner_id AS "ownerId",
+      archived_at AS "archivedAt"
   `);
 
   const row = result.rows[0];
@@ -591,24 +628,26 @@ export async function findMostRecentBoardForUser(
   db: Database,
   userId: string,
 ): Promise<BoardSummary | null> {
-  const workspaceIds = (
-    await db
-      .select({ workspaceId: memberships.workspaceId })
-      .from(memberships)
-      .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
-      .where(and(eq(memberships.userId, userId), isNull(workspaces.deletedAt)))
-  ).map((row) => row.workspaceId);
-
-  if (workspaceIds.length === 0) return null;
-
+  // One round trip: their memberships pick the workspaces, the boards'
+  // (workspace, deleted) index finds the boards, and an archived board is
+  // never somewhere to land.
   const rows = await db
-    .select()
-    .from(boards)
-    .where(and(inArray(boards.workspaceId, workspaceIds), isNull(boards.deletedAt)))
+    .select({ board: boards })
+    .from(memberships)
+    .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
+    .innerJoin(boards, eq(boards.workspaceId, memberships.workspaceId))
+    .where(
+      and(
+        eq(memberships.userId, userId),
+        isNull(workspaces.deletedAt),
+        isNull(boards.deletedAt),
+        isNull(boards.archivedAt),
+      ),
+    )
     .orderBy(desc(boards.updatedAt))
     .limit(1);
 
-  return rows[0] ? toBoardSummary(rows[0]) : null;
+  return rows[0] ? toBoardSummary(rows[0].board) : null;
 }
 
 /**
@@ -625,7 +664,8 @@ export async function boardToOpenInWorkspace(
 ): Promise<BoardSummary | null> {
   const boardsHere = await listWorkspaceBoards(db, userId, workspaceId);
   if (!boardsHere) return null;
-  return boardsHere[0] ?? createBoardInWorkspace(db, { userId, workspaceId });
+  const open = boardsHere.find((board) => board.archivedAt === null);
+  return open ?? createBoardInWorkspace(db, { userId, workspaceId });
 }
 
 export interface EnsureBoardInput {
@@ -697,8 +737,8 @@ export interface SharedBoard extends BoardSummary {
  * they belong to — the boards the sidebar lists as "Shared with you", so they
  * can get back to them without the link. Most recently changed first.
  *
- * Only standing access: a revoked grant, a deleted board or a deleted
- * workspace lists nothing. A board in one of their own workspaces is listed
+ * Only standing access: a revoked grant, a deleted or archived board, or a
+ * deleted workspace lists nothing. A board in one of their own workspaces is listed
  * there instead, whatever grant they also hold on it.
  */
 export async function listBoardsSharedWith(db: Database, userId: string): Promise<SharedBoard[]> {
@@ -723,6 +763,7 @@ export async function listBoardsSharedWith(db: Database, userId: string): Promis
         eq(boardMembers.userId, userId),
         eq(boardMembers.status, 'active'),
         isNull(boards.deletedAt),
+        isNull(boards.archivedAt),
         isNull(workspaces.deletedAt),
         isNull(memberships.id),
         ne(boards.ownerId, userId),

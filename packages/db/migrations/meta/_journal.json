@@ -225,6 +225,13 @@
       "when": 1791885629784,
       "tag": "0031_weekly_digest",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792145280831,
+      "tag": "0032_board_pins_and_archive",
+      "breakpoints": true
     }
   ]
 }

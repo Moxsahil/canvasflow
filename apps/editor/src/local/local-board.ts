@@ -25,6 +25,7 @@ export const LOCAL_USER: EditorUser = {
   email: null,
   role: 'editor',
   readOnly: false,
+  archived: false,
   isGuest: true,
 };
 

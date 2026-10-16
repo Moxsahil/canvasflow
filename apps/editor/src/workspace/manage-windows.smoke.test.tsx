@@ -23,6 +23,8 @@ const board = (id: string, title: string): BoardSummary => ({
   visibility: 'workspace',
   color: 'green',
   updatedAt: '2026-09-22T10:00:00.000Z',
+  ownerId: 'me',
+  archivedAt: null,
 });
 
 function state(manageTarget: ManageTarget | null, lists: Record<string, WorkspaceBoards> = {}) {
@@ -53,6 +55,13 @@ function state(manageTarget: ManageTarget | null, lists: Record<string, Workspac
     deleteBoard: done,
     renameWorkspace: done,
     deleteWorkspace: done,
+    archived: false,
+    canManageBoard: () => true,
+    pinBoard: noop,
+    unpinBoard: noop,
+    reorderPins: noop,
+    archiveBoard: done,
+    unarchiveBoard: done,
     manageTarget,
     beginManage: noop,
     endManage: noop,
