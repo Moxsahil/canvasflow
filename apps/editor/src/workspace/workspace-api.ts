@@ -58,8 +58,14 @@ function workspacesUrl(path = ''): string {
   return `${env.VITE_WEB_URL}/api/workspaces${path}`;
 }
 
-function boardsUrl(path = ''): string {
-  return `${env.VITE_WEB_URL}/api/boards${path}`;
+/** A workspace's boards, which the gateway serves. */
+function workspaceBoardsUrl(workspaceId: string): string {
+  return `${env.VITE_API_URL}/workspaces/${workspaceId}/boards`;
+}
+
+/** One board's own record, which the gateway serves. */
+function boardUrl(boardId: string): string {
+  return `${env.VITE_API_URL}/boards/${boardId}`;
 }
 
 /**
@@ -74,6 +80,9 @@ async function failure(res: Response, subject: 'workspace' | 'board'): Promise<W
   if (res.status === 401) {
     return new WorkspaceApiError(t('errors.sessionExpired'), 401);
   }
+  if (res.status === 429) {
+    return new WorkspaceApiError(t('errors.tooManyTries'), 429);
+  }
   if (res.status === 404) {
     return new WorkspaceApiError(
       t(subject === 'board' ? 'errors.boardGone' : 'errors.workspaceGone'),
@@ -81,8 +90,11 @@ async function failure(res: Response, subject: 'workspace' | 'board'): Promise<W
     );
   }
   try {
-    const body = (await res.json()) as { error?: string };
-    if (body.error) return new WorkspaceApiError(body.error, res.status);
+    // The web app's routes answer `error`; the gateway's answer `message`,
+    // with `error` as the status's name.
+    const body = (await res.json()) as { message?: unknown; error?: unknown };
+    const reason = typeof body.message === 'string' ? body.message : body.error;
+    if (typeof reason === 'string' && reason) return new WorkspaceApiError(reason, res.status);
   } catch {
     // Fall through to the generic message.
   }
@@ -97,7 +109,7 @@ export async function listWorkspaces(): Promise<WorkspaceSummary[]> {
 }
 
 export async function listWorkspaceBoards(workspaceId: string): Promise<BoardSummary[]> {
-  const res = await fetch(workspacesUrl(`/${workspaceId}/boards`), { credentials: 'include' });
+  const res = await fetch(workspaceBoardsUrl(workspaceId), { credentials: 'include' });
   if (!res.ok) throw await failure(res, 'workspace');
   const body = (await res.json()) as { data: BoardSummary[] };
   return body.data;
@@ -153,7 +165,7 @@ export async function createWorkspace(name: string): Promise<WorkspaceSummary> {
 }
 
 export async function createBoard(workspaceId: string, title?: string): Promise<BoardSummary> {
-  const res = await fetch(workspacesUrl(`/${workspaceId}/boards`), {
+  const res = await fetch(workspaceBoardsUrl(workspaceId), {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -175,7 +187,7 @@ export async function updateBoard(
   boardId: string,
   patch: BoardDetailsPatch,
 ): Promise<BoardSummary> {
-  const res = await fetch(boardsUrl(`/${boardId}`), {
+  const res = await fetch(boardUrl(boardId), {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -195,7 +207,7 @@ export async function updateBoard(
  * lets the caller name it in the message afterwards.
  */
 export async function deleteBoard(boardId: string): Promise<BoardSummary> {
-  const res = await fetch(boardsUrl(`/${boardId}`), {
+  const res = await fetch(boardUrl(boardId), {
     method: 'DELETE',
     credentials: 'include',
   });

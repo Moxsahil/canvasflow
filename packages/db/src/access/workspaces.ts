@@ -18,9 +18,9 @@ import type { AvatarSource } from './users.js';
  * person belongs to, which boards live in each, and how to add either.
  *
  * Every function here takes the caller's id and answers only for workspaces
- * they are a member of — the editor reaches these through the web app with
- * nothing but a session cookie, so membership is the whole authorization
- * story. A non-member gets `null`, never an empty list, so callers can answer
+ * they are a member of — the editor reaches these through the web app and
+ * the gateway with nothing but a session cookie, so membership is the whole
+ * authorization story. A non-member gets `null`, never an empty list, so callers can answer
  * 404 and keep workspace ids unprobeable.
  */
 
@@ -307,21 +307,57 @@ export async function listWorkspaceGuests(
  *
  * Returns null when the caller isn't a member — the same answer a missing
  * workspace gives, so callers surface 404 for both.
+ *
+ * One round trip: the caller's membership is the row the boards are joined
+ * onto, so no row at all means not a member, and a single row with no board
+ * means an empty workspace. Only the columns the switcher reads are fetched.
  */
 export async function listWorkspaceBoards(
   db: Database,
   userId: string,
   workspaceId: string,
 ): Promise<BoardSummary[] | null> {
-  if (!(await isWorkspaceMember(db, userId, workspaceId))) return null;
-
   const rows = await db
-    .select()
-    .from(boards)
-    .where(and(eq(boards.workspaceId, workspaceId), isNull(boards.deletedAt)))
+    .select({
+      id: boards.id,
+      workspaceId: boards.workspaceId,
+      title: boards.title,
+      visibility: boards.visibility,
+      color: boards.color,
+      updatedAt: boards.updatedAt,
+    })
+    .from(memberships)
+    .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
+    .leftJoin(
+      boards,
+      and(eq(boards.workspaceId, memberships.workspaceId), isNull(boards.deletedAt)),
+    )
+    .where(
+      and(
+        eq(memberships.workspaceId, workspaceId),
+        eq(memberships.userId, userId),
+        isNull(workspaces.deletedAt),
+      ),
+    )
     .orderBy(desc(boards.updatedAt));
 
-  return rows.map(toBoardSummary);
+  if (rows.length === 0) return null;
+
+  const list: BoardSummary[] = [];
+  for (const row of rows) {
+    // The empty workspace's lone row, every board column null.
+    if (row.id === null || row.workspaceId === null || row.title === null) continue;
+    if (row.visibility === null || row.color === null || row.updatedAt === null) continue;
+    list.push({
+      id: row.id,
+      workspaceId: row.workspaceId,
+      title: row.title,
+      visibility: row.visibility,
+      color: row.color,
+      updatedAt: row.updatedAt,
+    });
+  }
+  return list;
 }
 
 /**
@@ -509,25 +545,40 @@ export interface CreateBoardInput {
  * Returns null for a workspace they aren't in. The board carries no shapes:
  * the document is created lazily on first open, so an empty update log *is* a
  * blank board.
+ *
+ * One statement: the insert selects its row only when the caller's membership
+ * exists, so checking and writing are a single round trip and cannot be split
+ * by a removal landing in between.
  */
 export async function createBoardInWorkspace(
   db: Database,
   input: CreateBoardInput,
 ): Promise<BoardSummary | null> {
-  if (!(await isWorkspaceMember(db, input.userId, input.workspaceId))) return null;
+  const title = input.title?.trim() || DEFAULT_BOARD_TITLE;
 
-  const [board] = await db
-    .insert(boards)
-    .values({
-      workspaceId: input.workspaceId,
-      ownerId: input.userId,
-      title: input.title?.trim() || DEFAULT_BOARD_TITLE,
-      visibility: 'workspace',
-    })
-    .returning();
+  const result = await db.execute<{ updatedAt: string } & Omit<BoardSummary, 'updatedAt'>>(sql`
+    INSERT INTO boards (workspace_id, owner_id, title, visibility)
+    SELECT ${input.workspaceId}::uuid, ${input.userId}::uuid, ${title}, 'workspace'::board_visibility
+    WHERE EXISTS (
+      SELECT 1 FROM memberships
+      INNER JOIN workspace ON workspace.id = memberships.workspace_id
+      WHERE memberships.workspace_id = ${input.workspaceId}::uuid
+        AND memberships.user_id = ${input.userId}::uuid
+        AND workspace.deleted_at IS NULL
+    )
+    RETURNING
+      id,
+      workspace_id AS "workspaceId",
+      title,
+      visibility,
+      color,
+      updated_at AS "updatedAt"
+  `);
 
-  if (!board) throw new Error('Failed to create board');
-  return toBoardSummary(board);
+  const row = result.rows[0];
+  // A raw statement's timestamps arrive as text, read here as the column
+  // itself reads them.
+  return row ? { ...row, updatedAt: new Date(row.updatedAt) } : null;
 }
 
 /**

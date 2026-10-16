@@ -2,28 +2,43 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
+  ForbiddenException,
   Get,
   Header,
+  Headers,
   HttpCode,
   NotFoundException,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import { BoardsService } from './boards.service.js';
 import {
   boardOverview,
+  canEdit,
   resolveBoardAccess,
+  softDeleteBoard,
+  updateBoardDetails,
+  type BoardAccess,
   type BoardOverview,
   type BoardRow,
   type BoardRole,
+  type BoardSummary,
 } from '@canvasflow/db';
+import { isAllowedOrigin } from '../../common/allowed-origins.js';
+import { parseEnv } from '../../config/env.js';
 import { DatabaseService } from '../../infra/database/database.service.js';
+import { AccountThrottlerGuard } from '../auth/account-throttler.guard.js';
 import { JwtAuthGuard } from '../auth/jwt.guard.js';
 import type { AuthenticatedUser } from '../auth/jwt.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
+import { WorkspaceEventsService } from '../workspaces/workspace-events.service.js';
+import { readBoardDetails } from './board-details.js';
 
 const DEFAULT_BOARD_TITLE = 'Untitled board';
 
@@ -34,9 +49,12 @@ const createBoardSchema = z.object({
 @Controller('boards')
 @UseGuards(JwtAuthGuard)
 export class BoardsController {
+  private readonly env = parseEnv();
+
   constructor(
     private readonly boards: BoardsService,
     private readonly database: DatabaseService,
+    private readonly events: WorkspaceEventsService,
   ) {}
 
   @Get()
@@ -98,5 +116,89 @@ export class BoardsController {
     const board = access && (await boardOverview(db, id));
     if (!access || !board) throw new NotFoundException(`Board ${id} not found`);
     return { data: { ...board, role: access.role } };
+  }
+
+  /**
+   * Rename a board, re-tag it, or both.
+   *
+   * Naming a board is an edit to it rather than an administrative act, so an
+   * editor may do it and a viewer may not: a title is document content, and a
+   * team that shares a board shares the right to say what it is called.
+   */
+  @Patch(':id')
+  @UseGuards(AccountThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  async update(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AuthenticatedUser,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<{ data: BoardSummary }> {
+    const patch = readBoardDetails(body);
+    if (typeof patch === 'string') throw new BadRequestException(patch);
+
+    const access = await this.enter(id, user, origin);
+    if (!canEdit(access.role)) throw new ForbiddenException('Not allowed to rename this board');
+
+    const board = await updateBoardDetails(this.database.db, id, patch);
+    // Access resolved a moment ago, so a miss here means it was deleted in
+    // between — the same answer as a board that was never there.
+    if (!board) throw new NotFoundException(`Board ${id} not found`);
+
+    this.events.changed(board.workspaceId);
+    return { data: board };
+  }
+
+  /**
+   * Delete a board, softly — see `softDeleteBoard`.
+   *
+   * Held to a higher bar than renaming: every workspace member resolves to
+   * editor on its boards, which is fine for a title and far too loose for
+   * discarding someone else's work. So it takes the board's owner or an admin
+   * of its workspace, the two people who should be able to clean it up. The
+   * answer is the board as it was, so the editor can name it afterwards.
+   */
+  @Delete(':id')
+  @UseGuards(AccountThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  async remove(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<{ data: BoardSummary }> {
+    const access = await this.enter(id, user, origin);
+    const administers = access.workspaceRole === 'owner' || access.workspaceRole === 'admin';
+    if (access.role !== 'owner' && !administers) {
+      throw new ForbiddenException(
+        'Only the board owner or a workspace admin can delete this board.',
+      );
+    }
+
+    const board = await softDeleteBoard(this.database.db, id);
+    // Already gone by the time the write landed — a double-submit, most likely.
+    if (!board) throw new NotFoundException(`Board ${id} not found`);
+
+    this.events.changed(board.workspaceId);
+    return { data: board };
+  }
+
+  /**
+   * The checks every change to a board starts with: from the editor itself,
+   * and by somebody who can open the board — one query, which also carries
+   * their workspace role for the delete's stricter bar.
+   */
+  private async enter(
+    id: string,
+    user: AuthenticatedUser,
+    origin: string | undefined,
+  ): Promise<BoardAccess> {
+    if (!isAllowedOrigin(origin, this.env)) {
+      throw new ForbiddenException('Cross-origin requests are not allowed');
+    }
+    const access = await resolveBoardAccess(this.database.db, user.id, id);
+    // 404 rather than 403 for "exists but you may not": board ids must not be
+    // probeable for existence.
+    if (!access) throw new NotFoundException(`Board ${id} not found`);
+    return access;
   }
 }

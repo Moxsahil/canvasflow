@@ -1,7 +1,7 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import type { Database } from '../client.js';
 import { boards } from '../schema/boards.js';
-import { memberships } from '../schema/workspaces.js';
+import { memberships, type MembershipRow } from '../schema/workspaces.js';
 import { boardMembers, type BoardRole } from '../schema/board-access.js';
 
 export interface BoardAccess {
@@ -15,6 +15,12 @@ export interface BoardAccess {
    * "you were explicitly invited".
    */
   source: 'owner' | 'board-member' | 'workspace';
+  /**
+   * The caller's role in the board's workspace, or null outside it. Read in
+   * the same query, so a route that also asks "may they administer it" — a
+   * delete, say — needs no second lookup.
+   */
+  workspaceRole: MembershipRow['role'] | null;
 }
 
 /**
@@ -49,50 +55,51 @@ export async function resolveBoardAccess(
   userId: string,
   boardId: string,
 ): Promise<BoardAccess | null> {
-  const boardRows = await db
+  // One round trip: the caller's board_members row and workspace membership
+  // are both unique per (board or workspace, user), so the left joins add at
+  // most one row each and the rules below read the answer in order.
+  const rows = await db
     .select({
-      id: boards.id,
       workspaceId: boards.workspaceId,
       ownerId: boards.ownerId,
+      memberRole: boardMembers.role,
+      memberStatus: boardMembers.status,
+      workspaceRole: memberships.role,
     })
     .from(boards)
+    .leftJoin(
+      boardMembers,
+      and(eq(boardMembers.boardId, boards.id), eq(boardMembers.userId, userId)),
+    )
+    .leftJoin(
+      memberships,
+      and(eq(memberships.workspaceId, boards.workspaceId), eq(memberships.userId, userId)),
+    )
     .where(and(eq(boards.id, boardId), isNull(boards.deletedAt)))
     .limit(1);
 
-  const board = boardRows[0];
-  if (!board) return null;
+  const row = rows[0];
+  if (!row) return null;
 
   const base = {
-    boardId: board.id,
-    workspaceId: board.workspaceId,
-    ownerId: board.ownerId,
+    boardId,
+    workspaceId: row.workspaceId,
+    ownerId: row.ownerId,
+    workspaceRole: row.workspaceRole,
   };
 
-  if (board.ownerId === userId) {
+  if (row.ownerId === userId) {
     return { ...base, role: 'owner', source: 'owner' };
   }
 
-  const memberRows = await db
-    .select({ role: boardMembers.role, status: boardMembers.status })
-    .from(boardMembers)
-    .where(and(eq(boardMembers.boardId, boardId), eq(boardMembers.userId, userId)))
-    .limit(1);
-
-  const member = memberRows[0];
-  if (member) {
+  if (row.memberRole !== null) {
     // An explicit decision — in either direction — wins over the
     // workspace-wide default.
-    if (member.status === 'revoked') return null;
-    return { ...base, role: member.role, source: 'board-member' };
+    if (row.memberStatus === 'revoked') return null;
+    return { ...base, role: row.memberRole, source: 'board-member' };
   }
 
-  const workspaceRows = await db
-    .select({ userId: memberships.userId })
-    .from(memberships)
-    .where(and(eq(memberships.workspaceId, board.workspaceId), eq(memberships.userId, userId)))
-    .limit(1);
-
-  if (workspaceRows[0]) {
+  if (row.workspaceRole !== null) {
     return { ...base, role: 'editor', source: 'workspace' };
   }
 
