@@ -1,3 +1,5 @@
+import { WHITEBOARD_HREF } from '@/lib/whiteboard';
+
 // Rooted at `/` for the same reason as the nav's links: the legal pages end in
 // this footer too.
 const SECTION_LINKS = [
@@ -8,6 +10,9 @@ const SECTION_LINKS = [
   { label: 'Live', href: '/#live' },
   { label: 'Pricing', href: '/#pricing' },
 ];
+
+// The editor's own address, where anyone can start drawing without an account.
+const WHITEBOARD_LINK = { label: 'Whiteboard', href: WHITEBOARD_HREF };
 
 const LEGAL_LINKS = [
   { label: 'Privacy', href: '/privacy' },
@@ -23,7 +28,7 @@ export function SiteFooter() {
         <span className="font-pixel text-xs tracking-[0.25em] text-white/50">CanvasFlow</span>
 
         <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
-          {SECTION_LINKS.map((l) => (
+          {[WHITEBOARD_LINK, ...SECTION_LINKS].map((l) => (
             <a
               key={l.label}
               href={l.href}

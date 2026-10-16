@@ -1,0 +1,8 @@
+# The editor's own address is a board anyone can draw on, and is meant to be
+# found. Board addresses are left crawlable on purpose: they answer with an
+# X-Robots-Tag: noindex header (vercel.json), which a crawler can only read if
+# it is allowed to fetch them.
+User-agent: *
+Allow: /
+
+Sitemap: https://app.canvasflowapp.com/sitemap.xml

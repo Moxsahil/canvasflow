@@ -71,6 +71,27 @@ test('draws without an account and keeps the drawing across a reload', async ({ 
   await expect(page.getByText('1/1')).toBeVisible();
 });
 
+test('tells search engines what the editor is, and where to find it', async ({ page, request }) => {
+  await page.goto(`${EDITOR}/`);
+  await expect(page).toHaveTitle(/CanvasFlow Whiteboard/);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href',
+    'https://app.canvasflowapp.com/',
+  );
+  const robots = await request.get(`${EDITOR}/robots.txt`);
+  expect(robots.headers()['content-type']).toContain('text/plain');
+  expect(await robots.text()).toContain('Sitemap: https://app.canvasflowapp.com/sitemap.xml');
+  const sitemap = await request.get(`${EDITOR}/sitemap.xml`);
+  expect(await sitemap.text()).toContain('<loc>https://app.canvasflowapp.com/</loc>');
+
+  // The home page links to it, so a crawler can get there.
+  await page.goto(`${WEB}/`);
+  await expect(page.getByRole('link', { name: 'Open canvas' }).first()).toHaveAttribute(
+    'href',
+    `${EDITOR}/`,
+  );
+});
+
 test('asks for an account when the board is shared', async ({ page }) => {
   await page.goto(`${EDITOR}/`);
   await page.getByRole('button', { name: /share/i }).click();

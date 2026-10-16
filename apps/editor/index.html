@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -9,9 +9,66 @@
     <link rel="icon" href="/favicon.ico?v=2" sizes="any" />
     <!-- The icon iOS puts on the home screen when a board is added to it. -->
     <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
-    <title>CanvasFlow Editor</title>
+    <!-- What search results and link previews show for the editor's own
+         address, which opens a board anyone can draw on without an account.
+         Every board address serves this same page, so the canonical names the
+         one address meant for search; boards themselves are kept out of it by
+         the X-Robots-Tag header in vercel.json. -->
+    <title>CanvasFlow Whiteboard — Free Online Whiteboard, No Sign-up</title>
+    <meta
+      name="description"
+      content="A free online whiteboard for diagrams, wireframes and flowcharts. Start drawing right away, no account needed — sign in to share and work together live."
+    />
+    <link rel="canonical" href="https://app.canvasflowapp.com/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="CanvasFlow" />
+    <meta property="og:url" content="https://app.canvasflowapp.com/" />
+    <meta property="og:title" content="CanvasFlow Whiteboard — Free Online Whiteboard" />
+    <meta
+      property="og:description"
+      content="Start drawing right away, no account needed. Sign in to share and work together live."
+    />
+    <meta property="og:image" content="https://canvasflowapp.com/brand/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="CanvasFlow" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="CanvasFlow Whiteboard — Free Online Whiteboard" />
+    <meta
+      name="twitter:description"
+      content="Start drawing right away, no account needed. Sign in to share and work together live."
+    />
+    <meta name="twitter:image" content="https://canvasflowapp.com/brand/og.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "CanvasFlow Whiteboard",
+        "url": "https://app.canvasflowapp.com/",
+        "description": "A free online whiteboard for diagrams, wireframes and flowcharts.",
+        "applicationCategory": "DesignApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript",
+        "image": "https://canvasflowapp.com/brand/og.png",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "publisher": {
+          "@type": "Organization",
+          "name": "CanvasFlow",
+          "url": "https://canvasflowapp.com/",
+          "logo": "https://canvasflowapp.com/brand/logo-512.png"
+        }
+      }
+    </script>
   </head>
   <body>
+    <!-- For anything reading the page without running it. -->
+    <noscript>
+      <h1>CanvasFlow Whiteboard</h1>
+      <p>
+        A free online whiteboard for diagrams, wireframes and flowcharts. It runs in your browser
+        and needs JavaScript turned on.
+      </p>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

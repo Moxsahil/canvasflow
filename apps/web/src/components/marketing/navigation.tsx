@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
+import { WHITEBOARD_HREF } from '@/lib/whiteboard';
 
 // Every target is a section the home page actually renders, listed in the order
 // it renders them — see page.tsx. The sections commented out there get no
@@ -19,16 +20,19 @@ const navLinks = [
 ];
 
 /**
- * The one way in. /open picks up the board the user last touched — creating
- * their first one if they have none — and the middleware sends anyone without
- * a session to /login with this as the `next`, so the same link serves both.
+ * The one way in: the editor's own address, which opens a board anyone can
+ * draw on straight away, account or not — and offers someone signed in their
+ * own boards. Sign in, beside it, is the way to those boards directly.
  *
- * Plain anchors rather than next/link on purpose: /open answers with a redirect
- * to the editor, which is a different origin, and a client-side navigation
- * cannot follow it. That is also why the two calls to action are anchors
- * wearing the button's styling via `asChild`, rather than buttons.
+ * On every page that wears this bar, it is also the link that tells search
+ * engines the editor is part of this site.
+ *
+ * Plain anchors rather than next/link on purpose: the editor is a different
+ * origin, which a client-side navigation cannot reach. That is also why the
+ * two calls to action are anchors wearing the button's styling via `asChild`,
+ * rather than buttons.
  */
-const START_HREF = '/open';
+const START_HREF = WHITEBOARD_HREF;
 const SIGN_IN_HREF = '/login';
 
 /**
