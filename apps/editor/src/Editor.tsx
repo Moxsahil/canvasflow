@@ -205,7 +205,12 @@ import {
   decodeJwtWorkspaceId,
   sessionResumeUrl,
 } from './auth/token';
-import { announceWorkspaceChanged, SHARED_WITH_YOU, useBoardSwitcher } from './workspace';
+import {
+  announceWorkspaceChanged,
+  liveBoards,
+  SHARED_WITH_YOU,
+  useBoardSwitcher,
+} from './workspace';
 import { announceAccountChanged } from './sync/account-events';
 import {
   CursorLayer,
@@ -836,6 +841,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
     workspaceId: authToken ? decodeJwtWorkspaceId(authToken) : null,
     local,
     localTitle: t('local.boardTitle'),
+    userId: user?.id ?? null,
+    onNotice: showToast,
   });
   // Someone outside the board's workspace — let in by a share link — has no
   // board list to name it from, and the sidebar falls back to the id. The
@@ -879,6 +886,33 @@ export function Editor({ boardId, local = false }: EditorProps) {
    * offered none to pass on.
    */
   const runsSharing = user?.role === 'owner' || managesBoardWorkspace;
+
+  // Archiving is for whoever may delete the board: its owner, or whoever runs
+  // its workspace — the same people who run its sharing.
+  const { unarchiveBoard } = boardSwitcher;
+  const unarchiveOpenBoard = useCallback(
+    () => unarchiveBoard(boardId).then(refreshAuthTokenNow),
+    [unarchiveBoard, boardId, refreshAuthTokenNow],
+  );
+
+  // The token says whether the board is archived, and it is what makes the
+  // board read-only here. When the list says otherwise — archived or brought
+  // back, here or by somebody else — the token is re-minted at once, so the
+  // tools follow without waiting for the server's sweep. Once per change: if
+  // the token still disagrees, the list was the stale one.
+  const listArchived = boardSwitcher.archived;
+  const tokenArchived = user?.archived;
+  const archivedAskedRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (listArchived === null || tokenArchived === undefined) return;
+    if (listArchived === tokenArchived) {
+      archivedAskedRef.current = null;
+      return;
+    }
+    if (archivedAskedRef.current === listArchived) return;
+    archivedAskedRef.current = listArchived;
+    refreshAuthTokenNow();
+  }, [listArchived, tokenArchived, refreshAuthTokenNow]);
 
   // Settings → Workspace is about the workspace the sidebar header names: the
   // one being browsed, else the open board's own. While the sidebar lists the
@@ -2455,7 +2489,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
               (workspace) => workspace.id === boardSwitcher.workspaceId,
             )?.name ?? null,
           currentBoardId: boardId,
-          boards: boardSwitcher.boardsFor(boardSwitcher.workspaceId),
+          boards: liveBoards(boardSwitcher.boardsFor(boardSwitcher.workspaceId)),
         }
       : null;
 
@@ -4682,6 +4716,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
                     onStopFollowing={follow.stop}
                     onShare={showShare}
                     readOnly={readOnly}
+                    archived={
+                      !local && user?.archived
+                        ? { canUnarchive: runsSharing, onUnarchive: unarchiveOpenBoard }
+                        : null
+                    }
                     portalContainer={editorRoot}
                   />
                 </>

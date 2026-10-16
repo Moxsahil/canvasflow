@@ -118,6 +118,19 @@
   white-space: nowrap;
 }
 
+/* The archived board's badge. Says the reason in the board's own text colour,
+   as it is something to act on; Unarchive, when offered, sits inside its
+   right edge. */
+.cf-peer-list__badge--archived {
+  gap: 6px;
+  color: var(--text-primary-color);
+}
+
+.cf-peer-list__badge--action {
+  gap: 8px;
+  padding-right: 4px;
+}
+
 .cf-peer-stack__trigger {
   display: inline-flex;
   align-items: center;

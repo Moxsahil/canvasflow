@@ -17,6 +17,7 @@ import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useT } from '../i18n';
 import { useAvatarUrls } from '../profile';
+import { ArchivedNotice, type ArchivedNoticeProps } from '../workspace/ArchivedNotice';
 import type { RosterEntry } from './usePeerPresence';
 
 interface PeerListProps {
@@ -31,6 +32,8 @@ interface PeerListProps {
   onStopFollowing: () => void;
   onShare: () => void;
   readOnly?: boolean;
+  /** Set on an archived board: its badge says so, in place of "View only". */
+  archived?: ArchivedNoticeProps | null;
   /** Radix portals out of the tree; the theme tokens live on `.cf-editor`. */
   portalContainer: HTMLElement | null;
 }
@@ -61,6 +64,7 @@ export function PeerList({
   onStopFollowing,
   onShare,
   readOnly = false,
+  archived = null,
   portalContainer,
 }: PeerListProps) {
   const t = useT();
@@ -94,10 +98,14 @@ export function PeerList({
 
   return (
     <>
-      {readOnly && (
-        <span className="cf-peer-list__badge" title={t('collab.viewOnlyHint')}>
-          {t('collab.viewOnly')}
-        </span>
+      {archived ? (
+        <ArchivedNotice {...archived} />
+      ) : (
+        readOnly && (
+          <span className="cf-peer-list__badge" title={t('collab.viewOnlyHint')}>
+            {t('collab.viewOnly')}
+          </span>
+        )
       )}
 
       {isLive && (

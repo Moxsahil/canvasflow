@@ -32,7 +32,7 @@ import type { SurfaceTheme } from '../ui/surface-palette';
 import { ColorDot, formatUpdatedAt } from './board-presentation';
 import { DeleteWarningDialog } from './DeleteWarningDialog';
 import { ROLE_KEYS, YOU_ARE_KEYS } from './role-words';
-import type { BoardSwitcherState } from './useBoardSwitcher';
+import { liveBoards, type BoardSwitcherState } from './useBoardSwitcher';
 import type { BoardSummary, WorkspaceSummary } from './workspace-api';
 
 const MAX_WORKSPACE_NAME = 60;
@@ -178,7 +178,7 @@ export function ManageDialog({ state, theme }: ManageDialogProps) {
   // goes wrong and it says that instead.
   let footLine: string;
   if (shown?.kind === 'boards') {
-    const entry = state.boardsFor(shown.workspaceId);
+    const entry = liveBoards(state.boardsFor(shown.workspaceId));
     const count = entry?.status === 'ready' ? entry.boards.length : openWorkspace?.boardCount;
     footLine = [
       count === undefined ? null : t('boards.count', { count }),
@@ -480,7 +480,9 @@ interface BoardListProps {
 
 function BoardList({ state, workspaceId, onRename, onDelete }: BoardListProps) {
   const t = useT();
-  const entry = state.boardsFor(workspaceId);
+  // Archived boards are read-only until brought back, from the sidebar's
+  // Archived list; there is nothing to rename here.
+  const entry = liveBoards(state.boardsFor(workspaceId));
 
   if (entry === undefined || entry.status === 'loading')
     return <ListNote>{t('manage.loadingBoards')}</ListNote>;

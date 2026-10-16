@@ -44,6 +44,11 @@ export const boards = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
+    /**
+     * Put away, not gone: an archived board leaves the board lists and turns
+     * read-only for everyone until it is unarchived. Nothing in it is removed.
+     */
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
   },
   (table) => ({
     workspaceIdx: index('boards_workspace_id_idx').on(table.workspaceId),

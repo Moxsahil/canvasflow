@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TokenRefreshError, refreshAuthToken } from './token';
+import { TokenRefreshError, decodeJwtUser, refreshAuthToken } from './token';
 
 const BOARD = '7985f127-353b-4960-9fa4-147379f2ab83';
 const GATEWAY = 'http://localhost:3001/auth/editor-token';
@@ -94,5 +94,29 @@ describe('refreshAuthToken', () => {
 
     await refreshAuthToken(BOARD, tokenFor({ isGuest: false }));
     expect(new URL(String(fetchMock.mock.calls[0]![0])).searchParams.get('boardId')).toBe(BOARD);
+  });
+});
+
+describe('decodeJwtUser', () => {
+  const claims = { id: 'u1', name: 'Ada', role: 'owner' };
+
+  it('lets an owner or editor write', () => {
+    expect(decodeJwtUser(tokenFor(claims))).toMatchObject({ readOnly: false, archived: false });
+    expect(decodeJwtUser(tokenFor({ ...claims, role: 'editor' }))?.readOnly).toBe(false);
+  });
+
+  it('keeps everyone, owner included, from writing on an archived board', () => {
+    expect(decodeJwtUser(tokenFor({ ...claims, archived: true }))).toMatchObject({
+      role: 'owner',
+      readOnly: true,
+      archived: true,
+    });
+  });
+
+  it('reads a token from before the claim as not archived', () => {
+    expect(decodeJwtUser(tokenFor({ ...claims, role: 'viewer' }))).toMatchObject({
+      readOnly: true,
+      archived: false,
+    });
   });
 });

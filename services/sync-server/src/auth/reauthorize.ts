@@ -125,7 +125,7 @@ export async function reauthorizeConnection(
       return 'revoked';
     }
 
-    const shouldBeReadOnly = !canEdit(access.role);
+    const shouldBeReadOnly = !canEdit(access);
     const wasReadOnly = Boolean(connection.readOnly);
 
     if (shouldBeReadOnly === wasReadOnly && context.role === access.role) return 'unchanged';

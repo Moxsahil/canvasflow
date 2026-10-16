@@ -75,7 +75,7 @@ async function authorize(boardId: string) {
   const resolved = await resolve(boardId);
   if ('error' in resolved) return resolved;
 
-  if (!canEdit(resolved.access.role)) {
+  if (!canEdit(resolved.access)) {
     return { error: corsJson({ error: 'Not allowed to rename this board' }, { status: 403 }) };
   }
 

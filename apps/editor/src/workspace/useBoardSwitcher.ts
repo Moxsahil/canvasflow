@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing';
 import { env } from '@/lib/env';
 import {
+  archiveBoard as requestArchiveBoard,
   createBoard as requestCreateBoard,
   createWorkspace as requestCreateWorkspace,
   deleteBoard as requestDeleteBoard,
   deleteWorkspace as requestDeleteWorkspace,
   listWorkspaceBoards,
   listWorkspaces,
+  pinBoard as requestPinBoard,
   renameWorkspace as requestRenameWorkspace,
+  unarchiveBoard as requestUnarchiveBoard,
+  unpinBoard as requestUnpinBoard,
   updateBoard as requestUpdateBoard,
   WorkspaceApiError,
   type BoardColor,
@@ -146,6 +151,28 @@ export interface BoardSwitcherState {
   renameWorkspace: (workspaceId: string, name: string) => Promise<void>;
   /** Deletes the workspace and every board in it. Owner only; the server decides. */
   deleteWorkspace: (workspaceId: string) => Promise<void>;
+  /**
+   * Whether the open board is archived, as its list says; null while no list
+   * that carries it has said.
+   */
+  archived: boolean | null;
+  /**
+   * Whether you may archive this board, unarchive it, or delete it: you made
+   * it, or you run its workspace. Decides what the sidebar offers; the server
+   * still decides what happens.
+   */
+  canManageBoard: (board: BoardSummary) => boolean;
+  /** Pin a board to the top of your own Pinned list. Nobody else's changes. */
+  pinBoard: (boardId: string) => void;
+  unpinBoard: (boardId: string) => void;
+  /**
+   * Your pins in one workspace, top first, after one of them was dragged to a
+   * new place: only the moved one is written, between its new neighbours.
+   */
+  reorderPins: (orderedIds: readonly string[], movedId: string) => void;
+  /** Out of everyone's lists and read-only for everyone, until unarchived. */
+  archiveBoard: (boardId: string) => Promise<void>;
+  unarchiveBoard: (boardId: string) => Promise<void>;
   /** What the manage dialog is showing, or null when it is closed. */
   manageTarget: ManageTarget | null;
   beginManage: (target: ManageTarget) => void;
@@ -167,6 +194,29 @@ interface UseBoardSwitcherOptions {
   local?: boolean;
   /** What to call it, since no list will ever name it. */
   localTitle?: string;
+  /** Who is signed in, from the editor token: whose boards are their own. */
+  userId?: string | null;
+  /** Says something went wrong, or right, where a menu that has closed cannot. */
+  onNotice?: (message: string) => void;
+}
+
+/** Pins sort by their order key, compared as written, ties by id. */
+export function comparePins(a: BoardSummary, b: BoardSummary): number {
+  const left = a.pin ?? '';
+  const right = b.pin ?? '';
+  if (left !== right) return left < right ? -1 : 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/** A workspace's list without its archived boards, which no list but the sidebar's shows. */
+export function liveBoards(entry: WorkspaceBoards | undefined): WorkspaceBoards | undefined {
+  if (entry?.status !== 'ready' || !entry.boards.some((board) => board.archivedAt)) return entry;
+  return { status: 'ready', boards: entry.boards.filter((board) => !board.archivedAt) };
+}
+
+/** The boards you have pinned in a list, top first, leaving archived ones out. */
+export function pinnedOf(list: readonly BoardSummary[]): BoardSummary[] {
+  return list.filter((board) => board.pin && !board.archivedAt).sort(comparePins);
 }
 
 /**
@@ -231,6 +281,8 @@ export function useBoardSwitcher({
   workspaceId: tokenWorkspaceId,
   local = false,
   localTitle = boardId,
+  userId = null,
+  onNotice,
 }: UseBoardSwitcherOptions) {
   const navigate = useNavigate();
 
@@ -272,6 +324,19 @@ export function useBoardSwitcher({
   // from `boards`, so a second ask while a request is in flight doesn't start
   // another one.
   const requestedRef = useRef<Set<string>>(new Set());
+
+  /** The count under a workspace's name follows its list. */
+  const countBoards = useCallback((id: string, by: number) => {
+    setWorkspaces((prev) =>
+      prev
+        ? prev.map((workspace) =>
+            workspace.id === id
+              ? { ...workspace, boardCount: Math.max(0, workspace.boardCount + by) }
+              : workspace,
+          )
+        : prev,
+    );
+  }, []);
 
   // Whatever else changes the lists — a rename, a delete, a new workspace —
   // is kept for the next board too.
@@ -422,6 +487,7 @@ export function useBoardSwitcher({
       title: board?.title ?? boardId,
       color: board?.color ?? ('gray' as BoardColor),
       known: Boolean(board),
+      archived: board ? Boolean(board.archivedAt) : null,
       /**
        * Whether every answer that could still name this board has come back.
        *
@@ -531,7 +597,10 @@ export function useBoardSwitcher({
           ...prev,
           [updated.workspaceId]: {
             status: 'ready',
-            boards: entry.boards.map((board) => (board.id === updated.id ? updated : board)),
+            // Merged, so your pin — which a change does not hand back — stays.
+            boards: entry.boards.map((board) =>
+              board.id === updated.id ? { ...board, ...updated } : board,
+            ),
           },
         };
       });
@@ -604,7 +673,8 @@ export function useBoardSwitcher({
         if (id === skip.workspaceId) continue;
         const entry = boards[id];
         if (entry?.status !== 'ready') continue;
-        const next = entry.boards.find((board) => board.id !== skip.boardId);
+        // Never into an archived one: it is out of the list for a reason.
+        const next = entry.boards.find((board) => board.id !== skip.boardId && !board.archivedAt);
         if (next) {
           navigate(`/boards/${next.id}`);
           return;
@@ -636,15 +706,8 @@ export function useBoardSwitcher({
         });
         // The count sits under the workspace's name in the sidebar, so it has
         // to move with the list rather than wait for the next page load.
-        setWorkspaces((prev) =>
-          prev
-            ? prev.map((workspace) =>
-                workspace.id === removed.workspaceId
-                  ? { ...workspace, boardCount: Math.max(0, workspace.boardCount - 1) }
-                  : workspace,
-              )
-            : prev,
-        );
+        // An archived board was not counted.
+        if (!removed.archivedAt) countBoards(removed.workspaceId, -1);
 
         if (removed.id === boardId) {
           openNextBoard({ boardId: removed.id, preferWorkspaceId: removed.workspaceId });
@@ -658,7 +721,7 @@ export function useBoardSwitcher({
         setBusy(false);
       }
     },
-    [boardId, openNextBoard],
+    [boardId, openNextBoard, countBoards],
   );
 
   const renameWorkspace = useCallback(async (id: string, name: string) => {
@@ -722,6 +785,137 @@ export function useBoardSwitcher({
 
   const dismissError = useCallback(() => setError(null), []);
 
+  /** Change one board wherever a list carries it. */
+  const patchListed = useCallback((id: string, change: (board: BoardSummary) => BoardSummary) => {
+    setBoards((prev) => {
+      let next = prev;
+      for (const [listId, entry] of Object.entries(prev)) {
+        if (entry.status !== 'ready' || !entry.boards.some((board) => board.id === id)) continue;
+        if (next === prev) next = { ...prev };
+        next[listId] = {
+          status: 'ready',
+          boards: entry.boards.map((board) => (board.id === id ? change(board) : board)),
+        };
+      }
+      return next;
+    });
+  }, []);
+
+  /** The list that carries a board, as it stands now. */
+  const listHolding = useCallback(
+    (id: string): BoardSummary[] => {
+      for (const entry of Object.values(boards)) {
+        if (entry.status === 'ready' && entry.boards.some((board) => board.id === id)) {
+          return entry.boards;
+        }
+      }
+      return [];
+    },
+    [boards],
+  );
+
+  /**
+   * A change the server refused: say so, and read the list again, which puts
+   * back whatever was shown ahead of the answer.
+   */
+  const refused = useCallback(
+    (err: unknown, workspace: string | null) => {
+      onNotice?.(messageOf(err));
+      reread(workspace);
+    },
+    [onNotice, reread],
+  );
+
+  const canManageBoard = useCallback(
+    (board: BoardSummary) => {
+      if (userId && board.ownerId === userId) return true;
+      const role = workspaces?.find((workspace) => workspace.id === board.workspaceId)?.role;
+      return role === 'owner' || role === 'admin';
+    },
+    [userId, workspaces],
+  );
+
+  /** Your pins are shown moved at once; the server is told behind. */
+  const writePins = useCallback(
+    (moves: { id: string; position: string }[], workspace: string | null) => {
+      for (const move of moves) patchListed(move.id, (board) => ({ ...board, pin: move.position }));
+      Promise.all(moves.map((move) => requestPinBoard(move.id, move.position))).catch((err) =>
+        refused(err, workspace),
+      );
+    },
+    [patchListed, refused],
+  );
+
+  const pinBoard = useCallback(
+    (id: string) => {
+      const list = listHolding(id);
+      const top = pinnedOf(list)[0]?.pin ?? null;
+      const workspace = list.find((board) => board.id === id)?.workspaceId ?? null;
+      writePins([{ id, position: generateKeyBetween(null, top) }], workspace);
+    },
+    [listHolding, writePins],
+  );
+
+  const unpinBoard = useCallback(
+    (id: string) => {
+      const workspace = listHolding(id).find((board) => board.id === id)?.workspaceId ?? null;
+      patchListed(id, (board) => ({ ...board, pin: null }));
+      requestUnpinBoard(id).catch((err) => refused(err, workspace));
+    },
+    [listHolding, patchListed, refused],
+  );
+
+  const reorderPins = useCallback(
+    (orderedIds: readonly string[], movedId: string) => {
+      const list = listHolding(movedId);
+      const byId = new Map(list.map((board) => [board.id, board]));
+      const at = orderedIds.indexOf(movedId);
+      if (at < 0) return;
+      const before = at > 0 ? (byId.get(orderedIds[at - 1]!)?.pin ?? null) : null;
+      const after = byId.get(orderedIds[at + 1] ?? '')?.pin ?? null;
+      const workspace = byId.get(movedId)?.workspaceId ?? null;
+      try {
+        writePins([{ id: movedId, position: generateKeyBetween(before, after) }], workspace);
+      } catch {
+        // Two pins sharing a key — set at the same moment from two tabs —
+        // leave no room between them. Every pin gets a fresh key instead,
+        // in the order on screen.
+        const keys = generateNKeysBetween(null, null, orderedIds.length);
+        writePins(
+          orderedIds.map((id, index) => ({ id, position: keys[index]! })),
+          workspace,
+        );
+      }
+    },
+    [listHolding, writePins],
+  );
+
+  /**
+   * Shown archived, or back, at once, and counted under the workspace's name
+   * as the list is; put back as it was if the server refuses.
+   */
+  const setArchived = useCallback(
+    async (id: string, archived: boolean) => {
+      const workspace = listHolding(id).find((board) => board.id === id)?.workspaceId ?? null;
+      patchListed(id, (board) => ({
+        ...board,
+        archivedAt: archived ? new Date().toISOString() : null,
+      }));
+      if (workspace) countBoards(workspace, archived ? -1 : 1);
+      try {
+        const updated = archived ? await requestArchiveBoard(id) : await requestUnarchiveBoard(id);
+        patchListed(id, (board) => ({ ...board, ...updated }));
+      } catch (err) {
+        if (workspace) countBoards(workspace, archived ? 1 : -1);
+        refused(err, workspace);
+        throw err;
+      }
+    },
+    [listHolding, patchListed, countBoards, refused],
+  );
+  const archiveBoard = useCallback((id: string) => setArchived(id, true), [setArchived]);
+  const unarchiveBoard = useCallback((id: string) => setArchived(id, false), [setArchived]);
+
   return useMemo<BoardSwitcherState>(
     () => ({
       boardId,
@@ -741,8 +935,10 @@ export function useBoardSwitcher({
       createWorkspace,
       renameBoard,
       renameTarget,
-      // Not a board somebody else let us onto: renaming it is its owner's.
-      canRename: !local && !openBoardIsShared && (current.known || !current.settled),
+      // Not a board somebody else let us onto: renaming it is its owner's. Nor
+      // an archived one, which is read-only until it is brought back.
+      canRename:
+        !local && !openBoardIsShared && !current.archived && (current.known || !current.settled),
       listedId: browsedWorkspaceId ?? home,
       openBoardIsShared,
       sharedBoards,
@@ -751,6 +947,13 @@ export function useBoardSwitcher({
       deleteBoard,
       renameWorkspace,
       deleteWorkspace,
+      archived: local ? null : current.archived,
+      canManageBoard,
+      pinBoard,
+      unpinBoard,
+      reorderPins,
+      archiveBoard,
+      unarchiveBoard,
       manageTarget,
       beginManage,
       endManage,
@@ -784,6 +987,12 @@ export function useBoardSwitcher({
       deleteBoard,
       renameWorkspace,
       deleteWorkspace,
+      canManageBoard,
+      pinBoard,
+      unpinBoard,
+      reorderPins,
+      archiveBoard,
+      unarchiveBoard,
       manageTarget,
       beginManage,
       endManage,

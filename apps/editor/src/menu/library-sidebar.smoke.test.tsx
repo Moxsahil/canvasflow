@@ -29,6 +29,8 @@ const board = (id: string, title: string, workspaceId = 'home'): BoardSummary =>
   visibility: 'workspace',
   color: 'green',
   updatedAt: '2026-09-22T10:00:00.000Z',
+  ownerId: 'me',
+  archivedAt: null,
 });
 
 const HOME_BOARDS = [board('open', 'Onboarding flow'), board('other', 'Q4 roadmap')];
@@ -65,6 +67,13 @@ function state(
     deleteBoard: done,
     renameWorkspace: done,
     deleteWorkspace: done,
+    archived: false,
+    canManageBoard: () => true,
+    pinBoard: noop,
+    unpinBoard: noop,
+    reorderPins: noop,
+    archiveBoard: done,
+    unarchiveBoard: done,
     manageTarget: null,
     beginManage: noop,
     endManage: noop,
@@ -142,6 +151,64 @@ describe('BoardList', () => {
         />,
       ),
     ).toContain('No boards yet.');
+  });
+
+  it('puts your pins in their own section above Boards, in the order you set', () => {
+    const lists: Record<string, WorkspaceBoards> = {
+      home: {
+        status: 'ready',
+        boards: [
+          board('open', 'Onboarding flow'),
+          { ...board('second', 'Second pin'), pin: 'a1' },
+          { ...board('first', 'First pin'), pin: 'a0' },
+        ],
+      },
+    };
+    const html = render(<BoardList state={state({}, lists)} portalContainer={null} theme="dark" />);
+    const pinned = html.indexOf('data-testid="sidebar-pinned-boards"');
+    expect(pinned).toBeGreaterThan(-1);
+    // Pinned first, by order key rather than by when they changed…
+    expect(html.indexOf('First pin')).toBeGreaterThan(pinned);
+    expect(html.indexOf('First pin')).toBeLessThan(html.indexOf('Second pin'));
+    // …then the Boards heading, and the boards nobody pinned under it.
+    expect(html.indexOf('Second pin')).toBeLessThan(html.indexOf('Boards<'));
+    expect(html.indexOf('Boards<')).toBeLessThan(html.indexOf('Onboarding flow'));
+  });
+
+  it('shows no Pinned section until something is pinned', () => {
+    const html = render(<BoardList state={state()} portalContainer={null} theme="dark" />);
+    expect(html).not.toContain('sidebar-pinned-boards');
+  });
+
+  it('folds archived boards away under one row at the foot, pins and all', () => {
+    const lists: Record<string, WorkspaceBoards> = {
+      home: {
+        status: 'ready',
+        boards: [
+          board('open', 'Onboarding flow'),
+          { ...board('old', 'Old plan'), pin: 'a0', archivedAt: '2026-10-10T00:00:00.000Z' },
+        ],
+      },
+    };
+    const html = render(<BoardList state={state({}, lists)} portalContainer={null} theme="dark" />);
+    expect(tagWith(html, 'sidebar-archived-toggle')).toContain('aria-expanded="false"');
+    expect(html).not.toContain('Old plan');
+    // An archived pin is not shown as pinned.
+    expect(html).not.toContain('sidebar-pinned-boards');
+  });
+
+  it('says there are no boards when every one is archived, with the archive a click away', () => {
+    const lists: Record<string, WorkspaceBoards> = {
+      home: {
+        status: 'ready',
+        boards: [{ ...board('open', 'Onboarding flow'), archivedAt: '2026-10-10T00:00:00.000Z' }],
+      },
+    };
+    const html = render(
+      <BoardList state={state({ archived: true }, lists)} portalContainer={null} theme="dark" />,
+    );
+    expect(html).toContain('data-testid="sidebar-archived-toggle"');
+    expect(html).toContain('No boards yet.');
   });
 
   it('lists nothing for a guest, who has no workspace', () => {

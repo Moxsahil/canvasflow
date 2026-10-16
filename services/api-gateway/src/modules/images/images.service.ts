@@ -60,7 +60,7 @@ export class ImagesService {
     // A viewer can see the images on a board they can see; only an editor can
     // add to it. Not a 404 — the board is not hidden from them, the write is
     // simply not theirs to make.
-    if (forWrite && !canEdit(access.role)) {
+    if (forWrite && !canEdit(access)) {
       throw new ForbiddenException('You do not have permission to edit this board');
     }
     return access;

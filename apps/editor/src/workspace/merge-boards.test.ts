@@ -9,6 +9,8 @@ const board = (id: string, title = id): BoardSummary => ({
   visibility: 'workspace',
   color: 'gray',
   updatedAt: '2026-10-07T00:00:00.000Z',
+  ownerId: 'me',
+  archivedAt: null,
 });
 
 const ids = (list: BoardSummary[]) => list.map((it) => it.id);
