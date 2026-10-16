@@ -6,6 +6,10 @@ import { corsJson, corsPreflight } from '@/lib/api/cors';
 import { notifyWorkspaceChanged } from '@/lib/sync/internal';
 
 /**
+ * Superseded by the gateway's `workspaces/:workspaceId/boards`, which the
+ * editor now calls. Kept for one release so an editor tab opened before the
+ * switch keeps working; delete it after that.
+ *
  * The boards in one workspace — the panel that opens beside a workspace in the
  * editor's board switcher — and the only place new boards are created.
  *

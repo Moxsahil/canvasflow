@@ -14,6 +14,10 @@ import { corsJson, corsPreflight } from '@/lib/api/cors';
 import { notifyWorkspaceChanged } from '@/lib/sync/internal';
 
 /**
+ * Superseded by the gateway's `PATCH` and `DELETE boards/:id`, which the
+ * editor now calls. Kept for one release so an editor tab opened before the
+ * switch keeps working; delete it after that.
+ *
  * The board's own record — its name, its tag colour, and deleting it.
  *
  * Called by the rename dialog and the manage dialog in the editor's sidebar,
