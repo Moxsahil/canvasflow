@@ -77,6 +77,11 @@ export interface BoardSwitcherState {
    */
   available: boolean;
   /**
+   * The board kept in this browser, which belongs to no workspace. Shown as a
+   * plain label, like a guest's board, saying where it is kept.
+   */
+  local: boolean;
+  /**
    * The workspace whose boards the sidebar lists, when it is not the open
    * board's own. Null lists the open board's workspace.
    */
@@ -102,6 +107,11 @@ export interface BoardSwitcherState {
   boardsFor: (workspaceId: string) => WorkspaceBoards | undefined;
   openBoard: (boardId: string) => void;
   createBoard: (workspaceId: string) => void;
+  /**
+   * Make a named board and list it, leaving it to the caller to open. Rejects
+   * when the server refuses, rather than reporting it in the menu.
+   */
+  addBoard: (workspaceId: string, title?: string) => Promise<BoardSummary>;
   createWorkspace: (name: string) => void;
   /**
    * Rename a board, re-tag it, or both. Resolves once the server has answered:
@@ -150,6 +160,13 @@ interface UseBoardSwitcherOptions {
   boardId: string;
   /** From the editor token's `workspaceId` claim; null before it decodes. */
   workspaceId: string | null;
+  /**
+   * The board kept in this browser. Nothing is asked of the web app for it:
+   * it is in no workspace, whoever is or is not signed in.
+   */
+  local?: boolean;
+  /** What to call it, since no list will ever name it. */
+  localTitle?: string;
 }
 
 /**
@@ -212,6 +229,8 @@ function messageOf(err: unknown): string {
 export function useBoardSwitcher({
   boardId,
   workspaceId: tokenWorkspaceId,
+  local = false,
+  localTitle = boardId,
 }: UseBoardSwitcherOptions) {
   const navigate = useNavigate();
 
@@ -292,6 +311,9 @@ export function useBoardSwitcher({
   }, []);
 
   useEffect(() => {
+    // Not stored in `remembered` either: an account's lists must still be read
+    // when it goes on from here to one of its own boards.
+    if (local) return;
     let cancelled = false;
 
     listWorkspaces()
@@ -317,7 +339,7 @@ export function useBoardSwitcher({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [local]);
 
   // The board's own workspace: the sidebar lists it, and the board's title
   // and colour come from it. Not one somebody else let us onto: its list is
@@ -337,35 +359,39 @@ export function useBoardSwitcher({
    *
    * Null re-reads everything this sidebar has listed.
    */
-  const reread = useCallback((changed: string | null) => {
-    listWorkspaces()
-      .then((list) => {
-        remembered.workspaces = list;
-        setWorkspaces(list);
-        // Any change might be one to a board shared with us — let on, taken
-        // off, renamed — and the list is one small read.
-        readShared(setSharedBoards);
-      })
-      .catch(() => {});
-
-    const ids = changed ? [changed] : [...requestedRef.current];
-    for (const id of ids) {
-      // Only lists already asked for: one nobody has opened is read when it is.
-      if (!requestedRef.current.has(id)) continue;
-      const turn = (rereadRef.current.get(id) ?? 0) + 1;
-      rereadRef.current.set(id, turn);
-      listWorkspaceBoards(id)
-        .then((fresh) => {
-          if (rereadRef.current.get(id) !== turn) return;
-          setBoards((prev) => {
-            const entry = prev[id];
-            const shown = entry?.status === 'ready' ? entry.boards : [];
-            return { ...prev, [id]: { status: 'ready', boards: mergeBoards(shown, fresh) } };
-          });
+  const reread = useCallback(
+    (changed: string | null) => {
+      if (local) return;
+      listWorkspaces()
+        .then((list) => {
+          remembered.workspaces = list;
+          setWorkspaces(list);
+          // Any change might be one to a board shared with us — let on, taken
+          // off, renamed — and the list is one small read.
+          readShared(setSharedBoards);
         })
         .catch(() => {});
-    }
-  }, []);
+
+      const ids = changed ? [changed] : [...requestedRef.current];
+      for (const id of ids) {
+        // Only lists already asked for: one nobody has opened is read when it is.
+        if (!requestedRef.current.has(id)) continue;
+        const turn = (rereadRef.current.get(id) ?? 0) + 1;
+        rereadRef.current.set(id, turn);
+        listWorkspaceBoards(id)
+          .then((fresh) => {
+            if (rereadRef.current.get(id) !== turn) return;
+            setBoards((prev) => {
+              const entry = prev[id];
+              const shown = entry?.status === 'ready' ? entry.boards : [];
+              return { ...prev, [id]: { status: 'ready', boards: mergeBoards(shown, fresh) } };
+            });
+          })
+          .catch(() => {});
+      }
+    },
+    [local],
+  );
 
   // Somebody — here or elsewhere — renamed a workspace, changed a board in
   // it, or let someone onto one.
@@ -433,39 +459,44 @@ export function useBoardSwitcher({
     [boardId, navigate],
   );
 
+  /**
+   * Make a board in a workspace and list it, without opening it.
+   *
+   * Listed before it opens, newest first as the server orders them, so the new
+   * board's sidebar already knows it and its workspace.
+   */
+  const addBoard = useCallback(async (id: string, title?: string): Promise<BoardSummary> => {
+    const board = await requestCreateBoard(id, title);
+    track('board_created');
+    const entry = remembered.boards[id];
+    rememberBoards(id, [board, ...(entry?.status === 'ready' ? entry.boards : [])]);
+    setBoards((prev) => {
+      const listed = prev[id];
+      return {
+        ...prev,
+        [id]: {
+          status: 'ready',
+          boards: [board, ...(listed?.status === 'ready' ? listed.boards : [])],
+        },
+      };
+    });
+    remembered.workspaces =
+      remembered.workspaces?.map((workspace) =>
+        workspace.id === id ? { ...workspace, boardCount: workspace.boardCount + 1 } : workspace,
+      ) ?? null;
+    return board;
+  }, []);
+
   const createBoard = useCallback(
     (id: string) => {
       setBusy(true);
       setError(null);
-      requestCreateBoard(id)
-        .then((board) => {
-          track('board_created');
-          // Listed before it opens, newest first as the server orders them,
-          // so the new board's sidebar already knows it and its workspace.
-          const entry = remembered.boards[id];
-          rememberBoards(id, [board, ...(entry?.status === 'ready' ? entry.boards : [])]);
-          setBoards((prev) => {
-            const listed = prev[id];
-            return {
-              ...prev,
-              [id]: {
-                status: 'ready',
-                boards: [board, ...(listed?.status === 'ready' ? listed.boards : [])],
-              },
-            };
-          });
-          remembered.workspaces =
-            remembered.workspaces?.map((workspace) =>
-              workspace.id === id
-                ? { ...workspace, boardCount: workspace.boardCount + 1 }
-                : workspace,
-            ) ?? null;
-          navigate(`/boards/${board.id}`);
-        })
+      addBoard(id)
+        .then((board) => navigate(`/boards/${board.id}`))
         .catch((err: unknown) => setError(messageOf(err)))
         .finally(() => setBusy(false));
     },
-    [navigate],
+    [addBoard, navigate],
   );
 
   const createWorkspace = useCallback((name: string) => {
@@ -694,22 +725,24 @@ export function useBoardSwitcher({
   return useMemo<BoardSwitcherState>(
     () => ({
       boardId,
-      title: current.title,
+      title: local ? localTitle : current.title,
       color: current.color,
       workspaceId,
       workspaces,
-      available,
+      available: available && !local,
+      local,
       browsedWorkspaceId,
       browseWorkspace,
       loadWorkspaceBoards: loadBoards,
       boardsFor,
       openBoard,
       createBoard,
+      addBoard,
       createWorkspace,
       renameBoard,
       renameTarget,
       // Not a board somebody else let us onto: renaming it is its owner's.
-      canRename: !openBoardIsShared && (current.known || !current.settled),
+      canRename: !local && !openBoardIsShared && (current.known || !current.settled),
       listedId: browsedWorkspaceId ?? home,
       openBoardIsShared,
       sharedBoards,
@@ -727,6 +760,8 @@ export function useBoardSwitcher({
     }),
     [
       boardId,
+      local,
+      localTitle,
       current,
       workspaceId,
       workspaces,
@@ -740,6 +775,7 @@ export function useBoardSwitcher({
       boardsFor,
       openBoard,
       createBoard,
+      addBoard,
       createWorkspace,
       renameBoard,
       renameTarget,

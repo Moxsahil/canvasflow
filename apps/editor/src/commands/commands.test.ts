@@ -18,6 +18,7 @@ const editing: CommandContext = {
   canCopyAsText: true,
   canCopyAsMermaid: true,
   canShareLinks: true,
+  hasAccount: true,
 };
 
 const available = (context: CommandContext) =>
@@ -63,6 +64,13 @@ describe('availability', () => {
     const other = available({ ...editing, canShareLinks: false });
     expect(other).not.toContain('copyLink');
     expect(other).not.toContain('copyLinkToSelection');
+  });
+
+  it('offers settings and signing out only where there is an account', () => {
+    const local = available({ ...editing, hasAccount: false });
+    expect(local).not.toContain('settings');
+    expect(local).not.toContain('signOut');
+    expect(local).toContain('exportImage');
   });
 
   it('offers everything while editing with a single shape selected', () => {

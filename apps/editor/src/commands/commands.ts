@@ -164,6 +164,11 @@ export interface CommandContext {
    * links to the board are theirs to hand out; nobody else is offered them.
    */
   canShareLinks: boolean;
+  /**
+   * There is an account in this window. False on the board kept in this
+   * browser, which has no settings to open and nobody to sign out.
+   */
+  hasAccount: boolean;
 }
 
 export interface CommandMeta {
@@ -604,8 +609,18 @@ export const COMMANDS: readonly CommandMeta[] = [
 
   fromMenu('findOnCanvas', 'App', ['search', 'text', 'locate']),
   fromMenu('help', 'App', ['shortcuts', 'keyboard', 'keys', 'support']),
-  fromMenu('settings', 'App', ['preferences', 'account', 'profile', 'options']),
-  fromMenu('signOut', 'App', ['sign out', 'signout', 'logout', 'leave', 'exit']),
+  fromMenu(
+    'settings',
+    'App',
+    ['preferences', 'account', 'profile', 'options'],
+    (context) => context.hasAccount,
+  ),
+  fromMenu(
+    'signOut',
+    'App',
+    ['sign out', 'signout', 'logout', 'leave', 'exit'],
+    (context) => context.hasAccount,
+  ),
 ];
 
 /** Every command by id, for resolving a stored list of recents. */

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { initialsOf } from '@/lib/initials';
 import { cn } from '@/lib/utils';
 
@@ -41,6 +41,8 @@ interface InitialBadgeProps {
    * rail full of boards, the account at the foot is not another one of them.
    */
   person?: boolean;
+  /** Drawn in place of the letters, for a badge with no name to take them from. */
+  icon?: ReactNode;
   className?: string;
 }
 
@@ -51,7 +53,7 @@ interface InitialBadgeProps {
  * old chrome tokens, so its colour depended on a class merge going the right
  * way. This paints once, from the sidebar's own palette.
  */
-export function InitialBadge({ label, src, person = false, className }: InitialBadgeProps) {
+export function InitialBadge({ label, src, person = false, icon, className }: InitialBadgeProps) {
   // A photo that will not load falls back to the letters rather than leaving a
   // broken image in the rail. Sign-in providers hand out a URL for accounts
   // that never set a picture, and those are exactly the ones that fail.
@@ -76,7 +78,7 @@ export function InitialBadge({ label, src, person = false, className }: InitialB
       {src && !failed ? (
         <img src={src} alt="" className="size-full object-cover" onError={() => setFailed(true)} />
       ) : (
-        letters
+        (icon ?? letters)
       )}
     </span>
   );

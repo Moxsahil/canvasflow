@@ -23,7 +23,7 @@ export default defineConfig({
       // Password recovery, account security, the legal pages and account
       // deletion run in their own projects, below.
       testIgnore:
-        /(password-reset|account-security|legal|account-deletion(-request|-ui)?|account-purge|account-restore|username|workspace-invites|workspace-members|shared-boards|notification-settings|mention-emails|join-and-access-emails|weekly-digest|pen-mode)\.spec\.ts/,
+        /(password-reset|account-security|legal|account-deletion(-request|-ui)?|account-purge|account-restore|username|workspace-invites|workspace-members|shared-boards|notification-settings|mention-emails|join-and-access-emails|weekly-digest|pen-mode|local-board)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         // Every test in this project starts already signed in, from the file
@@ -115,6 +115,11 @@ export default defineConfig({
     },
     // Pen mode on a touch screen, driven with emulated pen and touch input,
     // with a throwaway account of its own. Run on its own with `--project=pen`.
+    {
+      name: 'local',
+      testMatch: /local-board\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
     {
       name: 'pen',
       testMatch: /pen-mode\.spec\.ts/,
