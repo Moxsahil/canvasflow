@@ -51,6 +51,20 @@ async function writeOnBoard(page: Page, words: string) {
   await page.mouse.click(1000, 650);
 }
 
+/** Sign in through the web app's form, landing on the account's last board. */
+async function signIn(page: Page) {
+  await page.goto(`${WEB}/login`);
+  await page.getByPlaceholder('you@example.com').fill(EMAIL);
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+  await page.getByRole('button', { name: /^sign in$/i }).click();
+  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+  // Up and running, so the editor has noted that an account is in this browser.
+  await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(() => page.evaluate(() => window.localStorage.getItem('canvasflow:account-here')))
+    .toBe('1');
+}
+
 async function findOnBoard(page: Page, words: string) {
   await page.keyboard.press('ControlOrMeta+f');
   await page.getByPlaceholder('Find on canvas').fill(words);
@@ -73,7 +87,7 @@ test('draws without an account and keeps the drawing across a reload', async ({ 
 
 test('tells search engines what the editor is, and where to find it', async ({ page, request }) => {
   await page.goto(`${EDITOR}/`);
-  await expect(page).toHaveTitle(/CanvasFlow Whiteboard/);
+  await expect(page).toHaveTitle('CanvasFlow Whiteboard');
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     'href',
     'https://app.canvasflowapp.com/',
@@ -172,60 +186,75 @@ test.describe('signed in', () => {
     await page.waitForTimeout(3000);
   });
 
-  test('someone signed in moves a changed drawing onto a board of its own', async ({ page }) => {
-    await page.goto(`${WEB}/login`);
-    await page.getByPlaceholder('you@example.com').fill(EMAIL);
-    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
-    await page.getByRole('button', { name: /^sign in$/i }).click();
-    await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
-    const firstBoard = page.url().split('#')[0];
+  test('an account signed in here opens its own board, even after the short pass lapses', async ({
+    page,
+  }) => {
+    await signIn(page);
+    const lastBoard = page.url().split('#')[0];
 
-    // Signed in, the editor's own address is still the local board.
+    // Days later: the 15-minute access cookie is long gone, the refresh cookie
+    // is not. The address still opens the account's own board, not the local one.
+    await page.context().clearCookies({ name: 'cf.access' });
+    await page.goto(`${EDITOR}/`);
+    await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+    expect(page.url().split('#')[0]).toBe(lastBoard);
+    await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('local-account-button')).toHaveCount(0);
+    // The loader stays only until the board's content has arrived.
+    await expect(page.getByTestId('board-loading')).toHaveCount(0, { timeout: 15_000 });
+
+    // Signed out, the address opens the local board again, straight away.
+    await page.getByTestId('menu-account').click();
+    await page.getByTestId('menu-item-signOut').click();
+    await page.getByTestId('sign-out-confirm').click();
+    await page.waitForURL(/localhost:3000/, { timeout: 30_000 });
     await page.goto(`${EDITOR}/`);
     await expect(page).toHaveURL(`${EDITOR}/`);
+    await expect(page.getByTestId('local-account-button')).toHaveText('Sign in');
+  });
+
+  test('a drawing left on the local board comes along when the account opens the address', async ({
+    page,
+  }) => {
+    await signIn(page);
+    const lastBoard = page.url().split('#')[0];
+
+    // A browser that has never opened a board for this account: the local
+    // board shows, offering the account's boards, and gets drawn on.
+    await page.evaluate(() => window.localStorage.removeItem('canvasflow:account-here'));
+    await page.goto(`${EDITOR}/`);
     await expect(page.getByTestId('local-account-button')).toHaveText('Your boards', {
       timeout: 15_000,
     });
-    await writeOnBoard(page, 'Moved while signed in');
+    await writeOnBoard(page, 'Brought along on arrival');
     await page.waitForTimeout(500);
 
-    await page.getByRole('button', { name: /share/i }).click();
-    await page
-      .getByTestId('sign-up-prompt')
-      .getByRole('button', { name: 'Move to my account' })
-      .click();
-
-    // The account's last board has the earlier drawing on it, so this one gets
-    // a board of its own rather than being mixed in.
+    // Next visit the address knows the account, and the drawing comes with it:
+    // onto a board of its own, since the account's last board has work on it.
+    await page.goto(`${EDITOR}/`);
     await page.waitForURL(
-      (url) => /\/boards\//.test(url.pathname) && url.href.split('#')[0] !== firstBoard,
-      {
-        timeout: 30_000,
-      },
+      (url) => /\/boards\//.test(url.pathname) && url.href.split('#')[0] !== lastBoard,
+      { timeout: 30_000 },
     );
     await expect(page.getByTestId('toast')).toContainText('now in your account', {
       timeout: 15_000,
     });
-    await expect(page.getByTestId('share-dialog')).toBeVisible();
-    await page.keyboard.press('Escape');
-    await findOnBoard(page, 'Moved while signed in');
+    await expect(page.getByTestId('share-dialog')).toHaveCount(0);
+    // The tab names the board it was moved to, not the editor's search title.
+    await expect(page).toHaveTitle('Drawing from this browser — CanvasFlow');
+    await findOnBoard(page, 'Brought along on arrival');
     await expect(page.getByText('1/1')).toBeVisible();
+    await page.keyboard.press('Escape');
     const moved = page.url().split('#')[0];
     await page.waitForTimeout(3000);
 
-    // Moved again unchanged, it is not brought along a second time: the
-    // account's last board, the one it went to, opens with nothing new made.
+    // Unchanged, it is not brought along a second time: the address opens the
+    // board it went to, with nothing new made.
     await page.goto(`${EDITOR}/`);
-    await page.getByRole('button', { name: /share/i }).click();
-    await page
-      .getByTestId('sign-up-prompt')
-      .getByRole('button', { name: 'Move to my account' })
-      .click();
     await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
     await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(3000);
     expect(page.url().split('#')[0]).toBe(moved);
     await expect(page.getByTestId('toast')).toHaveCount(0);
-    await expect(page.getByTestId('share-dialog')).toHaveCount(0);
   });
 });

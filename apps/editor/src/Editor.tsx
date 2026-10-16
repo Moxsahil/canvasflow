@@ -249,10 +249,13 @@ import { VerificationNotice } from './profile/VerificationNotice';
 import { TermsNotice } from './profile/TermsNotice';
 import { AnalyticsNotice, track, useUsageAnalytics } from './analytics';
 import {
+  LOCAL_PAGE_TITLE,
   LOCAL_USER,
   LocalAccountButton,
   SignUpPrompt,
+  forgetAccountHere,
   leaveForAccount,
+  rememberAccountHere,
   useCarryLocalBoard,
   useSignedIn,
   type SignUpReason,
@@ -261,6 +264,7 @@ import {
 import { ConfirmDialog } from './ui';
 import { rich, t as translate, useT } from './i18n';
 import { NoticeDialog, type Notice } from './ui/NoticeDialog';
+import { BoardLoading } from './ui/BoardLoading';
 import { Toast, useToast } from './ui/Toast';
 
 /** How far left of centre a thread's pin is put when the board has to be brought to it: about half the thread beside it. */
@@ -723,6 +727,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
     [local, authToken],
   );
   const userId = user?.id ?? null;
+  // An account has been here: the editor's own address checks for it first
+  // next time, and opens its boards rather than the local board.
+  const accountHere = !local && user !== null && !user.isGuest;
+  useEffect(() => {
+    if (accountHere) rememberAccountHere();
+  }, [accountHere]);
   // The account's own library, kept across boards. A guest has none.
   const library = useLibrary({ userId, token: authToken, isGuest: user?.isGuest ?? true });
 
@@ -838,6 +848,17 @@ export function Editor({ boardId, local = false }: EditorProps) {
   );
   const boardTitle =
     boardSwitcher.title === boardId && overview ? overview.title : boardSwitcher.title;
+  // The tab names the board, as any document app's does. The local board keeps
+  // the page's own title, which is also what search results show for it; an
+  // account's board is "CanvasFlow" alone until its name has loaded.
+  useEffect(() => {
+    if (local) {
+      document.title = LOCAL_PAGE_TITLE;
+      return;
+    }
+    const known = boardTitle !== boardId;
+    document.title = known ? `${boardTitle} — CanvasFlow` : 'CanvasFlow';
+  }, [local, boardTitle, boardId]);
   // With no argument it targets the board on screen, which is what the
   // sidebar's "Rename board" row means.
   const { beginRename, canRename } = boardSwitcher;
@@ -999,6 +1020,21 @@ export function Editor({ boardId, local = false }: EditorProps) {
     onAccountChanged: announceAccountChanged,
   });
 
+  /**
+   * An account's board whose content has not arrived yet: nothing cached on
+   * this device, and the server's copy still on its way. The pencil turns over
+   * the empty board until it lands, rather than leaving a blank canvas that
+   * looks like the board is empty. Only while there is a connection coming —
+   * offline, the board is what it is — and gone the moment anything is drawn.
+   */
+  const waitingForBoard =
+    !local &&
+    !boardSynced &&
+    !accessRevoked &&
+    shapes.length === 0 &&
+    syncStatus !== 'offline' &&
+    syncStatus !== 'error';
+
   // The same conclusion reached the slow way: the token route refuses to mint
   // for a board this account cannot open. Covers the reload — where there is
   // no live connection to be told anything on — and someone arriving at a
@@ -1050,6 +1086,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
         console.error('Failed to discard the cached board on sign out:', err);
       }
     }
+    // The editor's address opens the local board again from now on, at once.
+    forgetAccountHere();
     signOutTo(env.VITE_WEB_URL);
   }, [syncStatus, purgeCache]);
 
@@ -1083,6 +1121,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       }
       if (userId) await forgetOfflineCopies(userId);
       clearStoredAuthTokens();
+      forgetAccountHere();
       window.location.replace(accountDeletedUrl(purgeAfter));
     },
     [authToken, purgeCache, userId],
@@ -4527,6 +4566,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 />
               </div>
             </CanvasContextMenu>
+
+            {waitingForBoard && <BoardLoading overlay />}
 
             {/* A badge on the corner of every linked shape on screen, which
                 opens its link. Under the comment pins, and still up with the

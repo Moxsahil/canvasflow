@@ -28,6 +28,13 @@ export const LOCAL_USER: EditorUser = {
   isGuest: true,
 };
 
+/**
+ * The tab's title on the local board — the same as index.html's <title>, which
+ * is what search results show for the editor's address. Short, as a product's
+ * name in a tab is; what it offers is the description's job.
+ */
+export const LOCAL_PAGE_TITLE = 'CanvasFlow Whiteboard';
+
 /** Where the local board's account buttons lead, all on the web app. */
 export const localBoardLinks = {
   signIn: () => new URL('/login?next=/open', env.VITE_WEB_URL).toString(),

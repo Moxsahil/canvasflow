@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
-import { getProfile, resolveBoardAccess } from '@canvasflow/db';
+import { ensureBoardForUser, getProfile, resolveBoardAccess } from '@canvasflow/db';
 import { parseEnv } from '../../config/env.js';
 import { safeRedirect } from '../../common/safe-redirect.js';
 import { DatabaseService } from '../../infra/database/database.service.js';
@@ -24,12 +24,13 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DEFAULT_NEXT = '/open';
 
 /**
- * The two places a session is kept alive without the browser doing anything.
+ * The places a session is kept alive without the browser doing anything.
  *
- * Both live under `/auth` because that is the only path the refresh cookie is
- * sent to, and both renew the session themselves when it needs it. Between
- * them they cover the two ways somebody comes back to CanvasFlow: an editor
- * that has been open for hours, and a page opened days later.
+ * All live under `/auth` because that is the only path the refresh cookie is
+ * sent to, and each renews the session itself when it needs it. Between them
+ * they cover the ways somebody comes back to CanvasFlow: an editor that has
+ * been open for hours, a page opened days later, and the editor's own address
+ * opened days later from a search result or a bookmark.
  */
 @Controller('auth')
 export class SessionController {
@@ -86,6 +87,39 @@ export class SessionController {
       access,
       session.sessionId,
     );
+  }
+
+  /**
+   * Where a signed-in account starts: the board it last worked in, created if
+   * it has none — the board the web app's /open picks — renewing the session
+   * on the way when it needs it.
+   *
+   * The editor's own address opens a board kept in the browser for anyone
+   * without an account. Somebody who has one should land on their own boards
+   * instead, even days after their access token lapsed, and only this service
+   * can tell: the web app never sees the refresh cookie. So the editor asks
+   * here first, and opens the board this names.
+   *
+   * 401 when there is no session, which the editor reads as "show the board
+   * kept in this browser". Never cached: the answer is about this browser now.
+   */
+  @Get('landing-board')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  async landingBoard(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<{ boardId: string }> {
+    response.setHeader('Cache-Control', 'no-store');
+    const session = await this.renewal.resolve(request, response);
+    if (!session) throw new UnauthorizedException('Not authenticated');
+
+    const db = this.database.db;
+    const profile = await getProfile(db, session.userId);
+    if (!profile || profile.isGuest) throw new UnauthorizedException('Not authenticated');
+
+    const board = await ensureBoardForUser(db, { userId: profile.id, userName: profile.name });
+    return { boardId: board.id };
   }
 
   /**

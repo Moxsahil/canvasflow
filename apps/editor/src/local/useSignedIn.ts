@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react';
-import { listWorkspaces } from '../workspace/workspace-api';
+import { findLandingBoard, forgetAccountHere, rememberAccountHere } from './landing';
 
 /**
- * Whether this browser is signed in to an account, for the board kept in it.
+ * Whether this browser is signed in to an account, while the local board is
+ * open anyway.
  *
- * The local board needs no account, so nothing waits on this: it only decides
- * whether the way out reads "Sign in" or "Your boards". Asked the way the
- * sidebar asks for the workspace list — the web app's own cookie answers, and
- * a 401 is the ordinary answer for someone who has no account here.
+ * Someone signed in normally never sees the local board: the editor's address
+ * sends them to their own boards first (see App.tsx). This covers the ones it
+ * cannot tell apart in advance — signed in on this browser without ever having
+ * opened a board here — and decides whether the way out reads "Sign in" or
+ * "Your boards". Nothing waits on it.
+ *
+ * The answer also sets the note that the address reads, so the next visit
+ * goes straight to the account's boards, or straight to this board.
  *
  * Asked again whenever the window comes back into focus, so signing in from
- * another tab is noticed on returning to this one.
- *
- * Null until the first answer; false for any failure, network ones included,
- * since "Sign in" is the safe thing to offer when nothing is known.
+ * another tab is noticed on returning to this one. Null until the first
+ * answer; false for any failure, since "Sign in" is the safe thing to offer
+ * when nothing is known.
  */
 export function useSignedIn(enabled: boolean): boolean | null {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
@@ -22,14 +26,11 @@ export function useSignedIn(enabled: boolean): boolean | null {
     if (!enabled) return;
     let cancelled = false;
     const ask = () => {
-      listWorkspaces().then(
-        () => {
-          if (!cancelled) setSignedIn(true);
-        },
-        () => {
-          if (!cancelled) setSignedIn(false);
-        },
-      );
+      void findLandingBoard().then((answer) => {
+        if (answer.status === 'signed-in') rememberAccountHere();
+        if (answer.status === 'signed-out') forgetAccountHere();
+        if (!cancelled) setSignedIn(answer.status === 'signed-in');
+      });
     };
     ask();
     window.addEventListener('focus', ask);
