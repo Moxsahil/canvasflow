@@ -14,12 +14,48 @@
          Every board address serves this same page, so the canonical names the
          one address meant for search; boards themselves are kept out of it by
          the X-Robots-Tag header in vercel.json. -->
-    <title>CanvasFlow Whiteboard — Free Online Whiteboard, No Sign-up</title>
+    <!-- Kept to the name, as a tab shows it. The editor sets each board's own
+         name over it once open; see Editor.tsx and LOCAL_PAGE_TITLE. -->
+    <title>CanvasFlow Whiteboard</title>
     <meta
       name="description"
       content="A free online whiteboard for diagrams, wireframes and flowcharts. Start drawing right away, no account needed — sign in to share and work together live."
     />
     <link rel="canonical" href="https://app.canvasflowapp.com/" />
+    <!-- What the first paint needs before the editor's own styles arrive with
+         its code: the page's background in either theme, the full height the
+         loader centres in, and the loader's animation. The first two repeat
+         src/styles/global.css; keep them in step. -->
+    <style>
+      html,
+      body,
+      #root {
+        height: 100%;
+        margin: 0;
+        background: #fafaf9;
+      }
+      html[data-theme='dark'],
+      html[data-theme='dark'] body,
+      html[data-theme='dark'] #root {
+        background: #121212;
+        color-scheme: dark;
+      }
+    </style>
+    <link rel="stylesheet" href="/pencil-loader.css" />
+    <!-- The theme the editor will paint, set before anything is drawn, so a
+         dark-theme visitor does not get a white page while the code loads.
+         The same rule as readStoredTheme in src/theme/theme.ts. -->
+    <script>
+      try {
+        var theme = localStorage.getItem('cf:theme');
+        var dark =
+          theme === 'dark' ||
+          (theme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+      } catch (error) {
+        // Storage unavailable: the light page, until the editor decides.
+      }
+    </script>
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="CanvasFlow" />
     <meta property="og:url" content="https://app.canvasflowapp.com/" />
@@ -69,7 +105,100 @@
         and needs JavaScript turned on.
       </p>
     </noscript>
-    <div id="root"></div>
+    <!-- The pencil loader while the editor's code downloads, replaced the moment
+         it starts. The same drawing as src/components/ui/loader-1.tsx, which
+         every later loading state uses; its animation is in
+         public/pencil-loader.css, linked above. -->
+    <div id="root">
+      <div
+        role="status"
+        style="
+          display: flex;
+          height: 100%;
+          align-items: center;
+          justify-content: center;
+          color: #a3a3a3;
+        "
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="80"
+          height="80"
+          viewBox="0 0 200 200"
+          class="pencil"
+          aria-hidden="true"
+        >
+          <defs>
+            <clipPath id="pencil-eraser-boot">
+              <rect height="30" width="30" ry="5" rx="5"></rect>
+            </clipPath>
+          </defs>
+          <circle
+            transform="rotate(-113,100,100)"
+            stroke-linecap="round"
+            stroke-dashoffset="439.82"
+            stroke-dasharray="439.82 439.82"
+            stroke-width="2"
+            stroke="currentColor"
+            fill="none"
+            r="70"
+            class="pencil__stroke"
+          ></circle>
+          <g transform="translate(100,100)" class="pencil__rotate">
+            <g fill="none">
+              <circle
+                transform="rotate(-90)"
+                stroke-dashoffset="402"
+                stroke-dasharray="402.12 402.12"
+                stroke-width="30"
+                stroke="hsl(223,90%,50%)"
+                r="64"
+                class="pencil__body1"
+              ></circle>
+              <circle
+                transform="rotate(-90)"
+                stroke-dashoffset="465"
+                stroke-dasharray="464.96 464.96"
+                stroke-width="10"
+                stroke="hsl(223,90%,60%)"
+                r="74"
+                class="pencil__body2"
+              ></circle>
+              <circle
+                transform="rotate(-90)"
+                stroke-dashoffset="339"
+                stroke-dasharray="339.29 339.29"
+                stroke-width="10"
+                stroke="hsl(223,90%,40%)"
+                r="54"
+                class="pencil__body3"
+              ></circle>
+            </g>
+            <g transform="rotate(-90) translate(49,0)" class="pencil__eraser">
+              <g class="pencil__eraser-skew">
+                <rect height="30" width="30" ry="5" rx="5" fill="hsl(223,90%,70%)"></rect>
+                <rect
+                  clip-path="url(#pencil-eraser-boot)"
+                  height="30"
+                  width="5"
+                  fill="hsl(223,90%,60%)"
+                ></rect>
+                <rect height="20" width="30" fill="hsl(223,10%,90%)"></rect>
+                <rect height="20" width="15" fill="hsl(223,10%,70%)"></rect>
+                <rect height="20" width="5" fill="hsl(223,10%,80%)"></rect>
+                <rect height="2" width="30" y="6" fill="hsla(223,10%,10%,0.2)"></rect>
+                <rect height="2" width="30" y="13" fill="hsla(223,10%,10%,0.2)"></rect>
+              </g>
+            </g>
+            <g transform="rotate(-90) translate(49,-30)" class="pencil__point">
+              <polygon points="15 0,30 30,0 30" fill="hsl(33,90%,70%)"></polygon>
+              <polygon points="15 0,6 30,0 30" fill="hsl(33,90%,50%)"></polygon>
+              <polygon points="15 0,20 10,10 10" fill="hsl(223,10%,10%)"></polygon>
+            </g>
+          </g>
+        </svg>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
