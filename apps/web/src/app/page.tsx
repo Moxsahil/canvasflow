@@ -23,12 +23,53 @@ import { WorkflowSection } from '@/components/marketing/sections/workflow-sectio
 export const revalidate = 300;
 
 /**
+ * What CanvasFlow is, said to search engines in their own terms: the company
+ * and its logo, the site and the names people search for it by, and the
+ * whiteboard at the editor's address as the app this site is for. The live
+ * addresses, as in the sitemap, so a preview build describes the real site.
+ */
+const STRUCTURED_DATA = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': 'https://canvasflowapp.com/#organization',
+      name: 'CanvasFlow',
+      url: 'https://canvasflowapp.com/',
+      logo: 'https://canvasflowapp.com/brand/logo-512.png',
+    },
+    {
+      '@type': 'WebSite',
+      '@id': 'https://canvasflowapp.com/#website',
+      name: 'CanvasFlow',
+      alternateName: ['CanvasFlow App', 'canvasflowapp', 'CanvasFlow Whiteboard'],
+      url: 'https://canvasflowapp.com/',
+      publisher: { '@id': 'https://canvasflowapp.com/#organization' },
+    },
+    {
+      '@type': 'WebApplication',
+      name: 'CanvasFlow Whiteboard',
+      url: 'https://app.canvasflowapp.com/',
+      applicationCategory: 'DesignApplication',
+      operatingSystem: 'Any',
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      publisher: { '@id': 'https://canvasflowapp.com/#organization' },
+    },
+  ],
+};
+
+/**
  * The `cf-landing` class is what scopes this page's type scale and hidden
  * scrollbar in globals.css — without it the page inherits the app's Inter.
  */
 export default function HomePage() {
   return (
     <div className="cf-landing bg-[#F5F4F0] text-[#111] min-h-screen font-sans antialiased">
+      <script
+        type="application/ld+json"
+        // A constant written above, so there is nothing here to escape.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }}
+      />
       <Navigation />
 
       <HeroSection />
