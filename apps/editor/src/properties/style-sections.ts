@@ -49,8 +49,9 @@ export function styleSections(
   const textOnly = every((k) => k === 'text');
   const fill = every((k) => FILLABLE_KINDS.has(k));
   // Text is sized by fontSize and drawn without Rough; an image paints its own
-  // pixels and is never outlined. Neither has a stroke to configure.
-  const stroke = !textOnly && !every((k) => k === 'image');
+  // pixels and an embed is a card around someone else's page, and neither is
+  // outlined. None of the three has a stroke to configure.
+  const stroke = !textOnly && !every((k) => k === 'image' || k === 'embed');
   const freehandOnly = every((k) => k === 'freehand');
 
   return {

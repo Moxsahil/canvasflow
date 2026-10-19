@@ -91,6 +91,16 @@ export const ImageIcon = createIcon(
   </>,
 );
 
+// A browser window with a page in it: somebody else's page, shown on the board.
+export const EmbedIcon = createIcon(
+  <>
+    <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+    <path d="M3.5 8.5h17" />
+    <path d="M10 12l-2.25 2.25L10 16.5" />
+    <path d="M14 12l2.25 2.25L14 16.5" />
+  </>,
+);
+
 // Two crossed pairs of rules with the enclosed square left open — the crop
 // marks a frame is, rather than the box a rectangle already owns.
 export const FrameIcon = createIcon(

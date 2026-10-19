@@ -1314,5 +1314,22 @@
   "local.carry.boardTitle": "इस ब्राउज़र से चित्र",
   "local.carry.done": "इस ब्राउज़र का आपका चित्र अब आपके खाते में है",
   "local.carry.failedTitle": "आपका चित्र नहीं ले जाया गया",
-  "local.carry.failedBody": "इसे आपके खाते में कॉपी नहीं किया जा सका। यह इस ब्राउज़र के लोकल बोर्ड पर सुरक्षित है — वहीं से फिर कोशिश करें।"
+  "local.carry.failedBody": "इसे आपके खाते में कॉपी नहीं किया जा सका। यह इस ब्राउज़र के लोकल बोर्ड पर सुरक्षित है — वहीं से फिर कोशिश करें।",
+  "tools.embed": "एम्बेड",
+  "shapes.embed": "एम्बेड",
+  "library.count.embed_one": "{{count}} एम्बेड",
+  "library.count.embed_other": "{{count}} एम्बेड",
+  "embeds.address": "एम्बेड करने का लिंक",
+  "embeds.placeholder": "लिंक या एम्बेड कोड पेस्ट करें",
+  "embeds.worksWith": "इनके साथ काम करता है",
+  "embeds.ready": "{{site}} — एम्बेड के लिए तैयार",
+  "embeds.insert": "एम्बेड करें",
+  "embeds.placeHint": "एम्बेड रखने के लिए क्लिक करें या खींचें",
+  "embeds.cantEmbedHost": "{{host}} के लिंक एम्बेड नहीं हो सकते।",
+  "embeds.incomplete": "पूरा लिंक पेस्ट करें, जैसे youtube.com/watch?v=…",
+  "embeds.supported": "{{sites}} और {{count}} और।",
+  "embeds.seeAll": "सभी देखें",
+  "embeds.editLink": "एम्बेड लिंक बदलें",
+  "embeds.frameTitle": "{{site}}, एम्बेड किया गया",
+  "embeds.clickToInteract": "इस्तेमाल करने के लिए क्लिक करें"
 }

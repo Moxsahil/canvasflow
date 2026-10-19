@@ -82,6 +82,8 @@ interface CanvasStackProps {
   penMode?: boolean;
   onPenDetected?: () => void;
   touchNavigation?: TouchNavigation;
+  /** The pointer is over the middle of an embed, where a click hands its page the presses. */
+  overEmbed?: boolean;
   /** A pen or finger held still opens the context menu; see `usePointerEvents`. */
   longPressMenu?: boolean;
   onPointerDown: (
@@ -141,6 +143,7 @@ export function CanvasStack({
   penMode,
   onPenDetected,
   touchNavigation,
+  overEmbed = false,
   longPressMenu,
   onPointerDown,
   onPointerMove,
@@ -297,6 +300,8 @@ export function CanvasStack({
   let cursorClass: string;
   if (isSpacePressed || isPanning) {
     cursorClass = 'grabbing';
+  } else if (overEmbed) {
+    cursorClass = 'embed-hover';
   } else if (activeTool === 'hand') {
     cursorClass = 'grab';
   } else {

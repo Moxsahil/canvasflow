@@ -10,6 +10,7 @@ import {
   createText,
 } from '../shapes/index.js';
 import { isSupportedImageMimeType } from '../images/image-formats.js';
+import { createEmbed, resolveEmbed } from '../shapes/embed.js';
 import { readLink } from '../shapes/link.js';
 import type { Shape } from '../shapes/shape.js';
 
@@ -289,6 +290,18 @@ function rebuildShape(
         ...(candidate.flipX === true && { flipX: true }),
         ...(candidate.flipY === true && { flipY: true }),
       });
+    }
+
+    case 'embed': {
+      // Unlike on a board, an address nothing would embed is dropped here: a
+      // file is read once, and a card that can never show its page is better
+      // reported as skipped than placed.
+      const width = finite(candidate.width);
+      const height = finite(candidate.height);
+      if (width === undefined || height === undefined) return null;
+      const embed = resolveEmbed(candidate.url);
+      if (!embed) return null;
+      return createEmbed({ ...common, width, height, url: embed.url });
     }
 
     default:

@@ -1314,5 +1314,22 @@
   "local.carry.boardTitle": "Dessin de ce navigateur",
   "local.carry.done": "Votre dessin de ce navigateur est maintenant dans votre compte",
   "local.carry.failedTitle": "Votre dessin n’a pas été déplacé",
-  "local.carry.failedBody": "Il n’a pas pu être copié dans votre compte. Il est toujours en sécurité sur le tableau local de ce navigateur : réessayez depuis celui-ci."
+  "local.carry.failedBody": "Il n’a pas pu être copié dans votre compte. Il est toujours en sécurité sur le tableau local de ce navigateur : réessayez depuis celui-ci.",
+  "tools.embed": "Intégrer",
+  "shapes.embed": "Intégration",
+  "library.count.embed_one": "{{count}} intégration",
+  "library.count.embed_other": "{{count}} intégrations",
+  "embeds.address": "Lien à intégrer",
+  "embeds.placeholder": "Collez un lien ou un code d’intégration",
+  "embeds.worksWith": "Fonctionne avec",
+  "embeds.ready": "{{site}} — prêt à intégrer",
+  "embeds.insert": "Intégrer",
+  "embeds.placeHint": "Cliquez ou faites glisser pour placer l’intégration",
+  "embeds.cantEmbedHost": "Les liens de {{host}} ne peuvent pas être intégrés.",
+  "embeds.incomplete": "Collez un lien complet, comme youtube.com/watch?v=…",
+  "embeds.supported": "{{sites}} et {{count}} autres.",
+  "embeds.seeAll": "Tout voir",
+  "embeds.editLink": "Modifier le lien intégré",
+  "embeds.frameTitle": "{{site}}, intégré",
+  "embeds.clickToInteract": "Cliquez pour interagir"
 }

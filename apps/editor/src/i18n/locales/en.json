@@ -1314,5 +1314,22 @@
   "local.carry.boardTitle": "Drawing from this browser",
   "local.carry.done": "Your drawing from this browser is now in your account",
   "local.carry.failedTitle": "Your drawing wasn’t moved",
-  "local.carry.failedBody": "It couldn’t be copied into your account. It’s still safe on the Local board in this browser — try again from there."
+  "local.carry.failedBody": "It couldn’t be copied into your account. It’s still safe on the Local board in this browser — try again from there.",
+  "tools.embed": "Embed",
+  "shapes.embed": "Embed",
+  "library.count.embed_one": "{{count}} embed",
+  "library.count.embed_other": "{{count}} embeds",
+  "embeds.address": "Link to embed",
+  "embeds.placeholder": "Paste a link or embed code",
+  "embeds.worksWith": "Works with",
+  "embeds.ready": "{{site}} — ready to embed",
+  "embeds.insert": "Embed",
+  "embeds.placeHint": "Click or drag to place the embed",
+  "embeds.cantEmbedHost": "Links from {{host}} can’t be embedded.",
+  "embeds.incomplete": "Paste a full link, like youtube.com/watch?v=…",
+  "embeds.supported": "{{sites}} and {{count}} more.",
+  "embeds.seeAll": "See all",
+  "embeds.editLink": "Edit embed link",
+  "embeds.frameTitle": "{{site}}, embedded",
+  "embeds.clickToInteract": "Click to interact"
 }

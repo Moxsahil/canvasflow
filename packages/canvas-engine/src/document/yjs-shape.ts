@@ -133,6 +133,11 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
       if (shape.flipX !== undefined) map.set('flipX', shape.flipX);
       if (shape.flipY !== undefined) map.set('flipY', shape.flipY);
       break;
+    case 'embed':
+      map.set('width', shape.width);
+      map.set('height', shape.height);
+      map.set('url', shape.url);
+      break;
     case 'frame':
       map.set('width', shape.width);
       map.set('height', shape.height);
@@ -349,6 +354,20 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
         // Only booleans are meaningful; old or malformed values read unflipped.
         ...(typeof flipX === 'boolean' && { flipX: flipX === true }),
         ...(typeof flipY === 'boolean' && { flipY: flipY === true }),
+      } as Shape);
+    }
+    case 'embed': {
+      // Kept whatever the address says, so a card that embeds nothing can
+      // still be seen and deleted. What it loads is decided at every read by
+      // `resolveEmbed`, never by this value.
+      const url = map.get('url');
+      if (typeof url !== 'string') return null;
+      return withZ({
+        ...base,
+        kind: 'embed',
+        width: (map.get('width') as number) ?? 0,
+        height: (map.get('height') as number) ?? 0,
+        url,
       } as Shape);
     }
     case 'frame':

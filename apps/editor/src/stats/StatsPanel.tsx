@@ -40,6 +40,7 @@ const KIND_NAMES: Record<Shape['kind'], TranslationKey> = {
   freehand: 'shapes.freehand',
   text: 'shapes.text',
   image: 'shapes.image',
+  embed: 'shapes.embed',
   frame: 'shapes.frame',
 };
 

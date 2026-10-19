@@ -3,10 +3,12 @@ import {
   isArrow,
   isDiamond,
   isEllipse,
+  isEmbed,
   isFrame,
   isImage,
   isRectangle,
   isText,
+  resolveEmbed,
   shapeBounds,
   type ArrowShape,
   type DiamondShape,
@@ -134,6 +136,7 @@ function nodeLine(id: string, shape: Shape, words: string): string {
   if (isText(shape)) return `${id}[${quoted(shape.text)}]`;
   if (isFrame(shape)) return `${id}[${quoted(frameLabel(shape))}]`;
   if (isImage(shape)) return `${id}[${quoted('Image')}]`;
+  if (isEmbed(shape)) return `${id}[${quoted(resolveEmbed(shape.url)?.provider.name ?? 'Embed')}]`;
   return `${id}[${quoted('')}]`;
 }
 

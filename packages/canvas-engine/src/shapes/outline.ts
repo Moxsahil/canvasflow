@@ -53,6 +53,7 @@ export function shapeOutlineSegments(shape: Shape): Segment[] {
     case 'rectangle':
     case 'text':
     case 'image':
+    case 'embed':
     case 'frame': {
       const b = shapeBounds(shape);
       return polylineSegments(rectCorners(b.x, b.y, b.width, b.height), true);
@@ -153,6 +154,7 @@ export function shapeExactOutline(shape: Shape): Vec2[] | null {
     }
     case 'text':
     case 'image':
+    case 'embed':
     case 'frame': {
       const b = shapeBounds(shape);
       return rectCorners(b.x, b.y, b.width, b.height);
@@ -185,6 +187,7 @@ export function shapeHasSolidInterior(shape: Shape): boolean {
     // hollow would mean the eraser passed straight through the middle of a
     // photo. Its box is what the user sees, so its box is what they can hit.
     case 'image':
+    case 'embed':
       return true;
     case 'arrow':
       return false;
@@ -210,6 +213,7 @@ export function shapeContainsPoint(shape: Shape, x: number, y: number): boolean 
     shape.kind === 'rectangle' ||
     shape.kind === 'text' ||
     shape.kind === 'image' ||
+    shape.kind === 'embed' ||
     shape.kind === 'frame'
   ) {
     const b = shapeBounds(shape);

@@ -76,6 +76,7 @@ export function canBindTo(shape: Shape): boolean {
     case 'ellipse':
     case 'diamond':
     case 'image':
+    case 'embed':
     case 'text':
     case 'frame':
       return true;
