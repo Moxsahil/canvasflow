@@ -17,6 +17,17 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // No page of the site may be shown inside another site's frame: one
+        // that could would let that site lay its own page over ours and steer
+        // clicks into sign-in, account and sharing controls (clickjacking).
+        // Both headers, as older browsers read only the second.
+        source: '/:path*',
+        headers: [
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+          { key: 'X-Frame-Options', value: 'DENY' },
+        ],
+      },
+      {
         // The one page whose address bar holds a live credential. Without this
         // any outbound request from it puts the whole URL, token and all, into
         // a Referer header.
