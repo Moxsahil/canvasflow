@@ -17,6 +17,7 @@ import { BoardExportModule } from './modules/board-export/board-export.module.js
 import { UsernamesModule } from './modules/usernames/usernames.module.js';
 import { WorkspacesModule } from './modules/workspaces/workspaces.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
+import { LinkPreviewsModule } from './modules/link-previews/link-previews.module.js';
 import { AppController } from './app.controller.js';
 import { ThrottlerModule } from '@nestjs/throttler';
 
@@ -53,6 +54,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     UsernamesModule,
     WorkspacesModule,
     NotificationsModule,
+    LinkPreviewsModule,
   ],
   controllers: [AppController],
 })

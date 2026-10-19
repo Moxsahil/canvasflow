@@ -17,3 +17,4 @@ export * from './workspace-invites.js';
 export * from './notifications.js';
 export * from './board-activity.js';
 export * from './board-pins.js';
+export * from './link-previews.js';
