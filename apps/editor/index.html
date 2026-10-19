@@ -41,6 +41,22 @@
         color-scheme: dark;
       }
     </style>
+    <!-- Never inside another site's frame. The hosting header refuses that
+         already (vercel.json); this is for wherever the header is missing —
+         a preview deploy, another host, or an address the header does not
+         cover. Hidden rather than drawn: a page that cannot be seen cannot
+         be clicked through, which is what a framing site is after. The
+         embed view is a page of its own (embed.html) and never runs this. -->
+    <script>
+      if (window.top !== window.self) {
+        document.documentElement.style.visibility = 'hidden';
+        try {
+          window.top.location.replace(window.location.href);
+        } catch (error) {
+          // The browser refused to move the other site's page: stay hidden.
+        }
+      }
+    </script>
     <link rel="stylesheet" href="/pencil-loader.css" />
     <!-- The theme the editor will paint, set before anything is drawn, so a
          dark-theme visitor does not get a white page while the code loads.
