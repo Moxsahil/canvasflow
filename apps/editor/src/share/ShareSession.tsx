@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import {
   Check,
   ChevronDown,
+  Code,
   Copy,
   Crown,
   Eye,
@@ -116,6 +117,20 @@ export interface ShareSessionPanelProps {
   qr?: ReactNode;
   /** Pinned in tests; otherwise the clock. */
   now?: number;
+  /** Embedding the board on other sites; left out, the section is not shown. */
+  embed?: EmbedSettings;
+}
+
+/** Share → Embed on a website, as the panel shows it. */
+export interface EmbedSettings {
+  /** Null while the setting is being read. */
+  on: boolean | null;
+  /** The code to paste into another site, while embedding is on. */
+  code: string | null;
+  busy: boolean;
+  copied: boolean;
+  onChange: (on: boolean) => void;
+  onCopy: () => void;
 }
 
 const PERMISSIONS: Record<
@@ -170,7 +185,12 @@ export function ShareSessionPanel(props: ShareSessionPanelProps) {
         <CloseButton label={t('common.close')} onClick={onClose} />
       </header>
 
-      <div className="flex min-h-0 flex-col gap-[16px] px-[20px] pt-[14px]">
+      <div
+        className={cn(
+          'flex min-h-0 flex-col gap-[16px] overflow-y-auto px-[20px] pt-[14px]',
+          SCROLLBAR,
+        )}
+      >
         <Measured>
           {session ? <LiveHero {...props} session={session} /> : <IdleHero {...props} />}
         </Measured>
@@ -192,6 +212,8 @@ export function ShareSessionPanel(props: ShareSessionPanelProps) {
             <RemovedList removed={props.removed} onAddBack={props.onAddBack} />
           )}
         </section>
+
+        {props.embed && <EmbedSection {...props.embed} />}
       </div>
 
       <footer className="flex shrink-0 items-center gap-[8px] px-[20px] pt-[16px] pb-[18px]">
@@ -581,6 +603,70 @@ function LiveHero({
         ) : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * Showing the board on another site: a switch, and while it is on, the code
+ * to paste there. Apart from the session, since it is not a way in — whoever
+ * reads the page sees the board's shapes, and nothing they could join.
+ */
+function EmbedSection({ on, code, busy, copied, onChange, onCopy }: EmbedSettings) {
+  const t = useT();
+  return (
+    <section
+      aria-label={t('share.embedTitle')}
+      data-testid="share-embed"
+      className="flex shrink-0 flex-col gap-[10px] border-t border-[var(--surface-line)] pt-[14px]"
+    >
+      <div className="flex items-center gap-[12px]">
+        <span
+          aria-hidden="true"
+          className="flex size-[30px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-wash)] text-[var(--surface-fg-muted)]"
+        >
+          <Code className="size-[14px]" />
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-[1px]">
+          <p className="text-[12.5px] font-medium">{t('share.embedTitle')}</p>
+          <p className="text-[11.5px] text-[var(--surface-fg-muted)]">{t('share.embedHint')}</p>
+        </div>
+        <Toggle
+          label={t('share.embedLabel')}
+          on={on === true}
+          onChange={onChange}
+          disabled={busy || on === null}
+        />
+      </div>
+      {on && (
+        <div className="flex flex-col gap-[6px]">
+          <div className="flex gap-[6px]">
+            <input
+              readOnly
+              value={code ?? ''}
+              aria-label={t('share.embedCode')}
+              onFocus={(event) => event.currentTarget.select()}
+              data-testid="share-embed-code"
+              className={cn(INPUT, 'min-w-0 flex-1 font-mono text-[11.5px]')}
+            />
+            <SettingsButton
+              variant="primary"
+              className="h-[32px] px-[14px] text-[12.5px]"
+              onClick={onCopy}
+              disabled={!code}
+              data-testid="share-embed-copy"
+            >
+              {copied ? (
+                <Check className="size-[14px]" aria-hidden="true" />
+              ) : (
+                <Copy className="size-[14px]" aria-hidden="true" />
+              )}
+              {copied ? t('links.copied') : t('export.copy')}
+            </SettingsButton>
+          </div>
+          <p className="text-[11px] text-[var(--surface-fg-faint)]">{t('share.embedOffHint')}</p>
+        </div>
+      )}
+    </section>
   );
 }
 

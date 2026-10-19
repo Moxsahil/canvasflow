@@ -65,7 +65,8 @@ const SECTIONS: LegalSection[] = [
           <li>
             <strong>What you create:</strong> your boards and everything on them, images you upload,
             board and workspace names, who you share boards with and the access you gave them,
-            requests people make to join your boards, and share links (stored only as a hash).
+            requests people make to join your boards, share links (stored only as a hash), and which
+            boards you let other websites embed.
           </li>
           <li>
             <strong>Links you put on a board:</strong> when you paste a link, our server visits that
@@ -161,6 +162,12 @@ const SECTIONS: LegalSection[] = [
             <strong>People you work with.</strong> The people you share a board with see what’s on
             it, and your name and profile photo while you’re on it together. Your cursor moves live
             on their screens; we don’t save it.
+          </li>
+          <li>
+            <strong>Anyone who sees a board you embed.</strong> If you turn on Embed on a website
+            for a board, anyone who can see a page with its embed code can view what’s drawn on the
+            board — its shapes, text, images and link cards — but not its comments, who is on it or
+            who changed what. Turning it off stops every copy of the code at once.
           </li>
           <li>
             <strong>Service providers</strong> that run parts of CanvasFlow for us, and handle your
