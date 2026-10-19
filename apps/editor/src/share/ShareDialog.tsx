@@ -17,6 +17,13 @@ import {
   type ShareLinkSummary,
   type ShareRole,
 } from './share-api';
+import {
+  EmbedRefusedError,
+  disableBoardEmbed,
+  embedCode,
+  enableBoardEmbed,
+  fetchBoardEmbed,
+} from './board-embed-api';
 import { QRCode } from './QRCode';
 import {
   ShareCollaboratorPanel,
@@ -380,6 +387,75 @@ export function ShareDialog({
     }
   };
 
+  // --- embedding on other sites -------------------------------------------
+  // Read from the gateway with the editor's token, once the window opens: the
+  // section is one line until it is on, so there is nothing to watch arrive.
+  const [embedId, setEmbedId] = useState<string | null | undefined>(undefined);
+  const [embedBusy, setEmbedBusy] = useState(false);
+  const [embedCopied, setEmbedCopied] = useState(false);
+  const embedCopyTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!open || !isOwner || !authToken) return;
+    let cancelled = false;
+    fetchBoardEmbed(authToken, boardId).then(
+      (id) => {
+        if (!cancelled) setEmbedId(id);
+      },
+      () => {
+        if (!cancelled) setEmbedId((current) => current ?? null);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [open, isOwner, authToken, boardId]);
+
+  useEffect(() => {
+    if (!open) setEmbedCopied(false);
+  }, [open]);
+
+  useEffect(
+    () => () => {
+      if (embedCopyTimer.current !== null) window.clearTimeout(embedCopyTimer.current);
+    },
+    [],
+  );
+
+  const handleEmbedChange = async (on: boolean) => {
+    if (!authToken) return;
+    setEmbedBusy(true);
+    setError(null);
+    try {
+      if (on) {
+        setEmbedId(await enableBoardEmbed(authToken, boardId));
+      } else {
+        await disableBoardEmbed(authToken, boardId);
+        setEmbedId(null);
+      }
+    } catch (err) {
+      setError(
+        err instanceof EmbedRefusedError
+          ? err.message
+          : translate(on ? 'share.embedOnFailed' : 'share.embedOffFailed'),
+      );
+    } finally {
+      setEmbedBusy(false);
+    }
+  };
+
+  const handleEmbedCopy = async () => {
+    if (!embedId) return;
+    try {
+      await navigator.clipboard.writeText(embedCode(embedId, boardName ?? boardId));
+      setEmbedCopied(true);
+      if (embedCopyTimer.current !== null) window.clearTimeout(embedCopyTimer.current);
+      embedCopyTimer.current = window.setTimeout(() => setEmbedCopied(false), 2000);
+    } catch {
+      setError(translate('share.copyFailed'));
+    }
+  };
+
   const handleRoleChange = async (memberId: string, next: ShareRole) => {
     setError(null);
     // Optimistic: the request is a single indexed update, and the list snapping
@@ -576,6 +652,18 @@ export function ShareDialog({
                     menuOpen.current = isOpen;
                   }}
                   qr={url ? <QRCode value={url} size={96} /> : undefined}
+                  embed={
+                    authToken
+                      ? {
+                          on: embedId === undefined ? null : embedId !== null,
+                          code: embedId ? embedCode(embedId, name) : null,
+                          busy: embedBusy,
+                          copied: embedCopied,
+                          onChange: (on) => void handleEmbedChange(on),
+                          onCopy: () => void handleEmbedCopy(),
+                        }
+                      : undefined
+                  }
                 />
               ) : (
                 <ShareCollaboratorPanel

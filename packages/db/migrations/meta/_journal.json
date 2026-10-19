@@ -239,6 +239,13 @@
       "when": 1792405832351,
       "tag": "0033_link_previews",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792419966719,
+      "tag": "0034_board_embeds",
+      "breakpoints": true
     }
   ]
 }

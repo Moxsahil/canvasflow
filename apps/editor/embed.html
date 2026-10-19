@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <link rel="icon" href="/favicon.ico?v=2" sizes="any" />
+    <title>CanvasFlow</title>
+    <!-- A board someone chose to show on their own site: the site is where
+         it belongs in search, not here. -->
+    <meta name="robots" content="noindex, nofollow" />
+    <!-- Sent no further than this origin: the address carries the embed id. -->
+    <meta name="referrer" content="strict-origin" />
+    <!-- The page's ground in either theme before the code arrives; the same
+         values as src/styles/global.css and the board colours in palette.ts. -->
+    <style>
+      html,
+      body,
+      #root {
+        height: 100%;
+        margin: 0;
+        background: #fafaf9;
+      }
+      html[data-theme='dark'],
+      html[data-theme='dark'] body,
+      html[data-theme='dark'] #root {
+        background: #181818;
+        color-scheme: dark;
+      }
+    </style>
+    <link rel="stylesheet" href="/pencil-loader.css" />
+    <!-- The theme the embed code asked for, or the reader's own, set before
+         anything is drawn. The same rule as useEmbedTheme. -->
+    <script>
+      try {
+        var asked = new URLSearchParams(window.location.search).get('theme');
+        var dark =
+          asked === 'dark' ||
+          (asked !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+      } catch (error) {
+        // The light page, until the view decides.
+      }
+    </script>
+  </head>
+  <body>
+    <noscript>This CanvasFlow board needs JavaScript turned on.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/embed-view/main.tsx"></script>
+  </body>
+</html>
