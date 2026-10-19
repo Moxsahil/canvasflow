@@ -235,6 +235,49 @@ describe('an embed shape', () => {
     expect(svg).not.toContain('javascript');
   });
 
+  it('keeps the page it has read, and an embed made before stills reads without one', () => {
+    const still = `${'b'.repeat(64)}.jpg`;
+    const read = yMapToShape(
+      integrate(
+        shapeToYMap(embed('https://youtu.be/dQw4w9WgXcQ', { title: 'A video', poster: still })),
+      ),
+    );
+    expect(read).toMatchObject({ title: 'A video', poster: still });
+    const old = yMapToShape(integrate(shapeToYMap(embed('https://youtu.be/dQw4w9WgXcQ'))));
+    expect(old).not.toHaveProperty('title');
+    expect(old).not.toHaveProperty('poster');
+  });
+
+  it('takes a still from a file only by the name the preview service gives it', () => {
+    const imported = sanitizeShape(
+      embed('https://youtu.be/dQw4w9WgXcQ', {
+        title: 'A video',
+        poster: 'https://evil.example/x.png',
+      }),
+      () => 'n',
+    );
+    expect(imported).toMatchObject({ title: 'A video' });
+    expect(imported).not.toHaveProperty('poster');
+  });
+
+  it('exports its still with the title along the foot, once the still is resolved', () => {
+    const still = `${'b'.repeat(64)}.jpg`;
+    const shape = embed('https://youtu.be/dQw4w9WgXcQ', {
+      title: 'Never Gonna Give You Up',
+      poster: still,
+    });
+    const withStill = renderSceneToSvgString([shape], {
+      imageDataUrls: new Map([[still, 'data:image/jpeg;base64,AAAA']]),
+    });
+    expect(withStill).toContain('href="data:image/jpeg;base64,AAAA"');
+    expect(withStill).toContain('>Never Gonna Give You Up</text>');
+    // Without the bytes it is the card, with the page's title in place of the address.
+    const without = renderSceneToSvgString([shape]);
+    expect(without).not.toContain('<image');
+    expect(without).toContain('>YouTube</text>');
+    expect(without).toContain('>Never Gonna Give You Up</text>');
+  });
+
   it('lays the site name out only while there is room for it', () => {
     expect(embedCardLayout(embed('https://youtu.be/dQw4w9WgXcQ')).title?.text).toBe('YouTube');
     const strip = embedCardLayout(embed('https://youtu.be/dQw4w9WgXcQ', { height: 30 }));

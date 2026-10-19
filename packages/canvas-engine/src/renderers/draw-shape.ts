@@ -170,7 +170,7 @@ export function drawSceneShape(
       drawImageShape(ctx, painted, context.images);
       break;
     case 'embed':
-      drawEmbedShape(ctx, painted, context.darkMode ?? false);
+      drawEmbedShape(ctx, painted, context.darkMode ?? false, context.images);
       break;
     case 'bookmark':
       drawBookmarkShape(ctx, painted, context.images, context.darkMode ?? false);

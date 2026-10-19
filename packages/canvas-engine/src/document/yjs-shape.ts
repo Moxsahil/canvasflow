@@ -137,6 +137,10 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
       map.set('width', shape.width);
       map.set('height', shape.height);
       map.set('url', shape.url);
+      // Written only once the page has been read, so an embed made before
+      // posters existed is written back unchanged.
+      if (shape.title !== undefined) map.set('title', shape.title);
+      if (shape.poster !== undefined) map.set('poster', shape.poster);
       break;
     case 'bookmark':
       map.set('width', shape.width);
@@ -372,12 +376,16 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
       // `resolveEmbed`, never by this value.
       const url = map.get('url');
       if (typeof url !== 'string') return null;
+      const title = map.get('title');
+      const poster = map.get('poster');
       return withZ({
         ...base,
         kind: 'embed',
         width: (map.get('width') as number) ?? 0,
         height: (map.get('height') as number) ?? 0,
         url,
+        ...(title !== undefined && { title: readTextValue(title) }),
+        ...(poster !== undefined && { poster: typeof poster === 'string' ? poster : null }),
       } as Shape);
     }
     case 'bookmark': {

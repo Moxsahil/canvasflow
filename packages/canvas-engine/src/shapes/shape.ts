@@ -239,6 +239,17 @@ export interface EmbedShape extends BaseShape {
   readonly width: number;
   readonly height: number;
   readonly url: string;
+  /**
+   * The page's own title and still — a video's thumbnail — written in once the
+   * page has been read, for the card drawn while the page loads and in every
+   * export, where the page itself can never be painted. Read back through
+   * `readBookmarkText` and `readPreviewImageName`, as a link card's are.
+   *
+   * Absent on an embed whose page has not been read yet, which is every one
+   * made before posters existed — why there is no migration.
+   */
+  readonly title?: string;
+  readonly poster?: string | null;
 }
 
 // --- Bookmark shape ---
