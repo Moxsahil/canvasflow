@@ -7,11 +7,14 @@ import {
   MAX_BOOKMARK_SITE_NAME,
   MAX_BOOKMARK_TITLE,
   isBookmark,
+  isEmbed,
   readBookmarkText,
   readBookmarkUrl,
   readPreviewImageName,
+  resolveEmbed,
   type BoardDocument,
   type BookmarkShape,
+  type EmbedShape,
   type Shape,
 } from '@canvasflow/canvas-engine';
 import { fetchLinkPreview, fetchPreviewImage } from './preview-client';
@@ -41,6 +44,21 @@ function waitingOnPage(shape: BookmarkShape): boolean {
   return !shape.title && !shape.description && !shape.siteName && shape.image === null;
 }
 
+/**
+ * An embed whose page has not given it a title or a still: one made before
+ * stills existed, or whose link was just changed, which clears both.
+ */
+function embedWaitingOnPage(shape: EmbedShape): boolean {
+  return !shape.title && !shape.poster;
+}
+
+/** The preview picture a shape shows, by name: a card's picture, or an embed's still. */
+function pictureOf(shape: Shape): string | null {
+  if (isBookmark(shape)) return readPreviewImageName(shape.image);
+  if (isEmbed(shape)) return readPreviewImageName(shape.poster);
+  return null;
+}
+
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -51,10 +69,11 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 }
 
 /**
- * Link cards' pages and pictures.
+ * Link cards' pages and pictures, and embeds' stills.
  *
  * A card goes on the board straight away, showing its address, and is filled
- * in once the gateway has read the page. Whoever can edit the board and sees
+ * in once the gateway has read the page. An embed is given its page's title
+ * and still the same way, for the card drawn under it and in exports. Whoever can edit the board and sees
  * a card still waiting asks for it — once a session — so a card left empty by
  * someone who closed the tab before the answer came is filled by the next
  * person to open the board. The answer is written so nobody can undo it away.
@@ -83,13 +102,12 @@ export function useLinkCards({
   );
   useEffect(() => images.subscribe(() => setRevision((n) => n + 1)), [images]);
 
-  // Pictures for every card on screen that has one.
+  // Pictures for every card and embed on the board that has one.
   useEffect(() => {
     if (local) return;
     const wanted = new Set<string>();
     for (const shape of shapes) {
-      if (!isBookmark(shape)) continue;
-      const name = readPreviewImageName(shape.image);
+      const name = pictureOf(shape);
       if (name && !images.has(name)) wanted.add(name);
     }
     if (wanted.size > 0) images.ensure([...wanted]);
@@ -129,24 +147,46 @@ export function useLinkCards({
     }
   }, [shapes, token, canEdit, local, doc]);
 
+  // Titles and stills for every embed still without them. Asked once a
+  // session for each link it has had, so a changed link is read again.
+  const askedEmbeds = useRef(new Set<string>());
+  useEffect(() => {
+    if (!token || !canEdit || local) return;
+    for (const shape of shapes) {
+      if (!isEmbed(shape) || !embedWaitingOnPage(shape)) continue;
+      const key = `${shape.id} ${shape.url}`;
+      if (askedEmbeds.current.has(key) || !resolveEmbed(shape.url)) continue;
+      askedEmbeds.current.add(key);
+
+      void fetchLinkPreview(token, shape.url)
+        .catch(() => null)
+        .then((preview) => {
+          const current = doc
+            .getShapes()
+            .find((s): s is EmbedShape => s.id === shape.id && isEmbed(s));
+          // Gone, given another link, or filled in by someone else meanwhile.
+          if (!current || current.url !== shape.url || !embedWaitingOnPage(current)) return;
+          const title = readBookmarkText(preview?.title, MAX_BOOKMARK_TITLE);
+          const poster = readPreviewImageName(preview?.image?.name);
+          if (!title && !poster) return;
+          doc.settleShape(current.id, { title, poster } as Partial<EmbedShape>);
+        });
+    }
+  }, [shapes, token, canEdit, local, doc]);
+
   const resolveDataUrls = useCallback(
     async (subject: readonly Shape[]): Promise<ReadonlyMap<string, string>> => {
       const resolved = new Map<string, string>();
       const current = tokenRef.current;
       if (!current || local) return resolved;
-      const names = new Set(
-        subject
-          .filter(isBookmark)
-          .map((shape) => readPreviewImageName(shape.image))
-          .filter((name): name is string => name !== null),
-      );
+      const names = new Set(subject.map(pictureOf).filter((name): name is string => name !== null));
       await Promise.all(
         [...names].map(async (name) => {
           try {
             const blob = await fetchPreviewImage(current, name);
             if (blob) resolved.set(name, await blobToDataUrl(blob));
           } catch {
-            // Left out; the card is exported with an empty picture well.
+            // Left out; the card is exported without its picture.
           }
         }),
       );

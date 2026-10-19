@@ -596,6 +596,8 @@ export function createEmbed(
     width: number;
     height: number;
     url: string;
+    title?: string;
+    poster?: string | null;
   },
 ): EmbedShape {
   return {
@@ -606,6 +608,8 @@ export function createEmbed(
     width: input.width,
     height: input.height,
     url: input.url,
+    ...(input.title && { title: input.title }),
+    ...(input.poster && { poster: input.poster }),
     ...resolveBaseStyle(input),
     // A card around somebody else's page: no fill or stroke of its own for
     // the properties panel to offer controls for.

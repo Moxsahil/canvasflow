@@ -310,7 +310,14 @@ function rebuildShape(
       if (width === undefined || height === undefined) return null;
       const embed = resolveEmbed(candidate.url);
       if (!embed) return null;
-      return createEmbed({ ...common, width, height, url: embed.url });
+      return createEmbed({
+        ...common,
+        width,
+        height,
+        url: embed.url,
+        title: readBookmarkText(candidate.title, MAX_BOOKMARK_TITLE),
+        poster: readPreviewImageName(candidate.poster),
+      });
     }
 
     case 'bookmark': {

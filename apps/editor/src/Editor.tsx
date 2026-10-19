@@ -49,6 +49,7 @@ import {
   membershipAfterResize,
   parseEmbedInput,
   readBookmarkUrl,
+  readPreviewImageName,
   resolveEmbed,
   type EmbedShape,
   type FrameShape,
@@ -1653,7 +1654,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
       if (!placement || readOnly) return;
       if ('editingId' in placement) {
         doc.breakUndoGroup();
-        doc.updateShape(placement.editingId, { url } as Partial<Shape>);
+        // The old page's title and still go with it; the new page's are read in.
+        doc.updateShape(placement.editingId, { url, title: '', poster: null } as Partial<Shape>);
         doc.breakUndoGroup();
         return;
       }
@@ -4063,6 +4065,9 @@ export function Editor({ boardId, local = false }: EditorProps) {
         width: convertible.width,
         height: convertible.height,
         url: embed.url,
+        // What the card already knows about the page is the embed's still.
+        title: convertible.title,
+        poster: readPreviewImageName(convertible.image),
       }),
     );
   }, [convertible, replaceShape]);

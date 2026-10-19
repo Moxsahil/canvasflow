@@ -390,7 +390,7 @@ function shapeToSvg(
       content = imageToSvg(shape, imageDataUrls?.get(shape.fileId));
       break;
     case 'embed':
-      content = embedToSvg(shape, darkMode);
+      content = embedToSvg(shape, darkMode, imageDataUrls);
       break;
     case 'bookmark':
       content = bookmarkToSvg(shape, imageDataUrls, darkMode);
