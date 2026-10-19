@@ -1314,5 +1314,22 @@
   "local.carry.boardTitle": "Zeichnung aus diesem Browser",
   "local.carry.done": "Deine Zeichnung aus diesem Browser ist jetzt in deinem Konto",
   "local.carry.failedTitle": "Deine Zeichnung wurde nicht verschoben",
-  "local.carry.failedBody": "Sie konnte nicht in dein Konto kopiert werden. Sie ist weiterhin sicher auf dem lokalen Board in diesem Browser – versuche es von dort erneut."
+  "local.carry.failedBody": "Sie konnte nicht in dein Konto kopiert werden. Sie ist weiterhin sicher auf dem lokalen Board in diesem Browser – versuche es von dort erneut.",
+  "tools.embed": "Einbetten",
+  "shapes.embed": "Einbettung",
+  "library.count.embed_one": "{{count}} Einbettung",
+  "library.count.embed_other": "{{count}} Einbettungen",
+  "embeds.address": "Link zum Einbetten",
+  "embeds.placeholder": "Link oder Einbettungscode einfügen",
+  "embeds.worksWith": "Funktioniert mit",
+  "embeds.ready": "{{site}} – bereit zum Einbetten",
+  "embeds.insert": "Einbetten",
+  "embeds.placeHint": "Klicken oder ziehen, um die Einbettung zu platzieren",
+  "embeds.cantEmbedHost": "Links von {{host}} lassen sich nicht einbetten.",
+  "embeds.incomplete": "Füge einen vollständigen Link ein, z. B. youtube.com/watch?v=…",
+  "embeds.supported": "{{sites}} und {{count}} weitere.",
+  "embeds.seeAll": "Alle anzeigen",
+  "embeds.editLink": "Einbettungslink bearbeiten",
+  "embeds.frameTitle": "{{site}}, eingebettet",
+  "embeds.clickToInteract": "Klicken zum Bedienen"
 }

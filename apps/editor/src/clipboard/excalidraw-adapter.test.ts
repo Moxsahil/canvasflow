@@ -23,6 +23,33 @@ describe('excalidrawElementsToShapes', () => {
     expect(shape?.link).toBe('https://example.com/');
   });
 
+  it('brings an embedded page across as an embed, and leaves one no site would show', () => {
+    const shapes = excalidrawElementsToShapes(
+      [
+        {
+          id: 'e1',
+          type: 'embeddable',
+          x: 0,
+          y: 0,
+          width: 560,
+          height: 315,
+          link: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        },
+        { id: 'e2', type: 'embeddable', x: 0, y: 0, link: 'https://example.com/' },
+      ],
+      genId,
+    );
+    expect(shapes).toHaveLength(1);
+    expect(shapes[0]).toMatchObject({
+      kind: 'embed',
+      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      width: 560,
+      height: 315,
+    });
+    // The address is the page itself; a badge for it would only say it twice.
+    expect(shapes[0]?.link).toBeUndefined();
+  });
+
   it('keeps the shape and drops a link this board would not open', () => {
     const shapes = excalidrawElementsToShapes(
       [

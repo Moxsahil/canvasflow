@@ -1276,5 +1276,21 @@
   "local.carry.boardTitle": "来自此浏览器的绘图",
   "local.carry.done": "你在此浏览器中的绘图现已在你的账户中",
   "local.carry.failedTitle": "你的绘图没有移过去",
-  "local.carry.failedBody": "无法复制到你的账户。它仍安全地保存在此浏览器的本地白板上，请从那里重试。"
+  "local.carry.failedBody": "无法复制到你的账户。它仍安全地保存在此浏览器的本地白板上，请从那里重试。",
+  "tools.embed": "嵌入",
+  "shapes.embed": "嵌入",
+  "library.count.embed_other": "{{count}} 个嵌入",
+  "embeds.address": "要嵌入的链接",
+  "embeds.placeholder": "粘贴链接或嵌入代码",
+  "embeds.worksWith": "支持的网站",
+  "embeds.ready": "{{site}} — 可以嵌入",
+  "embeds.insert": "嵌入",
+  "embeds.placeHint": "点击或拖动以放置嵌入",
+  "embeds.cantEmbedHost": "无法嵌入来自 {{host}} 的链接。",
+  "embeds.incomplete": "请粘贴完整链接，例如 youtube.com/watch?v=…",
+  "embeds.supported": "{{sites}} 等 {{count}} 个网站。",
+  "embeds.seeAll": "查看全部",
+  "embeds.editLink": "编辑嵌入链接",
+  "embeds.frameTitle": "嵌入的 {{site}}",
+  "embeds.clickToInteract": "点击以交互"
 }

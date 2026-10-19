@@ -463,10 +463,11 @@ export const toolMachine = setup({
           };
         // Not sized by dragging a box: freehand tracks the pointer itself,
         // text is placed by a click and sized by what is typed into it, and an
-        // image arrives at its own size from the picker.
+        // image or an embed arrives at its own size from where it was chosen.
         case 'freehand':
         case 'text':
         case 'image':
+        case 'embed':
           return {};
         default: {
           // Every kind is listed above, so this is unreachable — and a new

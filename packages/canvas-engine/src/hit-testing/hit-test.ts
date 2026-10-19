@@ -155,7 +155,8 @@ function shapeHitAt(shape: Shape, x: number, y: number, reach: number): ShapeHit
   const tolerance = Math.max(reach, shape.strokeWidth / 2);
   switch (shape.kind) {
     case 'text':
-    case 'image': {
+    case 'image':
+    case 'embed': {
       const b = shapeBounds(shape);
       const inside =
         x >= b.x - reach &&

@@ -3,6 +3,7 @@ import type { RoughGenerator } from 'roughjs/bin/generator';
 import {
   assertNever,
   fontSizeOf,
+  isEmbed,
   isFrame,
   strokeWidthOf,
   type ArrowShape,
@@ -15,10 +16,12 @@ import type { Rect } from '../math.js';
 import { arrowInkBounds } from '../shapes/arrow.js';
 import { arrowLabelLayout, type ArrowLabelLayout } from '../shapes/arrow-label.js';
 import { FRAME_LABEL_FONT_SIZE, FRAME_LABEL_GAP, frameLabel } from '../shapes/frame.js';
+import { resolveEmbed } from '../shapes/embed.js';
 import { readLink } from '../shapes/link.js';
 import { visibleShapes } from '../shapes/visibility.js';
 import { strokeColorFor } from '../shapes/style.js';
 import { FRAME_BORDER_WIDTH } from './draw-frame.js';
+import { embedToSvg } from './draw-embed.js';
 import { frameChain } from '../frames/membership.js';
 import { FRAME_LABEL_FONT_FAMILY } from '../frames/frame-geometry.js';
 import {
@@ -102,10 +105,14 @@ export function renderSceneToSvgString(
         // board come out as the same picture.
         { ...shape, strokeColor: strokeColorFor(shape.strokeColor, options.darkMode ?? false) },
         options.imageDataUrls,
+        options.darkMode ?? false,
       );
       // A linked shape stays a link in the file, the one format that can carry
       // one. Inside the frame clips, so only the part the board shows is live.
-      const link = readLink(shape.link);
+      // An embed with no link of its own links to the page it shows, which is
+      // what a card standing in for the page can still offer.
+      const link =
+        readLink(shape.link) ?? (isEmbed(shape) && resolveEmbed(shape.url) ? shape.url : null);
       const svg =
         link === null
           ? drawn
@@ -294,6 +301,7 @@ function shapeToSvg(
   generator: RoughGenerator,
   shape: Shape,
   imageDataUrls: ReadonlyMap<string, string> | undefined,
+  darkMode: boolean,
 ): string {
   const source = { generator };
   let content = '';
@@ -375,6 +383,9 @@ function shapeToSvg(
       break;
     case 'image':
       content = imageToSvg(shape, imageDataUrls?.get(shape.fileId));
+      break;
+    case 'embed':
+      content = embedToSvg(shape, darkMode);
       break;
     case 'frame':
       content = frameToSvg(shape);

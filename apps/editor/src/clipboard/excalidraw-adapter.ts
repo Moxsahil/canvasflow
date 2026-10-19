@@ -3,12 +3,14 @@ import {
   createArrow,
   createDiamond,
   createEllipse,
+  createEmbed,
   createFrame,
   createFreehand,
   createLine,
   createRectangle,
   createText,
   isArrow,
+  parseEmbedInput,
   readLink,
   type ArrowBinding,
   type Arrowhead,
@@ -102,8 +104,9 @@ export function excalidrawElementsToShapes(
     if (!shape) continue;
     // The same check every other way onto the board makes: their links may
     // be any address at all, and only the ones this board would open come.
+    // An embed's link is the page it shows, which a badge would only repeat.
     const link = readLink(el.link);
-    if (link !== null) shape = { ...shape, link };
+    if (link !== null && shape.kind !== 'embed') shape = { ...shape, link };
     if (typeof el.id === 'string') renamed.set(el.id, shape.id);
     made.push({ el, shape });
   }
@@ -226,7 +229,21 @@ function elementToShape(
         name: typeof el.name === 'string' ? el.name : '',
       });
 
-    // Images, embeds and anything newer have no shape here.
+    // A page from another site, its address kept in the element's link. Only
+    // one a site this board embeds becomes an embed; anything else would be
+    // a card that can never show its page.
+    case 'embeddable': {
+      const url = typeof el.link === 'string' ? parseEmbedInput(el.link) : null;
+      if (!url) return null;
+      return createEmbed({
+        ...common,
+        width: width ?? 560,
+        height: height ?? 315,
+        url,
+      });
+    }
+
+    // Images and anything newer have no shape here.
     default:
       return null;
   }

@@ -1276,5 +1276,21 @@
   "local.carry.boardTitle": "このブラウザで描いたもの",
   "local.carry.done": "このブラウザで描いたものがアカウントに入りました",
   "local.carry.failedTitle": "描いたものは移動されませんでした",
-  "local.carry.failedBody": "アカウントにコピーできませんでした。このブラウザのローカルボードに安全に残っているので、そこからもう一度お試しください。"
+  "local.carry.failedBody": "アカウントにコピーできませんでした。このブラウザのローカルボードに安全に残っているので、そこからもう一度お試しください。",
+  "tools.embed": "埋め込み",
+  "shapes.embed": "埋め込み",
+  "library.count.embed_other": "埋め込み {{count}} 件",
+  "embeds.address": "埋め込むリンク",
+  "embeds.placeholder": "リンクまたは埋め込みコードを貼り付け",
+  "embeds.worksWith": "対応サイト",
+  "embeds.ready": "{{site}} — 埋め込めます",
+  "embeds.insert": "埋め込む",
+  "embeds.placeHint": "クリックまたはドラッグして埋め込みを配置",
+  "embeds.cantEmbedHost": "{{host}} のリンクは埋め込めません。",
+  "embeds.incomplete": "youtube.com/watch?v=… のような完全なリンクを貼り付けてください",
+  "embeds.supported": "{{sites}} ほか {{count}} 件。",
+  "embeds.seeAll": "すべて表示",
+  "embeds.editLink": "埋め込みリンクを編集",
+  "embeds.frameTitle": "埋め込まれた {{site}}",
+  "embeds.clickToInteract": "クリックして操作"
 }

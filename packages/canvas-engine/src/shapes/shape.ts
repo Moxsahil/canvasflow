@@ -223,6 +223,24 @@ export interface ImageShape extends BaseShape {
   readonly naturalHeight: number;
 }
 
+// --- Embed shape ---
+
+/**
+ * A page from another site — a video, a design, a document — shown in place.
+ *
+ * Only the address is stored, exactly as `parseEmbedInput` accepted it. What
+ * the frame loads is worked out from it on every read by `resolveEmbed`, so a
+ * value that did not come from this client loads nothing rather than whatever
+ * it says. The board draws a card for it; the page itself is only loaded
+ * while someone has it open.
+ */
+export interface EmbedShape extends BaseShape {
+  readonly kind: 'embed';
+  readonly width: number;
+  readonly height: number;
+  readonly url: string;
+}
+
 // --- Frame shape ---
 
 /**
@@ -253,6 +271,7 @@ export type Shape =
   | FreehandShape
   | TextShape
   | ImageShape
+  | EmbedShape
   | FrameShape;
 
 /**
@@ -312,6 +331,10 @@ export function isText(s: Shape): s is TextShape {
 
 export function isImage(s: Shape): s is ImageShape {
   return s.kind === 'image';
+}
+
+export function isEmbed(s: Shape): s is EmbedShape {
+  return s.kind === 'embed';
 }
 
 export function isFrame(s: Shape): s is FrameShape {

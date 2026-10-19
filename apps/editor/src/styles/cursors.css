@@ -87,6 +87,10 @@
   cursor: var(--cursor-grabbing);
 }
 
+.canvas-stack[data-tool='embed-hover'] {
+  cursor: pointer;
+}
+
 .canvas-stack[data-tool='grab'] {
   cursor: var(--cursor-hand);
 }
@@ -110,7 +114,9 @@
 .canvas-stack[data-tool='sketch'],
 /* The image tool places at a point rather than dragging out a box, but the
    crosshair still says "this click lands something here". */
-.canvas-stack[data-tool='image'] {
+.canvas-stack[data-tool='image'],
+/* An embed is placed by a click or a box dragged out, as a shape is. */
+.canvas-stack[data-tool='embed'] {
   cursor: var(--cursor-crosshair);
 }
 

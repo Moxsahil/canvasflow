@@ -11,6 +11,7 @@ import {
   type BindingHint,
   boundArrowPatches,
   computeBoundingRect,
+  createEmbed,
   createText,
   isArrow,
   arrowLabelAnchor,
@@ -32,6 +33,7 @@ import {
   COARSE_HIT_MARGIN,
   HIT_MARGIN,
   hitTest,
+  isEmbed,
   isFrame,
   isText,
   hiddenShapeIds,
@@ -42,7 +44,11 @@ import {
   withHandlePointInserted,
   withHandlePointMoved,
   membershipAfterResize,
+  parseEmbedInput,
+  resolveEmbed,
+  type EmbedShape,
   type FrameShape,
+  MIN_EMBED_SIZE,
   hitTestMarquee,
   type MarqueeMode,
   presenceColorFor,
@@ -169,6 +175,16 @@ import { env } from './lib/env';
 import { PropertiesPanel, StyleHalo, itemStyleFromShape } from './properties';
 import type { ScreenRect } from './properties/halo-placement';
 import { LinkBadges, LinkBox } from './links';
+import { EmbedLayer, EmbedPlacer } from './embeds';
+import {
+  EMBED_CLICK_MAX_MS,
+  EMBED_CLICK_MAX_TRAVEL,
+  EMBED_OPEN_DELAY_MS,
+  embedBoxFromDrag,
+  embedScreenBox,
+  inEmbedMiddle,
+  type PlacedBox,
+} from './embeds/embed-frame';
 import { LockPadlock } from './lock/LockPadlock';
 import { joinableFrames, lockToggleFor, unlockAllUpdates, withoutLocked } from './lock/lock-ops';
 import {
@@ -667,6 +683,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const [activeLock, setActiveLock] = useState<readonly string[] | null>(null);
   /** A press on a locked shape, waiting to see whether it comes up as a click. */
   const lockPressRef = useRef<{ id: string; at: Point } | null>(null);
+  /**
+   * A press inside the box around the selection that landed on none of its
+   * shapes — the space between two of them — waiting to see whether it comes
+   * up as a click, which lets the selection go, or a drag, which moves it.
+   */
+  const selectionGapPressRef = useRef<Point | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
   /**
    * This session has lost the board.
@@ -1171,6 +1193,20 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const [channel, setChannel] = useState<PresenceChannel | null>(null);
   /** The frame whose name is open for editing, if any. */
   const [renamingFrameId, setRenamingFrameId] = useState<string | null>(null);
+  /** A box being dragged out with the embed tool, in world units. */
+  const [embedDraft, setEmbedDraft] = useState<{ from: Point; to: Point } | null>(null);
+  const embedDraftRef = useRef<{ from: Point; to: Point } | null>(null);
+  /**
+   * The link field, while it is open: beside a box just placed with the embed
+   * tool, or beside an embed whose link is being changed.
+   */
+  const [embedPlacement, setEmbedPlacement] = useState<
+    { readonly box: PlacedBox } | { readonly editingId: string } | null
+  >(null);
+  /** The embed whose page takes presses, if one does; every other one lets them through. */
+  const [activeEmbedId, setActiveEmbedId] = useState<string | null>(null);
+  /** The embed whose middle the pointer is over, which shows how to use it. */
+  const [hoveredEmbedId, setHoveredEmbedId] = useState<string | null>(null);
   /** The point handle under the pointer, if any — see `drawPointHandles`. */
   const [hoveredHandleId, setHoveredHandleId] = useState<string | null>(null);
   useEffect(() => {
@@ -1471,6 +1507,82 @@ export function Editor({ boardId, local = false }: EditorProps) {
     })();
   }, [images, viewportCentre, showImageNotice, readOnly]);
 
+  /**
+   * Put an embed of `url` on the board, with its middle on `at` or the middle
+   * of the view, at the size its site's page is made for — and select it, so
+   * it can be moved or opened straight away.
+   */
+  const insertEmbed = useCallback(
+    (url: string, at?: Point) => {
+      if (readOnly) return;
+      const embed = resolveEmbed(url);
+      if (!embed) return;
+      const [placed] = shapesCentredOn(
+        [
+          createEmbed({
+            id: genId(),
+            x: 0,
+            y: 0,
+            width: embed.width,
+            height: embed.height,
+            url: embed.url,
+          }),
+        ],
+        at ?? viewportCentre(),
+        doc.getShapes(),
+      );
+      if (!placed) return;
+      doc.addShape(placed);
+      doc.breakUndoGroup();
+      actorRef.send({ type: 'SELECT_ALL', shapeIds: [placed.id] });
+    },
+    [doc, actorRef, readOnly, viewportCentre],
+  );
+
+  const cancelEmbedPlacement = useCallback(() => {
+    embedDraftRef.current = null;
+    setEmbedDraft(null);
+    setEmbedPlacement(null);
+  }, []);
+  /**
+   * The link the field was given: a new embed in the box that was placed, or
+   * a new page for the embed being edited, which keeps its box — whoever
+   * sized it did so on purpose, and a different video is no reason to undo it.
+   */
+  const handleEmbedLink = useCallback(
+    (url: string) => {
+      const placement = embedPlacement;
+      setEmbedPlacement(null);
+      if (!placement || readOnly) return;
+      if ('editingId' in placement) {
+        doc.breakUndoGroup();
+        doc.updateShape(placement.editingId, { url } as Partial<Shape>);
+        doc.breakUndoGroup();
+        return;
+      }
+      const embed = resolveEmbed(url);
+      if (!embed) return;
+      // A click placed a video's size as a stand-in; the site's own size takes
+      // its place, on the same middle. A box dragged out is kept as drawn.
+      const { box } = placement;
+      const width = box.clicked ? embed.width : box.width;
+      const height = box.clicked ? embed.height : box.height;
+      const shape = createEmbed({
+        id: genId(),
+        x: box.x + box.width / 2 - width / 2,
+        y: box.y + box.height / 2 - height / 2,
+        width,
+        height,
+        url: embed.url,
+      });
+      doc.breakUndoGroup();
+      doc.addShape(shape);
+      doc.breakUndoGroup();
+      actorRef.send({ type: 'SELECT_ALL', shapeIds: [shape.id] });
+    },
+    [doc, actorRef, embedPlacement, readOnly],
+  );
+
   const textEditorScreenPosition = textEditingAt
     ? {
         x: (textEditingAt.x - camera.x) * camera.zoom,
@@ -1502,6 +1614,14 @@ export function Editor({ boardId, local = false }: EditorProps) {
         };
       })()
     : null;
+
+  // An embed deleted or hidden — here or by someone else — while its page has
+  // the presses gives them back, rather than leaving a ghost taking them.
+  useEffect(() => {
+    if (activeEmbedId && !shownShapes.some((shape) => shape.id === activeEmbedId)) {
+      setActiveEmbedId(null);
+    }
+  }, [activeEmbedId, shownShapes]);
 
   // A frame deleted by a collaborator while its name was open for editing
   // leaves the input floating over nothing.
@@ -1716,6 +1836,16 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // the field for one, and steps aside while the shape is on the move or its
   // text is open — view mode selects nothing, so it never shows there.
   const linkShape = selectedShapes.length === 1 ? selectedShapes[0]! : null;
+  const embedEditingId =
+    embedPlacement && 'editingId' in embedPlacement ? embedPlacement.editingId : null;
+  const embedEditingShape = embedEditingId
+    ? shapes.find((s): s is EmbedShape => s.id === embedEditingId && isEmbed(s))
+    : undefined;
+  // Deleted — here or by someone else — while its link was open for editing:
+  // there is nothing left for the field to change.
+  useEffect(() => {
+    if (embedEditingId && !embedEditingShape) setEmbedPlacement(null);
+  }, [embedEditingId, embedEditingShape]);
   const linkEditing = linkShape !== null && linkEditingId === linkShape.id && !readOnly;
   // The padlock a click on a locked shape put up, for as long as what it
   // stands for is still locked and still there to stand over. A viewer is
@@ -2185,6 +2315,25 @@ export function Editor({ boardId, local = false }: EditorProps) {
    */
   const hitMarginRef = useRef(HIT_MARGIN);
 
+  /** A press on the middle of an embed, until its lift says whether it was a click. */
+  const embedPressRef = useRef<{ id: string; screen: Point; at: number } | null>(null);
+  const embedActivationRef = useRef<number | undefined>(undefined);
+  /** The tools a click on an embed's middle hands its page the presses under. */
+  const embedClickTool = viewMode || activeTool === 'select' || activeTool === 'laser';
+  /** The embed whose middle third is at `point`, topmost first, if it has a page. */
+  const embedMiddleAt = useCallback(
+    (point: Point): string | null => {
+      const hit = hitTest(shownShapes, spatialIndex, point.x, point.y, camera.zoom, {
+        margin: hitMarginRef.current,
+      });
+      return hit && isEmbed(hit) && resolveEmbed(hit.url) && inEmbedMiddle(hit, point.x, point.y)
+        ? hit.id
+        : null;
+    },
+    [shownShapes, spatialIndex, camera.zoom],
+  );
+  useEffect(() => () => window.clearTimeout(embedActivationRef.current), []);
+
   const handlePointerDown = useCallback(
     (
       point: Point,
@@ -2194,6 +2343,31 @@ export function Editor({ boardId, local = false }: EditorProps) {
       snapOverride = false,
       pointerType = 'mouse',
     ) => {
+      // A press anywhere on the board hands an embed's page back to being
+      // shown, as a press outside a menu closes it. The page took the presses
+      // that landed on it, so this is always one outside. A press on another
+      // embed's middle is noted, to hand that one the presses if it turns out
+      // to be a click.
+      setActiveEmbedId(null);
+      window.clearTimeout(embedActivationRef.current);
+      selectionGapPressRef.current = null;
+      // A press on the board puts an open link field away, as a press outside
+      // a menu closes it — whatever it was waiting for is left unplaced.
+      setEmbedPlacement(null);
+      // The embed tool drags out the box the embed will fill, and nothing else.
+      // Read off the machine rather than the render, which may not have caught
+      // up with a W pressed a moment before the press.
+      const embedTool = actorRef.getSnapshot().context.activeTool === 'embed';
+      if (embedTool && button === 0 && !isSpacePressed && !readOnly) {
+        embedDraftRef.current = { from: point, to: point };
+        setEmbedDraft(embedDraftRef.current);
+        return;
+      }
+      const embedId = button === 0 && !shiftKey && embedClickTool ? embedMiddleAt(point) : null;
+      embedPressRef.current = embedId
+        ? { id: embedId, screen: screenPoint, at: performance.now() }
+        : null;
+
       // The far end of a pen that has one erases, whatever tool is in hand,
       // and the tool comes back when it lifts (see handlePointerLift). Read
       // here rather than from the render, which hasn't caught up with it yet.
@@ -2297,6 +2471,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
             selectedIds,
           });
           hitShapeId = hit?.id ?? null;
+          selectionGapPressRef.current =
+            hit &&
+            !shiftKey &&
+            !hitTest(pickableShapes, spatialIndex, point.x, point.y, camera.zoom, { margin })
+              ? screenPoint
+              : null;
 
           if (hit) {
             const picked = (
@@ -2422,6 +2602,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
       showSnapGuides,
       showBindingHint,
       preferences.values.snapToObjects,
+      embedClickTool,
+      embedMiddleAt,
     ],
   );
 
@@ -2502,6 +2684,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
       snapOverride = false,
     ) => {
       lastCanvasPointRef.current = screenPoint;
+      const draft = embedDraftRef.current;
+      if (draft) {
+        embedDraftRef.current = { from: draft.from, to: point };
+        setEmbedDraft(embedDraftRef.current);
+        return;
+      }
       // A pen's eraser end is erasing, whatever the last render had in hand.
       const tool: Tool = eraserReturnRef.current ? 'eraser' : activeTool;
 
@@ -2805,6 +2993,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const handlePointerHover = useCallback(
     (point: Point | null) => {
       setCursor(point);
+      setHoveredEmbedId(point ? embedMiddleAt(point) : null);
 
       const onlySelected =
         point && activeTool === 'select' && selectedIds.length === 1
@@ -2816,7 +3005,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
           : null,
       );
     },
-    [setCursor, activeTool, selectedIds, shapes, camera.zoom],
+    [setCursor, activeTool, selectedIds, shapes, camera.zoom, embedMiddleAt],
   );
 
   /**
@@ -2973,6 +3162,10 @@ export function Editor({ boardId, local = false }: EditorProps) {
    */
   const handlePointerAbandon = useCallback(
     (point: Point, screenPoint: Point) => {
+      embedPressRef.current = null;
+      selectionGapPressRef.current = null;
+      embedDraftRef.current = null;
+      setEmbedDraft(null);
       handlePointerUp(point, screenPoint);
       const press = touchPressRef.current;
       touchPressRef.current = null;
@@ -2998,18 +3191,71 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const handlePointerLift = useCallback(
     (point: Point, screenPoint: Point) => {
       handlePointerUp(point, screenPoint);
+
+      // The box the embed will fill has been let go: the field for its link
+      // opens beside it, and the tool goes back to select, its work done.
+      const draft = embedDraftRef.current;
+      if (draft) {
+        embedDraftRef.current = null;
+        setEmbedDraft(null);
+        setEmbedPlacement({
+          box: embedBoxFromDrag(draft.from, point, camera.zoom, MIN_EMBED_SIZE),
+        });
+        actorRef.send({ type: 'SELECT_TOOL', tool: 'select' });
+        return;
+      }
+
+      // A click in the empty part of the selection's box is a click on the
+      // board, and lets the selection go. Only a drag from there moves it.
+      const gapPress = selectionGapPressRef.current;
+      selectionGapPressRef.current = null;
+      if (
+        gapPress &&
+        Math.hypot(screenPoint.x - gapPress.x, screenPoint.y - gapPress.y) <= LOCK_CLICK_SLOP
+      ) {
+        actorRef.send({ type: 'DESELECT' });
+      }
+
+      // A quick press that came up where it went down, still on the middle of
+      // the same embed, was a click on it: its page takes the presses from
+      // here, a moment later.
+      const press = embedPressRef.current;
+      embedPressRef.current = null;
+      if (
+        press &&
+        performance.now() - press.at <= EMBED_CLICK_MAX_MS &&
+        Math.hypot(screenPoint.x - press.screen.x, screenPoint.y - press.screen.y) <=
+          EMBED_CLICK_MAX_TRAVEL &&
+        embedMiddleAt(point) === press.id
+      ) {
+        embedActivationRef.current = window.setTimeout(
+          () => setActiveEmbedId(press.id),
+          EMBED_OPEN_DELAY_MS,
+        );
+      }
+
       const back = eraserReturnRef.current;
       if (!back) return;
       eraserReturnRef.current = null;
       actorRef.send({ type: 'SELECT_TOOL', tool: back });
     },
-    [actorRef, handlePointerUp],
+    [actorRef, handlePointerUp, embedMiddleAt, camera.zoom],
   );
 
   // Double-pressing a text shape (with any tool active) reopens it for editing;
   // double-pressing anywhere else, with select in hand, starts a new one there.
   const handleDoubleClick = useCallback(
     (point: Point) => {
+      // An embed's page takes the presses for anyone who can see it, viewers
+      // and locked ones included: playing a video changes nothing on the board.
+      const shown = hitTest(shownShapes, spatialIndex, point.x, point.y, camera.zoom, {
+        margin: hitMarginRef.current,
+      });
+      if (shown && isEmbed(shown) && resolveEmbed(shown.url)) {
+        setActiveEmbedId(shown.id);
+        return;
+      }
+
       if (readOnly) return;
 
       // Frame labels first. They sit above the frame in space that otherwise
@@ -3068,7 +3314,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       if (activeTool !== 'select') return;
       actorRef.send({ type: 'START_TEXT_AT', point });
     },
-    [actorRef, pickableShapes, spatialIndex, camera.zoom, readOnly, activeTool],
+    [actorRef, pickableShapes, shownShapes, spatialIndex, camera.zoom, readOnly, activeTool],
   );
 
   // Moving the view yourself ends a follow. You cannot be carried and steer at
@@ -3107,6 +3353,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
           active.blur();
         }
       }
+      cancelEmbedPlacement();
       if (isPickerTool(tool)) {
         handlePickImage();
         return;
@@ -3118,17 +3365,21 @@ export function Editor({ boardId, local = false }: EditorProps) {
       }
       actorRef.send({ type: 'SELECT_TOOL', tool });
     },
-    [actorRef, handlePickImage, readOnly, viewMode, preferences, local],
+    [actorRef, handlePickImage, readOnly, viewMode, preferences, local, cancelEmbedPlacement],
   );
   const handleEscape = useCallback(() => {
     setActiveLock(null);
+    setActiveEmbedId(null);
+    cancelEmbedPlacement();
     actorRef.send({ type: 'ESCAPE' });
-    // The comment tool is put down by Escape, where the drawing tools stay in
-    // hand: there is no half-drawn shape for the key to be cancelling instead.
-    if (actorRef.getSnapshot().context.activeTool === 'comment') {
+    // The comment and embed tools are put down by Escape, where the drawing
+    // tools stay in hand: neither leaves a half-drawn shape for the key to be
+    // cancelling instead.
+    const tool = actorRef.getSnapshot().context.activeTool;
+    if (tool === 'comment' || tool === 'embed') {
       actorRef.send({ type: 'SELECT_TOOL', tool: 'select' });
     }
-  }, [actorRef]);
+  }, [actorRef, cancelEmbedPlacement]);
   const handleSpaceDown = useCallback(() => actorRef.send({ type: 'SPACE_DOWN' }), [actorRef]);
   const handleSpaceUp = useCallback(() => actorRef.send({ type: 'SPACE_UP' }), [actorRef]);
   const handleZoomIn = useCallback(
@@ -3191,9 +3442,16 @@ export function Editor({ boardId, local = false }: EditorProps) {
     if (readOnly || !snapshot.matches('idle')) return;
     const ids = snapshot.context.selectedIds;
     if (ids.length !== 1 || lockedIds.has(ids[0]!)) return;
+    // An embed's link is the page it shows, so editing it changes that page,
+    // in the window it was chosen in, rather than adding a second link.
+    const shape = doc.getShapes().find((s) => s.id === ids[0]);
+    if (shape && isEmbed(shape)) {
+      setEmbedPlacement({ editingId: shape.id });
+      return;
+    }
     setLinkEditingId(ids[0]!);
     linkInputRef.current?.focus();
-  }, [actorRef, readOnly, lockedIds]);
+  }, [actorRef, doc, readOnly, lockedIds]);
 
   /**
    * Lock the selection, or unlock it when all of it is locked already.
@@ -3970,6 +4228,14 @@ export function Editor({ boardId, local = false }: EditorProps) {
         return true;
       }
 
+      // A link to a page a site lets the board show is pasted as that page,
+      // not as its address written out.
+      const embedUrl = content.kind === 'text' && !readOnly ? parseEmbedInput(content.text) : null;
+      if (embedUrl) {
+        insertEmbed(embedUrl, at);
+        return true;
+      }
+
       let placedShapes: Shape[];
       if (content.kind === 'text') {
         // Text was copied from nowhere on the board, so there is nothing to
@@ -4006,7 +4272,15 @@ export function Editor({ boardId, local = false }: EditorProps) {
       });
       return true;
     },
-    [doc, actorRef, readOnly, handleInsertImages, textShapeFromClipboard, viewportCentre],
+    [
+      doc,
+      actorRef,
+      readOnly,
+      handleInsertImages,
+      insertEmbed,
+      textShapeFromClipboard,
+      viewportCentre,
+    ],
   );
 
   /**
@@ -4548,7 +4822,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 stylePanelHalo: preferences.values.floatingStyleBar,
               }}
               labels={{
-                addLink: linkShape?.link ? t('commands.editLink') : t('contextMenu.addLink'),
+                addLink:
+                  linkShape && isEmbed(linkShape)
+                    ? t('embeds.editLink')
+                    : linkShape?.link
+                      ? t('commands.editLink')
+                      : t('contextMenu.addLink'),
                 lock: selectionLocked ? t('lock.unlock') : t('contextMenu.lock'),
               }}
               onCloseAutoFocus={handleMenuCloseAutoFocus}
@@ -4597,11 +4876,57 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   penMode={preferences.values.penMode}
                   onPenDetected={handlePenDetected}
                   touchNavigation={touchNavigation}
+                  overEmbed={embedClickTool && hoveredEmbedId !== null}
                 />
               </div>
             </CanvasContextMenu>
 
             {waitingForBoard && <BoardLoading overlay />}
+
+            {/* The page of every embed on screen, live over its card. Under
+                the link badges and the comment pins, which belong to the
+                shapes rather than to the pages. */}
+            <EmbedLayer
+              shapes={shownShapes}
+              camera={camera}
+              board={screen}
+              activeId={activeEmbedId}
+              hoveredId={embedClickTool ? hoveredEmbedId : null}
+            />
+
+            {/* Placing an embed: the hint while the tool is in hand, the box
+                being dragged out, and the field for its link. */}
+            <EmbedPlacer
+              armed={activeTool === 'embed'}
+              frame={
+                embedDraft
+                  ? embedScreenBox(
+                      {
+                        x: Math.min(embedDraft.from.x, embedDraft.to.x),
+                        y: Math.min(embedDraft.from.y, embedDraft.to.y),
+                        width: Math.abs(embedDraft.to.x - embedDraft.from.x),
+                        height: Math.abs(embedDraft.to.y - embedDraft.from.y),
+                      },
+                      camera,
+                    )
+                  : embedPlacement && 'box' in embedPlacement
+                    ? embedScreenBox(embedPlacement.box, camera)
+                    : null
+              }
+              field={
+                embedPlacement && 'box' in embedPlacement
+                  ? { anchor: embedScreenBox(embedPlacement.box, camera), editing: null }
+                  : embedEditingShape
+                    ? {
+                        anchor: embedScreenBox(embedEditingShape, camera),
+                        editing: embedEditingShape.url,
+                      }
+                    : null
+              }
+              board={screen}
+              onSubmit={handleEmbedLink}
+              onCancel={cancelEmbedPlacement}
+            />
 
             {/* A badge on the corner of every linked shape on screen, which
                 opens its link. Under the comment pins, and still up with the

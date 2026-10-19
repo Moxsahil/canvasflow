@@ -1276,5 +1276,21 @@
   "local.carry.boardTitle": "이 브라우저에서 그린 그림",
   "local.carry.done": "이 브라우저에서 그린 그림이 이제 계정에 있습니다",
   "local.carry.failedTitle": "그림이 옮겨지지 않았습니다",
-  "local.carry.failedBody": "계정으로 복사하지 못했습니다. 이 브라우저의 로컬 보드에 안전하게 남아 있으니 그곳에서 다시 시도하세요."
+  "local.carry.failedBody": "계정으로 복사하지 못했습니다. 이 브라우저의 로컬 보드에 안전하게 남아 있으니 그곳에서 다시 시도하세요.",
+  "tools.embed": "임베드",
+  "shapes.embed": "임베드",
+  "library.count.embed_other": "임베드 {{count}}개",
+  "embeds.address": "임베드할 링크",
+  "embeds.placeholder": "링크 또는 임베드 코드 붙여 넣기",
+  "embeds.worksWith": "지원 사이트",
+  "embeds.ready": "{{site}} — 임베드할 수 있어요",
+  "embeds.insert": "임베드",
+  "embeds.placeHint": "클릭하거나 드래그해서 임베드를 놓으세요",
+  "embeds.cantEmbedHost": "{{host}}의 링크는 임베드할 수 없어요.",
+  "embeds.incomplete": "youtube.com/watch?v=…처럼 전체 링크를 붙여 넣으세요",
+  "embeds.supported": "{{sites}} 외 {{count}}개.",
+  "embeds.seeAll": "모두 보기",
+  "embeds.editLink": "임베드 링크 편집",
+  "embeds.frameTitle": "임베드된 {{site}}",
+  "embeds.clickToInteract": "클릭해서 사용하기"
 }

@@ -11,6 +11,7 @@ import {
   FreehandIcon,
   TextIcon,
   ImageIcon,
+  EmbedIcon,
   CommentIcon,
   FrameIcon,
   LaserIcon,
@@ -31,6 +32,7 @@ export type Tool =
   | 'sketch'
   | 'text'
   | 'image'
+  | 'embed'
   | 'frame'
   | 'laser'
   | 'comment'
@@ -55,9 +57,10 @@ export const TOOL_TO_SHAPE_KIND = {
   frame: 'frame',
   // The laser is absent on purpose: it paints a trail that fades, not a shape,
   // so there is no kind for it to map to. Nor is there one for the comment
-  // tool, which leaves a pin on the board and no shape in it.
+  // tool, which leaves a pin on the board and no shape in it, or for the
+  // embed tool, whose shape has no style for the panel to set.
 } as const satisfies Record<
-  Exclude<Tool, 'hand' | 'select' | 'eraser' | 'laser' | 'comment'>,
+  Exclude<Tool, 'hand' | 'select' | 'eraser' | 'laser' | 'comment' | 'embed'>,
   string
 >;
 
@@ -114,10 +117,11 @@ export const TOOLS: readonly ToolMeta[] = [
   // how most people who open a board they did not draw will ever touch it, and
   // they will not go looking behind a chevron for the way to.
   { id: 'comment', labelKey: 'tools.comment', icon: CommentIcon, shortcut: 'M', numericKey: null },
-  // These three live in the overflow, and none takes a digit: you lay out
-  // frames before the work, point with the laser while presenting it, and
-  // reach for the sketch tool for a run of shapes rather than for one. None is
-  // something you flick to mid-drawing, which is what the row is for.
+  // These live in the overflow, and none takes a digit: you lay out frames
+  // before the work, point with the laser while presenting it, reach for the
+  // sketch tool for a run of shapes rather than for one, and embed a page
+  // once for the board rather than while drawing on it. None is something you
+  // flick to mid-drawing, which is what the row is for.
   {
     id: 'frame',
     labelKey: 'tools.frame',
@@ -142,6 +146,14 @@ export const TOOLS: readonly ToolMeta[] = [
     numericKey: null,
     overflow: true,
   },
+  {
+    id: 'embed',
+    labelKey: 'tools.embed',
+    icon: EmbedIcon,
+    shortcut: 'W',
+    numericKey: null,
+    overflow: true,
+  },
   { id: 'eraser', labelKey: 'tools.eraser', icon: EraserIcon, shortcut: 'E', numericKey: '0' },
 ];
 
@@ -161,7 +173,8 @@ export function isPickerTool(tool: Tool): boolean {
  * Three kinds of exemption. Select, hand and comment make no shape at all. The
  * eraser and the laser are already modes — they run until you leave them, so
  * there is nothing for a lock to hold. The image tool opens a picker rather
- * than drawing, and never becomes the active tool at all.
+ * than drawing, and never becomes the active tool at all; the embed tool
+ * places one box and then waits on its link, which a second box would cut off.
  *
  * Freehand and sketch are the interesting ones: both make a shape like any
  * other tool, but both are reached for to draw a run rather than one thing. A
@@ -176,6 +189,7 @@ const NON_LOCKABLE_TOOLS: ReadonlySet<Tool> = new Set<Tool>([
   'laser',
   'comment',
   'image',
+  'embed',
   'freehand',
   'sketch',
 ]);

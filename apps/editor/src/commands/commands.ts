@@ -212,6 +212,7 @@ const TOOL_KEYWORDS: Partial<Record<Tool, readonly string[]>> = {
   sketch: ['recognise', 'recognize', 'shape', 'convert'],
   text: ['type', 'label', 'write', 'font'],
   image: ['picture', 'photo', 'upload', 'insert'],
+  embed: ['video', 'youtube', 'figma', 'iframe', 'website', 'page', 'insert'],
   frame: ['artboard', 'section', 'group'],
   laser: ['pointer', 'present', 'highlight'],
   eraser: ['remove', 'rub out'],

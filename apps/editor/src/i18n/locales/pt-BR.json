@@ -1314,5 +1314,22 @@
   "local.carry.boardTitle": "Desenho deste navegador",
   "local.carry.done": "Seu desenho deste navegador agora está na sua conta",
   "local.carry.failedTitle": "Seu desenho não foi movido",
-  "local.carry.failedBody": "Não foi possível copiá-lo para sua conta. Ele continua seguro no quadro local deste navegador — tente de novo por lá."
+  "local.carry.failedBody": "Não foi possível copiá-lo para sua conta. Ele continua seguro no quadro local deste navegador — tente de novo por lá.",
+  "tools.embed": "Incorporar",
+  "shapes.embed": "Incorporação",
+  "library.count.embed_one": "{{count}} incorporação",
+  "library.count.embed_other": "{{count}} incorporações",
+  "embeds.address": "Link para incorporar",
+  "embeds.placeholder": "Cole um link ou código de incorporação",
+  "embeds.worksWith": "Funciona com",
+  "embeds.ready": "{{site}} — pronto para incorporar",
+  "embeds.insert": "Incorporar",
+  "embeds.placeHint": "Clique ou arraste para posicionar a incorporação",
+  "embeds.cantEmbedHost": "Links de {{host}} não podem ser incorporados.",
+  "embeds.incomplete": "Cole um link completo, como youtube.com/watch?v=…",
+  "embeds.supported": "{{sites}} e mais {{count}}.",
+  "embeds.seeAll": "Ver todos",
+  "embeds.editLink": "Editar link incorporado",
+  "embeds.frameTitle": "{{site}}, incorporado",
+  "embeds.clickToInteract": "Clique para interagir"
 }

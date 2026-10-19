@@ -10,6 +10,7 @@ export * from './arrow-label.js';
 export * from './freehand.js';
 export * from './text.js';
 export * from './image.js';
+export * from './embed.js';
 export * from './frame.js';
 export * from './bounds.js';
 export * from './outline.js';
