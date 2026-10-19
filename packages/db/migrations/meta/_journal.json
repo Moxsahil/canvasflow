@@ -232,6 +232,13 @@
       "when": 1792145280831,
       "tag": "0032_board_pins_and_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792405832351,
+      "tag": "0033_link_previews",
+      "breakpoints": true
     }
   ]
 }

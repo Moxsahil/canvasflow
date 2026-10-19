@@ -16,10 +16,12 @@ import { parseEnv } from '../../config/env.js';
  * Worker; from Node the S3 protocol is the way in, the same way a Postgres
  * driver is how you reach Neon.
  *
- * Nothing in this service ever handles bytes. It hands out short-lived signed
- * URLs and lets the browser talk to R2 directly, which is the entire point:
- * an image never passes through this process, so a board full of photographs
- * costs the gateway no bandwidth and no memory.
+ * Almost nothing in this service handles bytes. It hands out short-lived
+ * signed URLs and lets the browser talk to R2 directly, which is the entire
+ * point: an image never passes through this process, so a board full of
+ * photographs costs the gateway no bandwidth and no memory. The one exception
+ * is a link preview's picture, which this process fetched itself and so has
+ * to put there itself — a few hundred kilobytes, once per picture.
  */
 
 /**
@@ -163,6 +165,25 @@ export class StorageService {
     );
 
     return { url, expiresIn: DOWNLOAD_URL_TTL_SECONDS };
+  }
+
+  /**
+   * Store bytes this process already holds, under one key.
+   *
+   * Only for what the gateway fetched itself — a link preview's picture —
+   * never for anything a browser could have sent straight to storage.
+   */
+  async putObject(options: { key: string; body: Buffer; contentType: string }): Promise<void> {
+    const { client, bucket } = this.require();
+    await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: options.key,
+        Body: options.body,
+        ContentType: options.contentType,
+        ContentLength: options.body.length,
+      }),
+    );
   }
 
   /**
