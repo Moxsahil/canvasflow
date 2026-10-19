@@ -3,6 +3,7 @@ import type { RoughGenerator } from 'roughjs/bin/generator';
 import {
   assertNever,
   fontSizeOf,
+  isBookmark,
   isEmbed,
   isFrame,
   strokeWidthOf,
@@ -16,11 +17,13 @@ import type { Rect } from '../math.js';
 import { arrowInkBounds } from '../shapes/arrow.js';
 import { arrowLabelLayout, type ArrowLabelLayout } from '../shapes/arrow-label.js';
 import { FRAME_LABEL_FONT_SIZE, FRAME_LABEL_GAP, frameLabel } from '../shapes/frame.js';
+import { readBookmarkUrl } from '../shapes/bookmark.js';
 import { resolveEmbed } from '../shapes/embed.js';
 import { readLink } from '../shapes/link.js';
 import { visibleShapes } from '../shapes/visibility.js';
 import { strokeColorFor } from '../shapes/style.js';
 import { FRAME_BORDER_WIDTH } from './draw-frame.js';
+import { bookmarkToSvg } from './draw-bookmark.js';
 import { embedToSvg } from './draw-embed.js';
 import { frameChain } from '../frames/membership.js';
 import { FRAME_LABEL_FONT_FAMILY } from '../frames/frame-geometry.js';
@@ -109,10 +112,12 @@ export function renderSceneToSvgString(
       );
       // A linked shape stays a link in the file, the one format that can carry
       // one. Inside the frame clips, so only the part the board shows is live.
-      // An embed with no link of its own links to the page it shows, which is
-      // what a card standing in for the page can still offer.
+      // An embed or a link card with no link of its own links to the page it
+      // stands for, which is what a card in a file can still offer.
       const link =
-        readLink(shape.link) ?? (isEmbed(shape) && resolveEmbed(shape.url) ? shape.url : null);
+        readLink(shape.link) ??
+        (isEmbed(shape) && resolveEmbed(shape.url) ? shape.url : null) ??
+        (isBookmark(shape) ? readBookmarkUrl(shape.url) : null);
       const svg =
         link === null
           ? drawn
@@ -386,6 +391,9 @@ function shapeToSvg(
       break;
     case 'embed':
       content = embedToSvg(shape, darkMode);
+      break;
+    case 'bookmark':
+      content = bookmarkToSvg(shape, imageDataUrls, darkMode);
       break;
     case 'frame':
       content = frameToSvg(shape);

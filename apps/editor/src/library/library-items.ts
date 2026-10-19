@@ -36,6 +36,7 @@ const KIND_NAMES: Readonly<Record<Shape['kind'], TranslationKey>> = {
   frame: 'shapes.frame',
   image: 'shapes.image',
   embed: 'shapes.embed',
+  bookmark: 'shapes.bookmark',
 };
 
 /** "3 rectangles": a run of one kind, counted. */
@@ -50,6 +51,7 @@ const KIND_COUNTS: Readonly<Record<Shape['kind'], WordKey>> = {
   frame: 'library.count.frame',
   image: 'library.count.image',
   embed: 'library.count.embed',
+  bookmark: 'library.count.bookmark',
 };
 
 export interface LibraryShapes {

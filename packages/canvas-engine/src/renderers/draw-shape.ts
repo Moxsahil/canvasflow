@@ -4,6 +4,7 @@ import { assertNever, fontSizeOf } from '../shapes/shape.js';
 import { arrowInkBounds } from '../shapes/arrow.js';
 import { arrowLabelLayout, type ArrowLabelLayout } from '../shapes/arrow-label.js';
 import { strokeColorFor } from '../shapes/style.js';
+import { drawBookmarkShape } from './draw-bookmark.js';
 import { drawEmbedShape } from './draw-embed.js';
 import { drawImageShape, type ImageSource } from './draw-image.js';
 import { drawFrameBody } from './draw-frame.js';
@@ -170,6 +171,9 @@ export function drawSceneShape(
       break;
     case 'embed':
       drawEmbedShape(ctx, painted, context.darkMode ?? false);
+      break;
+    case 'bookmark':
+      drawBookmarkShape(ctx, painted, context.images, context.darkMode ?? false);
       break;
     // Body only. The label is chrome sized in screen pixels, so it needs the
     // zoom the scene renderer has and this function does not.

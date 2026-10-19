@@ -468,6 +468,7 @@ export const toolMachine = setup({
         case 'text':
         case 'image':
         case 'embed':
+        case 'bookmark':
           return {};
         default: {
           // Every kind is listed above, so this is unreachable — and a new

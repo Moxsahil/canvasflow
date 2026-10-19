@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createArrow, createRectangle, type Shape } from '@canvasflow/canvas-engine';
+import {
+  createArrow,
+  createBookmark,
+  createRectangle,
+  type Shape,
+} from '@canvasflow/canvas-engine';
 import {
   LINK_BADGE_MIN_ZOOM,
   LINK_BADGE_SIZE,
@@ -64,6 +69,20 @@ describe('linkBadgePlacements', () => {
   it('sets a badge just off the top-right corner of each linked shape', () => {
     expect(linkBadgePlacements([linked('a', 100, 200)], camera, board, null)).toEqual([
       { id: 'a', link: 'https://example.com/', left: 200 + 4, top: 200 - 4 - LINK_BADGE_SIZE },
+    ]);
+  });
+
+  it('badges a link card with its page, selected or not, and nothing that is not a web page', () => {
+    const card = (id: string, url: string) =>
+      createBookmark({ id, x: 0, y: 100, width: 400, height: 320, url });
+    const badges = linkBadgePlacements(
+      [card('c', 'https://example.com/post'), card('d', 'javascript:alert(1)')],
+      camera,
+      board,
+      'c',
+    );
+    expect(badges.map((badge) => [badge.id, badge.link])).toEqual([
+      ['c', 'https://example.com/post'],
     ]);
   });
 

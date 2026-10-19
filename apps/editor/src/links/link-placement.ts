@@ -1,4 +1,4 @@
-import { shapeBounds, type Shape } from '@canvasflow/canvas-engine';
+import { isBookmark, readBookmarkUrl, shapeBounds, type Shape } from '@canvasflow/canvas-engine';
 import type { Camera } from '../machine/tool-machine.types';
 import { DOCK_CLEARANCE, type ScreenRect, type Size } from '../properties/halo-placement';
 
@@ -108,7 +108,11 @@ export function linkBadgePlacements(
 
   const badges: LinkBadgePlacement[] = [];
   for (const shape of shapes) {
-    if (!shape.link || shape.id === except) continue;
+    // A link card's page is its link, badged like any other — and badged even
+    // while it is selected, since the link box shows only a link of its own.
+    const own = shape.link ?? null;
+    const link = own ?? (isBookmark(shape) ? readBookmarkUrl(shape.url) : null);
+    if (!link || (own !== null && shape.id === except)) continue;
 
     const bounds = shapeBounds(shape);
     const left = (bounds.x + bounds.width - camera.x) * camera.zoom + BADGE_OFFSET;
@@ -118,7 +122,7 @@ export function linkBadgePlacements(
       left < board.width &&
       top + LINK_BADGE_SIZE > 0 &&
       top < board.height;
-    if (onScreen) badges.push({ id: shape.id, link: shape.link, left, top });
+    if (onScreen) badges.push({ id: shape.id, link, left, top });
   }
   return badges;
 }

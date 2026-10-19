@@ -8,6 +8,8 @@ const UNDO_CAPTURE_TIMEOUT_MS = 1000;
 
 /** The origin bindings are fixed under: synced like any edit, but not one to undo. */
 const PIN_ORIGIN = 'binding-pin';
+/** The origin a shape learns about itself under — a link card its page — likewise. */
+const SETTLE_ORIGIN = 'settle';
 
 /**
  * Layer keys in drawing order: by character code, the order the keys are
@@ -350,6 +352,29 @@ export class BoardDocument {
         if (pin.endBinding) yMap.set('endBinding', pin.endBinding);
       }
     }, PIN_ORIGIN);
+  }
+
+  /**
+   * Write what a shape has learned about itself — a link card, the page it was
+   * waiting on — without it counting as an edit.
+   *
+   * Under an origin of its own, as `pinArrowBindings` is: nobody chose this
+   * change, so an undo should take back the card, not leave it empty. Nobody's
+   * name goes on it either. A shape that is gone by the time the answer lands
+   * is left gone.
+   */
+  settleShape(id: string, patch: Partial<Shape>): void {
+    if (this.readOnly) return;
+    this.yDoc.transact(() => {
+      for (const yMap of this.yShapes) {
+        if (yMap.get('id') !== id) continue;
+        for (const [key, value] of Object.entries(patch)) {
+          if (key === 'id' || key === 'kind') continue;
+          yMap.set(key, value);
+        }
+        return;
+      }
+    }, SETTLE_ORIGIN);
   }
 
   /**

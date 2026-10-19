@@ -4,6 +4,7 @@ import { diamondBounds } from './diamond.js';
 import { ellipseBounds } from './ellipse.js';
 import { frameBounds } from './frame.js';
 import { freehandBounds } from './freehand.js';
+import { bookmarkBounds } from './bookmark.js';
 import { embedBounds } from './embed.js';
 import { imageBounds } from './image.js';
 import { lineBounds } from './line.js';
@@ -31,6 +32,8 @@ export function shapeBounds(shape: Shape) {
       return imageBounds(shape);
     case 'embed':
       return embedBounds(shape);
+    case 'bookmark':
+      return bookmarkBounds(shape);
     case 'frame':
       return frameBounds(shape);
 

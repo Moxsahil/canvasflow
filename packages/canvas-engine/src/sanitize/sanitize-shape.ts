@@ -10,6 +10,15 @@ import {
   createText,
 } from '../shapes/index.js';
 import { isSupportedImageMimeType } from '../images/image-formats.js';
+import {
+  createBookmark,
+  MAX_BOOKMARK_DESCRIPTION,
+  MAX_BOOKMARK_SITE_NAME,
+  MAX_BOOKMARK_TITLE,
+  readBookmarkText,
+  readBookmarkUrl,
+  readPreviewImageName,
+} from '../shapes/bookmark.js';
 import { createEmbed, resolveEmbed } from '../shapes/embed.js';
 import { readLink } from '../shapes/link.js';
 import type { Shape } from '../shapes/shape.js';
@@ -302,6 +311,23 @@ function rebuildShape(
       const embed = resolveEmbed(candidate.url);
       if (!embed) return null;
       return createEmbed({ ...common, width, height, url: embed.url });
+    }
+
+    case 'bookmark': {
+      const width = finite(candidate.width);
+      const height = finite(candidate.height);
+      const url = readBookmarkUrl(candidate.url);
+      if (width === undefined || height === undefined || !url) return null;
+      return createBookmark({
+        ...common,
+        width,
+        height,
+        url,
+        title: readBookmarkText(candidate.title, MAX_BOOKMARK_TITLE),
+        description: readBookmarkText(candidate.description, MAX_BOOKMARK_DESCRIPTION),
+        siteName: readBookmarkText(candidate.siteName, MAX_BOOKMARK_SITE_NAME),
+        image: readPreviewImageName(candidate.image),
+      });
     }
 
     default:
