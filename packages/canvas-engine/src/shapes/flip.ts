@@ -113,6 +113,7 @@ export function flipShape(shape: Shape, axis: FlipAxis, center: Point): Shape {
     case 'text':
     case 'image':
     case 'embed':
+    case 'bookmark':
     case 'frame': {
       const bounds = shapeBounds(shape);
       if (!finiteBounds(bounds)) return shape;

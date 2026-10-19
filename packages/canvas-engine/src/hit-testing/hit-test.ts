@@ -156,7 +156,8 @@ function shapeHitAt(shape: Shape, x: number, y: number, reach: number): ShapeHit
   switch (shape.kind) {
     case 'text':
     case 'image':
-    case 'embed': {
+    case 'embed':
+    case 'bookmark': {
       const b = shapeBounds(shape);
       const inside =
         x >= b.x - reach &&

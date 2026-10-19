@@ -11,6 +11,8 @@ import {
   type BindingHint,
   boundArrowPatches,
   computeBoundingRect,
+  BOOKMARK_SIZE,
+  createBookmark,
   createEmbed,
   createText,
   isArrow,
@@ -33,6 +35,7 @@ import {
   COARSE_HIT_MARGIN,
   HIT_MARGIN,
   hitTest,
+  isBookmark,
   isEmbed,
   isFrame,
   isText,
@@ -45,9 +48,13 @@ import {
   withHandlePointMoved,
   membershipAfterResize,
   parseEmbedInput,
+  readBookmarkUrl,
   resolveEmbed,
   type EmbedShape,
   type FrameShape,
+  type ImageSource,
+  MIN_BOOKMARK_HEIGHT,
+  MIN_BOOKMARK_WIDTH,
   MIN_EMBED_SIZE,
   hitTestMarquee,
   type MarqueeMode,
@@ -176,6 +183,8 @@ import { PropertiesPanel, StyleHalo, itemStyleFromShape } from './properties';
 import type { ScreenRect } from './properties/halo-placement';
 import { LinkBadges, LinkBox } from './links';
 import { EmbedLayer, EmbedPlacer } from './embeds';
+import { useLinkCards } from './link-cards/useLinkCards';
+import { pastedLinkCardUrl } from './link-cards/link-card-url';
 import {
   EMBED_CLICK_MAX_MS,
   EMBED_CLICK_MAX_TRAVEL,
@@ -1463,6 +1472,29 @@ export function Editor({ boardId, local = false }: EditorProps) {
     local,
     onError: showImageNotice,
   });
+  const linkCards = useLinkCards({ doc, shapes, token: authToken, canEdit: !readOnly, local });
+  const resolveImageDataUrls = images.resolveDataUrls;
+  const resolveCardDataUrls = linkCards.resolveDataUrls;
+  /**
+   * Every picture the board draws: its own images, and the ones link cards
+   * show. Keyed apart — a board image by its content hash, a card's picture
+   * by a hash and an extension — so the two never answer for each other.
+   */
+  const boardPictures = useMemo(
+    () => ({
+      cache: {
+        get: (id: string) => images.cache.get(id) ?? linkCards.images.get(id),
+      } satisfies ImageSource,
+      resolveDataUrls: async (subject: readonly Shape[]) =>
+        new Map([
+          ...(await resolveImageDataUrls(subject)),
+          ...(await resolveCardDataUrls(subject)),
+        ]),
+    }),
+    // The parts, not the hook's result, which is a new object every render.
+    [images.cache, resolveImageDataUrls, linkCards.images, resolveCardDataUrls],
+  );
+  const pictureRevision = images.revision + linkCards.revision;
 
   /** This board as Export all boards reads it: live, not as last saved. */
   const exportOpenBoard = useMemo(
@@ -1539,11 +1571,76 @@ export function Editor({ boardId, local = false }: EditorProps) {
     [doc, actorRef, readOnly, viewportCentre],
   );
 
+  /**
+   * Put a link card for `url` on the board, centred on `at` or the middle of
+   * the view, and select it. It shows its address straight away and fills in
+   * once the page has been read (see useLinkCards).
+   */
+  const insertLinkCard = useCallback(
+    (url: string, at?: Point) => {
+      if (readOnly) return;
+      const [placed] = shapesCentredOn(
+        [createBookmark({ id: genId(), x: 0, y: 0, ...BOOKMARK_SIZE, url })],
+        at ?? viewportCentre(),
+        doc.getShapes(),
+      );
+      if (!placed) return;
+      doc.addShape(placed);
+      doc.breakUndoGroup();
+      actorRef.send({ type: 'SELECT_ALL', shapeIds: [placed.id] });
+    },
+    [doc, actorRef, readOnly, viewportCentre],
+  );
+
+  /**
+   * One shape, swapped for another of a different kind where it stands —
+   * one undo step, and the new one selected in its place.
+   */
+  const replaceShape = useCallback(
+    (from: Shape, to: Shape) => {
+      doc.breakUndoGroup();
+      doc.batch(() => {
+        doc.deleteShapes([from.id]);
+        doc.addShape(to);
+      });
+      doc.breakUndoGroup();
+      actorRef.send({ type: 'SELECT_ALL', shapeIds: [to.id] });
+    },
+    [doc, actorRef],
+  );
+
   const cancelEmbedPlacement = useCallback(() => {
     embedDraftRef.current = null;
     setEmbedDraft(null);
     setEmbedPlacement(null);
   }, []);
+  /**
+   * A link the field could not embed, put in the box as a card for its page
+   * instead: as drawn, or at a card's own size where the box was a click.
+   */
+  const handleLinkCardFromField = useCallback(
+    (url: string) => {
+      const placement = embedPlacement;
+      setEmbedPlacement(null);
+      if (!placement || !('box' in placement) || readOnly) return;
+      const { box } = placement;
+      const width = box.clicked ? BOOKMARK_SIZE.width : Math.max(MIN_BOOKMARK_WIDTH, box.width);
+      const height = box.clicked ? BOOKMARK_SIZE.height : Math.max(MIN_BOOKMARK_HEIGHT, box.height);
+      const shape = createBookmark({
+        id: genId(),
+        x: box.x + box.width / 2 - width / 2,
+        y: box.y + box.height / 2 - height / 2,
+        width,
+        height,
+        url,
+      });
+      doc.breakUndoGroup();
+      doc.addShape(shape);
+      doc.breakUndoGroup();
+      actorRef.send({ type: 'SELECT_ALL', shapeIds: [shape.id] });
+    },
+    [doc, actorRef, embedPlacement, readOnly],
+  );
   /**
    * The link the field was given: a new embed in the box that was placed, or
    * a new page for the embed being edited, which keeps its box — whoever
@@ -3255,6 +3352,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
         setActiveEmbedId(shown.id);
         return;
       }
+      // A link card is opened, in a tab of its own, as its badge opens it.
+      const cardUrl = shown && isBookmark(shown) ? readBookmarkUrl(shown.url) : null;
+      if (cardUrl) {
+        window.open(cardUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
 
       if (readOnly) return;
 
@@ -3737,7 +3840,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
     shapes,
     boardName: boardTitle,
     fileHandleRef,
-    resolveDataUrls: images.resolveDataUrls,
+    resolveDataUrls: boardPictures.resolveDataUrls,
     onNotice: showSaveNotice,
   });
 
@@ -3936,6 +4039,50 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const canCopyAsText = useMemo(() => hasWords(copyData), [copyData]);
   const canCopyAsMermaid = useMemo(() => hasFlowchart(copyData), [copyData]);
 
+  // A link card and an embed of the same page, each made into the other. One
+  // shape, unlocked; and a card only for a page a site lets the board show.
+  const convertible =
+    !readOnly && selectedShapes.length === 1 && editableIds.length === 1
+      ? selectedShapes[0]!
+      : null;
+  const canConvertToEmbed =
+    convertible !== null && isBookmark(convertible) && resolveEmbed(convertible.url) !== null;
+  const canConvertToLinkCard =
+    convertible !== null && isEmbed(convertible) && resolveEmbed(convertible.url) !== null;
+  const handleConvertToEmbed = useCallback(() => {
+    if (!convertible || !isBookmark(convertible)) return;
+    const embed = resolveEmbed(convertible.url);
+    if (!embed) return;
+    // Kept in the card's box: the card was sized where it stands.
+    replaceShape(
+      convertible,
+      createEmbed({
+        id: genId(),
+        x: convertible.x,
+        y: convertible.y,
+        width: convertible.width,
+        height: convertible.height,
+        url: embed.url,
+      }),
+    );
+  }, [convertible, replaceShape]);
+  const handleConvertToLinkCard = useCallback(() => {
+    if (!convertible || !isEmbed(convertible)) return;
+    const url = readBookmarkUrl(convertible.url);
+    if (!url) return;
+    replaceShape(
+      convertible,
+      createBookmark({
+        id: genId(),
+        x: convertible.x,
+        y: convertible.y,
+        width: Math.max(MIN_BOOKMARK_WIDTH, convertible.width),
+        height: Math.max(MIN_BOOKMARK_HEIGHT, convertible.height),
+        url,
+      }),
+    );
+  }, [convertible, replaceShape]);
+
   /** Said once the clipboard has it: "Copied selection as PNG". */
   const showCopied = useCallback(
     (format: string) => {
@@ -3997,7 +4144,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
     const { shapes: drawn, region } = exportScopeFor(shownShapes, selectedShapes);
     if (drawn.length === 0 && !region) return;
     const render = (scale: number) =>
-      renderExportCanvas(drawn, copyImageSettings(scale, region), images.cache).canvas;
+      renderExportCanvas(drawn, copyImageSettings(scale, region), boardPictures.cache).canvas;
 
     let canvas: HTMLCanvasElement;
     try {
@@ -4012,17 +4159,17 @@ export function Editor({ boardId, local = false }: EditorProps) {
       return;
     }
     copyPngToClipboard(canvasToPngBlob(canvas)).then(() => showCopied('PNG'), showCopyFailed);
-  }, [shownShapes, selectedShapes, copyImageSettings, images.cache, showCopied, showCopyFailed]);
+  }, [shownShapes, selectedShapes, copyImageSettings, boardPictures, showCopied, showCopyFailed]);
 
   /** The SVG element alone. Images go in as their stored bytes, so a vector stays one. */
   const handleCopyAsSvg = useCallback(() => {
     const { shapes: drawn, region } = exportScopeFor(shownShapes, selectedShapes);
     if (drawn.length === 0 && !region) return;
-    const svg = images
+    const svg = boardPictures
       .resolveDataUrls(drawn)
       .then((dataUrls) => svgMarkup(drawn, copyImageSettings(1, region), dataUrls));
     writeLateTextToClipboard(svg).then(() => showCopied('SVG'), showCopyFailed);
-  }, [shownShapes, selectedShapes, images, copyImageSettings, showCopied, showCopyFailed]);
+  }, [shownShapes, selectedShapes, boardPictures, copyImageSettings, showCopied, showCopyFailed]);
 
   const copyAsPlainText = useCallback(
     (text: string, format: string) => {
@@ -4235,6 +4382,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
         insertEmbed(embedUrl, at);
         return true;
       }
+      // Any other web address pasted on its own is a card for its page.
+      const cardUrl = content.kind === 'text' && !readOnly ? pastedLinkCardUrl(content.text) : null;
+      if (cardUrl) {
+        insertLinkCard(cardUrl, at);
+        return true;
+      }
 
       let placedShapes: Shape[];
       if (content.kind === 'text') {
@@ -4278,6 +4431,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       readOnly,
       handleInsertImages,
       insertEmbed,
+      insertLinkCard,
       textShapeFromClipboard,
       viewportCentre,
     ],
@@ -4784,6 +4938,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 copyAsText: canCopyAsText ? handleCopyAsText : null,
                 copyAsMermaid: canCopyAsMermaid ? handleCopyAsMermaid : null,
                 copyAsJson: canCopyAs ? handleCopyAsJson : null,
+                convertToEmbed: canConvertToEmbed ? handleConvertToEmbed : null,
+                convertToBookmark: canConvertToLinkCard ? handleConvertToLinkCard : null,
                 exportImage: showExport,
                 // The document reorders one shape at a time, so these wait
                 // for a single selection — as the properties panel's do.
@@ -4843,8 +4999,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   newElement={newElement}
                   selectedIds={selectedIdsForRender}
                   marquee={marquee}
-                  images={images.cache}
-                  imageRevision={images.revision}
+                  images={boardPictures.cache}
+                  imageRevision={pictureRevision}
                   darkMode={resolvedTheme === 'dark'}
                   onDropFiles={readOnly ? undefined : handleInsertImages}
                   onDropLibraryItem={readOnly ? undefined : handleDropLibraryItem}
@@ -4925,6 +5081,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
               }
               board={screen}
               onSubmit={handleEmbedLink}
+              onSubmitCard={handleLinkCardFromField}
               onCancel={cancelEmbedPlacement}
             />
 
@@ -5253,8 +5410,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
               boardName={boardTitle}
               darkTheme={resolvedTheme === 'dark'}
               theme={presenceTheme}
-              images={images.cache}
-              resolveImageDataUrls={images.resolveDataUrls}
+              images={boardPictures.cache}
+              resolveImageDataUrls={boardPictures.resolveDataUrls}
             />
 
             {/* On the settings dialog's surface rather than the editor's

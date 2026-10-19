@@ -192,8 +192,10 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   bindText: soon('contextMenu.bindText', TextCursorInput),
   unbindText: soon('contextMenu.unbindText', RemoveFormatting),
   wrapTextInContainer: soon('contextMenu.wrapTextInContainer', WrapText),
-  convertToEmbed: soon('contextMenu.convertToEmbed', AppWindow),
-  convertToBookmark: soon('contextMenu.convertToBookmark', Bookmark),
+  // Built, and run from this menu alone: a link card and an embed of the same
+  // page, each turned into the other where it stands.
+  convertToEmbed: { labelKey: 'contextMenu.convertToEmbed', icon: AppWindow, edits: true },
+  convertToBookmark: { labelKey: 'contextMenu.convertToBookmark', icon: Bookmark, edits: true },
 
   moveToNewBoard: soon('contextMenu.moveToNewBoard', SquarePlus),
 

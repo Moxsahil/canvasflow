@@ -241,6 +241,30 @@ export interface EmbedShape extends BaseShape {
   readonly url: string;
 }
 
+// --- Bookmark shape ---
+
+/**
+ * A link card: another site's page shown as its picture, title, a line about
+ * it and its site, opened in a tab rather than on the board.
+ *
+ * The card's words are written in once the page has been read, so everyone
+ * sees the same card even if the page changes later. All of it is read back
+ * through `readBookmarkUrl`, `readBookmarkText` and `readPreviewImageName`,
+ * since anyone on the board can write anything into these fields.
+ */
+export interface BookmarkShape extends BaseShape {
+  readonly kind: 'bookmark';
+  readonly width: number;
+  readonly height: number;
+  readonly url: string;
+  /** Empty until the page has been read, and for a page that gave none. */
+  readonly title: string;
+  readonly description: string;
+  readonly siteName: string;
+  /** The preview picture's object name, or null for a card without one. */
+  readonly image: string | null;
+}
+
 // --- Frame shape ---
 
 /**
@@ -272,6 +296,7 @@ export type Shape =
   | TextShape
   | ImageShape
   | EmbedShape
+  | BookmarkShape
   | FrameShape;
 
 /**
@@ -335,6 +360,10 @@ export function isImage(s: Shape): s is ImageShape {
 
 export function isEmbed(s: Shape): s is EmbedShape {
   return s.kind === 'embed';
+}
+
+export function isBookmark(s: Shape): s is BookmarkShape {
+  return s.kind === 'bookmark';
 }
 
 export function isFrame(s: Shape): s is FrameShape {

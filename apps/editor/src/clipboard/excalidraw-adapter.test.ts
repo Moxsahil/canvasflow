@@ -23,7 +23,7 @@ describe('excalidrawElementsToShapes', () => {
     expect(shape?.link).toBe('https://example.com/');
   });
 
-  it('brings an embedded page across as an embed, and leaves one no site would show', () => {
+  it('brings an embedded page across as an embed, or a link card for any other page', () => {
     const shapes = excalidrawElementsToShapes(
       [
         {
@@ -36,10 +36,12 @@ describe('excalidrawElementsToShapes', () => {
           link: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
         },
         { id: 'e2', type: 'embeddable', x: 0, y: 0, link: 'https://example.com/' },
+        { id: 'e3', type: 'embeddable', x: 0, y: 0, link: 'javascript:alert(1)' },
       ],
       genId,
     );
-    expect(shapes).toHaveLength(1);
+    expect(shapes).toHaveLength(2);
+    expect(shapes[1]).toMatchObject({ kind: 'bookmark', url: 'https://example.com/' });
     expect(shapes[0]).toMatchObject({
       kind: 'embed',
       url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',

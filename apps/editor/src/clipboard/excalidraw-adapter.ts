@@ -1,6 +1,8 @@
 import {
   DEFAULT_STROKE_COLOR,
   createArrow,
+  BOOKMARK_SIZE,
+  createBookmark,
   createDiamond,
   createEllipse,
   createEmbed,
@@ -10,7 +12,10 @@ import {
   createRectangle,
   createText,
   isArrow,
+  MIN_BOOKMARK_HEIGHT,
+  MIN_BOOKMARK_WIDTH,
   parseEmbedInput,
+  readBookmarkUrl,
   readLink,
   type ArrowBinding,
   type Arrowhead,
@@ -104,9 +109,11 @@ export function excalidrawElementsToShapes(
     if (!shape) continue;
     // The same check every other way onto the board makes: their links may
     // be any address at all, and only the ones this board would open come.
-    // An embed's link is the page it shows, which a badge would only repeat.
+    // An embed's or a card's link is the page it shows, which a badge would only repeat.
     const link = readLink(el.link);
-    if (link !== null && shape.kind !== 'embed') shape = { ...shape, link };
+    if (link !== null && shape.kind !== 'embed' && shape.kind !== 'bookmark') {
+      shape = { ...shape, link };
+    }
     if (typeof el.id === 'string') renamed.set(el.id, shape.id);
     made.push({ el, shape });
   }
@@ -229,17 +236,21 @@ function elementToShape(
         name: typeof el.name === 'string' ? el.name : '',
       });
 
-    // A page from another site, its address kept in the element's link. Only
-    // one a site this board embeds becomes an embed; anything else would be
-    // a card that can never show its page.
+    // A page from another site, its address kept in the element's link: an
+    // embed for a site this board embeds, a link card for any other page.
     case 'embeddable': {
       const url = typeof el.link === 'string' ? parseEmbedInput(el.link) : null;
-      if (!url) return null;
-      return createEmbed({
+      if (url) {
+        return createEmbed({ ...common, width: width ?? 560, height: height ?? 315, url });
+      }
+      // A page no site here embeds still comes across, as a card for it.
+      const page = readBookmarkUrl(el.link);
+      if (!page) return null;
+      return createBookmark({
         ...common,
-        width: width ?? 560,
-        height: height ?? 315,
-        url,
+        width: Math.max(MIN_BOOKMARK_WIDTH, width ?? BOOKMARK_SIZE.width),
+        height: Math.max(MIN_BOOKMARK_HEIGHT, height ?? BOOKMARK_SIZE.height),
+        url: page,
       });
     }
 

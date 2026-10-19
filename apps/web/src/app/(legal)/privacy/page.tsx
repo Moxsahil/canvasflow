@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 /** Move this whenever the text below changes: the page tells readers it did. */
-const LAST_UPDATED = '2026-10-16';
+const LAST_UPDATED = '2026-10-19';
 
 const privacyEmail = <a href={`mailto:${CONTACT.privacy}`}>{CONTACT.privacy}</a>;
 const supportEmail = <a href={`mailto:${CONTACT.support}`}>{CONTACT.support}</a>;
@@ -66,6 +66,13 @@ const SECTIONS: LegalSection[] = [
             <strong>What you create:</strong> your boards and everything on them, images you upload,
             board and workspace names, who you share boards with and the access you gave them,
             requests people make to join your boards, and share links (stored only as a hash).
+          </li>
+          <li>
+            <strong>Links you put on a board:</strong> when you paste a link, our server visits that
+            page to read its title, a short description and its picture for the link card. We keep
+            that preview and show it to anyone who pastes the same link. The site sees our server,
+            not you. Embedded pages, such as a video, load from their own site in the browser of
+            whoever opens the board, so that site sees them as it would on its own pages.
           </li>
           <li>
             <strong>If you join a board as a guest:</strong> the name you type, and which board you

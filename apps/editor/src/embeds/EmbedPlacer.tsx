@@ -8,6 +8,7 @@ import { useT } from '../i18n';
 import { DOCK_CLEARANCE, type ScreenRect, type Size } from '../properties/halo-placement';
 import { embedPopoverPlacement } from './embed-frame';
 import { hasSiteIcon, SiteIcon } from './SiteIcon';
+import { typedLinkCardUrl } from '../link-cards/link-card-url';
 
 interface EmbedPlacerProps {
   /** The embed tool is in hand and nothing is placed yet, so the hint shows. */
@@ -18,6 +19,8 @@ interface EmbedPlacerProps {
   field: { readonly anchor: ScreenRect; readonly editing: string | null } | null;
   board: Size;
   onSubmit: (url: string) => void;
+  /** A new box given a web link no site embeds: put a link card for it there instead. */
+  onSubmitCard?: (url: string) => void;
   onCancel: () => void;
 }
 
@@ -32,7 +35,15 @@ const NAMED_SITES = ['youtube', 'figma', 'google-docs'];
  * The same field changes the link of an embed already on the board, opened
  * beside that embed, so both ways of choosing a page look and work alike.
  */
-export function EmbedPlacer({ armed, frame, field, board, onSubmit, onCancel }: EmbedPlacerProps) {
+export function EmbedPlacer({
+  armed,
+  frame,
+  field,
+  board,
+  onSubmit,
+  onSubmitCard,
+  onCancel,
+}: EmbedPlacerProps) {
   const t = useT();
   return (
     <>
@@ -70,6 +81,8 @@ export function EmbedPlacer({ armed, frame, field, board, onSubmit, onCancel }: 
           editing={field.editing}
           board={board}
           onSubmit={onSubmit}
+          // Changing an embed's page keeps it an embed; only a new box can be a card.
+          onSubmitCard={field.editing === null ? onSubmitCard : undefined}
           onCancel={onCancel}
         />
       )}
@@ -82,12 +95,14 @@ function EmbedLinkField({
   editing,
   board,
   onSubmit,
+  onSubmitCard,
   onCancel,
 }: {
   anchor: ScreenRect;
   editing: string | null;
   board: Size;
   onSubmit: (url: string) => void;
+  onSubmitCard?: (url: string) => void;
   onCancel: () => void;
 }) {
   const t = useT();
@@ -128,9 +143,13 @@ function EmbedLinkField({
   // Saving the link it already has would only be an undo step for nothing.
   const ready = url !== null && url !== editing;
   const host = typed && !provider ? hostOf(value) : null;
+  // A web page no site embeds can still go on the board, as a card for it.
+  const cardUrl = typed && !provider && onSubmitCard ? typedLinkCardUrl(value) : null;
+  const unusable = typed && !provider && !cardUrl;
 
   const submit = () => {
     if (ready && url) onSubmit(url);
+    else if (cardUrl) onSubmitCard?.(cardUrl);
   };
 
   const place = embedPopoverPlacement(anchor, size, board, DOCK_CLEARANCE);
@@ -169,7 +188,7 @@ function EmbedLinkField({
             value={value}
             placeholder={t('embeds.placeholder')}
             aria-label={t('embeds.address')}
-            aria-invalid={(typed && !provider) || undefined}
+            aria-invalid={unusable || undefined}
             autoComplete="off"
             autoCapitalize="off"
             spellCheck={false}
@@ -194,12 +213,12 @@ function EmbedLinkField({
         </label>
         <button
           type="button"
-          disabled={!ready}
+          disabled={!ready && !cardUrl}
           onClick={submit}
           data-testid="embed-submit"
           className="h-8 shrink-0 rounded-md bg-(--color-primary) px-3 text-xs font-semibold text-(--color-primary-foreground) outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--focus-highlight-color) disabled:opacity-45"
         >
-          {editing ? t('common.save') : t('embeds.insert')}
+          {editing ? t('common.save') : cardUrl ? t('linkCards.add') : t('embeds.insert')}
         </button>
       </div>
 
@@ -207,15 +226,15 @@ function EmbedLinkField({
         role="status"
         className={cn(
           'flex min-h-4.5 items-center gap-1.5 px-0.5 text-[11.5px] leading-snug',
-          typed && !provider
-            ? 'text-red-500 dark:text-red-400'
-            : 'text-neutral-500 dark:text-neutral-400',
+          unusable ? 'text-red-500 dark:text-red-400' : 'text-neutral-500 dark:text-neutral-400',
         )}
       >
         {provider ? (
           <span className="text-neutral-950 dark:text-neutral-50">
             {t('embeds.ready', { site: provider.name })}
           </span>
+        ) : cardUrl ? (
+          t('linkCards.notEmbeddable', { host: host ?? cardUrl })
         ) : typed ? (
           host ? (
             t('embeds.cantEmbedHost', { host })

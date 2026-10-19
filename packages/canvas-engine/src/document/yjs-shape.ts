@@ -138,6 +138,16 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
       map.set('height', shape.height);
       map.set('url', shape.url);
       break;
+    case 'bookmark':
+      map.set('width', shape.width);
+      map.set('height', shape.height);
+      map.set('url', shape.url);
+      map.set('title', shape.title);
+      map.set('description', shape.description);
+      map.set('siteName', shape.siteName);
+      // Written only when there is one, as a card waiting on its page has none.
+      if (shape.image !== null) map.set('image', shape.image);
+      break;
     case 'frame':
       map.set('width', shape.width);
       map.set('height', shape.height);
@@ -368,6 +378,24 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
         width: (map.get('width') as number) ?? 0,
         height: (map.get('height') as number) ?? 0,
         url,
+      } as Shape);
+    }
+    case 'bookmark': {
+      // Kept whatever its fields say, as an embed is: what a card shows and
+      // opens is decided as it is drawn, by the readers in shapes/bookmark.
+      const url = map.get('url');
+      if (typeof url !== 'string') return null;
+      const image = map.get('image');
+      return withZ({
+        ...base,
+        kind: 'bookmark',
+        width: (map.get('width') as number) ?? 0,
+        height: (map.get('height') as number) ?? 0,
+        url,
+        title: readTextValue(map.get('title')),
+        description: readTextValue(map.get('description')),
+        siteName: readTextValue(map.get('siteName')),
+        image: typeof image === 'string' ? image : null,
       } as Shape);
     }
     case 'frame':

@@ -1,4 +1,12 @@
-import { isArrow, isFrame, isText, shapeBounds, type Shape } from '@canvasflow/canvas-engine';
+import {
+  isArrow,
+  isBookmark,
+  isFrame,
+  isText,
+  readBookmarkUrl,
+  shapeBounds,
+  type Shape,
+} from '@canvasflow/canvas-engine';
 import { withFrameMembers } from '../file/export-image';
 import { clipboardPayload } from './clipboard-ops';
 
@@ -30,6 +38,10 @@ export function copyDataFor(
 function wordsOf(shape: Shape): string {
   if (isText(shape)) return shape.text.trim();
   if (isArrow(shape)) return shape.label.trim();
+  // A link card's words are its title and the page it opens.
+  if (isBookmark(shape)) {
+    return [shape.title.trim(), readBookmarkUrl(shape.url) ?? ''].filter(Boolean).join('\n');
+  }
   return '';
 }
 

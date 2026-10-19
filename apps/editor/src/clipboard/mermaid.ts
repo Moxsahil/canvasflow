@@ -1,6 +1,8 @@
 import {
+  bookmarkHost,
   frameLabel,
   isArrow,
+  isBookmark,
   isDiamond,
   isEllipse,
   isEmbed,
@@ -137,6 +139,7 @@ function nodeLine(id: string, shape: Shape, words: string): string {
   if (isFrame(shape)) return `${id}[${quoted(frameLabel(shape))}]`;
   if (isImage(shape)) return `${id}[${quoted('Image')}]`;
   if (isEmbed(shape)) return `${id}[${quoted(resolveEmbed(shape.url)?.provider.name ?? 'Embed')}]`;
+  if (isBookmark(shape)) return `${id}[${quoted(shape.title || bookmarkHost(shape.url))}]`;
   return `${id}[${quoted('')}]`;
 }
 
