@@ -86,6 +86,12 @@ interface CanvasStackProps {
   overEmbed?: boolean;
   /** A pen or finger held still opens the context menu; see `usePointerEvents`. */
   longPressMenu?: boolean;
+  /**
+   * The active tool's cursor, when it has to be drawn at run time rather than
+   * read from cursors.css — the bucket's, whose drop is the colour it pours.
+   * Panning and embeds still take the pointer over from it.
+   */
+  toolCursor?: string;
   onPointerDown: (
     point: Point,
     screenPoint: Point,
@@ -104,6 +110,8 @@ interface CanvasStackProps {
   onPointerUp: (point: Point, screenPoint: Point) => void;
   /** A gesture a pencil took over from; see `usePointerEvents`. */
   onPointerAbandon?: (point: Point, screenPoint: Point) => void;
+  /** The system taking the gesture away, just before it is ended; see `usePointerEvents`. */
+  onPointerCancel?: () => void;
   /** A right-button press, settling the selection before the context menu opens. */
   onContextPress?: (point: Point, screenPoint: Point) => void;
   onDoubleClick: (point: Point, screenPoint: Point) => void;
@@ -145,10 +153,12 @@ export function CanvasStack({
   touchNavigation,
   overEmbed = false,
   longPressMenu,
+  toolCursor,
   onPointerDown,
   onPointerMove,
   onPointerUp,
   onPointerAbandon,
+  onPointerCancel,
   onContextPress,
   onDoubleClick,
   onWheelZoom,
@@ -224,6 +234,7 @@ export function CanvasStack({
     onPointerMove,
     onPointerUp,
     onPointerAbandon,
+    onPointerCancel,
     onContextPress,
     onDoubleClick,
     onPointerHover,
@@ -326,9 +337,16 @@ export function CanvasStack({
         style={{
           position: 'absolute',
           inset: 0,
+          ...(toolCursor && cursorClass === activeTool ? { cursor: toolCursor } : {}),
         }}
       >
-        <canvas ref={staticCanvasRef} style={canvasStyle} aria-label={t('canvas.static')} />
+        {/* Named so the bucket's pipette can read colours off it. */}
+        <canvas
+          ref={staticCanvasRef}
+          style={canvasStyle}
+          aria-label={t('canvas.static')}
+          data-layer="board"
+        />
         <canvas ref={newElementCanvasRef} style={canvasStyle} aria-label={t('canvas.newElement')} />
         <canvas
           ref={interactiveCanvasRef}

@@ -14,6 +14,43 @@ export const BACKGROUND_SWATCHES = [
   { value: '#ffec99', labelKey: 'color.yellow' },
 ] as const;
 
+/**
+ * The bucket's quick picks: the fill swatches with transparent swapped for
+ * white, since a transparent pour would leave no mark.
+ */
+export const BUCKET_SWATCHES = [
+  { value: '#ffffff', labelKey: 'color.white' },
+  { value: '#ffc9c9', labelKey: 'color.red' },
+  { value: '#b2f2bb', labelKey: 'color.green' },
+  { value: '#a5d8ff', labelKey: 'color.blue' },
+  { value: '#ffec99', labelKey: 'color.yellow' },
+] as const;
+
+/**
+ * What the bucket pours when the fill colour it shares with the shape tools
+ * is transparent — the green swatch.
+ */
+export const BUCKET_FALLBACK_COLOR = '#b2f2bb';
+
+/** The colour the bucket actually pours, given the shared fill colour. */
+export function bucketFillColor(fillColor: string | null): string {
+  return fillColor ?? BUCKET_FALLBACK_COLOR;
+}
+
+/**
+ * The colour B steps the bucket on to, pressed while it is already in hand:
+ * the next of its swatches, round and round. White is left out — pressed
+ * through quickly it reads as the fill vanishing — and any colour not among
+ * them starts the round at the first.
+ */
+export function nextBucketColor(current: string): string {
+  const picks = BUCKET_SWATCHES.map((swatch) => swatch.value).filter(
+    (value) => value !== '#ffffff',
+  );
+  const index = picks.findIndex((value) => value.toLowerCase() === current.toLowerCase());
+  return picks[(index + 1) % picks.length]!;
+}
+
 export type CanvasTheme = 'light' | 'dark';
 
 /**

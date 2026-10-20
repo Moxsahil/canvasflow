@@ -64,4 +64,29 @@ describe('layer order', () => {
 
     expect(ids(doc).at(-1)).toBe('new');
   });
+
+  it('adds a shape just below or just above another', () => {
+    const doc = board(3);
+    doc.addShapeBeside(rect('under'), { placement: 'below', shapeId: 's1' });
+    doc.addShapeBeside(rect('over'), { placement: 'above', shapeId: 's1' });
+    doc.addShapeBeside(rect('bottom'), { placement: 'below', shapeId: 's0' });
+    doc.addShapeBeside(rect('top'), { placement: 'above', shapeId: 's2' });
+
+    expect(ids(doc)).toEqual(['bottom', 's0', 'under', 's1', 'over', 's2', 'top']);
+  });
+
+  it('adds beside a shape that shares its key with others', () => {
+    const doc = board(4);
+    sharing(doc, ['s1', 's2'], 'a1');
+    doc.addShapeBeside(rect('under'), { placement: 'below', shapeId: 's2' });
+
+    expect(ids(doc)).toEqual(['s0', 's1', 'under', 's2', 's3']);
+  });
+
+  it('adds on top when the shape to go beside is gone', () => {
+    const doc = board(2);
+    doc.addShapeBeside(rect('new'), { placement: 'below', shapeId: 'missing' });
+
+    expect(ids(doc).at(-1)).toBe('new');
+  });
 });

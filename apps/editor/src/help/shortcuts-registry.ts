@@ -35,6 +35,7 @@ export const SHORTCUTS: ShortcutCategory[] = [
       { keys: 'x', descriptionKey: 'shortcuts.sketchToShape' },
       { keys: 'q', descriptionKey: 'shortcuts.toolLock' },
       { keys: 'k', descriptionKey: 'shortcuts.laserPointer' },
+      { keys: 'b', descriptionKey: 'shortcuts.bucketFill' },
       { keys: 'm', descriptionKey: 'shortcuts.comment' },
       { keys: 'e', descriptionKey: 'shortcuts.eraser' },
     ],

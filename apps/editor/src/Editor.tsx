@@ -125,8 +125,12 @@ import { PEN_ERASER_BUTTON } from './pointer/usePointerEvents';
 import { useLastPointerPosition } from './pointer/useLastPointerPosition';
 import { CanvasStack } from './canvas/CanvasStack';
 import { pointerCursorValue } from './canvas/pointer-cursor';
+import { bucketCursorValue } from './canvas/bucket-cursor';
 import { useCameraPersistence } from './canvas/useCameraPersistence';
-import { canvasBackgroundFor } from './properties/palette';
+import { bucketFillColor, canvasBackgroundFor, nextBucketColor } from './properties/palette';
+import { planBucketFill } from './tools/bucket-fill';
+import { BucketEyedropper } from './tools/BucketEyedropper';
+import { isTypingTarget } from './tools/shortcuts';
 import { useCanvasResize } from './canvas/hooks/useCanvasResize';
 import { useEdgeScroll } from './canvas/hooks/useEdgeScroll';
 import { AppSidebar, readSidebarState } from './menu';
@@ -1901,10 +1905,18 @@ export function Editor({ boardId, local = false }: EditorProps) {
     return toolShapeKind ? [toolShapeKind] : [];
   }, [selectedShapes, toolShapeKind]);
 
+  // The bucket shares its fill colour, pattern and opacity with the shape
+  // tools, so the panel edits the same style for it — showing the colour it
+  // will actually pour, which is never transparent.
+  const editingBucket = activeTool === 'bucket' && selectedShapes.length === 0;
+  const pourColor = bucketFillColor(itemStyle.fillColor);
+
   const firstSelected = selectedShapes[0];
   const propertyStyle: ItemStyle = firstSelected
     ? itemStyleFromShape(firstSelected, itemStyle)
-    : itemStyle;
+    : editingBucket
+      ? { ...itemStyle, fillColor: pourColor }
+      : itemStyle;
 
   // Nothing in the properties panel does anything for a viewer, and offering
   // controls that silently no-op is worse than not offering them. Focus mode
@@ -1914,7 +1926,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const showProperties =
     !readOnly &&
     !chromeHidden &&
-    (selectedShapes.length > 0 ? !selectionLocked : toolShapeKind !== null);
+    (selectedShapes.length > 0 ? !selectionLocked : toolShapeKind !== null || editingBucket);
 
   /**
    * The selection's box in board pixels, for the floating style bar to sit
@@ -2433,6 +2445,70 @@ export function Editor({ boardId, local = false }: EditorProps) {
   );
   useEffect(() => () => window.clearTimeout(embedActivationRef.current), []);
 
+  /**
+   * Where a press with the bucket went down, until it comes up. The pour
+   * waits for the lift: on the press it can't yet be told from the first
+   * finger of a pinch, and a second finger, or the system taking the pointer
+   * away, calls it off. Poured at the press, which is what was aimed at.
+   */
+  const bucketPressRef = useRef<Point | null>(null);
+
+  const pourBucket = useCallback(
+    (point: Point) => {
+      if (readOnly) return;
+      const outcome = planBucketFill({
+        point,
+        shapes: doc.getShapes(),
+        hit: hitTest(pickableShapes, spatialIndex, point.x, point.y, camera.zoom, {
+          margin: hitMarginRef.current,
+        }),
+        style: {
+          fillColor: pourColor,
+          fillStyle: itemStyle.fillStyle,
+          opacity: itemStyle.opacity,
+        },
+        id: genId(),
+      });
+      // Each pour its own undo step, on both sides: a fill made straight after
+      // drawing the outline would otherwise be taken back with it.
+      switch (outcome.kind) {
+        case 'create':
+          doc.breakUndoGroup();
+          doc.addShapeBeside(outcome.shape, outcome.placement);
+          break;
+        case 'restyle':
+          doc.breakUndoGroup();
+          doc.updateShape(outcome.id, outcome.patch);
+          break;
+        case 'notice':
+          showToast(
+            translate(
+              outcome.reason === 'tooComplex'
+                ? 'notices.bucketTooComplex'
+                : 'notices.bucketNoRegion',
+            ),
+          );
+          return;
+        case 'none':
+          return;
+      }
+      // The tool stays in hand and nothing is selected, so the next area is
+      // one more click.
+      doc.breakUndoGroup();
+    },
+    [
+      readOnly,
+      doc,
+      pickableShapes,
+      spatialIndex,
+      camera.zoom,
+      pourColor,
+      itemStyle.fillStyle,
+      itemStyle.opacity,
+      showToast,
+    ],
+  );
+
   const handlePointerDown = useCallback(
     (
       point: Point,
@@ -2507,6 +2583,13 @@ export function Editor({ boardId, local = false }: EditorProps) {
       // left to pan the board as it would with any tool.
       if (tool === 'comment' && pressButton === 0) {
         beginComment(point);
+        return;
+      }
+      // Nor does the bucket. A press is only noted here; the pour happens on
+      // the lift. Any other button, or one with Space held, pans as usual.
+      bucketPressRef.current = null;
+      if (tool === 'bucket' && pressButton === 0 && !isSpacePressed) {
+        if (!readOnly) bucketPressRef.current = point;
         return;
       }
       // The canvas's pointerdown suppresses the browser's default focus
@@ -3154,6 +3237,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
         settleComment(point, commentTargetAt(point, shownShapes, spatialIndex, camera.zoom));
         return;
       }
+      const bucketPress = bucketPressRef.current;
+      bucketPressRef.current = null;
+      if (bucketPress) {
+        pourBucket(bucketPress);
+        return;
+      }
 
       const snap = actorRef.getSnapshot();
       const draggedVertex = snap.matches('draggingVertex') && vertexReleasedRef.current;
@@ -3243,6 +3332,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       setLasering,
       isPlacingComment,
       settleComment,
+      pourBucket,
       shapes,
       shownShapes,
       spatialIndex,
@@ -3261,6 +3351,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
    */
   const handlePointerAbandon = useCallback(
     (point: Point, screenPoint: Point) => {
+      // A pour not meant — a pinch's first finger, a palm — is never poured.
+      bucketPressRef.current = null;
       embedPressRef.current = null;
       selectionGapPressRef.current = null;
       embedDraftRef.current = null;
@@ -3285,6 +3377,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
     },
     [actorRef, doc, handlePointerUp],
   );
+
+  /** The system took the pointer away, which is no lift for a pour to come on. */
+  const handlePointerCancel = useCallback(() => {
+    bucketPressRef.current = null;
+  }, []);
 
   /** A lift, and the tool put back if it was a pen's eraser end that lifted. */
   const handlePointerLift = useCallback(
@@ -3469,19 +3566,92 @@ export function Editor({ boardId, local = false }: EditorProps) {
         preferences.set('showComments', true);
       }
       actorRef.send({ type: 'SELECT_TOOL', tool });
+      // The bucket lets the selection go: the panel then sets what it pours,
+      // where a selection kept would have it restyling that shape instead.
+      if (tool === 'bucket') actorRef.send({ type: 'DESELECT' });
     },
     [actorRef, handlePickImage, readOnly, viewMode, preferences, local, cancelEmbedPlacement],
   );
+  /**
+   * A tool's letter. B again, with the bucket already in hand, steps it on to
+   * its next colour rather than picking it up a second time — the quickest way
+   * to colour areas in different colours one after another.
+   */
+  const handleToolKey = useCallback(
+    (tool: Tool) => {
+      const { activeTool: current, itemStyle: style } = actorRef.getSnapshot().context;
+      if (tool === 'bucket' && current === 'bucket') {
+        actorRef.send({
+          type: 'SET_ITEM_STYLE',
+          style: { fillColor: nextBucketColor(bucketFillColor(style.fillColor)) },
+        });
+        return;
+      }
+      handleToolChange(tool);
+    },
+    [actorRef, handleToolChange],
+  );
+
+  // The bucket's pipette: up while Alt is held with the bucket in hand, so a
+  // colour already on the board can be picked up and poured elsewhere.
+  const [pipetteOpen, setPipetteOpen] = useState(false);
+  /** Where the pointer last was on the page, for the pipette's swatch to start at. */
+  const pagePointerRef = useRef<{ x: number; y: number } | null>(null);
+  const pipetteAvailable = activeTool === 'bucket' && !readOnly;
+  useEffect(() => {
+    if (!pipetteAvailable) {
+      setPipetteOpen(false);
+      return;
+    }
+    const track = (event: PointerEvent) => {
+      pagePointerRef.current = { x: event.clientX, y: event.clientY };
+    };
+    const down = (event: KeyboardEvent) => {
+      if (event.key !== 'Alt' || isTypingTarget(event.target)) return;
+      // Kept from the browser, which would otherwise take the lone Alt to its
+      // menu bar on the key's release.
+      event.preventDefault();
+      if (!event.repeat) setPipetteOpen(true);
+    };
+    const up = (event: KeyboardEvent) => {
+      if (event.key !== 'Alt') return;
+      event.preventDefault();
+      setPipetteOpen(false);
+    };
+    // Alt let go in another window never comes back as a key up here.
+    const away = () => setPipetteOpen(false);
+    window.addEventListener('pointermove', track, { passive: true });
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', away);
+    return () => {
+      window.removeEventListener('pointermove', track);
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', away);
+    };
+  }, [pipetteAvailable]);
+  const handlePipettePick = useCallback(
+    (color: string) => actorRef.send({ type: 'SET_ITEM_STYLE', style: { fillColor: color } }),
+    [actorRef],
+  );
+  const closePipette = useCallback(() => setPipetteOpen(false), []);
+  const getBoardCanvas = useCallback(
+    () => editorRef.current?.querySelector<HTMLCanvasElement>('canvas[data-layer="board"]') ?? null,
+    [],
+  );
+
   const handleEscape = useCallback(() => {
+    bucketPressRef.current = null;
     setActiveLock(null);
     setActiveEmbedId(null);
     cancelEmbedPlacement();
     actorRef.send({ type: 'ESCAPE' });
-    // The comment and embed tools are put down by Escape, where the drawing
-    // tools stay in hand: neither leaves a half-drawn shape for the key to be
-    // cancelling instead.
+    // The comment, embed and bucket tools are put down by Escape, where the
+    // drawing tools stay in hand: none leaves a half-drawn shape for the key
+    // to be cancelling instead.
     const tool = actorRef.getSnapshot().context.activeTool;
-    if (tool === 'comment' || tool === 'embed') {
+    if (tool === 'comment' || tool === 'embed' || tool === 'bucket') {
       actorRef.send({ type: 'SELECT_TOOL', tool: 'select' });
     }
   }, [actorRef, cancelEmbedPlacement]);
@@ -4636,7 +4806,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
   }, [actorRef, viewMode]);
 
   useKeyboardShortcuts({
-    onSelectTool: handleToolChange,
+    onSelectTool: handleToolKey,
     onEscape: handleEscape,
     onSpaceDown: handleSpaceDown,
     onSpaceUp: handleSpaceUp,
@@ -4845,6 +5015,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       onBringToFront: handleBringToFront,
     },
     darkMode: resolvedTheme === 'dark',
+    bucket: editingBucket,
   };
 
   return (
@@ -5017,7 +5188,13 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerLift}
                   longPressMenu={activeTool === 'select'}
+                  toolCursor={
+                    activeTool === 'bucket'
+                      ? bucketCursorValue(pourColor, resolvedTheme === 'dark')
+                      : undefined
+                  }
                   onPointerAbandon={handlePointerAbandon}
+                  onPointerCancel={handlePointerCancel}
                   onContextPress={handleContextPress}
                   onDoubleClick={handleDoubleClick}
                   onWheelZoom={handleWheelZoom}
@@ -5039,6 +5216,16 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   touchNavigation={touchNavigation}
                   overEmbed={embedClickTool && hoveredEmbedId !== null}
                 />
+                {pipetteOpen && (
+                  <BucketEyedropper
+                    getCanvas={getBoardCanvas}
+                    ground={canvasBackgroundFor(presenceTheme)}
+                    darkMode={resolvedTheme === 'dark'}
+                    initialPoint={pagePointerRef.current}
+                    onPick={handlePipettePick}
+                    onCancel={closePipette}
+                  />
+                )}
               </div>
             </CanvasContextMenu>
 

@@ -33,7 +33,7 @@ import {
   Swatch,
 } from './inspector';
 import { RoundEdgeIcon, SharpEdgeIcon } from './icons';
-import { BACKGROUND_SWATCHES, STROKE_SWATCHES } from './palette';
+import { BACKGROUND_SWATCHES, BUCKET_SWATCHES, STROKE_SWATCHES } from './palette';
 import type { StyleSurfaceProps } from './PropertiesPanel';
 import {
   ALIGN_OPTIONS,
@@ -97,6 +97,7 @@ export function StyleHalo({
   onStyleChange,
   layerActions,
   darkMode,
+  bucket = false,
   anchor,
   board,
   hidden,
@@ -139,7 +140,7 @@ export function StyleHalo({
 
   if (hidden) return null;
 
-  const show = styleSections(shapeKinds, style);
+  const show = styleSections(shapeKinds, style, bucket);
   const paintStroke = (colour: string) => strokeColorFor(colour, darkMode);
 
   const toggle = (menu: HaloMenu) => (event: MouseEvent<HTMLButtonElement>) => {
@@ -196,20 +197,22 @@ export function StyleHalo({
         data-testid="style-halo"
         className={cn(menuSurfaceClasses, 'flex items-center gap-0.5 rounded-card p-0.75')}
       >
-        <button
-          type="button"
-          title={show.textOnly ? t('style.textColour') : t('style.strokeColour')}
-          aria-label={`${show.textOnly ? t('style.textColour') : t('style.strokeColour')}: ${style.strokeColor}`}
-          className={menuChipClasses}
-          {...chipState('stroke')}
-        >
-          <Swatch
-            value={style.strokeColor}
-            paint={paintStroke(style.strokeColor)}
-            className="size-4 rounded-full"
-          />
-          <Chevron />
-        </button>
+        {show.strokeColour && (
+          <button
+            type="button"
+            title={show.textOnly ? t('style.textColour') : t('style.strokeColour')}
+            aria-label={`${show.textOnly ? t('style.textColour') : t('style.strokeColour')}: ${style.strokeColor}`}
+            className={menuChipClasses}
+            {...chipState('stroke')}
+          >
+            <Swatch
+              value={style.strokeColor}
+              paint={paintStroke(style.strokeColor)}
+              className="size-4 rounded-full"
+            />
+            <Chevron />
+          </button>
+        )}
         {show.fill && (
           <button
             type="button"
@@ -308,7 +311,9 @@ export function StyleHalo({
           </button>
         )}
 
-        <Separator />
+        {/* The bucket has nothing between its fill and its opacity, and two
+            rules side by side would read as a gap where a chip went missing. */}
+        {!show.bucket && <Separator />}
 
         <button
           type="button"
@@ -345,7 +350,13 @@ export function StyleHalo({
                 : t('style.strokeColour')
           }
           value={open.menu === 'stroke' ? style.strokeColor : style.fillColor}
-          swatches={open.menu === 'stroke' ? STROKE_SWATCHES : BACKGROUND_SWATCHES}
+          swatches={
+            open.menu === 'stroke'
+              ? STROKE_SWATCHES
+              : show.bucket
+                ? BUCKET_SWATCHES
+                : BACKGROUND_SWATCHES
+          }
           paint={open.menu === 'stroke' ? paintStroke : undefined}
           position={menuPosition()}
           trigger={open.trigger}
@@ -367,7 +378,8 @@ export function StyleHalo({
               open.menu === 'stroke'
                 ? // Stroke has no transparent state, so a cleared value is ignored.
                   { strokeColor: next ?? style.strokeColor }
-                : { fillColor: next },
+                : // Nor does the bucket's pour.
+                  { fillColor: show.bucket ? (next ?? style.fillColor) : next },
               transient,
             )
           }

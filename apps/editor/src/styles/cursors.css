@@ -130,6 +130,12 @@
   cursor: var(--cursor-crosshair);
 }
 
+/* Until the editor sets the paint pot (see canvas/bucket-cursor), whose drop
+   is coloured at run time and so can't be written here. */
+.canvas-stack[data-tool='bucket'] {
+  cursor: var(--cursor-crosshair);
+}
+
 /* A ring at the pointer, echoing the eraser's reach. */
 .canvas-stack[data-tool='eraser'] {
   cursor: var(--cursor-eraser);

@@ -307,6 +307,31 @@ export class BoardDocument {
   }
 
   /**
+   * Add a shape just above or just below one already on the board, rather
+   * than on top of everything — where a bucket fill goes, under the outlines
+   * that bound it. On top, as `addShape` puts it, when that shape is gone.
+   */
+  addShapeBeside(
+    shape: Shape,
+    beside: { readonly placement: 'above' | 'below'; readonly shapeId: string },
+  ): void {
+    if (this.readOnly) return;
+    this.yDoc.transact(() => {
+      const sorted = this.getDistinctZIndexes();
+      const index = sorted.findIndex((s) => s.id === beside.shapeId);
+      const zIndex =
+        index === -1
+          ? generateKeyBetween(sorted[sorted.length - 1]?.zIndex ?? null, null)
+          : beside.placement === 'above'
+            ? generateKeyBetween(sorted[index]!.zIndex, sorted[index + 1]?.zIndex ?? null)
+            : generateKeyBetween(sorted[index - 1]?.zIndex ?? null, sorted[index]!.zIndex);
+      const yMap = shapeToYMap({ ...shape, zIndex } as Shape & { zIndex: string });
+      this.setAttribution(yMap);
+      this.yShapes.push([yMap]);
+    }, 'local');
+  }
+
+  /**
    * Swap the board's entire contents — the file-open path.
    *
    * One transact, so it lands as a single undo step and a single sync update:
