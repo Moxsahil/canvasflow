@@ -2,63 +2,102 @@
 
 import { useState } from 'react';
 import { ArrowRight, Check, Zap } from 'lucide-react';
+import {
+  PLAN_ALLOWANCES,
+  PLAN_NAMES,
+  PLAN_PRICES,
+  SUPPORT_EMAIL,
+  type PlanPrice,
+  type WorkspacePlan,
+} from '@canvasflow/types';
 import { SectionLabel } from '@/components/marketing/section-label';
 import { useInView } from '@/components/marketing/use-in-view';
 
 type Billing = 'monthly' | 'yearly';
 
 type Plan = {
-  name: string;
-  /** Rupees per month for each billing period; absent on the free plan. */
-  price?: Record<Billing, number>;
+  id: WorkspacePlan;
   sub: string;
   features: string[];
   highlight?: boolean;
+};
+
+const perMember = (plan: WorkspacePlan) =>
+  PLAN_PRICES[plan]?.per === 'member' ? ' per member' : '';
+
+const diagrams = (plan: WorkspacePlan) =>
+  `${PLAN_ALLOWANCES[plan].diagramsPerMonth} AI diagrams a month${perMember(plan)}`;
+
+const storage = (plan: WorkspacePlan) =>
+  `${PLAN_ALLOWANCES[plan].storageGb} GB storage${perMember(plan)}`;
+
+const history = (plan: WorkspacePlan) => {
+  const days = PLAN_ALLOWANCES[plan].historyDays;
+  return days === null ? 'Unlimited version history' : `${days}-day version history`;
 };
 
 /**
  * Quoted in rupees. None of these can be bought yet — the header's badge says
  * so — so the figures are what the plans are meant to cost, not a checkout.
  *
- * Paying yearly takes 30% off the monthly figure, rounded down to the 99.
+ * Names, limits and prices come from `@canvasflow/types`, the same place the
+ * gateway enforces them from; only the words around them live here. Enterprise
+ * has no card: it is arranged by writing to us, from the line under the cards.
  *
  * Neither face this block is set in draws `₹`, so the symbol comes from the
  * system font; every current OS has one.
  */
 const PLANS: Plan[] = [
   {
-    name: 'Starter',
-    sub: 'For your first few boards',
-    features: ['3 boards', '2 editors per board', 'Guest viewer links', 'PNG export'],
-  },
-  {
-    name: 'Team',
-    price: { monthly: 999, yearly: 699 },
-    sub: 'For teams working side by side',
+    id: 'free',
+    sub: 'Everything you need to draw',
     features: [
       'Unlimited boards',
-      'Unlimited editors',
-      'Follow mode + laser pointer',
-      'Expiring share links',
-      '.canvasflow export',
+      'Live drawing, comments + share links',
+      diagrams('free'),
+      storage('free'),
+      history('free'),
       'Trash + restore',
+    ],
+  },
+  {
+    id: 'pro',
+    sub: 'For your own work, without limits',
+    features: [
+      'Everything in Free',
+      diagrams('pro'),
+      storage('pro'),
+      history('pro'),
+      'Expiring share links',
+      'Embeds without the badge',
+    ],
+  },
+  {
+    id: 'team',
+    sub: 'For teams working side by side',
+    features: [
+      'Everything in Pro',
+      diagrams('team'),
+      storage('team'),
+      history('team'),
+      'Workspace invites + roles',
+      'Guests on your boards',
     ],
     highlight: true,
   },
-  {
-    name: 'Pro',
-    price: { monthly: 1999, yearly: 1399 },
-    sub: 'For orgs at scale',
-    features: [
-      'Unlimited workspaces',
-      'SSO + provisioning',
-      'Full audit trail',
-      'SOC 2 / HIPAA',
-      'SLA guarantees',
-      'Custom contracts',
-    ],
-  },
 ];
+
+/**
+ * What the yearly toggle promises: the smallest saving of any plan, rounded
+ * down, so it is true of every card it applies to.
+ */
+const YEARLY_SAVING = Math.min(
+  ...Object.values(PLAN_PRICES).map((price) =>
+    Math.floor((1 - price.yearly / price.monthly) * 100),
+  ),
+);
+
+const perMonth = (price: PlanPrice) => (price.per === 'member' ? '/member/mo' : '/mo');
 
 /** `en-IN` groups by lakh, which only shows once a figure passes 99,999. */
 const rupees = (amount: number) => `₹${amount.toLocaleString('en-IN')}`;
@@ -117,7 +156,7 @@ export function PricingSection() {
           <div className="grid lg:grid-cols-3 gap-4 lg:gap-0">
             {PLANS.map((plan, index) => (
               <div
-                key={plan.name}
+                key={plan.id}
                 className={`relative bg-background border transition-all duration-700 ${
                   plan.highlight
                     ? 'border-foreground lg:-mx-2 lg:z-10 lg:scale-105'
@@ -141,26 +180,12 @@ export function PricingSection() {
                     <span className="font-mono text-xs text-muted-foreground">
                       {String(index + 1).padStart(2, '0')}
                     </span>
-                    <h3 className="text-2xl lg:text-3xl mt-2">{plan.name}</h3>
+                    <h3 className="text-2xl lg:text-3xl mt-2">{PLAN_NAMES[plan.id]}</h3>
                     <p className="text-sm text-muted-foreground mt-2">{plan.sub}</p>
                   </div>
 
                   {/* Price */}
-                  <div className="mb-8">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-5xl lg:text-6xl">
-                        {plan.price ? rupees(plan.price[billing]) : 'Free'}
-                      </span>
-                      {plan.price && <span className="text-muted-foreground text-sm">/mo</span>}
-                    </div>
-                    {/* Kept on the free plan too, empty, so the cards stay level. */}
-                    <p className="mt-3 min-h-4 text-xs text-muted-foreground">
-                      {plan.price &&
-                        (billing === 'yearly'
-                          ? `${rupees(plan.price.yearly * 12)} billed yearly`
-                          : 'Billed monthly')}
-                    </p>
-                  </div>
+                  <PlanPriceBlock price={PLAN_PRICES[plan.id]} billing={billing} />
 
                   {/* Features */}
                   <ul className="space-y-3 mb-10">
@@ -210,10 +235,10 @@ export function PricingSection() {
             </span>
           </div>
           <a
-            href="#"
+            href={`mailto:${SUPPORT_EMAIL}?subject=CanvasFlow%20Enterprise`}
             className="text-sm underline underline-offset-4 hover:text-foreground transition-colors"
           >
-            Compare all features
+            Enterprise? Talk to us
           </a>
         </div>
       </div>
@@ -254,11 +279,31 @@ function BillingToggle({
           >
             {option === 'monthly' ? 'Monthly' : 'Yearly'}
             {option === 'yearly' && (
-              <span className={selected ? 'text-background/60' : 'text-[#eca8d6]'}>Save 30%</span>
+              <span className={selected ? 'text-background/60' : 'text-[#eca8d6]'}>
+                Save {YEARLY_SAVING}%
+              </span>
             )}
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function PlanPriceBlock({ price, billing }: { price: PlanPrice | undefined; billing: Billing }) {
+  return (
+    <div className="mb-8">
+      <div className="flex items-baseline gap-2">
+        <span className="text-5xl lg:text-6xl">{price ? rupees(price[billing]) : 'Free'}</span>
+        {price && <span className="text-muted-foreground text-sm">{perMonth(price)}</span>}
+      </div>
+      {/* Kept on the free plan too, empty, so the cards stay level. */}
+      <p className="mt-3 min-h-4 text-xs text-muted-foreground">
+        {price &&
+          (billing === 'yearly'
+            ? `${rupees(price.yearly * 12)}${price.per === 'member' ? ' per member' : ''} billed yearly`
+            : 'Billed monthly')}
+      </p>
     </div>
   );
 }

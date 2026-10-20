@@ -1,3 +1,4 @@
+import type { WorkspacePlan } from '@canvasflow/types';
 import { env } from '@/lib/env';
 import { t } from '../i18n';
 
@@ -10,7 +11,7 @@ import { t } from '../i18n';
  * one board and deliberately says nothing about the rest of the account.
  */
 
-export type WorkspacePlan = 'free' | 'pro' | 'enterprise';
+export type { WorkspacePlan };
 export type WorkspaceRole = 'owner' | 'admin' | 'member';
 
 export interface WorkspaceSummary {

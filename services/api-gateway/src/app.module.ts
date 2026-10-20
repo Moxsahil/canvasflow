@@ -19,6 +19,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { LinkPreviewsModule } from './modules/link-previews/link-previews.module.js';
 import { BoardEmbedsModule } from './modules/board-embeds/board-embeds.module.js';
+import { PlansModule } from './modules/plans/plans.module.js';
 import { AppController } from './app.controller.js';
 import { ThrottlerModule } from '@nestjs/throttler';
 
@@ -57,6 +58,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     NotificationsModule,
     LinkPreviewsModule,
     BoardEmbedsModule,
+    PlansModule,
   ],
   controllers: [AppController],
 })

@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { CheckIcon, ChevronsUpDownIcon } from 'lucide-react';
+import { isWorkspacePlan, PLAN_NAMES } from '@canvasflow/types';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
@@ -213,7 +214,7 @@ function WorkspaceContent({
       <span className="ml-auto flex shrink-0 items-center gap-2">
         {workspace.plan && (
           <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
-            {workspace.plan}
+            {isWorkspacePlan(workspace.plan) ? PLAN_NAMES[workspace.plan] : workspace.plan}
           </span>
         )}
         {isSelected && <CheckIcon className="size-4" />}

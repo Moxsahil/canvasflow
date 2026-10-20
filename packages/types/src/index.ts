@@ -2,6 +2,7 @@ export * from './primitives.js';
 export * from './shape.js';
 export * from './user.js';
 export * from './workspace.js';
+export * from './plans.js';
 export * from './board.js';
 export * from './audit.js';
 export * from './password.js';
