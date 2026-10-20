@@ -17,6 +17,8 @@ export * from './sanitize/index.js';
 export * from './export/index.js';
 export * from './search/index.js';
 
+export * from './diagram/index.js';
+
 export * from './presence/index.js';
 export * from './laser/index.js';
 export * from './frames/index.js';
