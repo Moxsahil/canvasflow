@@ -386,3 +386,38 @@ html:has(.cf-landing) body::-webkit-scrollbar {
      returns with it. */
   border-color: rgb(255 255 255 / 0.15);
 }
+
+/* The sign-in page's vertical gaps, sized from the window's height so the page
+   never needs a scrollbar.
+
+   `--sa-slack` is the height left once the rows that cannot shrink (the mark,
+   heading, buttons, fields, terms and links, about 500px) are taken out, less
+   room for an error line. Each gap takes its share of that slack, in proportion
+   to its size in the design, and stops at that size: on a 1080px window every
+   gap is exactly as drawn, on a laptop at 125% they close up together. The
+   floors only matter on very short windows (an old small phone), where the
+   page is allowed to scroll. */
+.cf-split-auth {
+  --sa-slack: calc(100dvh - 570px);
+  --sa-top: clamp(12px, calc(var(--sa-slack) * 0.369), 162px);
+  --sa-mark: clamp(8px, calc(var(--sa-slack) * 0.073), 32px);
+  --sa-providers: clamp(12px, calc(var(--sa-slack) * 0.089), 39px);
+  --sa-divider: clamp(8px, calc(var(--sa-slack) * 0.089), 39px);
+  --sa-terms: clamp(6px, calc(var(--sa-slack) * 0.036), 16px);
+  --sa-switch: clamp(8px, calc(var(--sa-slack) * 0.087), 38px);
+  --sa-footer: clamp(8px, calc(var(--sa-slack) * 0.114), 50px);
+  --sa-footer-end: clamp(8px, calc(var(--sa-slack) * 0.055), 24px);
+}
+
+/* The same, for the sign-in page's opaque fields: the inset shadow is simply
+   the field's own fill, and the border its resting one. */
+.cf-split-auth input:-webkit-autofill,
+.cf-split-auth input:-webkit-autofill:hover,
+.cf-split-auth input:-webkit-autofill:focus,
+.cf-split-auth input:-webkit-autofill:active {
+  -webkit-text-fill-color: #f4f4f5;
+  -webkit-box-shadow: 0 0 0 1000px #161616 inset;
+  box-shadow: 0 0 0 1000px #161616 inset;
+  caret-color: #f4f4f5;
+  border-color: #242424;
+}

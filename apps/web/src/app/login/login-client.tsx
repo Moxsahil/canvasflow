@@ -3,13 +3,12 @@
 import { Suspense, useState, useSyncExternalStore } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { GoogleMark, GitHubMark } from '@/components/auth/auth-shell';
 import {
-  AuthShell,
-  AuthDivider,
-  authStyles,
-  GoogleMark,
-  GitHubMark,
-} from '@/components/auth/auth-shell';
+  SplitAuthShell,
+  SplitAuthDivider,
+  splitAuthStyles,
+} from '@/components/auth/split-auth-shell';
 import { PasswordInput } from '@/components/auth/new-password-field';
 import { TermsAgreement } from '@/components/legal/terms-agreement';
 import { Component as PencilLoader } from '@/components/ui/loader-1';
@@ -75,76 +74,85 @@ function LoginForm() {
   }
 
   return (
-    <AuthShell
-      label="Sign in"
-      heading="Welcome back."
-      sub="Pick up the board you left open."
+    <SplitAuthShell
+      heading="Welcome back"
+      sub="Sign in to pick up the board you left open."
       footer={
         <>
           Don&apos;t have an account?{' '}
           {/* Carries `next`, so somebody sent here from an invitation who
               turns out to need an account still ends up back at it. */}
-          <Link href={withNext('/signup', next)} className={authStyles.link}>
+          <Link href={withNext('/signup', next)} className={splitAuthStyles.link}>
             Sign up
           </Link>
         </>
       }
     >
-      {/* Side by side, named in full for screen readers; the marks and the
-          short labels are enough to scan. */}
-      <div className={authStyles.providerRow}>
+      <div className="flex flex-col gap-2.5">
         <button
           type="button"
-          aria-label="Continue with Google"
-          className={authStyles.provider}
+          className={splitAuthStyles.provider}
           onClick={() => {
             window.location.href = oauthStartUrl('google', next);
           }}
         >
           <GoogleMark />
-          Google
+          Continue with Google
         </button>
         <button
           type="button"
-          aria-label="Continue with GitHub"
-          className={authStyles.provider}
+          className={splitAuthStyles.provider}
           onClick={() => {
             window.location.href = oauthStartUrl('github', next);
           }}
         >
           <GitHubMark />
-          GitHub
+          Continue with GitHub
         </button>
       </div>
 
-      <AuthDivider />
+      <SplitAuthDivider />
 
-      <form onSubmit={handleCredentialsSignIn} className="space-y-3">
-        <input
-          type="email"
-          placeholder="you@example.com"
-          value={email}
-          onChange={(e) => setTyped(e.target.value)}
-          autoComplete="username"
-          required
-          className={authStyles.field}
-        />
-        <PasswordInput
-          label="Password"
-          value={password}
-          onChange={setPassword}
-          autoComplete="current-password"
-        />
+      <form onSubmit={handleCredentialsSignIn} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <label htmlFor="email" className={splitAuthStyles.label}>
+            Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setTyped(e.target.value)}
+            autoComplete="username"
+            required
+            className={splitAuthStyles.field}
+          />
+        </div>
 
-        <div className="flex justify-end">
-          <Link
-            href="/forgot-password"
-            // Carried to the next page so it does not have to be typed twice.
-            onClick={() => rememberEmail(email)}
-            className="text-xs text-white/45 transition-colors hover:text-white/80"
-          >
-            Forgot password?
-          </Link>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <label htmlFor="password" className={splitAuthStyles.label}>
+              Password
+            </label>
+            <Link
+              href="/forgot-password"
+              // Carried to the next page so it does not have to be typed twice.
+              onClick={() => rememberEmail(email)}
+              className="text-xs text-[#a1a1aa] transition-colors hover:text-[#f4f4f5]"
+            >
+              Forgot password?
+            </Link>
+          </div>
+          <PasswordInput
+            id="password"
+            label="Password"
+            placeholder="Enter your password"
+            value={password}
+            onChange={setPassword}
+            autoComplete="current-password"
+            fieldClassName={splitAuthStyles.field}
+          />
         </div>
 
         {error ? (
@@ -159,7 +167,7 @@ function LoginForm() {
           )
         )}
 
-        <button type="submit" disabled={loading} className={authStyles.submit}>
+        <button type="submit" disabled={loading} className={splitAuthStyles.submit}>
           {loading ? (
             <>
               <PencilLoader className="h-7 w-7" />
@@ -173,8 +181,11 @@ function LoginForm() {
 
       {/* Here as well as on signup: the provider buttons above create an account
           for anybody who does not have one yet. */}
-      <TermsAgreement className={authStyles.agreement} linkClassName={authStyles.link} />
-    </AuthShell>
+      <TermsAgreement
+        className={splitAuthStyles.agreement}
+        linkClassName={splitAuthStyles.agreementLink}
+      />
+    </SplitAuthShell>
   );
 }
 

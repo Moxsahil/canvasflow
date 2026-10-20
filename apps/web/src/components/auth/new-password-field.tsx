@@ -22,6 +22,9 @@ export function PasswordInput({
   minLength,
   autoFocus,
   invalid = false,
+  id,
+  placeholder = label,
+  fieldClassName = authStyles.field,
 }: {
   /** Placeholder and accessible name, e.g. "Confirm password". */
   label: string;
@@ -31,14 +34,20 @@ export function PasswordInput({
   minLength?: number;
   autoFocus?: boolean;
   invalid?: boolean;
+  /** For a visible `<label htmlFor>` beside the field. */
+  id?: string;
+  placeholder?: string;
+  /** The field's look, for forms outside the standard auth card. */
+  fieldClassName?: string;
 }) {
   const [shown, setShown] = useState(false);
 
   return (
     <div className="relative">
       <input
+        id={id}
         type={shown ? 'text' : 'password'}
-        placeholder={label}
+        placeholder={placeholder}
         aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -52,7 +61,7 @@ export function PasswordInput({
         // rather than racing it; the value then runs under the button
         // instead of behind it.
         className={cn(
-          authStyles.field,
+          fieldClassName,
           'pr-12',
           invalid && 'border-red-400/50 focus:border-red-400/70',
         )}
