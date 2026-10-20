@@ -16,6 +16,7 @@ function render(
   shapeKinds: Shape['kind'][],
   style: Partial<ItemStyle> = {},
   canReorder = true,
+  bucket = false,
 ): string {
   return renderToString(
     <PropertiesPanel
@@ -25,6 +26,7 @@ function render(
       onStyleChange={noop}
       layerActions={layerActions}
       darkMode={false}
+      bucket={bucket}
     />,
   );
 }
@@ -101,5 +103,13 @@ describe('PropertiesPanel', () => {
   it('offers arranging only when one shape is selected', () => {
     expect(render(['rectangle'], {}, true)).toContain('aria-label="Bring to front"');
     expect(render(['rectangle'], {}, false)).not.toContain('aria-label="Bring to front"');
+  });
+
+  it('gives the bucket only the fill it pours and its opacity', () => {
+    const html = render([], { fillColor: '#b2f2bb' }, false, true);
+    expect(sections(html)).toEqual(['Fill', 'Layer']);
+    expect(html).toContain('aria-label="Fill colour: #b2f2bb"');
+    expect(html).toContain('aria-label="Fill pattern"');
+    expect(html).not.toContain('Stroke colour');
   });
 });

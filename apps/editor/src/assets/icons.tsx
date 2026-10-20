@@ -130,6 +130,36 @@ export const EraserIcon = createIcon(
   </>,
 );
 
+/**
+ * A tipped paint pot with a drop falling from its lip. The same paths make the
+ * board's cursor for the tool, where the drop is filled with the colour it pours.
+ */
+export const BUCKET_ICON_PATHS = {
+  pot: 'M19 11 11 3l-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z',
+  handle: 'M5 2l5 5',
+  rim: 'M2 13h15',
+  drop: 'M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z',
+} as const;
+
+export const BucketIcon = createIcon(
+  <>
+    <path d={BUCKET_ICON_PATHS.pot} />
+    <path d={BUCKET_ICON_PATHS.handle} />
+    <path d={BUCKET_ICON_PATHS.rim} />
+    <path d={BUCKET_ICON_PATHS.drop} />
+  </>,
+);
+
+/**
+ * A pipette, tip at the bottom left. Only ever a cursor — the bucket's while
+ * Alt is held, picking a colour up off the board — so it is kept as paths.
+ */
+export const EYEDROPPER_ICON_PATHS = [
+  'M2 22l1-1h3l9-9',
+  'M3 21v-3l9-9',
+  'M15 6l3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z',
+] as const;
+
 /** Points up while the overflow is closed; the button rotates it when open. */
 export const ChevronUpIcon = createIcon(<path d="M5.5 14.5L12 8l6.5 6.5" />);
 

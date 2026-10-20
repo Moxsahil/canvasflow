@@ -21,3 +21,4 @@ export * from './presence/index.js';
 export * from './laser/index.js';
 export * from './frames/index.js';
 export * from './images/index.js';
+export * from './fill/index.js';

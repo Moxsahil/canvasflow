@@ -17,6 +17,7 @@ import {
   LaserIcon,
   SketchIcon,
   EraserIcon,
+  BucketIcon,
 } from '../assets/icons';
 
 export type Tool =
@@ -36,6 +37,7 @@ export type Tool =
   | 'frame'
   | 'laser'
   | 'comment'
+  | 'bucket'
   | 'eraser';
 
 export const TOOL_TO_SHAPE_KIND = {
@@ -58,9 +60,11 @@ export const TOOL_TO_SHAPE_KIND = {
   // The laser is absent on purpose: it paints a trail that fades, not a shape,
   // so there is no kind for it to map to. Nor is there one for the comment
   // tool, which leaves a pin on the board and no shape in it, or for the
-  // embed tool, whose shape has no style for the panel to set.
+  // embed tool, whose shape has no style for the panel to set. The bucket
+  // makes a shape, but the panel offers it only a fill, so it is asked for by
+  // name rather than through a kind.
 } as const satisfies Record<
-  Exclude<Tool, 'hand' | 'select' | 'eraser' | 'laser' | 'comment' | 'embed'>,
+  Exclude<Tool, 'hand' | 'select' | 'eraser' | 'laser' | 'comment' | 'embed' | 'bucket'>,
   string
 >;
 
@@ -113,15 +117,21 @@ export const TOOLS: readonly ToolMeta[] = [
   },
   { id: 'text', labelKey: 'tools.text', icon: TextIcon, shortcut: 'T', numericKey: '8' },
   { id: 'image', labelKey: 'tools.image', icon: ImageIcon, shortcut: 'I', numericKey: '9' },
-  // In the row rather than the overflow, though it draws nothing: a comment is
-  // how most people who open a board they did not draw will ever touch it, and
-  // they will not go looking behind a chevron for the way to.
-  { id: 'comment', labelKey: 'tools.comment', icon: CommentIcon, shortcut: 'M', numericKey: null },
-  // These live in the overflow, and none takes a digit: you lay out frames
-  // before the work, point with the laser while presenting it, reach for the
-  // sketch tool for a run of shapes rather than for one, and embed a page
-  // once for the board rather than while drawing on it. None is something you
-  // flick to mid-drawing, which is what the row is for.
+  // These live in the overflow, and none takes a digit: a comment is left on
+  // a board rather than drawn on it, you lay out frames before the work,
+  // point with the laser while presenting it, reach for the sketch tool for a
+  // run of shapes rather than for one, embed a page once for the board rather
+  // than while drawing on it, and colour in with the bucket once the outlines
+  // are down. None is something you flick to mid-drawing, which is what the
+  // row is for.
+  {
+    id: 'comment',
+    labelKey: 'tools.comment',
+    icon: CommentIcon,
+    shortcut: 'M',
+    numericKey: null,
+    overflow: true,
+  },
   {
     id: 'frame',
     labelKey: 'tools.frame',
@@ -143,6 +153,14 @@ export const TOOLS: readonly ToolMeta[] = [
     labelKey: 'tools.laser',
     icon: LaserIcon,
     shortcut: 'K',
+    numericKey: null,
+    overflow: true,
+  },
+  {
+    id: 'bucket',
+    labelKey: 'tools.bucket',
+    icon: BucketIcon,
+    shortcut: 'B',
     numericKey: null,
     overflow: true,
   },
@@ -180,7 +198,8 @@ export function isPickerTool(tool: Tool): boolean {
  * other tool, but both are reached for to draw a run rather than one thing. A
  * pencil that dropped you into select after every stroke would be unusable,
  * and sketching shapes one after another is the whole point of that tool. So
- * the two stay put whether the lock is on or off.
+ * the two stay put whether the lock is on or off. The bucket is the same:
+ * colouring in is one area after another, so it stays in hand too.
  */
 const NON_LOCKABLE_TOOLS: ReadonlySet<Tool> = new Set<Tool>([
   'select',
@@ -192,6 +211,7 @@ const NON_LOCKABLE_TOOLS: ReadonlySet<Tool> = new Set<Tool>([
   'embed',
   'freehand',
   'sketch',
+  'bucket',
 ]);
 
 /** Whether the tool lock decides what happens after this tool makes a shape. */

@@ -18,7 +18,7 @@ import {
   SegmentedControl,
   StepperControl,
 } from './inspector';
-import { BACKGROUND_SWATCHES, STROKE_SWATCHES } from './palette';
+import { BACKGROUND_SWATCHES, BUCKET_SWATCHES, STROKE_SWATCHES } from './palette';
 import {
   ALIGN_OPTIONS,
   ARROWHEAD_ICONS,
@@ -61,6 +61,11 @@ export interface StyleSurfaceProps {
   layerActions: LayerActions;
   /** Which board the swatches are previewing colours for. */
   darkMode: boolean;
+  /**
+   * Editing the bucket's settings rather than a shape's — see `styleSections`.
+   * `style.fillColor` is then the colour it pours, never null.
+   */
+  bucket?: boolean;
 }
 
 /** Which popover is open, and where to anchor it. */
@@ -87,6 +92,7 @@ export function PropertiesPanel({
   onStyleChange,
   layerActions,
   darkMode,
+  bucket = false,
 }: StyleSurfaceProps) {
   const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -104,7 +110,7 @@ export function PropertiesPanel({
   // Opens inward, into the board: the panel sits against the right edge.
   const popoverPosition = popover ? { top: popover.top, right: 'calc(100% + 0.5rem)' } : {};
 
-  const show = styleSections(shapeKinds, style);
+  const show = styleSections(shapeKinds, style, bucket);
   const paintStroke = (colour: string) => strokeColorFor(colour, darkMode);
 
   const strokeColourRow = (
@@ -171,7 +177,7 @@ export function PropertiesPanel({
         </InspectorSection>
       ),
     });
-  } else {
+  } else if (show.strokeColour) {
     sections.push({
       key: 'stroke',
       node: (
@@ -351,7 +357,13 @@ export function PropertiesPanel({
                 : t('style.strokeColour')
           }
           value={popover.target === 'stroke' ? style.strokeColor : style.fillColor}
-          swatches={popover.target === 'stroke' ? STROKE_SWATCHES : BACKGROUND_SWATCHES}
+          swatches={
+            popover.target === 'stroke'
+              ? STROKE_SWATCHES
+              : show.bucket
+                ? BUCKET_SWATCHES
+                : BACKGROUND_SWATCHES
+          }
           paint={popover.target === 'stroke' ? paintStroke : undefined}
           position={popoverPosition}
           trigger={popover.trigger}
@@ -360,7 +372,8 @@ export function PropertiesPanel({
               popover.target === 'stroke'
                 ? // Stroke has no transparent state, so a cleared value is ignored.
                   { strokeColor: next ?? style.strokeColor }
-                : { fillColor: next },
+                : // Nor does the bucket's pour.
+                  { fillColor: show.bucket ? (next ?? style.fillColor) : next },
               transient,
             )
           }

@@ -19,6 +19,14 @@ const EDGED_KINDS: ReadonlySet<Shape['kind']> = new Set(['rectangle', 'diamond',
 
 /** Which groups of style controls apply to what is being edited. */
 export interface StyleSections {
+  /**
+   * The bucket's settings rather than a shape's: it makes nothing but a fill,
+   * so it gets the fill's colour and pattern and the opacity, and its colour
+   * has no transparent — a transparent pour would leave no mark.
+   */
+  bucket: boolean;
+  /** The stroke's colour — everything but the bucket has one. */
+  strokeColour: boolean;
   /** Text has a section of its own in place of the stroke. */
   textOnly: boolean;
   /** Stroke weight. */
@@ -42,7 +50,23 @@ export interface StyleSections {
 export function styleSections(
   shapeKinds: readonly Shape['kind'][],
   style: Pick<ItemStyle, 'fillColor'>,
+  bucket = false,
 ): StyleSections {
+  if (bucket) {
+    return {
+      bucket,
+      strokeColour: false,
+      textOnly: false,
+      stroke: false,
+      strokeTreatments: false,
+      pressure: false,
+      fill: true,
+      fillPattern: true,
+      corners: false,
+      arrow: false,
+    };
+  }
+
   const every = (predicate: (kind: Shape['kind']) => boolean) =>
     shapeKinds.length > 0 && shapeKinds.every(predicate);
 
@@ -55,6 +79,8 @@ export function styleSections(
   const freehandOnly = every((k) => k === 'freehand');
 
   return {
+    bucket,
+    strokeColour: true,
     textOnly,
     stroke,
     /**

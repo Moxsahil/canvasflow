@@ -212,6 +212,13 @@ interface UsePointerEventsOptions {
    */
   onPointerAbandon?: (point: Point, screenPoint: Point) => void;
   /**
+   * The system taking the followed gesture away — a browser gesture winning,
+   * the pointer lost. Called just before the gesture is ended where it was
+   * last seen, as a lift ends it, for what should only happen on a real lift:
+   * a bucket fill, which pours when the press comes up.
+   */
+  onPointerCancel?: () => void;
+  /**
    * A press of the secondary button, the one that opens the context menu.
    *
    * Reported on the press rather than with the menu, so the selection is
@@ -265,6 +272,7 @@ export function usePointerEvents(
     onPointerMove,
     onPointerUp,
     onPointerAbandon,
+    onPointerCancel,
     onContextPress,
     onDoubleClick,
     onPointerHover,
@@ -598,6 +606,7 @@ export function usePointerEvents(
         return;
       }
       doublePress.cancel(e);
+      if (followedRef.current?.pointerId === e.pointerId) onPointerCancel?.();
       handlePointerUp(e);
     };
 
@@ -634,6 +643,7 @@ export function usePointerEvents(
     onPointerMove,
     onPointerUp,
     onPointerAbandon,
+    onPointerCancel,
     onContextPress,
     onDoubleClick,
     onPointerHover,
