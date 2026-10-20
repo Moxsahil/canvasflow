@@ -21,6 +21,11 @@ export type AuditAction =
   | 'workspace.guest.role.changed'
   /** A guest was taken off every board of the workspace they were on. */
   | 'workspace.guest.removed'
+  /**
+   * The workspace moved to another plan. No actor: an operator or a payment
+   * provider made the change, and `metadata.source` says which.
+   */
+  | 'workspace.plan.changed'
   | 'workspace.member.role.changed'
   | 'workspace.member.removed'
   | 'board.created'

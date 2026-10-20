@@ -1,4 +1,5 @@
 import type { WorkspaceId, UserId, MembershipId, ISODateString } from './primitives.js';
+import type { WorkspacePlan } from './plans.js';
 
 export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'guest';
 
@@ -7,7 +8,7 @@ export interface Workspace {
   name: string;
   slug: string;
   logoUrl: string | null;
-  plan: 'free' | 'pro' | 'enterprise';
+  plan: WorkspacePlan;
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }

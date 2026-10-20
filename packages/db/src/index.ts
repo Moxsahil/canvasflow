@@ -24,6 +24,7 @@ export * from './access/account-restore.js';
 export * from './access/library.js';
 export * from './access/workspace-invites.js';
 export * from './access/workspace-members.js';
+export * from './access/plans.js';
 export * from './access/storage-usage.js';
 export * from './access/board-export.js';
 export * from './access/link-previews.js';

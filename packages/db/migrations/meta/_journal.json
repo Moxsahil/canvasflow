@@ -246,6 +246,13 @@
       "when": 1792419966719,
       "tag": "0034_board_embeds",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1792513768331,
+      "tag": "0035_team_plan",
+      "breakpoints": true
     }
   ]
 }

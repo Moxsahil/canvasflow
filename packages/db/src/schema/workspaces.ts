@@ -1,8 +1,9 @@
 import { pgTable, uuid, text, pgEnum, timestamp, unique } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 import { relations } from 'drizzle-orm';
+import { WORKSPACE_PLANS } from '@canvasflow/types';
 
-export const workspacePlanEnum = pgEnum('workspace_plan', ['free', 'pro', 'enterprise']);
+export const workspacePlanEnum = pgEnum('workspace_plan', WORKSPACE_PLANS);
 export const workspaceRoleEnum = pgEnum('workspace_role', ['owner', 'admin', 'member']);
 
 export const workspaces = pgTable('workspace', {
