@@ -37,6 +37,7 @@ export interface AnalyticsEvents {
   library_item_placed: Record<string, never>;
   diagram_generated: { change: boolean; detailed: boolean; ok: boolean; boxes: number };
   diagram_inserted: { change: boolean };
+  diagram_rated: { reaction: 'up' | 'down' };
 }
 
 export type AnalyticsEvent = keyof AnalyticsEvents;

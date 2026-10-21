@@ -24,12 +24,22 @@ function panel(overrides: Partial<DiagramPanelState> = {}): DiagramPanelState {
     notice: null,
     draft: '',
     setDraft: noop,
+    attachments: [],
+    attach: noop,
+    detach: noop,
+    retry: noop,
     changing: null,
+    chat: 'c1',
+    showChat: noop,
+    markInserted: noop,
     detailed: false,
     setDetailed: noop,
     startChange: noop,
     cancelChange: noop,
     generate: async () => {},
+    warmUsage: noop,
+    again: async () => {},
+    rate: noop,
     stop: noop,
     dismissRun: noop,
     ...overrides,
@@ -57,6 +67,12 @@ describe('DiagramPanel', () => {
     expect(html).toContain('Release pipeline');
     expect(html).toContain('Team chart');
     expect(html).toContain('placeholder="Describe a diagram"');
+    expect(html).toContain('What should we draw?');
+    expect(html).toContain('Text to diagram');
+    for (const soon of ['Flowchart', 'Mind map', 'Entity relationship', 'Mermaid to diagram']) {
+      expect(html).toContain(soon);
+    }
+    expect(html).toContain('Soon');
   });
 
   it('says the month is used up, when it starts again, and offers the plans', () => {
@@ -85,6 +101,7 @@ describe('DiagramPanel', () => {
         running: true,
         run: {
           description: 'Sign in flow',
+          chatId: 'c1',
           detailed: false,
           lines: [],
           startedAt: Date.now(),
@@ -94,6 +111,7 @@ describe('DiagramPanel', () => {
       }),
     );
     expect(reading).toContain('aria-label="Stop"');
+    expect(reading).toMatch(/data-role="user"[^>]*>[\s\S]*Sign in flow/);
     expect(reading).toContain('Reading your description');
     expect(reading).toContain('aria-label="Working"');
 
@@ -102,6 +120,7 @@ describe('DiagramPanel', () => {
         running: true,
         run: {
           description: 'Sign in flow',
+          chatId: 'c1',
           detailed: false,
           lines: [JSON.stringify({ t: 'meta', direction: 'TB' }), node('Start'), node('Check')],
           startedAt: Date.now(),
@@ -124,6 +143,7 @@ describe('DiagramPanel', () => {
           {
             id: 'e1',
             description: 'Sign in flow',
+            chatId: 'c1',
             lines: [JSON.stringify({ t: 'meta', direction: 'TB' })],
             createdAt: 1,
             took: 3600,
@@ -140,17 +160,155 @@ describe('DiagramPanel', () => {
     expect(near).toContain('7,000 / 8,000');
     const over = render(panel({ draft: 'x'.repeat(8005) }));
     expect(over).toContain('5 characters too long');
-    expect(over).toMatch(/aria-label="Generate diagram"[^>]*disabled/);
+    expect(over).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Generate diagram"/);
   });
 
-  it('offers Quick and Detailed, and greys Detailed out when too few are left', () => {
-    const html = render(panel());
-    expect(html).toContain('role="radiogroup"');
-    expect(html).toContain('Detailed');
-    const few = render(
-      panel({ usage: { plan: 'free', used: 9, limit: 10, resetsAt: '2026-11-01T00:00:00.000Z' } }),
+  it('shows an attached text file as a chip, and counts its text towards the limit', () => {
+    const html = render(
+      panel({
+        attachments: [
+          { id: 'f1', kind: 'text', filename: 'flow.md', size: 2048, text: 'x'.repeat(7000) },
+        ],
+      }),
     );
-    expect(few).toMatch(/aria-checked="false"[^>]*disabled/);
+    expect(html).toContain('flow.md');
+    expect(html).toContain('2.0 KB');
+    expect(html).toContain('aria-label="Remove file"');
+    expect(html).toContain('7,000 / 8,000');
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*aria-label="Generate diagram"/);
+  });
+
+  it('shows a PDF as a chip and says pictures and PDFs are not read yet', () => {
+    const html = render(
+      panel({
+        draft: 'Draw this',
+        attachments: [{ id: 'p1', kind: 'pdf', filename: 'spec.pdf', size: 4096, text: '' }],
+      }),
+    );
+    expect(html).toContain('spec.pdf');
+    expect(html).toContain('aren’t read yet');
+  });
+
+  it('puts actions and a time under each request and each diagram', () => {
+    const html = render(
+      panel({
+        entries: [
+          {
+            id: 'e1',
+            description: 'Sign in flow',
+            chatId: 'c1',
+            lines: [],
+            createdAt: Date.now(),
+            took: 4000,
+            reaction: 'up',
+          },
+        ],
+      }),
+    );
+    expect(html).toContain('aria-label="Ask again"');
+    expect(html).toContain('aria-label="Edit"');
+    expect(html).toContain('aria-label="Copy"');
+    expect(html).toContain('aria-label="Copy as PNG"');
+    expect(html).toMatch(/aria-label="Good diagram"[^>]*aria-pressed="true"/);
+    expect(html).toContain('aria-label="Draw again"');
+    expect(html).toContain('<time');
+  });
+
+  it('minimizes to a bar that says a diagram is being drawn and opens the panel again', () => {
+    const html = renderToString(
+      <DiagramPanel
+        panel={panel({
+          running: true,
+          run: {
+            description: 'Sign in flow',
+            chatId: 'c1',
+            detailed: false,
+            lines: [],
+            startedAt: Date.now(),
+            fixing: 0,
+            status: 'running',
+          },
+        })}
+        theme="dark"
+        canDraw
+        onInsert={noop}
+        onSignIn={noop}
+        onUpgrade={noop}
+        onClose={noop}
+        minimized
+        onMinimize={noop}
+        onRestore={noop}
+      />,
+    );
+    expect(html).toContain('data-testid="diagram-minimized"');
+    expect(html).toContain('Drawing…');
+    expect(html).toContain('aria-label="Open diagrams"');
+    expect(html).toMatch(/<aside hidden=""/);
+  });
+
+  it('lists the board’s chats with their versions, and who is drawing with what is left', () => {
+    const node = JSON.stringify({ t: 'node', id: 'a', kind: 'rectangle', text: 'A' });
+    const html = renderToString(
+      <DiagramPanel
+        panel={panel({
+          chat: 'c1',
+          entries: [
+            {
+              id: 'a',
+              chatId: 'c1',
+              description: 'Sign in flow',
+              lines: [node],
+              createdAt: Date.now(),
+              inserted: ['s1'],
+            },
+            {
+              id: 'b',
+              chatId: 'c1',
+              changeOf: 'a',
+              description: 'Add a reset step',
+              lines: [node],
+              createdAt: Date.now(),
+            },
+            { id: 'c', chatId: 'c2', description: 'Team chart', lines: [node], createdAt: 1 },
+          ],
+        })}
+        theme="dark"
+        canDraw
+        onInsert={noop}
+        onSignIn={noop}
+        onUpgrade={noop}
+        onClose={noop}
+        profile={{ name: 'Ada Lovelace', avatarUrl: null }}
+        boardShapeIds={new Set(['s1'])}
+        onShowOnBoard={noop}
+        onReplace={noop}
+      />,
+    );
+    expect(html).toContain('New chat');
+    expect(html).toContain('Team chart');
+    expect(html).toContain('Generated');
+    expect(html).toContain('Add a reset step');
+    expect(html).toContain('On the board');
+    expect(html).toContain('Replace v1 on the board');
+    expect(html).toContain('Compare with v1');
+    expect(html).toContain('Ada Lovelace');
+    expect(html).toContain('Free');
+    expect(html).toMatch(/role="progressbar"[^>]*aria-valuenow="7"/);
+    // Only the chat on show is in the conversation.
+    expect(html).toContain('id="diagram-b"');
+    expect(html).not.toContain('id="diagram-c"');
+  });
+
+  it('offers the tools, and says what the picked one does above the box', () => {
+    const none = render(panel());
+    expect(none).toContain('Tools');
+    expect(none).toContain('No tool picked');
+    expect(none).toContain('Pick a tool');
+    const detailed = render(panel({ detailed: true }));
+    expect(detailed).toContain('Text to diagram');
+    expect(detailed).toContain('plans the groups before it draws');
+    expect(detailed).toContain('aria-label="Remove tool"');
+    expect(detailed).toContain('Change');
   });
 
   it('words a failed diagram and offers to try again', () => {
@@ -158,6 +316,7 @@ describe('DiagramPanel', () => {
       panel({
         run: {
           description: 'Sign in flow',
+          chatId: 'c1',
           detailed: false,
           lines: [],
           startedAt: 0,

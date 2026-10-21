@@ -86,10 +86,52 @@ async function resolveAvatar(
 let lastOwn: { userId: string; version: string } | null = null;
 
 /** The photo last shown for this version, if its URL has not run out. */
-function rememberedOwnAvatar(version: string | null): string | null {
+function rememberedOwnAvatar(version: string | null | undefined): string | null {
   if (!version || !lastOwn || lastOwn.version !== version) return null;
   const cached = urlCache.get(cacheKey(lastOwn.userId, version));
   return cached && cached.expiresAt > Date.now() ? cached.url : null;
+}
+
+/**
+ * Your own photo's URL, kept across page loads in this browser until it runs
+ * out, so the account row and the diagrams panel show it from the first frame
+ * instead of after the profile and the photo have both been asked for. Kept
+ * by account id, and only your own: it is a short-lived link to a picture of
+ * you, not to anyone else.
+ */
+const OWN_AVATAR_KEY = 'cf.own-avatar';
+
+interface KeptOwn {
+  userId: string;
+  version: string;
+  url: string | null;
+  expiresAt: number;
+}
+
+function keptOwnAvatar(userId: string | null): string | null {
+  if (!userId) return null;
+  try {
+    const raw = localStorage.getItem(OWN_AVATAR_KEY);
+    if (!raw) return null;
+    const kept = JSON.parse(raw) as Partial<KeptOwn>;
+    return kept.userId === userId &&
+      typeof kept.expiresAt === 'number' &&
+      kept.expiresAt > Date.now() &&
+      typeof kept.url === 'string'
+      ? kept.url
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function keepOwnAvatar(kept: KeptOwn | null): void {
+  try {
+    if (kept) localStorage.setItem(OWN_AVATAR_KEY, JSON.stringify(kept));
+    else localStorage.removeItem(OWN_AVATAR_KEY);
+  } catch {
+    // Not kept: the next load asks again, as it always did.
+  }
 }
 
 export interface AvatarState {
@@ -107,8 +149,11 @@ interface UseAvatarOptions {
   /** The editor's bearer token. Storage is reached through the gateway. */
   token: string | null;
   userId: string | null;
-  /** From the profile. Null means there is no photo to fetch. */
-  version: string | null;
+  /**
+   * From the profile. Null means there is no photo to fetch; undefined, that
+   * the profile has not answered yet, so whatever is showing stays.
+   */
+  version: string | null | undefined;
   /** Re-read the profile, so a new version — or none — comes back. */
   onChanged: () => Promise<void> | void;
 }
@@ -125,7 +170,9 @@ export function useAvatar({
   version,
   onChanged,
 }: UseAvatarOptions): AvatarState {
-  const [url, setUrl] = useState<string | null>(() => rememberedOwnAvatar(version));
+  const [url, setUrl] = useState<string | null>(
+    () => rememberedOwnAvatar(version) ?? (version === undefined ? keptOwnAvatar(userId) : null),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -133,8 +180,15 @@ export function useAvatar({
   onChangedRef.current = onChanged;
 
   useEffect(() => {
+    if (version === undefined) {
+      // The profile is still on its way: the photo kept from the last visit.
+      const kept = keptOwnAvatar(userId);
+      if (kept) setUrl(kept);
+      return;
+    }
     if (!version) {
       setUrl(null);
+      keepOwnAvatar(null);
       return;
     }
     // The token is still on its way: keep the photo already on screen.
@@ -144,6 +198,10 @@ export function useAvatar({
     resolveAvatar(boardId, token, userId, version)
       .then((resolved) => {
         lastOwn = { userId, version };
+        const cached = urlCache.get(cacheKey(userId, version));
+        keepOwnAvatar(
+          cached ? { userId, version, url: resolved, expiresAt: cached.expiresAt } : null,
+        );
         if (!cancelled) setUrl(resolved);
       })
       .catch(() => {
