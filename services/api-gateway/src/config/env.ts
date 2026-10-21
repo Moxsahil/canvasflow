@@ -128,6 +128,15 @@ const envSchema = z
     R2_ACCESS_KEY_ID: z.string().optional(),
     R2_SECRET_ACCESS_KEY: z.string().optional(),
     R2_BUCKET: z.string().optional(),
+
+    // === Generated diagrams (Anthropic) ===
+    // Optional: without a key every route still works, and the diagram route
+    // answers that it is not set up rather than failing at import time.
+    ANTHROPIC_API_KEY: z
+      .string()
+      .startsWith('sk-ant-', 'ANTHROPIC_API_KEY must start with sk-ant-')
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
   })
   .superRefine((env, ctx) => {
     // The verification link is the one URL we ask somebody to open from their

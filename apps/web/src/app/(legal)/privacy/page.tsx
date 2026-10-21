@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 /** Move this whenever the text below changes: the page tells readers it did. */
-const LAST_UPDATED = '2026-10-19';
+const LAST_UPDATED = '2026-10-21';
 
 const privacyEmail = <a href={`mailto:${CONTACT.privacy}`}>{CONTACT.privacy}</a>;
 const supportEmail = <a href={`mailto:${CONTACT.support}`}>{CONTACT.support}</a>;
@@ -74,6 +74,12 @@ const SECTIONS: LegalSection[] = [
             that preview and show it to anyone who pastes the same link. The site sees our server,
             not you. Embedded pages, such as a video, load from their own site in the browser of
             whoever opens the board, so that site sees them as it would on its own pages.
+          </li>
+          <li>
+            <strong>Diagrams you generate:</strong> when you ask CanvasFlow to draw a diagram from a
+            description, the description is sent to Anthropic, whose AI writes the diagram, and the
+            diagram is put on your board. We don’t keep the description. We keep only how many
+            diagrams you’ve generated each month, to apply your plan’s limit.
           </li>
           <li>
             <strong>If you join a board as a guest:</strong> the name you type, and which board you
@@ -180,6 +186,9 @@ const SECTIONS: LegalSection[] = [
               <li>Resend, which sends our emails</li>
               <li>Zoho, which hosts the mailbox your emails to us arrive in</li>
               <li>
+                Anthropic, which turns a description into a diagram, only when you ask for one
+              </li>
+              <li>
                 PostHog, which stores usage analytics in the European Union, only if you allow it
               </li>
               <li>Google and GitHub, only if you sign in with them</li>
@@ -208,7 +217,8 @@ const SECTIONS: LegalSection[] = [
           Our servers and database are in Singapore, and some providers, such as Cloudflare, Vercel
           and Resend, work through networks around the world. So when you use CanvasFlow, your data
           is stored and handled outside India. Usage analytics, if you allow it, is stored by
-          PostHog in the European Union.
+          PostHog in the European Union, and descriptions you ask us to turn into diagrams are
+          handled by Anthropic, a company in the United States.
         </p>
         <p>
           Indian law allows this, and lets the government restrict transfers to particular
