@@ -36,6 +36,7 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import type { ComponentType, SVGProps } from 'react';
+import { DiagramMark } from '../diagrams/DiagramMark';
 import type { TranslationKey } from '../i18n';
 import { MENU_ITEMS, type MenuItemId } from '../menu/menu-items';
 import { TOOLS, VIEW_MODE_TOOL, VIEW_ONLY_TOOLS, type Tool } from '../tools/tool';
@@ -86,6 +87,7 @@ export type CommandId =
   | 'toggleViewMode'
   | 'toggleCanvasStats'
   | 'toggleComments'
+  | 'toggleDiagrams'
   | 'undo'
   | 'redo'
   | 'cut'
@@ -336,6 +338,14 @@ export const COMMANDS: readonly CommandMeta[] = [
     category: 'View',
     shortcut: 'shift+c',
     keywords: ['pins', 'threads', 'feedback', 'notes', 'review'],
+  },
+  {
+    id: 'toggleDiagrams',
+    labelKey: 'commands.toggleDiagrams',
+    icon: DiagramMark,
+    category: 'Board',
+    keywords: ['generate', 'diagram', 'flowchart', 'text to diagram', 'describe', 'draw', 'ai'],
+    available: (context) => !context.readOnly,
   },
 
   {

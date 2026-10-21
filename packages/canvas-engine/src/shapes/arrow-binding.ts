@@ -123,7 +123,7 @@ function clamp01(value: number): number {
  * Returns null when it never does — the two ends are both inside the shape, or
  * both outside and past it — and the caller keeps aiming where it was.
  */
-function outlineCrossing(target: Shape, from: Point, to: Point): Point | null {
+export function outlineCrossing(target: Shape, from: Point, to: Point): Point | null {
   const segment: Segment = [
     [from.x, from.y],
     [to.x, to.y],
@@ -239,6 +239,12 @@ function backOff(from: Point, at: Point, distance: number): Point {
   return { x: from.x + dx * scale, y: from.y + dy * scale };
 }
 
+/** One of an arrow's stored points, on the board. */
+function absolutePoint(arrow: ArrowShape, index: number): Point {
+  const [x, y] = arrow.points[index] ?? [0, 0];
+  return { x: arrow.x + x, y: arrow.y + y };
+}
+
 /** The world endpoints an arrow's stored points describe. */
 function storedTerminals(arrow: ArrowShape): { start: Point; end: Point } {
   const first = arrow.points[0] ?? [0, 0];
@@ -299,17 +305,24 @@ export function resolveArrowTerminals(
   let start = startAim;
   let end = endAim;
 
+  // A fixed end with a bend before it stops short along its own last run, not
+  // along the line to the far end, which would knock a right-angled route off
+  // the square.
+  const bends = arrow.points.length > 2;
+  const beforeEnd = bends ? absolutePoint(arrow, arrow.points.length - 2) : startAim;
+  const afterStart = bends ? absolutePoint(arrow, 1) : endAim;
+
   if (endTarget) {
     const gap = boundArrowGap(arrow, arrow.endArrowhead, endTarget);
-    const meets = arrow.endBinding!.precise ? endAim : outlineCrossing(endTarget, startAim, endAim);
-    if (meets) end = backOff(startAim, meets, gap);
+    const precise = arrow.endBinding!.precise;
+    const meets = precise ? endAim : outlineCrossing(endTarget, startAim, endAim);
+    if (meets) end = backOff(precise ? beforeEnd : startAim, meets, gap);
   }
   if (startTarget) {
     const gap = boundArrowGap(arrow, arrow.startArrowhead, startTarget);
-    const meets = arrow.startBinding!.precise
-      ? startAim
-      : outlineCrossing(startTarget, endAim, startAim);
-    if (meets) start = backOff(endAim, meets, gap);
+    const precise = arrow.startBinding!.precise;
+    const meets = precise ? startAim : outlineCrossing(startTarget, endAim, startAim);
+    if (meets) start = backOff(precise ? afterStart : endAim, meets, gap);
   }
 
   return keepApart(start, end, startAim, endAim);
@@ -466,18 +479,50 @@ export function boundArrowPatches(
     const current = storedTerminals(arrow);
     if (samePoint(current.start, start) && samePoint(current.end, end)) continue;
 
+    const bends = keptBends(arrow, current, start, end);
     patches.push({
       id: arrow.id,
       x: start.x,
       y: start.y,
-      points: [
-        [0, 0],
-        [end.x - start.x, end.y - start.y],
-      ],
+      points: [start, ...bends, end].map(
+        (point) => [point.x - start.x, point.y - start.y] as const,
+      ),
     });
   }
 
   return patches;
+}
+
+/**
+ * An arrow's bends, carried along when its ends move.
+ *
+ * They stay where they are, except that a run from an end that was level or
+ * upright stays level or upright: the bend next to that end slides with it.
+ * That is what keeps a right-angled route right-angled while the shapes at
+ * either end are dragged about.
+ */
+function keptBends(
+  arrow: ArrowShape,
+  was: { start: Point; end: Point },
+  start: Point,
+  end: Point,
+): Point[] {
+  const bends: Array<{ x: number; y: number }> = [];
+  for (let i = 1; i < arrow.points.length - 1; i++) bends.push({ ...absolutePoint(arrow, i) });
+  if (bends.length === 0) return bends;
+
+  const level = (a: Point, b: Point) => Math.abs(a.y - b.y) < 0.5;
+  const upright = (a: Point, b: Point) => Math.abs(a.x - b.x) < 0.5;
+
+  const first = bends[0]!;
+  if (level(was.start, first)) first.y = start.y;
+  else if (upright(was.start, first)) first.x = start.x;
+
+  const last = bends[bends.length - 1]!;
+  if (level(was.end, last)) last.y = end.y;
+  else if (upright(was.end, last)) last.x = end.x;
+
+  return bends;
 }
 
 /** Half a thousandth of a unit apart is the same place, and not worth a write. */

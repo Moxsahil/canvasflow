@@ -62,6 +62,45 @@ describe('runDiagram', () => {
     });
   });
 
+  it('sends a diagram to change with the change, not as a description', async () => {
+    const writer = scripted([node('a')]);
+    await runDiagram({
+      writer,
+      description: 'add a trial step',
+      previous: [meta, node('a')],
+      signal: new AbortController().signal,
+      emit: () => {},
+    });
+    const text = writer.asked[0]![0]!.text;
+    expect(text).toContain(`<diagram>\n${meta}\n${node('a')}\n</diagram>`);
+    expect(text).toContain('<change>\nadd a trial step\n</change>');
+    expect(text).not.toContain('<description>');
+  });
+
+  it('asks for the detailed writer when the diagram is detailed', async () => {
+    const seen: Array<boolean | undefined> = [];
+    const writer: DiagramWriter = {
+      async *write(_turns, _signal, options) {
+        seen.push(options?.detailed);
+        yield node('a');
+      },
+    };
+    await runDiagram({
+      writer,
+      description: 'big',
+      detailed: true,
+      signal: new AbortController().signal,
+      emit: () => {},
+    });
+    await runDiagram({
+      writer,
+      description: 'small',
+      signal: new AbortController().signal,
+      emit: () => {},
+    });
+    expect(seen).toEqual([true, false]);
+  });
+
   it('drops lines that never became JSON without asking for them again', async () => {
     const writer = scripted(['```json\n', `${node('a')}\n`, 'Here is your diagram.\n', '```']);
     const { emitted } = await run(writer);
@@ -84,7 +123,13 @@ describe('runDiagram', () => {
     expect(correction.map((turn) => turn.role)).toEqual(['user', 'assistant', 'user']);
     expect(correction[2]!.text).toContain('hexagon');
     expect(correction[2]!.text).toContain('ghost');
-    expect(emitted).toEqual([node('a'), edge('a', 'ghost'), node('c'), node('ghost')]);
+    expect(emitted).toEqual([
+      node('a'),
+      edge('a', 'ghost'),
+      JSON.stringify({ t: 'status', phase: 'fixing', lines: 2 }),
+      node('c'),
+      node('ghost'),
+    ]);
     expect(nodes).toBe(3);
   });
 

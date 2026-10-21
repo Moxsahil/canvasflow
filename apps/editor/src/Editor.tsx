@@ -11,6 +11,7 @@ import {
   type BindingHint,
   boundArrowPatches,
   computeBoundingRect,
+  type DiagramStyle,
   BOOKMARK_SIZE,
   createBookmark,
   createEmbed,
@@ -169,6 +170,13 @@ import {
   useUnreadThreads,
   type CommentThread,
 } from './comments';
+import {
+  composeDiagram,
+  DiagramPanel,
+  DiagramsButton,
+  useDiagramPanel,
+  type DiagramEntry,
+} from './diagrams';
 import { FrameNameEditor } from './frames/FrameNameEditor';
 import {
   assignmentsAfterMove,
@@ -776,6 +784,15 @@ export function Editor({ boardId, local = false }: EditorProps) {
   }, [accountHere]);
   // The account's own library, kept across boards. A guest has none.
   const library = useLibrary({ userId, token: authToken, isGuest: user?.isGuest ?? true });
+  // Diagrams generated from a description, counted against the month's
+  // allowance. The panel is the one place they are asked for and placed from.
+  const [diagramsOpen, setDiagramsOpen] = useState(false);
+  const diagrams = useDiagramPanel({
+    boardId,
+    token: authToken,
+    open: diagramsOpen,
+    signedIn: accountHere,
+  });
 
   // Account & Security reads the account's sign-in methods and sessions from
   // the gateway, which takes a moment. Asked for once the board has settled,
@@ -4428,6 +4445,77 @@ export function Editor({ boardId, local = false }: EditorProps) {
     [readOnly, viewportCentre, doc, actorRef, markLibraryUsed],
   );
 
+  /**
+   * Put a generated diagram on the board: laid out afresh from its lines, so
+   * every insert gets its own shapes, centred in the view, selected, and one
+   * undo step — the same as placing a library item. The panel closes so the
+   * diagram can be seen, and its icons upload as pictures pasted in do.
+   */
+  const { adoptImages, cache: imageCache } = images;
+  // A generated diagram is drawn the way the style panel would draw a shape
+  // now, so it matches what the person draws by hand beside it.
+  const diagramStyle = useMemo<DiagramStyle>(
+    () => ({
+      strokeWidth: itemStyle.strokeWidth,
+      strokeStyle: itemStyle.strokeStyle,
+      roughness: itemStyle.roughness,
+      edges: itemStyle.edges,
+      fillStyle: itemStyle.fillStyle,
+      filled: itemStyle.fillColor !== null,
+      fontFamily: itemStyle.fontFamily,
+      fontSize: itemStyle.fontSize,
+      arrowhead: itemStyle.endArrowhead,
+    }),
+    [itemStyle],
+  );
+  const insertDiagram = useCallback(
+    async (entry: DiagramEntry) => {
+      if (readOnly) return;
+      const { shapes, icons, pictures } = await composeDiagram(entry.lines, genId, {
+        style: diagramStyle,
+        scale: newShapeScale(camera, preferences.values.dynamicSize),
+      });
+      const centre = {
+        x: camera.x + width / 2 / camera.zoom,
+        y: camera.y + height / 2 / camera.zoom,
+      };
+      const placed = shapesCentredOn(shapes, centre, doc.getShapes());
+      if (placed.length === 0) return;
+      // The icons are already drawn, so they paint at once rather than being
+      // asked of storage before their upload has landed.
+      for (const [fileId, picture] of pictures) imageCache.put(fileId, picture);
+      doc.batch(() => {
+        for (const shape of placed) doc.addShape(shape);
+      });
+      void adoptImages(icons);
+      setDiagramsOpen(false);
+      actorRef.send({ type: 'SELECT_ALL', shapeIds: placed.map((shape) => shape.id) });
+      const rect = computeBoundingRect(placed);
+      if (
+        rect &&
+        (rect.width * camera.zoom > width * 0.9 || rect.height * camera.zoom > height * 0.85)
+      ) {
+        actorRef.send({
+          type: 'SET_CAMERA',
+          camera: fitRectToViewport(rect, { width, height }),
+        });
+      }
+      track('diagram_inserted', { change: Boolean(entry.changeOf) });
+    },
+    [
+      readOnly,
+      width,
+      height,
+      camera,
+      doc,
+      actorRef,
+      adoptImages,
+      imageCache,
+      diagramStyle,
+      preferences.values.dynamicSize,
+    ],
+  );
+
   // Whichever library it came from, the panel holds the item being dragged.
   const handleDropLibraryItem = useCallback(
     (id: string, at: Point) => {
@@ -4727,6 +4815,19 @@ export function Editor({ boardId, local = false }: EditorProps) {
     preferences.set('showComments', !preferences.values.showComments);
   }, [preferences]);
 
+  /** The local board has no account to spend diagrams from, so it asks for one. */
+  const toggleDiagrams = useCallback(() => {
+    if (local) setSignUpReason('diagram');
+    else setDiagramsOpen((open) => !open);
+  }, [local]);
+  const closeDiagrams = useCallback(() => setDiagramsOpen(false), []);
+  const signInForDiagrams = useCallback(() => {
+    window.location.assign(new URL('/login?next=/open', env.VITE_WEB_URL).toString());
+  }, []);
+  const showPlans = useCallback(() => {
+    window.open(new URL('/#pricing', env.VITE_WEB_URL).toString(), '_blank', 'noopener');
+  }, []);
+
   /**
    * Geometry from the stats panel, written as it arrives: once for a number
    * typed in, once for every step of a drag.
@@ -4892,6 +4993,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       toggleViewMode,
       toggleCanvasStats,
       toggleComments,
+      toggleDiagrams,
       undo: handleUndo,
       redo: handleRedo,
       cut: handleCut,
@@ -5023,6 +5125,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       ref={editorRef}
       className="cf-editor"
       data-theme={resolvedTheme}
+      // Read by global.css, which moves the style panel out from under it.
       // Read by global.css, which hides the sidebar on it. The chrome drawn
       // below is simply left out of the tree instead.
       data-chrome-hidden={chromeHidden ? '' : undefined}
@@ -5373,6 +5476,15 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 />
               )}
               {(!chromeHidden || search.open) && <FindBar search={search} />}
+              {!chromeHidden && !readOnly && (
+                <DiagramsButton
+                  open={diagramsOpen}
+                  left={
+                    diagrams.usage ? Math.max(diagrams.usage.limit - diagrams.usage.used, 0) : null
+                  }
+                  onToggle={toggleDiagrams}
+                />
+              )}
               {chromeHidden ? (
                 <ExitModeButton mode={viewMode ? 'view' : 'focus'} onExit={exitMode} />
               ) : (
@@ -5400,6 +5512,19 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 </>
               )}
             </div>
+
+            {!chromeHidden && !readOnly && !local && diagramsOpen && (
+              <DiagramPanel
+                panel={diagrams}
+                theme={presenceTheme}
+                canDraw={accountHere}
+                onInsert={insertDiagram}
+                onSignIn={signInForDiagrams}
+                onUpgrade={showPlans}
+                onClose={closeDiagrams}
+                drawStyle={diagramStyle}
+              />
+            )}
 
             {/* Opens the sidebar on a phone, where it is a sheet that leaves no
           rail behind to open it from. Wider, the sidebar's own button beside

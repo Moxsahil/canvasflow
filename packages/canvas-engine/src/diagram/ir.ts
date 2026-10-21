@@ -9,8 +9,18 @@
  * change.
  */
 
-/** The node shapes this module knows how to draw. */
-export const NODE_KINDS = ['rectangle', 'ellipse', 'diamond'] as const;
+import {
+  isDiagramColor,
+  isDiagramIcon,
+  type DiagramColor,
+  type DiagramIcon,
+} from '@canvasflow/types';
+
+/**
+ * The node shapes this module knows how to draw. An `icon` node is the icon
+ * itself with its words beneath, and no box around it.
+ */
+export const NODE_KINDS = ['rectangle', 'ellipse', 'diamond', 'icon'] as const;
 
 export type NodeKind = (typeof NODE_KINDS)[number];
 
@@ -21,10 +31,33 @@ export type Direction = (typeof DIRECTIONS)[number];
 
 export const DEFAULT_DIRECTION: Direction = 'TB';
 
+/** Which ends of an edge carry a head: the far one, both, or neither. */
+export const EDGE_DIRS = ['forward', 'both', 'none'] as const;
+
+export type EdgeDir = (typeof EDGE_DIRS)[number];
+
+export const EDGE_STYLES = ['solid', 'dashed', 'dotted'] as const;
+
+export type EdgeStyle = (typeof EDGE_STYLES)[number];
+
+/** A title over the whole diagram, a heading within it, or a plain note. */
+export const TEXT_SIZES = ['title', 'heading', 'body'] as const;
+
+export type TextSize = (typeof TEXT_SIZES)[number];
+
+/*
+ * The optional fields below are written only when a line gave them, so a
+ * diagram in the first version of the format reads back exactly as it did.
+ */
+
 export interface DiagramNode {
   readonly id: string;
   readonly kind: NodeKind;
   readonly text: string;
+  /** The group the node stands in. */
+  readonly group?: string;
+  readonly icon?: DiagramIcon;
+  readonly color?: DiagramColor;
 }
 
 export interface DiagramEdge {
@@ -32,19 +65,44 @@ export interface DiagramEdge {
   readonly to: string;
   /** Empty when the edge carries no text. */
   readonly label: string;
+  /** Absent means `forward`. */
+  readonly dir?: EdgeDir;
+  /** Absent means `solid`. */
+  readonly style?: EdgeStyle;
+}
+
+/** A named region holding some of the nodes — a frame on the board. */
+export interface DiagramGroup {
+  readonly id: string;
+  readonly label: string;
+  readonly color?: DiagramColor;
+}
+
+/** Words on the board that belong to no box. */
+export interface DiagramText {
+  readonly id: string;
+  readonly text: string;
+  readonly size: TextSize;
+  readonly color?: DiagramColor;
+  readonly group?: string;
 }
 
 export interface DiagramIR {
   readonly direction: Direction;
   readonly nodes: readonly DiagramNode[];
   readonly edges: readonly DiagramEdge[];
+  /** Only groups that hold something; an empty one would be a bare frame. */
+  readonly groups: readonly DiagramGroup[];
+  readonly texts: readonly DiagramText[];
 }
 
 /** One line of the wire format, once it is understood. */
 export type DiagramElement =
   | { readonly t: 'meta'; readonly direction: Direction }
   | ({ readonly t: 'node' } & DiagramNode)
-  | ({ readonly t: 'edge' } & DiagramEdge);
+  | ({ readonly t: 'edge' } & DiagramEdge)
+  | ({ readonly t: 'group' } & DiagramGroup)
+  | ({ readonly t: 'text' } & DiagramText);
 
 /**
  * Why a line was rejected, in words worth showing a person — and worth
@@ -65,6 +123,16 @@ const MAX_TEXT_LENGTH = 200;
 const MAX_ID_LENGTH = 64;
 
 const incomplete: ParsedLine = { ok: false, error: null };
+
+/** `{ [key]: id }` when the value is a usable id, and nothing otherwise. */
+function optionalId<K extends string>(key: K, value: unknown): { [P in K]?: string } {
+  const id = readString(value, MAX_ID_LENGTH);
+  return id === null ? {} : ({ [key]: id } as { [P in K]?: string });
+}
+
+function optionalColor(value: unknown): { color?: DiagramColor } {
+  return isDiagramColor(value) ? { color: value } : {};
+}
 
 function reject(line: string, reason: string): ParsedLine {
   return { ok: false, error: { line, reason } };
@@ -146,7 +214,63 @@ export function parseDiagramLine(line: string): ParsedLine {
         );
       }
 
-      return { ok: true, value: { t: 'node', id, kind: kind as NodeKind, text } };
+      // An icon the editor has no drawing for, or a colour it has no paint
+      // for, is dropped rather than rejected: the box is still right, and
+      // sending it back to be fixed would cost a pass to gain a picture.
+      const icon = isDiagramIcon(parsed.icon) ? parsed.icon : undefined;
+      // An icon node with no icon to show is a box like any other.
+      const shape = kind === 'icon' && icon === undefined ? 'rectangle' : (kind as NodeKind);
+      return {
+        ok: true,
+        value: {
+          t: 'node',
+          id,
+          kind: shape,
+          text,
+          ...optionalId('group', parsed.group),
+          ...(icon !== undefined && { icon }),
+          ...optionalColor(parsed.color),
+        },
+      };
+    }
+
+    case 'group': {
+      const id = readString(parsed.id, MAX_ID_LENGTH);
+      if (id === null) return reject(trimmed, 'A group needs a non-empty string "id".');
+      const label = readString(parsed.label, MAX_TEXT_LENGTH);
+      if (label === null) {
+        return reject(
+          trimmed,
+          `Group "${id}" needs a non-empty "label" of at most ${MAX_TEXT_LENGTH} characters.`,
+        );
+      }
+      return { ok: true, value: { t: 'group', id, label, ...optionalColor(parsed.color) } };
+    }
+
+    case 'text': {
+      const id = readString(parsed.id, MAX_ID_LENGTH);
+      if (id === null) return reject(trimmed, 'A text needs a non-empty string "id".');
+      const text = readString(parsed.text, MAX_TEXT_LENGTH);
+      if (text === null) {
+        return reject(
+          trimmed,
+          `Text "${id}" needs non-empty "text" of at most ${MAX_TEXT_LENGTH} characters.`,
+        );
+      }
+      const size = TEXT_SIZES.includes(parsed.size as TextSize)
+        ? (parsed.size as TextSize)
+        : 'body';
+      return {
+        ok: true,
+        value: {
+          t: 'text',
+          id,
+          text,
+          size,
+          ...optionalColor(parsed.color),
+          ...optionalId('group', parsed.group),
+        },
+      };
     }
 
     case 'edge': {
@@ -167,13 +291,28 @@ export function parseDiagramLine(line: string): ParsedLine {
       }
       const label = rawLabel === undefined ? '' : (readString(rawLabel, MAX_TEXT_LENGTH) ?? '');
 
-      return { ok: true, value: { t: 'edge', from, to, label } };
+      // The default of each is left unwritten, as an edge without it says.
+      const dir = EDGE_DIRS.includes(parsed.dir as EdgeDir) ? (parsed.dir as EdgeDir) : 'forward';
+      const style = EDGE_STYLES.includes(parsed.style as EdgeStyle)
+        ? (parsed.style as EdgeStyle)
+        : 'solid';
+      return {
+        ok: true,
+        value: {
+          t: 'edge',
+          from,
+          to,
+          label,
+          ...(dir !== 'forward' && { dir }),
+          ...(style !== 'solid' && { style }),
+        },
+      };
     }
 
     default:
       return reject(
         trimmed,
-        `Unknown element type ${JSON.stringify(parsed.t)}; expected "meta", "node" or "edge".`,
+        `Unknown element type ${JSON.stringify(parsed.t)}; expected "meta", "group", "node", "edge" or "text".`,
       );
   }
 }
@@ -195,6 +334,8 @@ export function collectDiagram(lines: readonly string[]): CollectedDiagram {
   let direction: Direction = DEFAULT_DIRECTION;
   const nodes: DiagramNode[] = [];
   const byId = new Map<string, DiagramNode>();
+  const groups = new Map<string, DiagramGroup>();
+  const texts = new Map<string, DiagramText>();
   const rawEdges: Array<{ edge: DiagramEdge; line: string }> = [];
   const errors: DiagramLineError[] = [];
 
@@ -229,8 +370,47 @@ export function collectDiagram(lines: readonly string[]): CollectedDiagram {
         rawEdges.push({ edge, line: line.trim() });
         break;
       }
+
+      case 'group': {
+        const { t: _t, ...group } = element;
+        if (groups.has(group.id)) {
+          errors.push({ line: line.trim(), reason: `Duplicate group id "${group.id}".` });
+          break;
+        }
+        groups.set(group.id, group);
+        break;
+      }
+
+      case 'text': {
+        const { t: _t, ...text } = element;
+        if (texts.has(text.id)) {
+          errors.push({ line: line.trim(), reason: `Duplicate text id "${text.id}".` });
+          break;
+        }
+        texts.set(text.id, text);
+        break;
+      }
     }
   }
+
+  // A group can arrive after the nodes standing in it, so membership is only
+  // settled here. Naming a group that never came leaves the node loose rather
+  // than losing it; a group nothing stands in is not drawn.
+  const inGroup = <T extends { readonly group?: string }>(item: T): T => {
+    if (item.group === undefined || groups.has(item.group)) return item;
+    const { group: _group, ...loose } = item;
+    return loose as T;
+  };
+  // A box with no colour of its own takes its group's, so a coloured section
+  // reads as one piece without every line having to say so.
+  const settledNodes = nodes.map(inGroup).map((node) => {
+    const color = node.group === undefined ? undefined : groups.get(node.group)?.color;
+    return node.color === undefined && color !== undefined ? { ...node, color } : node;
+  });
+  const settledTexts = [...texts.values()].map(inGroup);
+  const held = new Set(
+    [...settledNodes, ...settledTexts].flatMap((item) => (item.group ? [item.group] : [])),
+  );
 
   const edges: DiagramEdge[] = [];
   const seen = new Set<string>();
@@ -248,7 +428,16 @@ export function collectDiagram(lines: readonly string[]): CollectedDiagram {
     edges.push(edge);
   }
 
-  return { diagram: { direction, nodes, edges }, errors };
+  return {
+    diagram: {
+      direction,
+      nodes: settledNodes,
+      edges,
+      groups: [...groups.values()].filter((group) => held.has(group.id)),
+      texts: settledTexts,
+    },
+    errors,
+  };
 }
 
 /**

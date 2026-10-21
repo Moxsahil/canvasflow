@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { FolderInput, LogIn, MessageCircle, UserPlus, Users } from 'lucide-react';
+import { DiagramMark } from '../diagrams/DiagramMark';
 import { useT } from '../i18n';
 import {
   SurfaceWindow,
@@ -13,7 +14,7 @@ import type { SurfaceTheme } from '../ui/surface-palette';
 import { leaveForAccount } from './carry';
 
 /** What was asked for on the local board that only an account's board can do. */
-export type SignUpReason = 'share' | 'comment';
+export type SignUpReason = 'share' | 'comment' | 'diagram';
 
 interface SignUpPromptProps {
   /** Null when closed. */
@@ -26,7 +27,7 @@ interface SignUpPromptProps {
 
 /**
  * What the board kept in this browser says when asked for something that
- * needs the server: sharing it, or commenting on it.
+ * needs the server: sharing it, commenting on it, or generating a diagram.
  *
  * Offered rather than demanded — it closes back onto the board, which keeps
  * everything drawn on it. Sign in sits beside Create account because plenty of
@@ -56,11 +57,19 @@ export function SignUpPrompt({ reason, signedIn, theme, onClose }: SignUpPromptP
     >
       <WindowHeader
         titleId={titleId}
-        title={t(shown === 'share' ? 'local.prompt.shareTitle' : 'local.prompt.commentTitle')}
+        title={t(
+          shown === 'share'
+            ? 'local.prompt.shareTitle'
+            : shown === 'diagram'
+              ? 'local.prompt.diagramTitle'
+              : 'local.prompt.commentTitle',
+        )}
         lead={
           <WindowBadge tone="soft">
             {shown === 'share' ? (
               <Users aria-hidden="true" />
+            ) : shown === 'diagram' ? (
+              <DiagramMark />
             ) : (
               <MessageCircle aria-hidden="true" />
             )}

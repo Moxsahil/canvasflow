@@ -17,7 +17,16 @@ export interface DiagramTurn {
  */
 export interface DiagramWriter {
   /** The reply as it is written, chunk by chunk. Throws a `DiagramWriterError` when there is none. */
-  write(turns: readonly DiagramTurn[], signal: AbortSignal): AsyncIterable<string>;
+  write(
+    turns: readonly DiagramTurn[],
+    signal: AbortSignal,
+    options?: DiagramWriteOptions,
+  ): AsyncIterable<string>;
+}
+
+export interface DiagramWriteOptions {
+  /** The larger model, planning before it writes: for big diagrams such as system architectures. */
+  detailed?: boolean;
 }
 
 /** Why no reply came, in the terms the person is told. */
@@ -31,11 +40,17 @@ export class DiagramWriterError extends Error {
 
 export const DIAGRAM_WRITER = Symbol('DIAGRAM_WRITER');
 
-/** Fast and inexpensive, which is what a graph of short labels needs. */
-const DIAGRAM_MODEL = 'claude-haiku-5-5';
+/** Fast and inexpensive, which is what most diagrams need. */
+const QUICK_MODEL = 'claude-haiku-5-5';
+/** For the big ones: it plans the groups and connections before it writes a line. */
+const DETAILED_MODEL = 'claude-sonnet-5-5';
 
-/** Forty boxes and their arrows come to well under this. */
-const MAX_TOKENS = 4096;
+/** Eighty boxes and their arrows come to well under these. */
+const QUICK_MAX_TOKENS = 8192;
+const DETAILED_MAX_TOKENS = 16000;
+
+/** A detailed diagram plans first and writes more, so it is given longer. */
+const DETAILED_TIMEOUT_MS = 180_000;
 
 export class AnthropicDiagramWriter implements DiagramWriter {
   private readonly logger = new Logger(AnthropicDiagramWriter.name);
@@ -47,21 +62,44 @@ export class AnthropicDiagramWriter implements DiagramWriter {
     this.client = new Anthropic({ apiKey, maxRetries: 1, timeout: 60_000 });
   }
 
-  async *write(turns: readonly DiagramTurn[], signal: AbortSignal): AsyncIterable<string> {
+  async *write(
+    turns: readonly DiagramTurn[],
+    signal: AbortSignal,
+    options: DiagramWriteOptions = {},
+  ): AsyncIterable<string> {
+    const messages = turns.map((turn) => ({ role: turn.role, content: turn.text }));
     try {
-      const stream = this.client.messages.stream(
-        {
-          model: DIAGRAM_MODEL,
-          max_tokens: MAX_TOKENS,
-          // Labels and arrows need no deliberation, and thinking would hold
-          // back the first line the person is waiting to see.
-          thinking: { type: 'disabled' },
-          output_config: { effort: 'low' },
-          system: DIAGRAM_SYSTEM_PROMPT,
-          messages: turns.map((turn) => ({ role: turn.role, content: turn.text })),
-        },
-        { signal },
-      );
+      const stream = options.detailed
+        ? this.client.beta.messages.stream(
+            {
+              model: DETAILED_MODEL,
+              max_tokens: DETAILED_MAX_TOKENS,
+              // It thinks before it writes: which groups there are, what sits in
+              // each, and which way the flows run. Medium keeps the wait short.
+              thinking: { type: 'adaptive' },
+              output_config: { effort: 'medium' },
+              // A safeguard that declines on this model is retried on another
+              // the service picks, inside the same request.
+              betas: ['server-side-fallback-2026-07-01'],
+              fallbacks: 'default',
+              system: DIAGRAM_SYSTEM_PROMPT,
+              messages,
+            },
+            { signal, timeout: DETAILED_TIMEOUT_MS },
+          )
+        : this.client.messages.stream(
+            {
+              model: QUICK_MODEL,
+              max_tokens: QUICK_MAX_TOKENS,
+              // Labels and arrows need no deliberation, and thinking would hold
+              // back the first line the person is waiting to see.
+              thinking: { type: 'disabled' },
+              output_config: { effort: 'low' },
+              system: DIAGRAM_SYSTEM_PROMPT,
+              messages,
+            },
+            { signal },
+          );
 
       for await (const event of stream) {
         if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
@@ -71,7 +109,7 @@ export class AnthropicDiagramWriter implements DiagramWriter {
 
       const message = await stream.finalMessage();
       this.logger.log(
-        `Diagram: ${message.usage.input_tokens} in, ${message.usage.output_tokens} out, ${message.stop_reason}`,
+        `Diagram (${options.detailed ? 'detailed' : 'quick'}): ${message.usage.input_tokens} in, ${message.usage.output_tokens} out, ${message.stop_reason}`,
       );
       if (message.stop_reason === 'refusal') throw new DiagramWriterError('refused');
     } catch (error) {

@@ -35,6 +35,8 @@ export interface AnalyticsEvents {
   boards_exported: { boards: number; library: boolean };
   library_item_added: Record<string, never>;
   library_item_placed: Record<string, never>;
+  diagram_generated: { change: boolean; detailed: boolean; ok: boolean; boxes: number };
+  diagram_inserted: { change: boolean };
 }
 
 export type AnalyticsEvent = keyof AnalyticsEvents;

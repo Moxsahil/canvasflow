@@ -4,6 +4,7 @@ export * from './user.js';
 export * from './workspace.js';
 export * from './plans.js';
 export * from './diagrams.js';
+export * from './diagram-icons.js';
 export * from './board.js';
 export * from './audit.js';
 export * from './password.js';
