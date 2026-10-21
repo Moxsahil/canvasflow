@@ -1,6 +1,8 @@
 @import '@canvasflow/ui/styles.css';
 @import './theme.css';
 @import './cursors.css';
+@import '../components/agent-elements/agent-ui.css';
+@import 'tw-shimmer';
 
 /* shadcn writes this as `.dark`; this app marks the theme with a `data-theme`
    attribute, on <html> and on the editor root alike (see theme/useAppTheme). */
@@ -123,16 +125,128 @@ html[data-theme='dark'] #root {
   z-index: var(--zIndex-layerUI);
 }
 
-/* The diagrams panel opens in the middle of the board, sized like a dialog
-   (1000 × 680 at most), with the board still in use around it. It keeps clear
-   of the top-right dock and the bottom toolbar on a short window. */
+/* The diagrams panel opens in the middle of the board over a dimmed, blurred
+   board and the chrome on it. It takes most of the board on a desktop (1280 ×
+   900 at most), nearly all of it on a tablet, and all of it on a phone or a
+   short landscape window, where a margin is room the panel can't spare. */
+.cf-diagram-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: calc(var(--zIndex-layerUI) + 1);
+}
+
 .cf-diagram-panel {
   position: absolute;
   inset: 0;
   margin: auto;
-  width: min(1000px, calc(100% - 2rem));
-  height: min(680px, calc(100% - 8.5rem));
+  width: min(1280px, calc(100% - 6rem));
+  height: min(900px, calc(100% - 5rem));
+  z-index: calc(var(--zIndex-layerUI) + 1);
+
+  /* The input bar reads its own --an-* tokens; inside the panel they follow
+     the panel's palette, light or dark, and the bar spans the panel. */
+  --an-max-width: none;
+  --an-input-background: var(--surface-input);
+  --an-foreground: var(--surface-fg);
+  --an-foreground-muted: var(--surface-fg-muted);
+  --an-foreground-subtle: var(--surface-fg-faint);
+  --an-input-placeholder-color: var(--surface-fg-faint);
+  --an-border-color: var(--surface-border);
+  --an-background-secondary: var(--surface-wash);
+  --an-background-tertiary: var(--surface-raised);
+  --an-primary-color: var(--surface-accent);
+  --an-send-button-bg: var(--surface-accent);
+  --an-send-button-color: var(--surface-on-accent);
+}
+
+/* Every scroll inside the panel — the conversation, the chats, a wide
+   preview, the box — takes the panel's own thin bar: a rounded thumb in a
+   quiet tone on no track, stronger under the pointer, as the Settings window
+   draws its own. */
+@layer base {
+  .cf-diagram-panel,
+  .cf-diagram-panel * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-scrollbar) transparent;
+  }
+
+  .cf-diagram-panel *:hover {
+    scrollbar-color: var(--surface-fg-faint) transparent;
+  }
+}
+
+/* The editor's sidebar scrolls its lists with the same thin bar, in its own
+   neutral palette. A base rule, so a list that hides its bar (the collapsed
+   rail's) still can. */
+@layer base {
+  [data-slot='sidebar'],
+  [data-slot='sidebar'] * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--sidebar-border) transparent;
+  }
+
+  [data-slot='sidebar'] *:hover {
+    scrollbar-color: color-mix(in oklab, var(--sidebar-foreground) 45%, transparent) transparent;
+  }
+}
+
+/* The panel's chats sit beside the conversation while there is room; on a
+   narrower panel they open over it from the header's button. */
+.cf-diagram-sidebar {
+  width: 288px;
+  flex-shrink: 0;
+}
+
+.cf-diagram-sidebar-toggle {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .cf-diagram-sidebar {
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    z-index: 2;
+    width: min(288px, 85%);
+    display: none;
+    box-shadow: var(--surface-shadow);
+  }
+
+  .cf-diagram-sidebar[data-open] {
+    display: flex;
+  }
+
+  .cf-diagram-sidebar-toggle {
+    display: inline-flex;
+  }
+}
+
+/* Minimized, the panel is a bar above the zoom panel in the board's corner. */
+.cf-diagram-minimized {
+  position: absolute;
+  right: 1rem;
+  bottom: 4.25rem;
+  max-width: calc(100% - 2rem);
   z-index: var(--zIndex-layerUI);
+}
+
+@media (max-width: 1023px) {
+  .cf-diagram-panel {
+    width: calc(100% - 2rem);
+    height: calc(100% - 2rem);
+  }
+}
+
+/* Unlayered, so these win over the panel's own border and rounding. */
+@media (max-width: 640px), (max-height: 500px) {
+  .cf-diagram-panel {
+    width: 100%;
+    height: 100%;
+    border-width: 0;
+    border-radius: 0;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
+  }
 }
 
 /* Focus and view mode put the sidebar away with the rest of the chrome
@@ -140,7 +254,8 @@ html[data-theme='dark'] #root {
    than unmounted: the dialogs the sidebar owns — rename, manage — are still
    reachable from the palette, and they portal out to the editor root, so they
    go on working from behind a sidebar nobody can see. */
-.cf-editor[data-chrome-hidden] [data-slot='sidebar'] {
+.cf-editor[data-chrome-hidden] [data-slot='sidebar'],
+.cf-editor[data-diagrams-open] [data-slot='sidebar'] {
   display: none;
 }
 
@@ -250,4 +365,24 @@ html[data-theme='dark'] #root {
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  @keyframes collapsible-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-collapsible-content-height, var(--collapsible-panel-height, auto));
+    }
+  }
+  @keyframes collapsible-up {
+    from {
+      height: var(--radix-collapsible-content-height, var(--collapsible-panel-height, auto));
+    }
+    to {
+      height: 0;
+    }
+  }
 }
+
+@custom-variant data-open (&:where([data-state="open"], [data-open]:not([data-open="false"])));
+
+@custom-variant data-closed (&:where([data-state="closed"], [data-closed]:not([data-closed="false"])));

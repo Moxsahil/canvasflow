@@ -787,8 +787,10 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // Diagrams generated from a description, counted against the month's
   // allowance. The panel is the one place they are asked for and placed from.
   const [diagramsOpen, setDiagramsOpen] = useState(false);
+  const [diagramsMinimized, setDiagramsMinimized] = useState(false);
   const diagrams = useDiagramPanel({
     boardId,
+    userId: user?.id ?? null,
     token: authToken,
     open: diagramsOpen,
     signedIn: accountHere,
@@ -866,7 +868,9 @@ export function Editor({ boardId, local = false }: EditorProps) {
     boardId,
     token: authToken,
     userId,
-    version: account.profile?.avatarVersion ?? null,
+    // Undefined until the profile answers, so a photo kept from the last
+    // visit stays up meanwhile.
+    version: account.profile ? (account.profile.avatarVersion ?? null) : undefined,
     onChanged: account.reload,
   });
 
@@ -4468,6 +4472,26 @@ export function Editor({ boardId, local = false }: EditorProps) {
     }),
     [itemStyle],
   );
+  const markDiagramInserted = diagrams.markInserted;
+
+  /** Selects shapes a diagram placed, and fits them in view when they are bigger than it. */
+  const selectPlacedDiagram = useCallback(
+    (placed: readonly Shape[]) => {
+      actorRef.send({ type: 'SELECT_ALL', shapeIds: placed.map((shape) => shape.id) });
+      const rect = computeBoundingRect(placed);
+      if (
+        rect &&
+        (rect.width * camera.zoom > width * 0.9 || rect.height * camera.zoom > height * 0.85)
+      ) {
+        actorRef.send({
+          type: 'SET_CAMERA',
+          camera: fitRectToViewport(rect, { width, height }),
+        });
+      }
+    },
+    [actorRef, camera, width, height],
+  );
+
   const insertDiagram = useCallback(
     async (entry: DiagramEntry) => {
       if (readOnly) return;
@@ -4488,18 +4512,13 @@ export function Editor({ boardId, local = false }: EditorProps) {
         for (const shape of placed) doc.addShape(shape);
       });
       void adoptImages(icons);
+      markDiagramInserted(
+        entry.id,
+        placed.map((shape) => shape.id),
+      );
       setDiagramsOpen(false);
-      actorRef.send({ type: 'SELECT_ALL', shapeIds: placed.map((shape) => shape.id) });
-      const rect = computeBoundingRect(placed);
-      if (
-        rect &&
-        (rect.width * camera.zoom > width * 0.9 || rect.height * camera.zoom > height * 0.85)
-      ) {
-        actorRef.send({
-          type: 'SET_CAMERA',
-          camera: fitRectToViewport(rect, { width, height }),
-        });
-      }
+      setDiagramsMinimized(false);
+      selectPlacedDiagram(placed);
       track('diagram_inserted', { change: Boolean(entry.changeOf) });
     },
     [
@@ -4508,12 +4527,87 @@ export function Editor({ boardId, local = false }: EditorProps) {
       height,
       camera,
       doc,
-      actorRef,
       adoptImages,
       imageCache,
       diagramStyle,
       preferences.values.dynamicSize,
+      markDiagramInserted,
+      selectPlacedDiagram,
     ],
+  );
+
+  /**
+   * One version on the board swapped for another, where the first stands:
+   * its shapes go, the new ones are centred on the same spot, and one undo
+   * brings the old one back. Locked shapes stay, as they do from a delete.
+   */
+  const replaceDiagram = useCallback(
+    async (entry: DiagramEntry, previous: DiagramEntry) => {
+      if (readOnly) return;
+      const current = doc.getShapes();
+      const locked = lockedShapeIds(current);
+      const old = new Set(previous.inserted ?? []);
+      const leaving = current.filter((shape) => old.has(shape.id) && !locked.has(shape.id));
+      const rect = computeBoundingRect(leaving);
+      if (!rect) {
+        void insertDiagram(entry);
+        return;
+      }
+      const { shapes, icons, pictures } = await composeDiagram(entry.lines, genId, {
+        style: diagramStyle,
+        scale: newShapeScale(camera, preferences.values.dynamicSize),
+      });
+      const going = leaving.map((shape) => shape.id);
+      const goingSet = new Set(going);
+      const placed = shapesCentredOn(
+        shapes,
+        { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 },
+        doc.getShapes().filter((shape) => !goingSet.has(shape.id)),
+      );
+      if (placed.length === 0) return;
+      for (const [fileId, picture] of pictures) imageCache.put(fileId, picture);
+      const shapesById = new Map(current.map((shape) => [shape.id, shape]));
+      comments.store.holdPins(goingSet, (thread) => anchorPoint(thread.anchor, shapesById));
+      doc.batch(() => {
+        releaseArrowsFrom(doc, going);
+        doc.deleteShapes(going);
+        for (const shape of placed) doc.addShape(shape);
+      });
+      void adoptImages(icons);
+      markDiagramInserted(
+        entry.id,
+        placed.map((shape) => shape.id),
+      );
+      setDiagramsOpen(false);
+      setDiagramsMinimized(false);
+      selectPlacedDiagram(placed);
+      track('diagram_inserted', { change: true });
+    },
+    [
+      readOnly,
+      doc,
+      camera,
+      diagramStyle,
+      preferences.values.dynamicSize,
+      imageCache,
+      comments.store,
+      adoptImages,
+      markDiagramInserted,
+      insertDiagram,
+      selectPlacedDiagram,
+    ],
+  );
+
+  /** The shapes a diagram placed, selected and in view, with the panel put away. */
+  const showDiagramOnBoard = useCallback(
+    (entry: DiagramEntry) => {
+      const ids = new Set(entry.inserted ?? []);
+      const there = doc.getShapes().filter((shape) => ids.has(shape.id));
+      if (there.length === 0) return;
+      setDiagramsMinimized(true);
+      selectPlacedDiagram(there);
+    },
+    [doc, selectPlacedDiagram],
   );
 
   // Whichever library it came from, the panel holds the item being dragged.
@@ -4817,10 +4911,28 @@ export function Editor({ boardId, local = false }: EditorProps) {
 
   /** The local board has no account to spend diagrams from, so it asks for one. */
   const toggleDiagrams = useCallback(() => {
-    if (local) setSignUpReason('diagram');
-    else setDiagramsOpen((open) => !open);
-  }, [local]);
-  const closeDiagrams = useCallback(() => setDiagramsOpen(false), []);
+    if (local) {
+      setSignUpReason('diagram');
+      return;
+    }
+    // Minimized, the button brings the panel back rather than closing it.
+    if (diagramsOpen && diagramsMinimized) setDiagramsMinimized(false);
+    else {
+      setDiagramsMinimized(false);
+      setDiagramsOpen((open) => !open);
+    }
+  }, [local, diagramsOpen, diagramsMinimized]);
+  const closeDiagrams = useCallback(() => {
+    setDiagramsOpen(false);
+    setDiagramsMinimized(false);
+  }, []);
+  const minimizeDiagrams = useCallback(() => setDiagramsMinimized(true), []);
+  // Which diagrams are on the board is read off it while the panel is open.
+  const boardShapeIds = useMemo(
+    () => (diagramsOpen ? new Set(shapes.map((shape) => shape.id)) : EMPTY_IDS),
+    [diagramsOpen, shapes],
+  );
+  const restoreDiagrams = useCallback(() => setDiagramsMinimized(false), []);
   const signInForDiagrams = useCallback(() => {
     window.location.assign(new URL('/login?next=/open', env.VITE_WEB_URL).toString());
   }, []);
@@ -5125,10 +5237,14 @@ export function Editor({ boardId, local = false }: EditorProps) {
       ref={editorRef}
       className="cf-editor"
       data-theme={resolvedTheme}
-      // Read by global.css, which moves the style panel out from under it.
       // Read by global.css, which hides the sidebar on it. The chrome drawn
       // below is simply left out of the tree instead.
       data-chrome-hidden={chromeHidden ? '' : undefined}
+      // Read by global.css too: the sidebar steps aside while the diagrams
+      // panel is open, and is back once it is closed or minimized.
+      data-diagrams-open={
+        diagramsOpen && !diagramsMinimized && !chromeHidden && !readOnly && !local ? '' : undefined
+      }
       style={
         {
           position: 'fixed',
@@ -5478,11 +5594,9 @@ export function Editor({ boardId, local = false }: EditorProps) {
               {(!chromeHidden || search.open) && <FindBar search={search} />}
               {!chromeHidden && !readOnly && (
                 <DiagramsButton
-                  open={diagramsOpen}
-                  left={
-                    diagrams.usage ? Math.max(diagrams.usage.limit - diagrams.usage.used, 0) : null
-                  }
+                  open={diagramsOpen && !diagramsMinimized}
                   onToggle={toggleDiagrams}
+                  onWarm={accountHere ? diagrams.warmUsage : undefined}
                 />
               )}
               {chromeHidden ? (
@@ -5522,6 +5636,15 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 onSignIn={signInForDiagrams}
                 onUpgrade={showPlans}
                 onClose={closeDiagrams}
+                minimized={diagramsMinimized}
+                onMinimize={minimizeDiagrams}
+                onRestore={restoreDiagrams}
+                profile={
+                  chromeUser ? { name: chromeUser.name, avatarUrl: chromeUser.avatarUrl } : null
+                }
+                boardShapeIds={boardShapeIds}
+                onShowOnBoard={showDiagramOnBoard}
+                onReplace={(entry, previous) => void replaceDiagram(entry, previous)}
                 drawStyle={diagramStyle}
               />
             )}

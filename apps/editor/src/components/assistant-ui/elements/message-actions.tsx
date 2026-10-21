@@ -1,0 +1,137 @@
+'use client';
+
+import type { ComponentProps } from 'react';
+import {
+  CheckIcon,
+  CopyIcon,
+  EllipsisIcon,
+  RefreshCwIcon,
+  ThumbsDownIcon,
+  ThumbsUpIcon,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { ghostButton, iconSwap, iconSwapIn, iconSwapOut } from './surfaces';
+
+export type Reaction = 'up' | 'down' | null;
+
+/** Accessible names of the buttons, for a caller that translates them. */
+export interface MessageActionsLabels {
+  copy: string;
+  copied: string;
+  helpful: string;
+  unhelpful: string;
+  regenerate: string;
+  more: string;
+}
+
+const DEFAULT_LABELS: MessageActionsLabels = {
+  copy: 'Copy response',
+  copied: 'Copied response',
+  helpful: 'Mark response helpful',
+  unhelpful: 'Mark response unhelpful',
+  regenerate: 'Regenerate response',
+  more: 'More response actions',
+};
+
+export interface MessageActionsProps extends Omit<ComponentProps<'div'>, 'children'> {
+  copied: boolean;
+  reaction: Reaction;
+  regenerating: boolean;
+  onCopy: () => void;
+  onReactionChange: (reaction: Reaction) => void;
+  onRegenerate: () => void;
+  /** Left out, there is no More button. */
+  onMore?: () => void;
+  /** Regenerate greyed out, e.g. while another answer is being written. */
+  regenerateDisabled?: boolean;
+  labels?: Partial<MessageActionsLabels>;
+}
+
+export function MessageActions({
+  copied,
+  reaction,
+  regenerating,
+  onCopy,
+  onReactionChange,
+  onRegenerate,
+  onMore,
+  regenerateDisabled = false,
+  labels: given,
+  className,
+  ...props
+}: MessageActionsProps) {
+  const labels = { ...DEFAULT_LABELS, ...given };
+  const buttonClassName = cn(
+    ghostButton,
+    'size-7 disabled:pointer-events-none disabled:opacity-40',
+  );
+
+  return (
+    <div
+      data-slot="message-actions"
+      className={cn('flex items-center gap-1', className)}
+      {...props}
+    >
+      <button
+        type="button"
+        aria-label={copied ? labels.copied : labels.copy}
+        title={copied ? labels.copied : labels.copy}
+        onClick={onCopy}
+        className={cn(buttonClassName, 'grid place-items-center', copied && 'text-emerald-500')}
+      >
+        <CopyIcon className={cn(iconSwap, 'size-3.5', copied ? iconSwapOut : iconSwapIn)} />
+        <CheckIcon className={cn(iconSwap, 'size-3.5', copied ? iconSwapIn : iconSwapOut)} />
+      </button>
+      <button
+        type="button"
+        aria-label={labels.helpful}
+        title={labels.helpful}
+        aria-pressed={reaction === 'up'}
+        onClick={() => onReactionChange(reaction === 'up' ? null : 'up')}
+        className={cn(
+          buttonClassName,
+          reaction === 'up' && 'bg-foreground/[0.06] text-foreground/90 dark:bg-foreground/[0.09]',
+        )}
+      >
+        <ThumbsUpIcon className="size-3.5" />
+      </button>
+      <button
+        type="button"
+        aria-label={labels.unhelpful}
+        title={labels.unhelpful}
+        aria-pressed={reaction === 'down'}
+        onClick={() => onReactionChange(reaction === 'down' ? null : 'down')}
+        className={cn(
+          buttonClassName,
+          reaction === 'down' &&
+            'bg-foreground/[0.06] text-foreground/90 dark:bg-foreground/[0.09]',
+        )}
+      >
+        <ThumbsDownIcon className="size-3.5" />
+      </button>
+      <button
+        type="button"
+        aria-label={labels.regenerate}
+        title={labels.regenerate}
+        disabled={regenerateDisabled}
+        onClick={onRegenerate}
+        className={buttonClassName}
+      >
+        <RefreshCwIcon
+          className={cn('size-3.5', regenerating && 'animate-spin motion-reduce:animate-none')}
+        />
+      </button>
+      {onMore && (
+        <button
+          type="button"
+          aria-label={labels.more}
+          title={labels.more}
+          onClick={onMore}
+          className={buttonClassName}
+        >
+          <EllipsisIcon className="size-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}

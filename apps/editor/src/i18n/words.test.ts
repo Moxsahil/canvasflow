@@ -33,6 +33,13 @@ const UNTRANSLATED = new Set(['Aa', 'PNG', 'SVG', 'libraries.excalidraw.com']);
 /** A sample component from the kit, with made-up messages, that nothing renders. */
 const NOT_RENDERED = new Set([join('components', 'ui', 'notifications.tsx')]);
 
+/**
+ * A chat kit installed whole, of which the diagrams panel renders only the
+ * thread and its user messages. The words those show come in as labels; the
+ * rest (tool calls, voice, image generation, its own composer) never renders.
+ */
+const VENDORED_KITS = [join('components', 'assistant-ui') + '/'];
+
 describe('the English words', () => {
   const english: Record<string, string> = en;
   const source = sourceFiles()
@@ -58,7 +65,9 @@ describe('the English words', () => {
   it('leave no words written straight into a component', () => {
     const written: string[] = [];
     for (const path of sourceFiles()) {
-      if (!path.endsWith('.tsx') || NOT_RENDERED.has(relative(SRC, path))) continue;
+      const local = relative(SRC, path);
+      if (!path.endsWith('.tsx') || NOT_RENDERED.has(local)) continue;
+      if (VENDORED_KITS.some((kit) => local.startsWith(kit))) continue;
       const file = ts.createSourceFile(
         path,
         readFileSync(path, 'utf8'),
