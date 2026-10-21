@@ -12,27 +12,18 @@
  * can be re-run after the sizing rules change without regenerating anything.
  */
 
-import { measureTextWidth } from '../utils/text-measure.js';
-import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '../shapes/text.js';
-import type { DiagramEdge, DiagramIR, DiagramNode } from './ir.js';
-
-/** Space around the label inside a box. */
-const PADDING_X = 28;
-const PADDING_Y = 20;
-
-const MIN_WIDTH = 104;
-const MIN_HEIGHT = 56;
-
-/** Where a label starts wrapping rather than stretching its box. */
-const WRAP_WIDTH = 200;
-
-const LINE_HEIGHT = 1.2;
-
-/**
- * A diamond's corners cut into its box, so a label that fits the box does not
- * fit the shape. Growing the box is cheaper than measuring the rhombus.
- */
-const DIAMOND_INFLATION = 1.45;
+import type { Point } from '../math.js';
+import {
+  DEFAULT_DIAGRAM_STYLE,
+  ICON_LABEL_GAP,
+  groupNameRoom,
+  sizeNode,
+  sizeText,
+  type DiagramStyle,
+  type SizedNode,
+  type SizedText,
+} from './measure.js';
+import type { DiagramEdge, DiagramGroup, DiagramIR } from './ir.js';
 
 /** Between one rank and the next, and between neighbours in a rank. */
 const RANK_GAP = 96;
@@ -42,72 +33,54 @@ const SIBLING_GAP = 52;
 const ORDERING_PASSES = 4;
 const REFINEMENT_PASSES = 4;
 
-export interface LaidOutNode extends DiagramNode {
-  /** The label after wrapping, newline-separated. */
-  readonly label: string;
+/** Room inside a group's frame around what stands in it. */
+export const GROUP_PADDING = 24;
+/** Between a title and the top of the diagram under it. */
+const TITLE_GAP = 48;
+
+/**
+ * A node in place. `x`, `y`, `width` and `height` are the part arrows attach
+ * to — the box, or an icon node's icon, whose words hang below it.
+ */
+export interface LaidOutNode extends SizedNode {
+  readonly x: number;
+  readonly y: number;
+}
+
+export interface LaidOutText extends SizedText {
+  readonly x: number;
+  readonly y: number;
+}
+
+export interface LaidOutGroup extends DiagramGroup {
   readonly x: number;
   readonly y: number;
   readonly width: number;
   readonly height: number;
 }
 
+export interface RoutedEdge extends DiagramEdge {
+  /**
+   * The way the arrow goes, end to end, when the layout worked one out. Absent,
+   * the arrow runs straight from one box to the other.
+   */
+  readonly route?: readonly Point[];
+}
+
 export interface PositionedDiagram {
   readonly nodes: readonly LaidOutNode[];
-  readonly edges: readonly DiagramEdge[];
+  readonly edges: readonly RoutedEdge[];
+  readonly groups: readonly LaidOutGroup[];
+  readonly texts: readonly LaidOutText[];
 }
 
-function fontString(): string {
-  return `${DEFAULT_FONT_SIZE}px ${DEFAULT_FONT_FAMILY}`;
-}
-
-/**
- * Break a label across lines at word boundaries.
- *
- * A word longer than the wrap width is left alone rather than split: a hyphen
- * inserted into somebody's identifier is worse than a wide box.
- */
-function wrapLabel(text: string, font: string): { label: string; width: number; lines: number } {
-  const words = text.split(/\s+/).filter((w) => w.length > 0);
-  if (words.length === 0) return { label: text, width: 0, lines: 1 };
-
-  const lines: string[] = [];
-  let current = words[0]!;
-
-  for (let i = 1; i < words.length; i++) {
-    const candidate = `${current} ${words[i]!}`;
-    if (measureTextWidth(candidate, font) <= WRAP_WIDTH) {
-      current = candidate;
-    } else {
-      lines.push(current);
-      current = words[i]!;
-    }
-  }
-  lines.push(current);
-
-  let width = 0;
-  for (const line of lines) {
-    const w = measureTextWidth(line, font);
-    if (w > width) width = w;
-  }
-
-  return { label: lines.join('\n'), width, lines: lines.length };
-}
-
-interface SizedNode extends DiagramNode {
-  readonly label: string;
-  readonly width: number;
-  readonly height: number;
-}
-
-function sizeNode(node: DiagramNode, font: string): SizedNode {
-  const { label, width: textWidth, lines } = wrapLabel(node.text, font);
-  const textHeight = lines * DEFAULT_FONT_SIZE * LINE_HEIGHT;
-
-  const inflation = node.kind === 'diamond' ? DIAMOND_INFLATION : 1;
-  const width = Math.max(MIN_WIDTH, Math.round((textWidth + PADDING_X * 2) * inflation));
-  const height = Math.max(MIN_HEIGHT, Math.round((textHeight + PADDING_Y * 2) * inflation));
-
-  return { ...node, label, width, height };
+/** The room a node takes up on the board, its words included. */
+export function footprintOf(node: SizedNode): { width: number; height: number } {
+  if (node.kind !== 'icon') return { width: node.width, height: node.height };
+  return {
+    width: Math.max(node.width, node.labelWidth),
+    height: node.height + ICON_LABEL_GAP + node.labelHeight,
+  };
 }
 
 /**
@@ -337,20 +310,37 @@ function assignPositions(
 }
 
 /**
- * Lay a diagram out.
+ * Lay a diagram out, quickly and without help.
  *
- * Nodes with no edges at all still get a place — an orphan is usually a node
- * whose edge has not arrived yet, and dropping it would make the preview
- * flicker as the stream fills in.
+ * Used where the full layout is not to hand: groups become a box around their
+ * members rather than a region the members are arranged inside, and arrows run
+ * straight. Nodes with no edges at all still get a place — an orphan is
+ * usually a node whose edge has not arrived yet, and dropping it would make the
+ * preview flicker as the stream fills in.
  */
-export function layoutDiagram(ir: DiagramIR): PositionedDiagram {
-  if (ir.nodes.length === 0) return { nodes: [], edges: [] };
+export function layoutDiagram(
+  ir: DiagramIR,
+  style: DiagramStyle = DEFAULT_DIAGRAM_STYLE,
+): PositionedDiagram {
+  const titles = ir.texts
+    .filter((text) => text.size === 'title')
+    .map((text) => sizeText(text, style));
+  const notes = ir.texts
+    .filter((text) => text.size !== 'title')
+    .map((text) => sizeText(text, style));
+  if (ir.nodes.length === 0 && notes.length === 0) {
+    return placeTitles({ nodes: [], edges: [], groups: [], texts: [] }, titles);
+  }
 
-  const font = fontString();
   const sized = new Map<string, SizedNode>();
-  for (const node of ir.nodes) sized.set(node.id, sizeNode(node, font));
+  for (const node of ir.nodes) sized.set(node.id, sizeNode(node, style));
+  // Notes take a place in the layout as nodes with nothing attached.
+  const footprints = new Map<string, { width: number; height: number }>();
+  for (const node of sized.values()) footprints.set(node.id, footprintOf(node));
+  const noteKey = (id: string) => JSON.stringify(['text', id]);
+  for (const note of notes) footprints.set(noteKey(note.id), note);
 
-  const nodeIds = ir.nodes.map((n) => n.id);
+  const nodeIds = [...footprints.keys()];
   const backEdges = findBackEdges(nodeIds, ir.edges);
   const rankOf = assignRanks(nodeIds, ir.edges, backEdges);
 
@@ -362,55 +352,142 @@ export function layoutDiagram(ir: DiagramIR): PositionedDiagram {
   // depends on the direction: sideways, a rank is a column, so boxes in it
   // stack by height and the column is as wide as its widest box.
   const acrossOf = (id: string) =>
-    ir.direction === 'TB' ? sized.get(id)!.width : sized.get(id)!.height;
+    ir.direction === 'TB' ? footprints.get(id)!.width : footprints.get(id)!.height;
   const downOf = (id: string) =>
-    ir.direction === 'TB' ? sized.get(id)!.height : sized.get(id)!.width;
+    ir.direction === 'TB' ? footprints.get(id)!.height : footprints.get(id)!.width;
 
   const ordered = orderRanks(ranks, ir.edges);
   const centre = assignPositions(ordered, acrossOf, ir.edges);
 
   // The across-axis is now settled; walk the ranks to place the down-axis,
   // giving each rank the depth of its deepest member.
-  const laidOut: LaidOutNode[] = [];
+  const placed = new Map<string, Point>();
   let cursor = 0;
 
   for (const rank of ordered) {
     const deepest = Math.max(...rank.map(downOf));
     for (const id of rank) {
-      const node = sized.get(id)!;
       const across = (centre.get(id) ?? 0) - acrossOf(id) / 2;
       const down = cursor + (deepest - downOf(id)) / 2;
 
       // One layout, two readings: for a left-to-right diagram the axes simply
       // swap, so ranking and ordering never need to know which way it runs.
-      const x = ir.direction === 'TB' ? across : down;
-      const y = ir.direction === 'TB' ? down : across;
-
-      laidOut.push({
-        id: node.id,
-        kind: node.kind,
-        text: node.text,
-        label: node.label,
-        x: Math.round(x),
-        y: Math.round(y),
-        width: node.width,
-        height: node.height,
+      placed.set(id, {
+        x: Math.round(ir.direction === 'TB' ? across : down),
+        y: Math.round(ir.direction === 'TB' ? down : across),
       });
     }
     cursor += deepest + RANK_GAP;
   }
 
-  return { nodes: normaliseOrigin(laidOut), edges: ir.edges };
+  const nodes: LaidOutNode[] = [...sized.values()].map((node) => {
+    const at = placed.get(node.id)!;
+    // An icon sits centred over its words.
+    const inset = (footprintOf(node).width - node.width) / 2;
+    return { ...node, x: at.x + inset, y: at.y };
+  });
+  const texts: LaidOutText[] = notes.map((note) => ({ ...note, ...placed.get(noteKey(note.id))! }));
+
+  const groups: LaidOutGroup[] = [];
+  for (const group of ir.groups) {
+    const members = [
+      ...nodes
+        .filter((node) => node.group === group.id)
+        .map((node) => ({
+          x: node.x - (footprintOf(node).width - node.width) / 2,
+          y: node.y,
+          ...footprintOf(node),
+        })),
+      ...texts.filter((text) => text.group === group.id),
+    ];
+    const box = enclosing(members);
+    if (!box) continue;
+    groups.push({
+      ...group,
+      x: box.x - GROUP_PADDING,
+      y: box.y - GROUP_PADDING - groupNameRoom(style),
+      width: box.width + GROUP_PADDING * 2,
+      height: box.height + GROUP_PADDING * 2 + groupNameRoom(style),
+    });
+  }
+
+  return placeTitles({ nodes, edges: ir.edges, groups, texts }, titles);
+}
+
+interface Box {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+function enclosing(boxes: readonly Box[]): Box | null {
+  if (boxes.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const box of boxes) {
+    minX = Math.min(minX, box.x);
+    minY = Math.min(minY, box.y);
+    maxX = Math.max(maxX, box.x + box.width);
+    maxY = Math.max(maxY, box.y + box.height);
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+/** Everything a laid-out diagram covers, words under icons included. */
+export function extentOf(diagram: PositionedDiagram): Box | null {
+  return enclosing([
+    ...diagram.nodes.map((node) => ({
+      x: node.x - (footprintOf(node).width - node.width) / 2,
+      y: node.y,
+      ...footprintOf(node),
+    })),
+    ...diagram.groups,
+    ...diagram.texts,
+    ...diagram.edges.flatMap((edge) =>
+      (edge.route ?? []).map((point) => ({ x: point.x, y: point.y, width: 0, height: 0 })),
+    ),
+  ]);
+}
+
+/**
+ * Put the titles above the top-left corner of the laid-out diagram, one under
+ * another, then move the whole thing so it starts at the origin.
+ */
+export function placeTitles(
+  diagram: PositionedDiagram,
+  titles: readonly SizedText[],
+): PositionedDiagram {
+  const extent = extentOf(diagram) ?? { x: 0, y: 0, width: 0, height: 0 };
+  const height = titles.reduce((sum, title) => sum + title.height, 0);
+  let y = extent.y - (titles.length > 0 ? height + TITLE_GAP : 0);
+  const placed: LaidOutText[] = titles.map((title) => {
+    const text = { ...title, x: extent.x, y };
+    y += title.height;
+    return text;
+  });
+  return normaliseOrigin({ ...diagram, texts: [...placed, ...diagram.texts] });
 }
 
 /** Shift everything so the diagram starts at the origin. */
-function normaliseOrigin(nodes: readonly LaidOutNode[]): LaidOutNode[] {
-  let minX = Infinity;
-  let minY = Infinity;
-  for (const node of nodes) {
-    if (node.x < minX) minX = node.x;
-    if (node.y < minY) minY = node.y;
-  }
-  if (minX === 0 && minY === 0) return [...nodes];
-  return nodes.map((node) => ({ ...node, x: node.x - minX, y: node.y - minY }));
+function normaliseOrigin(diagram: PositionedDiagram): PositionedDiagram {
+  const extent = extentOf(diagram);
+  if (!extent || (extent.x === 0 && extent.y === 0)) return diagram;
+  return shift(diagram, -extent.x, -extent.y);
+}
+
+/** The same diagram moved by `dx`, `dy`. */
+export function shift(diagram: PositionedDiagram, dx: number, dy: number): PositionedDiagram {
+  return {
+    nodes: diagram.nodes.map((node) => ({ ...node, x: node.x + dx, y: node.y + dy })),
+    edges: diagram.edges.map((edge) =>
+      edge.route
+        ? { ...edge, route: edge.route.map((point) => ({ x: point.x + dx, y: point.y + dy })) }
+        : edge,
+    ),
+    groups: diagram.groups.map((group) => ({ ...group, x: group.x + dx, y: group.y + dy })),
+    texts: diagram.texts.map((text) => ({ ...text, x: text.x + dx, y: text.y + dy })),
+  };
 }

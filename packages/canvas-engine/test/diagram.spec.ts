@@ -1,10 +1,20 @@
+import ELK from 'elkjs/lib/elk.bundled.js';
 import { describe, expect, it } from 'vitest';
-import { buildDiagram, collectDiagram, parseDiagramLine } from '../src/diagram/index.js';
+import {
+  buildDiagram,
+  buildDiagramWithElk,
+  collectDiagram,
+  parseDiagramLine,
+} from '../src/diagram/index.js';
 import { layoutDiagram } from '../src/diagram/layout.js';
+import { layoutDiagramWithElk, type ElkLike } from '../src/diagram/layout-elk.js';
 import { diagramToShapes } from '../src/diagram/to-shapes.js';
 import type { DiagramIR } from '../src/diagram/ir.js';
-import type { ArrowShape, Shape, TextShape } from '../src/shapes/shape.js';
+import type { ArrowShape, ImageShape, Shape, TextShape } from '../src/shapes/shape.js';
 import { shapeBounds } from '../src/shapes/bounds.js';
+import { boundArrowPatches } from '../src/shapes/arrow-binding.js';
+
+const elk = new ELK() as unknown as ElkLike;
 
 const counter = () => {
   let n = 0;
@@ -121,7 +131,7 @@ describe('layoutDiagram', () => {
 
   const expectNoOverlaps = (diagram: DiagramIR) => {
     const { nodes } = layoutDiagram(diagram);
-    const shapes = diagramToShapes({ nodes, edges: [] }, counter());
+    const shapes = diagramToShapes({ nodes, edges: [], groups: [], texts: [] }, counter());
     const boxes = shapes.filter((s) => s.kind !== 'text');
 
     for (let i = 0; i < boxes.length; i++) {
@@ -235,7 +245,9 @@ describe('diagramToShapes', () => {
   it('stores terminals that already sit outside both boxes', () => {
     const { shapes } = build();
     const arrow = shapes.find((s): s is ArrowShape => s.kind === 'arrow')!;
-    const boxes = shapes.filter((s) => s.kind === 'rectangle' || s.kind === 'diamond');
+    // A diamond's rounded tip sits inside its box, so only the rectangle's
+    // box is the outline here.
+    const boxes = shapes.filter((s) => s.kind === 'rectangle');
 
     const ends = arrow.points.map(([px, py]) => ({ x: arrow.x + px, y: arrow.y + py }));
     for (const box of boxes) {
@@ -283,5 +295,318 @@ describe('buildDiagram', () => {
 
   it('returns nothing for no lines', () => {
     expect(buildDiagram([], counter())).toEqual({ shapes: [], errors: [] });
+  });
+});
+
+const line = (value: Record<string, unknown>) => JSON.stringify(value);
+
+describe('the richer format', () => {
+  it('reads groups, texts, icons, colours and how an edge is drawn', () => {
+    expect(parseDiagramLine(line({ t: 'group', id: 'api', label: 'API', color: 'blue' }))).toEqual({
+      ok: true,
+      value: { t: 'group', id: 'api', label: 'API', color: 'blue' },
+    });
+    expect(
+      parseDiagramLine(
+        line({
+          t: 'node',
+          id: 'db',
+          kind: 'rectangle',
+          text: 'Users',
+          group: 'api',
+          icon: 'database',
+          color: 'green',
+        }),
+      ),
+    ).toEqual({
+      ok: true,
+      value: {
+        t: 'node',
+        id: 'db',
+        kind: 'rectangle',
+        text: 'Users',
+        group: 'api',
+        icon: 'database',
+        color: 'green',
+      },
+    });
+    expect(
+      parseDiagramLine(line({ t: 'edge', from: 'a', to: 'b', dir: 'both', style: 'dashed' })),
+    ).toEqual({
+      ok: true,
+      value: { t: 'edge', from: 'a', to: 'b', label: '', dir: 'both', style: 'dashed' },
+    });
+    expect(
+      parseDiagramLine(
+        line({ t: 'text', id: 'title', text: 'Netflix', size: 'title', color: 'red' }),
+      ),
+    ).toEqual({
+      ok: true,
+      value: { t: 'text', id: 'title', text: 'Netflix', size: 'title', color: 'red' },
+    });
+  });
+
+  it('drops an icon or colour it has no drawing for, and keeps the box', () => {
+    const result = parseDiagramLine(
+      line({
+        t: 'node',
+        id: 'a',
+        kind: 'rectangle',
+        text: 'A',
+        icon: 'no-such-icon',
+        color: 'mauve',
+      }),
+    );
+    expect(result).toEqual({
+      ok: true,
+      value: { t: 'node', id: 'a', kind: 'rectangle', text: 'A' },
+    });
+  });
+
+  it('draws an icon node with no usable icon as a box', () => {
+    const result = parseDiagramLine(line({ t: 'node', id: 'a', kind: 'icon', text: 'A' }));
+    expect(result.ok && result.value.t === 'node' && result.value.kind).toBe('rectangle');
+  });
+
+  it('leaves a node loose when its group never arrives, and drops empty groups', () => {
+    const { diagram } = collectDiagram([
+      line({ t: 'group', id: 'empty', label: 'Nothing here' }),
+      line({ t: 'node', id: 'a', kind: 'rectangle', text: 'A', group: 'missing' }),
+      line({ t: 'node', id: 'b', kind: 'rectangle', text: 'B', group: 'late' }),
+      line({ t: 'group', id: 'late', label: 'Arrives last' }),
+    ]);
+    expect(diagram.nodes[0]!.group).toBeUndefined();
+    expect(diagram.nodes[1]!.group).toBe('late');
+    expect(diagram.groups.map((g) => g.id)).toEqual(['late']);
+  });
+
+  it('colours a box like its group unless it has a colour of its own', () => {
+    const { diagram } = collectDiagram([
+      line({ t: 'group', id: 'g', label: 'G', color: 'teal' }),
+      line({ t: 'node', id: 'a', kind: 'rectangle', text: 'A', group: 'g' }),
+      line({ t: 'node', id: 'b', kind: 'rectangle', text: 'B', group: 'g', color: 'red' }),
+    ]);
+    expect(diagram.nodes.map((n) => n.color)).toEqual(['teal', 'red']);
+  });
+});
+
+/** A small system: a client outside two groups, arrows in and between them. */
+const system = () => [
+  line({ t: 'meta', direction: 'LR' }),
+  line({ t: 'text', id: 'title', text: 'Shop', size: 'title' }),
+  line({ t: 'group', id: 'edge', label: 'Edge', color: 'blue' }),
+  line({ t: 'group', id: 'data', label: 'Data', color: 'green' }),
+  line({ t: 'node', id: 'phone', kind: 'icon', icon: 'phone', text: 'Phone' }),
+  line({
+    t: 'node',
+    id: 'lb',
+    kind: 'rectangle',
+    icon: 'load-balancer',
+    text: 'Load balancer',
+    group: 'edge',
+  }),
+  line({ t: 'node', id: 'api', kind: 'rectangle', text: 'API', group: 'edge' }),
+  line({ t: 'node', id: 'db', kind: 'rectangle', icon: 'database', text: 'Orders', group: 'data' }),
+  line({ t: 'node', id: 'cache', kind: 'rectangle', text: 'Cache', group: 'data' }),
+  line({ t: 'node', id: 'check', kind: 'diamond', text: 'Cached?' }),
+  line({ t: 'edge', from: 'phone', to: 'lb', dir: 'both' }),
+  line({ t: 'edge', from: 'lb', to: 'api' }),
+  line({ t: 'edge', from: 'api', to: 'check' }),
+  line({ t: 'edge', from: 'check', to: 'cache', label: 'yes' }),
+  line({ t: 'edge', from: 'check', to: 'db', label: 'no', style: 'dashed' }),
+  line({ t: 'edge', from: 'phone', to: 'db' }),
+];
+
+const icons = () => ({
+  fileId: 'icon-file',
+  mimeType: 'image/svg+xml',
+  naturalWidth: 96,
+  naturalHeight: 96,
+});
+
+describe('layoutDiagramWithElk', () => {
+  it('puts every group around its members, and nothing else inside it', async () => {
+    const { diagram } = collectDiagram(system());
+    const laid = await layoutDiagramWithElk(diagram, elk);
+    for (const group of laid.groups) {
+      for (const node of laid.nodes) {
+        const inside =
+          node.x >= group.x &&
+          node.y >= group.y &&
+          node.x + node.width <= group.x + group.width &&
+          node.y + node.height <= group.y + group.height;
+        expect(inside, `${node.id} in ${group.id}`).toBe(node.group === group.id);
+      }
+    }
+  });
+
+  it('routes every arrow in right angles, round the boxes it does not join', async () => {
+    const { diagram } = collectDiagram(system());
+    const laid = await layoutDiagramWithElk(diagram, elk);
+    for (const edge of laid.edges) {
+      const route = edge.route!;
+      expect(route.length).toBeGreaterThanOrEqual(2);
+      for (let i = 1; i < route.length; i++) {
+        const a = route[i - 1]!;
+        const b = route[i]!;
+        expect(Math.abs(a.x - b.x) < 0.5 || Math.abs(a.y - b.y) < 0.5).toBe(true);
+        for (const node of laid.nodes) {
+          if (node.id === edge.from || node.id === edge.to) continue;
+          const crosses =
+            Math.max(a.x, b.x) > node.x + 1 &&
+            Math.min(a.x, b.x) < node.x + node.width - 1 &&
+            Math.max(a.y, b.y) > node.y + 1 &&
+            Math.min(a.y, b.y) < node.y + node.height - 1;
+          expect(crosses, `${edge.from}→${edge.to} through ${node.id}`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('puts the title above everything else and starts at the origin', async () => {
+    const { diagram } = collectDiagram(system());
+    const laid = await layoutDiagramWithElk(diagram, elk);
+    const title = laid.texts.find((t) => t.id === 'title')!;
+    expect(title.x).toBe(0);
+    expect(title.y).toBe(0);
+    for (const node of laid.nodes) expect(node.y).toBeGreaterThan(title.y + title.height);
+  });
+});
+
+describe('a diagram drawn in full', () => {
+  const draw = () => buildDiagramWithElk(system(), counter(), { elk, icons });
+
+  it('makes each group an ordinary box behind its members, its name inside the top', async () => {
+    const { shapes } = await draw();
+    expect(shapes.some((s) => s.kind === 'frame')).toBe(false);
+    const name = shapes.find((s): s is TextShape => s.kind === 'text' && s.text === 'Edge')!;
+    const group = shapes.find(
+      (s) =>
+        s.kind === 'rectangle' &&
+        name.x > s.x &&
+        name.y > s.y &&
+        name.x < s.x + shapeBounds(s).width &&
+        name.y < s.y + 40,
+    )!;
+    expect(group).toBeDefined();
+    const api = shapes.find((s): s is TextShape => s.kind === 'text' && s.text === 'API')!;
+    expect(api.x).toBeGreaterThan(group.x);
+    expect(api.x).toBeLessThan(group.x + shapeBounds(group).width);
+    // Behind everything standing in it.
+    expect(shapes.indexOf(group)).toBeLessThan(shapes.indexOf(api));
+  });
+
+  it('draws icons as pictures, a lone icon with its words beneath', async () => {
+    const { shapes } = await draw();
+    const pictures = shapes.filter((s): s is ImageShape => s.kind === 'image');
+    // Phone on its own, and beside the words in two boxes.
+    expect(pictures).toHaveLength(3);
+    expect(pictures.every((p) => p.fileId === 'icon-file' && p.status === 'pending')).toBe(true);
+    const phone = pictures.find((p) => p.width === 56)!;
+    const words = shapes.find((s): s is TextShape => s.kind === 'text' && s.text === 'Phone')!;
+    expect(words.y).toBeGreaterThan(phone.y + phone.height);
+  });
+
+  it('draws in the style it is given, like a shape drawn by hand', async () => {
+    const style = {
+      strokeWidth: 4,
+      strokeStyle: 'solid' as const,
+      roughness: 2 as const,
+      edges: 'sharp' as const,
+      fillStyle: 'cross-hatch' as const,
+      filled: true,
+      fontFamily: 'Helvetica, Arial, system-ui, sans-serif',
+      fontSize: 28,
+      arrowhead: 'circle' as const,
+    };
+    const { shapes } = await buildDiagramWithElk(system(), counter(), { elk, icons, style });
+    const box = shapes.find((s) => s.kind === 'rectangle' && s.fillStyle === 'cross-hatch')!;
+    expect(box.strokeWidth).toBe(4);
+    expect(box.roughness).toBe(2);
+    expect(box.scale).toBeUndefined();
+    const words = shapes.find((s): s is TextShape => s.kind === 'text' && s.text === 'API')!;
+    expect(words.fontSize).toBe(28);
+    expect(words.fontFamily).toContain('Helvetica');
+    const arrow = shapes.find((s): s is ArrowShape => s.kind === 'arrow')!;
+    expect(arrow.endArrowhead).toBe('circle');
+  });
+
+  it('leaves boxes empty when the style has no fill, as a drawn box is', async () => {
+    const { shapes } = await draw();
+    const box = shapes.find((s) => s.kind === 'diamond')!;
+    expect(box.fillColor).toBeNull();
+  });
+
+  it('grows the whole diagram by the scale a drawn shape would get', async () => {
+    const plain = (await draw()).shapes;
+    const grown = (await buildDiagramWithElk(system(), counter(), { elk, icons, scale: 2 })).shapes;
+    const width = (list: Shape[]) => Math.max(...list.map((s) => s.x + shapeBounds(s).width));
+    expect(width(grown)).toBeCloseTo(width(plain) * 2, -1);
+    expect(grown.find((s) => s.kind === 'rectangle')!.scale).toBe(2);
+  });
+
+  it('gives a two-way edge both heads and a dashed edge a dashed line', async () => {
+    const { shapes } = await draw();
+    const arrows = shapes.filter((s): s is ArrowShape => s.kind === 'arrow');
+    expect(arrows.some((a) => a.startArrowhead !== 'none' && a.endArrowhead !== 'none')).toBe(true);
+    expect(arrows.find((a) => a.label === 'no')!.strokeStyle).toBe('dashed');
+  });
+
+  it('fixes each arrow to its shapes and keeps its right angles when one moves', async () => {
+    const { shapes } = await draw();
+    const byId = new Map(shapes.map((s) => [s.id, s]));
+    const bent = shapes.find((s): s is ArrowShape => s.kind === 'arrow' && s.points.length > 2)!;
+    expect(bent.startBinding!.precise).toBe(true);
+
+    const target = byId.get(bent.endBinding!.shapeId)!;
+    byId.set(target.id, { ...target, x: target.x + 30, y: target.y + 45 });
+    const [patch] = boundArrowPatches([bent], byId);
+    expect(patch!.points.length).toBe(bent.points.length);
+    for (let i = 1; i < patch!.points.length; i++) {
+      const [ax, ay] = patch!.points[i - 1]!;
+      const [bx, by] = patch!.points[i]!;
+      expect(Math.abs(ax - bx) < 0.5 || Math.abs(ay - by) < 0.5).toBe(true);
+    }
+  });
+
+  it('is deterministic — the same lines give the same board', async () => {
+    const first = (await buildDiagramWithElk(system(), counter(), { elk, icons })).shapes;
+    const second = (await buildDiagramWithElk(system(), counter(), { elk, icons })).shapes;
+    expect(first).toEqual(second);
+  });
+
+  it('falls back to the quick layout when ELK fails', async () => {
+    const broken: ElkLike = { layout: () => Promise.reject(new Error('no')) };
+    const { shapes } = await buildDiagramWithElk(system(), counter(), { elk: broken, icons });
+    expect(shapes.filter((s) => s.kind === 'arrow')).toHaveLength(6);
+  });
+});
+
+describe('arrow labels on a bent route', () => {
+  it('sit on the longest run, not on a corner', async () => {
+    const { shapes } = await buildDiagramWithElk(
+      [
+        line({ t: 'meta', direction: 'TB' }),
+        line({ t: 'node', id: 'a', kind: 'rectangle', text: 'A' }),
+        line({ t: 'node', id: 'b', kind: 'rectangle', text: 'B' }),
+        line({ t: 'node', id: 'c', kind: 'rectangle', text: 'C' }),
+        line({ t: 'node', id: 'd', kind: 'rectangle', text: 'D' }),
+        line({ t: 'edge', from: 'a', to: 'b' }),
+        line({ t: 'edge', from: 'a', to: 'c' }),
+        line({ t: 'edge', from: 'a', to: 'd', label: 'third' }),
+      ],
+      counter(),
+      { elk },
+    );
+    const arrow = shapes.find((s): s is ArrowShape => s.kind === 'arrow' && s.label === 'third')!;
+    expect(arrow.points.length % 2).toBe(0);
+    const runs = arrow.points.slice(1).map(([x, y], i) => {
+      const [px, py] = arrow.points[i]!;
+      return Math.hypot(x - px, y - py);
+    });
+    // The middle run of the stored points is as long as any run of the route.
+    const middle = arrow.points.length / 2 - 1;
+    const original = Math.max(...runs);
+    expect(runs[middle]).toBeGreaterThanOrEqual(original - 0.5);
   });
 });

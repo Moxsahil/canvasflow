@@ -4,7 +4,8 @@ import {
   type DiagramLineError,
   type Direction,
 } from '@canvasflow/canvas-engine';
-import { correctionMessage, descriptionMessage } from './diagram-prompt.js';
+import type { DiagramStreamStatus } from '@canvasflow/types';
+import { changeMessage, correctionMessage, descriptionMessage } from './diagram-prompt.js';
 import {
   DiagramWriterError,
   type DiagramTurn,
@@ -36,6 +37,10 @@ export async function runDiagram(input: {
   writer: DiagramWriter;
   description: string;
   direction?: Direction;
+  /** The lines of a diagram to change; the description is then the change. */
+  previous?: readonly string[];
+  /** Write it with the larger model. */
+  detailed?: boolean;
   signal: AbortSignal;
   emit: (line: string) => void;
 }): Promise<DiagramRunResult> {
@@ -43,7 +48,12 @@ export async function runDiagram(input: {
   const accepted: string[] = [];
   const rejected: DiagramLineError[] = [];
   const turns: DiagramTurn[] = [
-    { role: 'user', text: descriptionMessage(input.description, input.direction) },
+    {
+      role: 'user',
+      text: input.previous
+        ? changeMessage(input.previous, input.description, input.direction)
+        : descriptionMessage(input.description, input.direction),
+    },
   ];
 
   const take = (raw: string) => {
@@ -66,7 +76,7 @@ export async function runDiagram(input: {
   const pass = async (): Promise<string> => {
     let reply = '';
     let pending = '';
-    for await (const chunk of writer.write(turns, signal)) {
+    for await (const chunk of writer.write(turns, signal, { detailed: input.detailed === true })) {
       reply += chunk;
       pending += chunk;
       let newline = pending.indexOf('\n');
@@ -92,6 +102,9 @@ export async function runDiagram(input: {
 
   const problems = [...rejected, ...collectDiagram(accepted).errors];
   if (failure === null && problems.length > 0 && !signal.aborted) {
+    // Said before the fix-up starts, so the person sees why the drawing paused.
+    const status: DiagramStreamStatus = { t: 'status', phase: 'fixing', lines: problems.length };
+    emit(JSON.stringify(status));
     turns.push(
       { role: 'assistant', text: firstReply },
       { role: 'user', text: correctionMessage(problems) },

@@ -28,28 +28,30 @@ export type ReserveOutcome =
   | { ok: false; month: string; used: number };
 
 /**
- * Count one diagram for this person this month, if that stays within `limit`.
+ * Count a diagram for this person this month — `cost` of them for a detailed
+ * one — if that stays within `limit`.
  *
- * One statement: the row is created at one, or raised by one only while it is
- * under the limit. Two requests racing for the last diagram of the month both
- * run it, and only one gets a row back.
+ * One statement: the row is created at the cost, or raised by it only while
+ * the total stays within the limit. Two requests racing for the last diagrams
+ * of the month both run it, and only one gets a row back.
  */
 export async function reserveDiagram(
   db: Database,
-  input: { userId: string; limit: number; now: Date },
+  input: { userId: string; limit: number; now: Date; cost?: number },
 ): Promise<ReserveOutcome> {
   const month = usageMonth(input.now);
-  if (input.limit < 1) {
+  const cost = Math.max(1, Math.floor(input.cost ?? 1));
+  if (input.limit < cost) {
     return { ok: false, month, used: await diagramsUsedIn(db, input.userId, month) };
   }
 
   const [row] = await db
     .insert(aiUsage)
-    .values({ userId: input.userId, month, diagrams: 1, updatedAt: input.now })
+    .values({ userId: input.userId, month, diagrams: cost, updatedAt: input.now })
     .onConflictDoUpdate({
       target: [aiUsage.userId, aiUsage.month],
-      set: { diagrams: sql`${aiUsage.diagrams} + 1`, updatedAt: input.now },
-      setWhere: sql`${aiUsage.diagrams} < ${input.limit}`,
+      set: { diagrams: sql`${aiUsage.diagrams} + ${cost}`, updatedAt: input.now },
+      setWhere: sql`${aiUsage.diagrams} + ${cost} <= ${input.limit}`,
     })
     .returning({ diagrams: aiUsage.diagrams });
 
@@ -58,18 +60,20 @@ export async function reserveDiagram(
 }
 
 /**
- * Give back a diagram that produced nothing.
+ * Give back a diagram that produced nothing — or `cost` of them, for a
+ * detailed one.
  *
  * Named by the month it was counted in rather than today's, so a diagram that
  * fails across midnight at the end of a month is returned to the right one.
  */
 export async function refundDiagram(
   db: Database,
-  input: { userId: string; month: string },
+  input: { userId: string; month: string; cost?: number },
 ): Promise<void> {
+  const cost = Math.max(1, Math.floor(input.cost ?? 1));
   await db
     .update(aiUsage)
-    .set({ diagrams: sql`greatest(${aiUsage.diagrams} - 1, 0)`, updatedAt: new Date() })
+    .set({ diagrams: sql`greatest(${aiUsage.diagrams} - ${cost}, 0)`, updatedAt: new Date() })
     .where(and(eq(aiUsage.userId, input.userId), eq(aiUsage.month, input.month)));
 }
 

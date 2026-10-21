@@ -123,6 +123,18 @@ html[data-theme='dark'] #root {
   z-index: var(--zIndex-layerUI);
 }
 
+/* The diagrams panel opens in the middle of the board, sized like a dialog
+   (1000 × 680 at most), with the board still in use around it. It keeps clear
+   of the top-right dock and the bottom toolbar on a short window. */
+.cf-diagram-panel {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: min(1000px, calc(100% - 2rem));
+  height: min(680px, calc(100% - 8.5rem));
+  z-index: var(--zIndex-layerUI);
+}
+
 /* Focus and view mode put the sidebar away with the rest of the chrome
    (Editor.tsx drops the other panels from the tree directly). Hidden rather
    than unmounted: the dialogs the sidebar owns — rename, manage — are still

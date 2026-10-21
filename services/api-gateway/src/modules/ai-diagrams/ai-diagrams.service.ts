@@ -9,7 +9,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import type { Direction } from '@canvasflow/canvas-engine';
+import { collectDiagram, parseDiagramLine, type Direction } from '@canvasflow/canvas-engine';
 import {
   canEdit,
   diagramsUsed,
@@ -21,7 +21,12 @@ import {
   type BoardAccess,
 } from '@canvasflow/db';
 import {
+  DIAGRAM_DETAILED_COST,
   DIAGRAM_LIMIT_REACHED,
+  DIAGRAM_NOT_ENOUGH_LEFT,
+  DIAGRAM_LINE_MAX,
+  DIAGRAM_MAX_NODES,
+  DIAGRAM_REFINE_MAX_LINES,
   DIAGRAM_PROMPT_MAX,
   DIAGRAM_PROMPT_MIN,
   PLAN_ALLOWANCES,
@@ -41,6 +46,11 @@ export interface DiagramStart {
   userId: string;
   description: string;
   direction?: Direction;
+  /** The diagram being changed, when this is a change rather than a new one. */
+  previous?: readonly string[];
+  detailed: boolean;
+  /** Diagrams of the month this one uses: what a refund gives back. */
+  cost: number;
   /** The month it was counted in, which is the one a refund goes back to. */
   month: string;
   usage: DiagramUsage;
@@ -83,7 +93,7 @@ export class AiDiagramsService {
    * this returns, the answer is a stream and its outcome travels in it.
    */
   async start(user: AuthenticatedUser, body: unknown): Promise<DiagramStart> {
-    const { boardId, description, direction } = readRequest(body);
+    const { boardId, description, direction, previous, detailed } = readRequest(body);
     const access = await this.boardFor(user, boardId);
     if (!canEdit(access)) {
       throw new ForbiddenException('Only people who can edit this board can add a diagram to it.');
@@ -99,7 +109,18 @@ export class AiDiagramsService {
     const now = new Date();
     const plan = await workspacePlan(this.database.db, access.workspaceId);
     const limit = PLAN_ALLOWANCES[plan].diagramsPerMonth;
-    const reserved = await reserveDiagram(this.database.db, { userId: user.id, limit, now });
+    const cost = detailed ? DIAGRAM_DETAILED_COST : 1;
+    const reserved = await reserveDiagram(this.database.db, { userId: user.id, limit, now, cost });
+    if (!reserved.ok && detailed && reserved.used < limit) {
+      throw new HttpException(
+        {
+          message: `A detailed diagram uses ${cost} of your diagrams, and ${limit - reserved.used} are left this month. Draw it quick instead, or upgrade for more.`,
+          error: 'Payment Required',
+          code: DIAGRAM_NOT_ENOUGH_LEFT,
+        },
+        HttpStatus.PAYMENT_REQUIRED,
+      );
+    }
     if (!reserved.ok) {
       throw new HttpException(
         {
@@ -115,6 +136,9 @@ export class AiDiagramsService {
       userId: user.id,
       description,
       ...(direction ? { direction } : {}),
+      ...(previous ? { previous } : {}),
+      detailed,
+      cost,
       month: reserved.month,
       usage: { plan, used: reserved.used, limit, resetsAt: nextUsageMonth(now).toISOString() },
     };
@@ -141,6 +165,8 @@ export class AiDiagramsService {
         writer: this.writer!,
         description: start.description,
         ...(start.direction ? { direction: start.direction } : {}),
+        ...(start.previous ? { previous: start.previous } : {}),
+        detailed: start.detailed,
         signal,
         emit,
       }));
@@ -151,7 +177,11 @@ export class AiDiagramsService {
 
     if (nodes === 0) {
       try {
-        await refundDiagram(this.database.db, { userId: start.userId, month: start.month });
+        await refundDiagram(this.database.db, {
+          userId: start.userId,
+          month: start.month,
+          cost: start.cost,
+        });
       } catch (error) {
         // The person keeps the diagram's count rather than an error: the
         // stream is already open, and one unreturned diagram is the cost.
@@ -160,10 +190,18 @@ export class AiDiagramsService {
     }
 
     const usage =
-      nodes === 0 ? { ...start.usage, used: Math.max(start.usage.used - 1, 0) } : start.usage;
+      nodes === 0
+        ? { ...start.usage, used: Math.max(start.usage.used - start.cost, 0) }
+        : start.usage;
     return nodes > 0
       ? { t: 'end', ok: true, usage }
-      : { t: 'end', ok: false, usage, message: FAILURE_MESSAGES[failure ?? 'unavailable'] };
+      : {
+          t: 'end',
+          ok: false,
+          usage,
+          message: FAILURE_MESSAGES[failure ?? 'unavailable'],
+          reason: failure ?? 'unavailable',
+        };
   }
 
   /**
@@ -204,6 +242,8 @@ export function readRequest(body: unknown): {
   boardId: unknown;
   description: string;
   direction?: Direction;
+  previous?: string[];
+  detailed: boolean;
 } {
   const fields = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
 
@@ -222,5 +262,44 @@ export function readRequest(body: unknown): {
     throw new BadRequestException('A diagram runs top to bottom (TB) or left to right (LR).');
   }
 
-  return { boardId: fields.boardId, description, ...(direction ? { direction } : {}) };
+  const previous = fields.previous === undefined ? undefined : readPrevious(fields.previous);
+  if (fields.detailed !== undefined && typeof fields.detailed !== 'boolean') {
+    throw new BadRequestException('Say whether the diagram is detailed with true or false.');
+  }
+
+  return {
+    boardId: fields.boardId,
+    description,
+    ...(direction ? { direction } : {}),
+    ...(previous ? { previous } : {}),
+    detailed: fields.detailed === true,
+  };
+}
+
+/**
+ * The diagram sent back to be changed, kept only as far as it is a diagram.
+ *
+ * It came from the browser, so it is checked as anything else from there is:
+ * bounded in size before it is read, and then only the lines that are valid
+ * diagram lines go on to the model. A diagram larger than this feature ever
+ * draws is refused rather than trimmed, since a change to half of it would
+ * quietly lose the rest.
+ */
+function readPrevious(value: unknown): string[] {
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.length > DIAGRAM_REFINE_MAX_LINES ||
+    !value.every((line) => typeof line === 'string' && line.length <= DIAGRAM_LINE_MAX)
+  ) {
+    throw new BadRequestException('That diagram can’t be changed. Draw a new one instead.');
+  }
+  const lines = (value as string[])
+    .map((line) => line.trim())
+    .filter((line) => parseDiagramLine(line).ok);
+  const nodes = collectDiagram(lines).diagram.nodes.length;
+  if (nodes === 0 || nodes > DIAGRAM_MAX_NODES) {
+    throw new BadRequestException('That diagram can’t be changed. Draw a new one instead.');
+  }
+  return lines;
 }
