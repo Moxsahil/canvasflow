@@ -16,8 +16,10 @@
     "verify:password-reset": "NODE_ENV=test tsx --env-file=.env scripts/verify-password-reset.mts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
     "@aws-sdk/client-s3": "^3.1118.0",
     "@aws-sdk/s3-request-presigner": "^3.1118.0",
+    "@canvasflow/canvas-engine": "workspace:*",
     "@canvasflow/db": "workspace:*",
     "@canvasflow/types": "workspace:*",
     "@nestjs/common": "^10.4.13",

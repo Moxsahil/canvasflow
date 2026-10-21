@@ -253,6 +253,13 @@
       "when": 1792513768331,
       "tag": "0035_team_plan",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1792556275684,
+      "tag": "0036_ai_usage",
+      "breakpoints": true
     }
   ]
 }

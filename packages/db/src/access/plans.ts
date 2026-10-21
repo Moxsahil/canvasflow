@@ -60,6 +60,18 @@ export async function setWorkspacePlan(
   });
 }
 
+/**
+ * The plan a workspace is on; Free for one that no longer exists, so whatever
+ * asks is held to the smallest allowance rather than refused outright.
+ */
+export async function workspacePlan(db: Database, workspaceId: string): Promise<WorkspacePlan> {
+  const [row] = await db
+    .select({ plan: workspaces.plan })
+    .from(workspaces)
+    .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)));
+  return row?.plan ?? 'free';
+}
+
 export interface PlanLookup {
   readonly id: string;
   readonly name: string;

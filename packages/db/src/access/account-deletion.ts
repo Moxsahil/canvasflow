@@ -16,6 +16,7 @@ import { workspaceInvites } from '../schema/workspace-invites.js';
 import { notificationDeliveries } from '../schema/notifications.js';
 import { boardActivity } from '../schema/board-activity.js';
 import { boardPins } from '../schema/board-pins.js';
+import { aiUsage } from '../schema/ai-usage.js';
 import { isUniqueViolation } from './pg-errors.js';
 
 /**
@@ -91,6 +92,8 @@ export const USER_REFERENCE_FATES = {
   'board_activity.user_id': 'deleted',
   // Their pins were only ever theirs.
   'board_pins.user_id': 'deleted',
+  // How many diagrams they generated says nothing anyone else needs.
+  'ai_usage.user_id': 'deleted',
 } as const;
 
 /** The account row's columns that erasure leaves as they are. None of them says who anybody was. */
@@ -547,6 +550,7 @@ export async function purgeAccount(
     await tx.delete(notificationDeliveries).where(eq(notificationDeliveries.recipientId, userId));
     await tx.delete(boardActivity).where(eq(boardActivity.userId, userId));
     await tx.delete(boardPins).where(eq(boardPins.userId, userId));
+    await tx.delete(aiUsage).where(eq(aiUsage.userId, userId));
     await tx
       .update(notificationDeliveries)
       .set({ actorId: null })
