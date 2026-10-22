@@ -30,6 +30,7 @@ export function DiagramSidebar({
   onNewChat,
   profile,
   usage,
+  upgradeLabel,
   onUpgrade,
   open,
   onDismiss,
@@ -46,6 +47,8 @@ export function DiagramSidebar({
   onNewChat: () => void;
   profile: { name: string; avatarUrl: string | null } | null;
   usage: DiagramUsage | null;
+  /** "Upgrade to Pro", or null where there is no bigger plan. */
+  upgradeLabel: string | null;
   onUpgrade: () => void;
   /** Open over the conversation, on a narrow panel. */
   open: boolean;
@@ -394,13 +397,13 @@ export function DiagramSidebar({
                 {t('diagrams.left', { left, limit: usage.limit })} ·{' '}
                 {t('diagrams.resets', { date: formatShortDate(new Date(usage.resetsAt)) })}
               </span>
-              {usage.plan === 'free' && (
+              {usage.plan === 'free' && upgradeLabel && (
                 <button
                   type="button"
                   onClick={onUpgrade}
-                  className="shrink-0 rounded font-medium text-[var(--surface-accent)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]"
+                  className="shrink-0 rounded font-semibold text-[var(--diagram-link)] underline-offset-[3px] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]"
                 >
-                  {t('diagrams.upgrade')}
+                  {upgradeLabel}
                 </button>
               )}
             </div>

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import {
+  ArrowUpRight,
   Check,
+  Gauge,
   LoaderCircle,
   LogIn,
   Maximize2,
@@ -13,7 +15,9 @@ import {
   DIAGRAM_DETAILED_COST,
   DIAGRAM_PROMPT_MAX,
   PLAN_ALLOWANCES,
+  PLAN_NAMES,
   type DiagramUsage,
+  type WorkspacePlan,
 } from '@canvasflow/types';
 import { InputBar } from '@/components/agent-elements/input-bar';
 import { cn } from '@/lib/utils';
@@ -86,7 +90,35 @@ const boxesIn = (lines: readonly string[]) =>
 
 const button =
   'inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] disabled:pointer-events-none disabled:opacity-45';
-const primary = `${button} bg-[var(--surface-accent)] text-[var(--surface-on-accent)] hover:bg-[var(--surface-accent-hover)]`;
+/**
+ * The panel's actions are words rather than boxes: muted until pointed at,
+ * when a wash comes up behind them, with the main one in the text colour and
+ * full weight and a hairline between it and the rest. Upgrade is a link.
+ */
+const textAction =
+  'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-[var(--surface-fg-muted)] outline-none transition-colors duration-150 hover:bg-[var(--surface-wash)] hover:text-[var(--surface-fg)] focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] disabled:pointer-events-none disabled:opacity-45 motion-reduce:transition-none [&_svg]:size-3.5 [&_svg]:shrink-0';
+const mainAction = `${textAction} font-semibold text-[var(--surface-fg)]`;
+/**
+ * Insert, and Replace in its place: the card's one filled button, so it is
+ * the one the eye finds. Flat — no border, light or shadow — in a blue a
+ * shade deeper than the accent, so white text on it reads at AA.
+ */
+const accentAction =
+  'inline-flex h-7 shrink-0 items-center rounded-md bg-[#2563eb] px-3 text-xs font-semibold text-white outline-none transition-colors duration-150 hover:bg-[#1d4ed8] focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--surface-card)] disabled:pointer-events-none disabled:opacity-45 motion-reduce:transition-none';
+const linkAction =
+  'inline-flex shrink-0 items-center gap-1 rounded text-xs font-semibold text-[var(--diagram-link)] underline-offset-[3px] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] [&_svg]:size-3 [&_svg]:shrink-0';
+/** Link text that reads on the panel: lighter than the accent in dark, deeper in light. */
+const LINK_COLOUR: Record<SurfaceTheme, string> = { dark: '#9db8ff', light: '#2450c4' };
+
+/** The plan one step up, where there is one to move to. */
+const NEXT_PLAN: Partial<Record<WorkspacePlan, WorkspacePlan>> = { free: 'pro', pro: 'team' };
+
+function ActionDivider() {
+  return (
+    <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-[var(--surface-border)]" />
+  );
+}
+
 const ghost = `${button} text-[var(--surface-fg-muted)] hover:bg-[var(--surface-wash)] hover:text-[var(--surface-fg)]`;
 
 /**
@@ -187,6 +219,14 @@ export function DiagramPanel({
 
   const resets = usage ? formatShortDate(new Date(usage.resetsAt)) : '';
   const left = usage ? Math.max(usage.limit - usage.used, 0) : null;
+  /**
+   * Past 85% of the month's diagrams, a banner over the box says so, with
+   * Upgrade where there is a bigger plan to move to. It takes the tool
+   * strip's place until the month starts again.
+   */
+  const runningLow = Boolean(usage && usage.limit > 0 && usage.used / usage.limit >= 0.85);
+  const nextPlan = usage ? NEXT_PLAN[usage.plan] : undefined;
+  const upgradeLabel = nextPlan ? t('diagrams.upgradeTo', { plan: PLAN_NAMES[nextPlan] }) : null;
   // Never cut a long description short: say how long it is as it nears the
   // limit, and refuse to send it once over, so nothing is dropped unseen.
   // Attached files count, since their text is sent with the words.
@@ -298,7 +338,7 @@ export function DiagramPanel({
 
   const noticeNote =
     limited && usage ? (
-      <LimitNote usage={usage} resets={resets} onUpgrade={onUpgrade} />
+      <LimitNote usage={usage} resets={resets} upgradeLabel={upgradeLabel} onUpgrade={onUpgrade} />
     ) : notice?.kind === 'not-enough' && left !== null ? (
       <div className="rounded-xl border border-[var(--surface-border)] bg-[var(--surface-card)] p-3 text-xs leading-[1.5] text-[var(--surface-fg-muted)]">
         {t('diagrams.notEnough', { cost: DIAGRAM_DETAILED_COST, left })}
@@ -336,7 +376,7 @@ export function DiagramPanel({
                 </span>
                 <button
                   type="button"
-                  className={cn(ghost, 'ml-auto shrink-0')}
+                  className={cn(mainAction, 'ml-auto')}
                   onClick={() => {
                     panel.retry(run.description);
                     focusInput();
@@ -402,26 +442,29 @@ export function DiagramPanel({
             <>
               <button
                 type="button"
-                className={ghost}
+                className={textAction}
                 disabled={running || limited}
                 onClick={() => panel.startChange(entry.id)}
               >
                 {t('diagrams.refine')}
               </button>
-              <button
-                type="button"
-                className={replaces ? ghost : primary}
-                onClick={() => onInsert(entry)}
-              >
-                {t('diagrams.insert')}
-              </button>
               {replaces && (
+                <button type="button" className={textAction} onClick={() => onInsert(entry)}>
+                  {t('diagrams.insert')}
+                </button>
+              )}
+              <ActionDivider />
+              {replaces ? (
                 <button
                   type="button"
-                  className={primary}
+                  className={accentAction}
                   onClick={() => onReplace?.(entry, replaces)}
                 >
                   {t('diagrams.replaceOnBoard', { n: versionOf(replaces) || 1 })}
+                </button>
+              ) : (
+                <button type="button" className={accentAction} onClick={() => onInsert(entry)}>
+                  {t('diagrams.insert')}
                 </button>
               )}
             </>
@@ -489,7 +532,9 @@ export function DiagramPanel({
         hidden={minimized}
         aria-label={t('diagrams.title')}
         data-testid="diagram-panel"
-        style={surfaceThemeVars(theme)}
+        style={
+          { ...surfaceThemeVars(theme), '--diagram-link': LINK_COLOUR[theme] } as CSSProperties
+        }
         className="cf-diagram-panel grid grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[14px] border border-[var(--surface-border)] bg-[var(--surface-panel)] text-[var(--surface-fg)] shadow-none"
       >
         <header className="flex items-center gap-2.5 border-b border-[var(--surface-line)] bg-[var(--surface-band)] px-4 py-3">
@@ -552,6 +597,7 @@ export function DiagramPanel({
               }}
               profile={profile}
               usage={usage}
+              upgradeLabel={upgradeLabel}
               onUpgrade={onUpgrade}
               open={chatsOpen}
               onDismiss={() => setChatsOpen(false)}
@@ -692,23 +738,56 @@ export function DiagramPanel({
                           : t('diagrams.placeholder')
                     }
                     infoBar={
-                      stripShown
+                      runningLow && usage && !panel.bannerClosed
                         ? {
-                            ...toolInfo(picked, t),
-                            trailing: (
-                              <ToolsShortcut
-                                picked={picked}
-                                disabled={toolsOff}
-                                onOpen={() => setToolsOpen(true)}
+                            onClose: panel.closeUsageBanner,
+                            closeLabel: t('diagrams.hideBanner'),
+                            icon: (
+                              <Gauge
+                                className="size-3.5 shrink-0 text-[var(--surface-warn)]"
+                                aria-hidden="true"
                               />
                             ),
-                            onClose: () => {
-                              hideToolStrip();
-                              setStripShown(false);
-                            },
-                            closeLabel: t('diagrams.hideToolStrip'),
+                            description:
+                              usage.used >= usage.limit
+                                ? t('diagrams.lowAllUsed', { limit: usage.limit, date: resets })
+                                : t('diagrams.lowUsed', {
+                                    used: usage.used,
+                                    limit: usage.limit,
+                                    date: resets,
+                                  }),
+                            ...(upgradeLabel
+                              ? {
+                                  trailing: (
+                                    <button
+                                      type="button"
+                                      onClick={onUpgrade}
+                                      className={cn(linkAction, 'mr-1.5')}
+                                    >
+                                      {upgradeLabel}
+                                      <ArrowUpRight aria-hidden="true" />
+                                    </button>
+                                  ),
+                                }
+                              : {}),
                           }
-                        : undefined
+                        : stripShown
+                          ? {
+                              ...toolInfo(picked, t),
+                              trailing: (
+                                <ToolsShortcut
+                                  picked={picked}
+                                  disabled={toolsOff}
+                                  onOpen={() => setToolsOpen(true)}
+                                />
+                              ),
+                              onClose: () => {
+                                hideToolStrip();
+                                setStripShown(false);
+                              },
+                              closeLabel: t('diagrams.hideToolStrip'),
+                            }
+                          : undefined
                     }
                     leftActions={
                       <DiagramTools
@@ -898,7 +977,7 @@ function DiagramCard({
           </div>
         ))}
       {footer && (
-        <div className="flex flex-wrap items-center justify-end gap-1.5 border-t border-[var(--surface-line)] px-2.5 py-2">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--surface-line)] px-3 py-2.5">
           {(leading || compare) && (
             <div className="mr-auto flex min-w-0 items-center gap-1.5">
               {leading}
@@ -997,10 +1076,13 @@ function MinimizedBar({
 function LimitNote({
   usage,
   resets,
+  upgradeLabel,
   onUpgrade,
 }: {
   usage: DiagramUsage;
   resets: string;
+  /** "Upgrade to Pro", or null where there is no bigger plan. */
+  upgradeLabel: string | null;
   onUpgrade: () => void;
 }) {
   const t = useT();
@@ -1016,9 +1098,12 @@ function LimitNote({
           team: PLAN_ALLOWANCES.team.diagramsPerMonth,
         })}
       </p>
-      <button type="button" className={primary} onClick={onUpgrade}>
-        {t('diagrams.upgrade')}
-      </button>
+      {upgradeLabel && (
+        <button type="button" className={linkAction} onClick={onUpgrade}>
+          {upgradeLabel}
+          <ArrowUpRight aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }
@@ -1031,8 +1116,8 @@ function SignInNote({ onSignIn }: { onSignIn: () => void }) {
       <p className="m-0 mb-2.5 text-xs leading-[1.5] text-[var(--surface-fg-muted)]">
         {t('diagrams.signInBody', { free: PLAN_ALLOWANCES.free.diagramsPerMonth })}
       </p>
-      <button type="button" className={primary} onClick={onSignIn}>
-        <LogIn className="size-3.5" aria-hidden="true" />
+      <button type="button" className={cn(mainAction, '-ml-2')} onClick={onSignIn}>
+        <LogIn aria-hidden="true" />
         {t('diagrams.signIn')}
       </button>
     </div>
