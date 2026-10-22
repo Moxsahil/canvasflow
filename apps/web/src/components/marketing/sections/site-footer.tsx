@@ -17,6 +17,8 @@ const WHITEBOARD_LINK = { label: 'Whiteboard', href: WHITEBOARD_HREF };
 const LEGAL_LINKS = [
   { label: 'Privacy', href: '/privacy' },
   { label: 'Terms', href: '/terms' },
+  { label: 'Refunds', href: '/refunds' },
+  { label: 'Contact', href: '/contact' },
   { label: 'Docs', href: '#' },
   { label: 'GitHub', href: '#' },
 ];
@@ -39,7 +41,7 @@ export function SiteFooter() {
           ))}
         </div>
 
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           {LEGAL_LINKS.map((l) => (
             <a
               key={l.label}
