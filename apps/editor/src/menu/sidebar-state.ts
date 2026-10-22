@@ -16,3 +16,20 @@ export function readSidebarState(): boolean {
 
   return document.cookie.split('; ').some((entry) => entry === `${SIDEBAR_COOKIE_NAME}=true`);
 }
+
+/** The cookie the sidebar writes when its edge is dragged to a new width. */
+const SIDEBAR_WIDTH_COOKIE_NAME = 'sidebar_width';
+
+/**
+ * The width the sidebar was last dragged to, in px, or undefined for the
+ * default. The sidebar clamps whatever comes back, so a stale value from an
+ * older range can't open it wider than it allows.
+ */
+export function readSidebarWidth(): number | undefined {
+  if (typeof document === 'undefined') return undefined;
+
+  const prefix = `${SIDEBAR_WIDTH_COOKIE_NAME}=`;
+  const entry = document.cookie.split('; ').find((it) => it.startsWith(prefix));
+  const width = entry ? Number(entry.slice(prefix.length)) : NaN;
+  return Number.isFinite(width) ? width : undefined;
+}

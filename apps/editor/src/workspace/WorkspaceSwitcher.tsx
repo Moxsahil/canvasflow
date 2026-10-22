@@ -7,7 +7,7 @@ import {
   InitialBadge,
 } from '@/components/ui/initial-badge';
 import { MenuBadge, MenuRowEnd, menuButtonRowClasses } from '@/components/ui/menu-look';
-import { SidebarMenuItem } from '@/components/ui/sidebar';
+import { SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
 import { Workspaces, WorkspaceContent, WorkspaceTrigger } from '@/components/ui/workspaces';
 import { t as translate, useT } from '../i18n';
 import { SHARED_WITH_YOU, type BoardSwitcherState } from './useBoardSwitcher';
@@ -66,6 +66,7 @@ function SharedBadge({ className }: { className?: string }) {
 export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const { width: sidebarWidth } = useSidebar();
   const [namingWorkspace, setNamingWorkspace] = useState(false);
 
   const { workspaces, dismissError, beginManage, browseWorkspace } = state;
@@ -154,12 +155,14 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
         <WorkspaceContent
           // Down from the header, inside the sidebar: the menu is about what
           // the sidebar lists, so it stays over the list it changes. As wide as
-          // the header row, collapse button included — the sidebar's 16rem
-          // less its padding. The rail has no workspace row to open it from.
+          // the header row, collapse button included — the sidebar's width
+          // less its padding, which follows the edge as it is dragged. The rail
+          // has no workspace row to open it from.
           side="bottom"
           align="start"
           sideOffset={4}
-          className="w-60 max-w-none"
+          className="max-w-none"
+          style={{ width: `calc(${sidebarWidth}px - 1rem)` }}
           container={portalContainer}
           renderWorkspace={(workspace, selected) => {
             const full = entries.find((it) => it.id === workspace.id);

@@ -1,8 +1,8 @@
 /**
  * The widths at which on-canvas chrome changes shape, as an ordered ladder.
  *
- * Measured against the canvas rather than the window: the sidebar takes 16rem
- * off this side of the screen when it is open, and a panel that asked the
+ * Measured against the canvas rather than the window: the sidebar takes its
+ * width off this side of the screen when it is open, and a panel that asked the
  * window how much room it had would keep its widest form in half a canvas.
  */
 export const BREAKPOINT_WIDTHS = [0, 389, 436, 476, 580, 640, 840, 1023] as const;
