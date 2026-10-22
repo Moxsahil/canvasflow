@@ -9,5 +9,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: 'https://canvasflowapp.com/' },
     { url: 'https://canvasflowapp.com/terms' },
     { url: 'https://canvasflowapp.com/privacy' },
+    { url: 'https://canvasflowapp.com/refunds' },
+    { url: 'https://canvasflowapp.com/contact' },
   ];
 }

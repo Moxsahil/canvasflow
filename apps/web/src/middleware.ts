@@ -21,6 +21,9 @@ const PUBLIC_PATHS = [
   // Read before anyone has an account: agreeing to them is part of signing up.
   '/terms',
   '/privacy',
+  // A payment provider's review reads these before anyone has an account.
+  '/refunds',
+  '/contact',
   // Reached straight after deleting an account, with every session already ended.
   '/account-deleted',
   // Opened from an email by whoever reads it, signed in or not. The page
