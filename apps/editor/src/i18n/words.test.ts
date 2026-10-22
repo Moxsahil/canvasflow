@@ -25,10 +25,10 @@ function slotsOf(text: string): string[] {
 }
 
 /**
- * Words that stay as they are in every language: format and brand names, a
- * web address, and the "Aa" a font is shown in.
+ * Words that stay as they are in every language: format and brand names, our
+ * own included, a web address, and the "Aa" a font is shown in.
  */
-const UNTRANSLATED = new Set(['Aa', 'PNG', 'SVG', 'libraries.excalidraw.com']);
+const UNTRANSLATED = new Set(['Aa', 'CanvasFlow', 'PNG', 'SVG', 'libraries.excalidraw.com']);
 
 /** A sample component from the kit, with made-up messages, that nothing renders. */
 const NOT_RENDERED = new Set([join('components', 'ui', 'notifications.tsx')]);
