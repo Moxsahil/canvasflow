@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { DiagramUsage } from '@canvasflow/types';
-import { USAGE_FRESH_MS, isFresh, keepUsage, keptUsage } from './usage-cache';
+import {
+  USAGE_FRESH_MS,
+  bannerFor,
+  closeBanner,
+  closedBanner,
+  isFresh,
+  keepUsage,
+  keptUsage,
+} from './usage-cache';
 
 function memoryStorage(): Storage {
   const items = new Map<string, string>();
@@ -47,5 +55,13 @@ describe('kept diagram count', () => {
     expect(keptUsage('u1', 'b1', store)).toBeNull();
     store.setItem('cf.diagrams.usage.u1.b1', JSON.stringify({ usage: { plan: 1 }, at: 1 }));
     expect(keptUsage('u1', 'b1', store)).toBeNull();
+  });
+
+  it('keeps the banner closed for the month and level it was closed at', () => {
+    const store = memoryStorage();
+    closeBanner('u1', bannerFor({ ...usage, used: 88 }), store);
+    expect(closedBanner('u1', store)).toBe(bannerFor({ ...usage, used: 90 }));
+    expect(closedBanner('u1', store)).not.toBe(bannerFor({ ...usage, used: 100 }));
+    expect(closedBanner('u2', store)).toBeNull();
   });
 });

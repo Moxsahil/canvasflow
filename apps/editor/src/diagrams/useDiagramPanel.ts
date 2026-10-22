@@ -18,7 +18,7 @@ import {
   type DiagramEntry,
 } from './diagram-history';
 import { fixingLines } from './diagram-progress';
-import { isFresh, keepUsage, keptUsage } from './usage-cache';
+import { bannerFor, closeBanner, closedBanner, isFresh, keepUsage, keptUsage } from './usage-cache';
 
 /** The diagram being written, shown as a card that fills in. */
 export interface DiagramRun {
@@ -372,6 +372,17 @@ export function useDiagramPanel({
   );
 
   const generate = useCallback(() => ask(), [ask]);
+
+  /** The usage banner closed for this month and level, so it stays closed. */
+  const [closed, setClosed] = useState(() => closedBanner(userId));
+  useEffect(() => setClosed(closedBanner(userId)), [userId]);
+  const bannerClosed = usage !== null && closed === bannerFor(usage);
+  const closeUsageBanner = useCallback(() => {
+    if (!usage) return;
+    const key = bannerFor(usage);
+    closeBanner(userId, key);
+    setClosed(key);
+  }, [usage, userId]);
   /** The same request once more, as a new card; the box keeps what is in it. */
   const again = useCallback(
     (asked: { description: string; changeOf?: string; chatId?: string }) =>
@@ -467,6 +478,8 @@ export function useDiagramPanel({
     generate,
     /** Reads the count ahead of opening, e.g. while the pointer is on the button. */
     warmUsage: refreshUsage,
+    bannerClosed,
+    closeUsageBanner,
     again,
     rate,
     stop,

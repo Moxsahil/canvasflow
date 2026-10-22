@@ -152,6 +152,10 @@ export const InputBar = memo(function InputBar({
 }: InputBarProps) {
   const [internalInput, setInternalInput] = useState('');
   const [isInfoBarOpen, setIsInfoBarOpen] = useState(true);
+  // A bar with something new to say shows again, even after one was closed.
+  useEffect(() => {
+    setIsInfoBarOpen(true);
+  }, [infoBar?.title, infoBar?.description]);
   const isControlled = controlledValue !== undefined;
   const input = isControlled ? controlledValue : internalInput;
   const setInput = useCallback(

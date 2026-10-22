@@ -38,6 +38,8 @@ function panel(overrides: Partial<DiagramPanelState> = {}): DiagramPanelState {
     cancelChange: noop,
     generate: async () => {},
     warmUsage: noop,
+    bannerClosed: false,
+    closeUsageBanner: noop,
     again: async () => {},
     rate: noop,
     stop: noop,
@@ -297,6 +299,35 @@ describe('DiagramPanel', () => {
     // Only the chat on show is in the conversation.
     expect(html).toContain('id="diagram-b"');
     expect(html).not.toContain('id="diagram-c"');
+  });
+
+  it('shows a banner over the box past 85% of the month, with Upgrade on a smaller plan', () => {
+    const low = render(
+      panel({ usage: { plan: 'free', used: 9, limit: 10, resetsAt: '2026-11-01T00:00:00.000Z' } }),
+    );
+    expect(low).toContain('9 of 10 diagrams used this month');
+    // The banner's own button, not the sidebar's.
+    expect(low).toMatch(/mr-1\.5[^>]*>Upgrade to Pro/);
+    expect(low).not.toContain('No tool picked');
+    expect(low).toContain('aria-label="Dismiss"');
+    const closed = render(
+      panel({
+        bannerClosed: true,
+        usage: { plan: 'free', used: 9, limit: 10, resetsAt: '2026-11-01T00:00:00.000Z' },
+      }),
+    );
+    expect(closed).not.toContain('diagrams used this month');
+
+    const team = render(
+      panel({
+        usage: { plan: 'team', used: 180, limit: 200, resetsAt: '2026-11-01T00:00:00.000Z' },
+      }),
+    );
+    expect(team).toContain('180 of 200 diagrams used this month');
+    expect(team).not.toContain('Upgrade');
+
+    const fine = render(panel());
+    expect(fine).not.toContain('diagrams used this month');
   });
 
   it('offers the tools, and says what the picked one does above the box', () => {
