@@ -134,7 +134,7 @@ import { BucketEyedropper } from './tools/BucketEyedropper';
 import { isTypingTarget } from './tools/shortcuts';
 import { useCanvasResize } from './canvas/hooks/useCanvasResize';
 import { useEdgeScroll } from './canvas/hooks/useEdgeScroll';
-import { AppSidebar, readSidebarState } from './menu';
+import { AppSidebar, readSidebarState, readSidebarWidth } from './menu';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Toolbar } from './toolbar/Toolbar';
 import { HistoryPanel } from './toolbar/HistoryPanel';
@@ -309,6 +309,7 @@ import { rich, t as translate, useT } from './i18n';
 import { NoticeDialog, type Notice } from './ui/NoticeDialog';
 import { BoardLoading } from './ui/BoardLoading';
 import { Toast, useToast } from './ui/Toast';
+import { CornerMark } from './ui/CornerMark';
 
 /** How far left of centre a thread's pin is put when the board has to be brought to it: about half the thread beside it. */
 const THREAD_LEAD = 160;
@@ -656,6 +657,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // Read once: the sidebar owns the value from here on, and re-reading its
   // cookie mid-session would fight whatever the user has just toggled.
   const [sidebarDefaultOpen] = useState(readSidebarState);
+  const [sidebarDefaultWidth] = useState(readSidebarWidth);
 
   const {
     authToken,
@@ -5255,7 +5257,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
         } as React.CSSProperties
       }
     >
-      <SidebarProvider defaultOpen={sidebarDefaultOpen} className="h-full min-h-0">
+      <SidebarProvider
+        defaultOpen={sidebarDefaultOpen}
+        defaultWidth={sidebarDefaultWidth}
+        className="h-full min-h-0"
+      >
         <AppSidebar
           boardSwitcher={boardSwitcher}
           user={chromeUser}
@@ -5743,6 +5749,9 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 corner — the one stretch of that edge the dock and the zoom
                 panel leave free. Away with the rest of the chrome in focus
                 and view mode. A viewer may read them. */}
+            {/* The same corner holds the product's mark whenever the strip
+                isn't there. */}
+            {!preferences.values.canvasStats && !chromeHidden && <CornerMark canvasWidth={width} />}
             {preferences.values.canvasStats && !chromeHidden && (
               <StatsPanel
                 shapes={shownShapes}

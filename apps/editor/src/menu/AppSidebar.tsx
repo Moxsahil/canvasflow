@@ -69,8 +69,8 @@ interface AppSidebarProps {
  * Everything in it is drawn from the sidebar's own palette — no chrome tokens,
  * no hand-rolled rows — so it reads as one surface with the popups it opens.
  * Collapses to an icon rail and back by the button beside the workspace, the
- * rail on its edge or ⌘B, and the state persists in the cookie the sidebar
- * writes for itself.
+ * rail on its edge or ⌘B; dragging that rail resizes it. Both the state and
+ * the width persist in the cookies the sidebar writes for itself.
  */
 export function AppSidebar({
   boardSwitcher,

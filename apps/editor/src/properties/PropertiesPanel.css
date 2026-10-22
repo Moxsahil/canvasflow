@@ -1,4 +1,4 @@
-/* Centred on the right edge: opposite the sidebar, which expands to 16rem and
+/* Centred on the right edge: opposite the sidebar, which expands to 16rem+ and
    would squeeze a left-hand panel every time it opened, and clear of the
    top-right corner, which is reserved for other controls. */
 .cf-properties-container {
