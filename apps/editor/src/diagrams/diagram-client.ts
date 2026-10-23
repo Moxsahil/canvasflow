@@ -1,4 +1,5 @@
 import type { DiagramRequest, DiagramStreamEnd, DiagramUsage } from '@canvasflow/types';
+import { parseMindMapLine } from '@canvasflow/canvas-engine';
 import { env } from '../lib/env';
 
 /**
@@ -122,4 +123,45 @@ export async function streamDiagram(
   }
   splitter.flush().forEach(take);
   return end ? { kind: 'end', end } : { kind: 'cut' };
+}
+
+/** What Expand brought back: the ideas, with the month's count, or why there are none. */
+export type ExpandOutcome =
+  | { kind: 'ideas'; ideas: string[]; end: DiagramStreamEnd }
+  | { kind: 'refused'; refusal: DiagramRefusal }
+  | { kind: 'cut' };
+
+/**
+ * Ideas for one topic of a mind map, asked of the same stream a diagram
+ * comes down: each arrives as a topic line, and they are handed back
+ * together once the stream ends, to be added in one step.
+ */
+export async function expandTopic(
+  token: string,
+  request: {
+    boardId: string;
+    topic: string;
+    path: readonly string[];
+    children: readonly string[];
+  },
+  signal: AbortSignal,
+): Promise<ExpandOutcome> {
+  const ideas: string[] = [];
+  const outcome = await streamDiagram(
+    token,
+    {
+      boardId: request.boardId,
+      description: request.topic,
+      kind: 'expand',
+      topicPath: [...request.path],
+      topicChildren: [...request.children],
+    },
+    (line) => {
+      const topic = parseMindMapLine(line);
+      if (topic) ideas.push(topic.text);
+    },
+    signal,
+  );
+  if (outcome.kind !== 'end') return outcome;
+  return { kind: 'ideas', ideas, end: outcome.end };
 }

@@ -4,6 +4,7 @@ import {
   Bookmark,
   Crop,
   Layers,
+  Lightbulb,
   ListTree,
   MousePointerClick,
   Network,
@@ -32,6 +33,7 @@ import { PREFERENCE_GROUPS, type PreferenceId } from '../preferences/preferences
 export type ContextMenuItemId =
   // Mind maps
   | 'selectBranch'
+  | 'expandWithAi'
   // Clipboard
   | 'cut'
   | 'copy'
@@ -172,6 +174,9 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   // Built, and run from this menu alone. Picking things out changes nothing,
   // so a viewer keeps it.
   selectBranch: { labelKey: 'contextMenu.selectBranch', icon: ListTree },
+  // Built, and run from this menu alone: ideas under the topic, from the
+  // month's AI diagrams.
+  expandWithAi: { labelKey: 'contextMenu.expandWithAi', icon: Lightbulb, edits: true },
 
   cut: fromCommand('cut', 'contextMenu.cut'),
   copy: fromCommand('copy', 'contextMenu.copy', false),
@@ -335,7 +340,7 @@ const STYLE_PANEL: ContextSubmenu = {
  * Delete is last and on its own, being the one row that discards work.
  */
 export const SELECTION_MENU: readonly ContextMenuGroup[] = [
-  ['selectBranch'],
+  ['selectBranch', 'expandWithAi'],
   ['cut', 'copy', 'paste', 'pasteHere', 'pasteAsMindMap', 'duplicate'],
   [COPY_AS, 'exportImage'],
   [EDIT, MOVE_TO],
@@ -391,7 +396,7 @@ const VIEW: ContextSubmenu = {
  * test holds both forms to that.
  */
 export const SHORT_SELECTION_MENU: readonly ContextMenuGroup[] = [
-  ['selectBranch'],
+  ['selectBranch', 'expandWithAi'],
   ['cut', 'copy', 'paste', 'pasteHere', 'pasteAsMindMap', 'duplicate'],
   [COPY_AS, 'exportImage'],
   [EDIT, MOVE_TO, ARRANGE],
@@ -421,7 +426,7 @@ export type ContextMenuTarget = 'selection' | 'canvas';
 /** Rows that hand out a link to the board: only for those who run its sharing. */
 const SHARING_ROWS: ReadonlySet<ContextMenuItemId> = new Set(['copyLinkToSelection']);
 /** Rows about a mind map: only when a topic is among what was right-clicked. */
-const MIND_MAP_ROWS: ReadonlySet<ContextMenuItemId> = new Set(['selectBranch']);
+const MIND_MAP_ROWS: ReadonlySet<ContextMenuItemId> = new Set(['selectBranch', 'expandWithAi']);
 
 export function contextMenuFor(
   target: ContextMenuTarget,

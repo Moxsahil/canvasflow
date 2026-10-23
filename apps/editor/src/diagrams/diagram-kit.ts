@@ -4,6 +4,9 @@ import {
   collectDiagram,
   decodeBlob,
   DIAGRAM_PAINT,
+  isMindMapLines,
+  layoutMindMaps,
+  outlineFromMindMapLines,
   type DiagramIconImage,
   type DiagramStyle,
   type ElkLike,
@@ -14,6 +17,8 @@ import type { DiagramColor, DiagramIcon } from '@canvasflow/types';
 import type { CarriedImage } from '../file/embedded-images';
 import type * as DiagramIcons from './diagram-icons';
 import { sha256Hex } from '../images/prepare-image';
+import { DEFAULT_ITEM_STYLE, type ItemStyle } from '../machine/tool-machine.types';
+import { mindMapFromOutline } from '../mindmap/mind-map-ops';
 
 /**
  * Everything a diagram needs beyond the engine: ELK to lay it out, and the
@@ -97,8 +102,30 @@ export interface ComposedDiagram {
 export async function composeDiagram(
   lines: readonly string[],
   genId: () => string,
-  look: { style?: DiagramStyle; scale?: number } = {},
+  look: {
+    style?: DiagramStyle;
+    scale?: number;
+    /** How a mind map is drawn: the layout, lines and outline new maps take. */
+    mindMap?: Pick<ItemStyle, 'mapLayout' | 'mapLines' | 'topicShape'>;
+  } = {},
 ): Promise<ComposedDiagram> {
+  // A mind map is topics, laid out by the board's own mind map layout — no
+  // kit, no icons — so a generated map is a map like one made by hand.
+  if (isMindMapLines(lines)) {
+    const outline = outlineFromMindMapLines(lines);
+    const style: ItemStyle = {
+      ...DEFAULT_ITEM_STYLE,
+      ...(look.style ? { fontFamily: look.style.fontFamily } : {}),
+      ...look.mindMap,
+    };
+    const shapes = outline
+      ? layoutMindMaps(
+          mindMapFromOutline(outline, { x: 0, y: 0 }, style, look.scale ?? 1, '', genId),
+        )
+      : [];
+    return { shapes, icons: new Map(), pictures: new Map(), images: { get: () => null } };
+  }
+
   let loaded: Kit;
   try {
     loaded = await loadKit();

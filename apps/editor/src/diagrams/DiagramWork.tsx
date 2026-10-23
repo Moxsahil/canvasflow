@@ -62,6 +62,15 @@ function useSteps() {
         detail: t(progress.direction === 'LR' ? 'diagrams.step.across' : 'diagrams.step.down'),
       });
     }
+    if (progress.topics.length > 0) {
+      steps.push({
+        phase: 'boxes',
+        label: live('boxes')
+          ? t('diagrams.step.addingTopics')
+          : t('diagrams.step.addedTopics', { count: progress.topics.length }),
+        detail: progress.topics.join(', '),
+      });
+    }
     if (progress.boxes.length > 0) {
       steps.push({
         phase: 'boxes',
@@ -172,7 +181,10 @@ export function DiagramSummary({ entry }: { entry: DiagramEntry }) {
   const stepsOf = useSteps();
   const [open, setOpen] = useState(false);
   const progress = progressOf(entry.lines, entry.fixed ?? 0);
-  const drew = `${t('diagrams.boxes', { count: progress.boxes.length })}, ${t('diagrams.arrows', { count: progress.arrows })}`;
+  const drew =
+    progress.topics.length > 0
+      ? t('diagrams.topics', { count: progress.topics.length })
+      : `${t('diagrams.boxes', { count: progress.boxes.length })}, ${t('diagrams.arrows', { count: progress.arrows })}`;
   const text =
     entry.took === undefined
       ? drew

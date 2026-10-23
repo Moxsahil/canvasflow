@@ -37,7 +37,31 @@ export interface DiagramRequest {
   previous?: string[];
   /** Draw with the larger model; uses DIAGRAM_DETAILED_COST of the month's diagrams. */
   detailed?: boolean;
+  /**
+   * What is asked for: a diagram, which is what an absent kind means; a mind
+   * map about the description; or ideas to hang under one topic of a map,
+   * the description being that topic's words. Each uses one of the month's
+   * diagrams, as a quick diagram does.
+   */
+  kind?: DiagramKind;
+  /** For `expand`: the topics from the map's centre down to the one being expanded, centre first. */
+  topicPath?: string[];
+  /** For `expand`: the topics already under it, which the new ideas must not repeat. */
+  topicChildren?: string[];
 }
+
+export type DiagramKind = 'diagram' | 'mindmap' | 'expand';
+
+/** The most topics a generated mind map holds, and how deep it goes below its centre. */
+export const MIND_MAP_MAX_TOPICS = 120;
+export const MIND_MAP_MAX_DEPTH = 4;
+/** The longest a topic's words run, in characters. */
+export const MIND_MAP_TOPIC_MAX = 80;
+/** How many ideas Expand adds under a topic. */
+export const MIND_MAP_EXPAND_MIN = 3;
+export const MIND_MAP_EXPAND_MAX = 6;
+/** The most topics sent as an expand's context, above the topic and under it. */
+export const MIND_MAP_CONTEXT_MAX = 60;
 
 /** The `code` on a refusal because a detailed diagram needs more than is left this month. */
 export const DIAGRAM_NOT_ENOUGH_LEFT = 'diagram-not-enough-left';

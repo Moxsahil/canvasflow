@@ -1,3 +1,4 @@
+import { MIND_MAP_MAX_DEPTH, MIND_MAP_TOPIC_MAX } from '@canvasflow/types';
 import { isTopic, type Shape, type TopicShape } from '../shapes/shape.js';
 import { mindMapForest, newChildTopic, type MindMapForest } from './tree.js';
 
@@ -225,4 +226,51 @@ export function mindMapMermaid(shapes: readonly Shape[]): string {
 /** Whether there is a mind map among `shapes`. */
 export function hasMindMap(shapes: readonly Shape[]): boolean {
   return shapes.some(isTopic);
+}
+
+/**
+ * One topic of a mind map as the AI writes it: a line of JSON, how far below
+ * the centre it sits and its words — `{"t":"topic","depth":1,"text":"Ads"}`.
+ * The centre is depth 0. Lines in order make the map: each topic hangs under
+ * the nearest line above it that sits one level higher.
+ */
+export interface MindMapLine {
+  readonly depth: number;
+  readonly text: string;
+}
+
+/** A topic line read and checked, or null for anything that is not one. */
+export function parseMindMapLine(line: string): MindMapLine | null {
+  let value: unknown;
+  try {
+    value = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  if (typeof value !== 'object' || value === null) return null;
+  const { t, depth, text } = value as Record<string, unknown>;
+  if (t !== 'topic' || typeof text !== 'string') return null;
+  if (typeof depth !== 'number' || !Number.isInteger(depth)) return null;
+  if (depth < 0 || depth > MIND_MAP_MAX_DEPTH) return null;
+  const words = oneLine(text).slice(0, MIND_MAP_TOPIC_MAX).trim();
+  return words === '' ? null : { depth, text: words };
+}
+
+/** A topic as the line the AI writes for it. */
+export function mindMapLineOf(depth: number, text: string): string {
+  return JSON.stringify({ t: 'topic', depth, text });
+}
+
+/** Whether these lines are a mind map's rather than a diagram's. */
+export function isMindMapLines(lines: readonly string[]): boolean {
+  return lines.some((line) => parseMindMapLine(line) !== null);
+}
+
+/** The topic lines among `lines` as an outline, or null with none. */
+export function outlineFromMindMapLines(lines: readonly string[]): OutlineNode[] | null {
+  const topics = lines.flatMap((line) => {
+    const topic = parseMindMapLine(line);
+    return topic ? [topic] : [];
+  });
+  return topics.length === 0 ? null : nest(topics);
 }

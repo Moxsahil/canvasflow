@@ -45,6 +45,7 @@ import { previousVersion, type DiagramEntry } from './diagram-history';
 import { DiagramSidebar } from './DiagramSidebar';
 import {
   describedAs,
+  isBox,
   type DiagramAttachment,
   type DiagramPanelState,
   type DiagramProblem,
@@ -85,8 +86,7 @@ function kindOf(picked: File): DiagramAttachment['kind'] | null {
   return null;
 }
 
-const boxesIn = (lines: readonly string[]) =>
-  lines.filter((line) => line.includes('"t":"node"')).length;
+const boxesIn = (lines: readonly string[]) => lines.filter(isBox).length;
 
 const button =
   'inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] disabled:pointer-events-none disabled:opacity-45';
@@ -233,7 +233,11 @@ export function DiagramPanel({
   const asked = describedAs(draft, panel.attachments);
   const nearLimit = asked.length > DIAGRAM_PROMPT_MAX * 0.8;
   const tooLong = asked.length > DIAGRAM_PROMPT_MAX;
-  const picked: DiagramToolId | null = panel.detailed ? 'detailed' : null;
+  const picked: DiagramToolId | null = panel.mindMap
+    ? 'mindmap'
+    : panel.detailed
+      ? 'detailed'
+      : null;
   const toolsOff = running || limited;
   const send = () => {
     if (!tooLong) void panel.generate();
@@ -298,7 +302,7 @@ export function DiagramPanel({
               on={on}
               disabled={toolsOff || (!on && left !== null && left < tool.cost)}
               onPick={() => {
-                panel.setDetailed(!on);
+                panel.setTool(on ? null : tool.id);
                 focusInput();
               }}
             />
@@ -345,7 +349,7 @@ export function DiagramPanel({
         <button
           type="button"
           className={cn(ghost, 'mt-1.5 -ml-2.5 text-[var(--surface-accent)]')}
-          onClick={() => panel.setDetailed(false)}
+          onClick={() => panel.setTool(null)}
         >
           {t('diagrams.useQuick')}
         </button>
@@ -685,7 +689,7 @@ export function DiagramPanel({
                     }
                     if (empty && event.key === 'Backspace' && picked && !toolsOff) {
                       event.preventDefault();
-                      panel.setDetailed(false);
+                      panel.setTool(null);
                     }
                   }}
                 >
@@ -735,7 +739,9 @@ export function DiagramPanel({
                         ? t('diagrams.placeholderLimit', { date: resets })
                         : changingEntry
                           ? t('diagrams.placeholderChange')
-                          : t('diagrams.placeholder')
+                          : panel.mindMap
+                            ? t('diagrams.placeholderMindmap')
+                            : t('diagrams.placeholder')
                     }
                     infoBar={
                       runningLow && usage && !panel.bannerClosed
@@ -792,7 +798,7 @@ export function DiagramPanel({
                     leftActions={
                       <DiagramTools
                         picked={picked}
-                        onPick={(id) => panel.setDetailed(id === 'detailed')}
+                        onPick={(id) => panel.setTool(id)}
                         open={toolsOpen}
                         onOpenChange={setToolsOpen}
                         onClosed={focusInput}

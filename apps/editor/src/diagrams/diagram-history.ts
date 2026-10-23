@@ -31,6 +31,8 @@ export interface DiagramEntry {
   chatId?: string;
   /** The shapes its last insert placed on the board. */
   inserted?: string[];
+  /** A mind map rather than a diagram; its lines are topics. */
+  kind?: 'mindmap';
 }
 
 /** One conversation: its diagrams, oldest first, and when it last moved. */
@@ -70,6 +72,7 @@ function isEntry(value: unknown): value is DiagramEntry {
     (entry.fixed === undefined || typeof entry.fixed === 'number') &&
     (entry.reaction === undefined || entry.reaction === 'up' || entry.reaction === 'down') &&
     (entry.chatId === undefined || typeof entry.chatId === 'string') &&
+    (entry.kind === undefined || entry.kind === 'mindmap') &&
     (entry.inserted === undefined ||
       (Array.isArray(entry.inserted) && entry.inserted.every((id) => typeof id === 'string')))
   );

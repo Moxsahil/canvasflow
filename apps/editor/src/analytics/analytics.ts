@@ -35,7 +35,14 @@ export interface AnalyticsEvents {
   boards_exported: { boards: number; library: boolean };
   library_item_added: Record<string, never>;
   library_item_placed: Record<string, never>;
-  diagram_generated: { change: boolean; detailed: boolean; ok: boolean; boxes: number };
+  diagram_generated: {
+    change: boolean;
+    detailed: boolean;
+    mindMap: boolean;
+    ok: boolean;
+    boxes: number;
+  };
+  mind_map_expanded: { ok: boolean; ideas: number };
   diagram_inserted: { change: boolean };
   diagram_rated: { reaction: 'up' | 'down' };
 }

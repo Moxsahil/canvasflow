@@ -1,6 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { DIAGRAM_MAX_NODES, DIAGRAM_PROMPT_MAX, DIAGRAM_REFINE_MAX_LINES } from '@canvasflow/types';
+import {
+  DIAGRAM_MAX_NODES,
+  DIAGRAM_PROMPT_MAX,
+  DIAGRAM_REFINE_MAX_LINES,
+  MIND_MAP_CONTEXT_MAX,
+} from '@canvasflow/types';
 import { readRequest } from './ai-diagrams.service.js';
 
 describe('readRequest', () => {
@@ -10,6 +15,7 @@ describe('readRequest', () => {
       description: 'login flow',
       direction: 'LR',
       detailed: false,
+      kind: 'diagram',
     });
   });
 
@@ -18,6 +24,7 @@ describe('readRequest', () => {
       boardId: 'b',
       description: 'login flow',
       detailed: false,
+      kind: 'diagram',
     });
   });
 
@@ -96,5 +103,62 @@ describe('readRequest', () => {
         }),
       ).toThrow(BadRequestException);
     });
+  });
+});
+
+describe('readRequest for mind maps', () => {
+  const topic = (depth: number, text: string) => JSON.stringify({ t: 'topic', depth, text });
+
+  it('reads a mind map, and an expand with its path and children', () => {
+    expect(readRequest({ boardId: 'b', description: 'trip to Japan', kind: 'mindmap' }).kind).toBe(
+      'mindmap',
+    );
+    const expand = readRequest({
+      boardId: 'b',
+      description: 'SEO',
+      kind: 'expand',
+      topicPath: ['Launch', '  Marketing  '],
+      topicChildren: ['Keywords'],
+    });
+    expect(expand).toMatchObject({
+      kind: 'expand',
+      description: 'SEO',
+      topicPath: ['Launch', 'Marketing'],
+      topicChildren: ['Keywords'],
+    });
+  });
+
+  it('takes a topic of one short word to expand, but not an empty one', () => {
+    expect(readRequest({ description: 'AI', kind: 'expand' }).description).toBe('AI');
+    expect(() => readRequest({ description: ' ', kind: 'expand' })).toThrow(BadRequestException);
+  });
+
+  it('refuses an unknown kind, a change to an expand, and context it cannot read', () => {
+    expect(() => readRequest({ description: 'trip', kind: 'poem' })).toThrow(BadRequestException);
+    expect(() =>
+      readRequest({ description: 'SEO', kind: 'expand', previous: [topic(0, 'x')] }),
+    ).toThrow(BadRequestException);
+    expect(() => readRequest({ description: 'SEO', kind: 'expand', topicPath: 'Launch' })).toThrow(
+      BadRequestException,
+    );
+    expect(() =>
+      readRequest({
+        description: 'SEO',
+        kind: 'expand',
+        topicChildren: Array.from({ length: MIND_MAP_CONTEXT_MAX + 1 }, () => 'x'),
+      }),
+    ).toThrow(BadRequestException);
+  });
+
+  it('keeps only the topic lines of a mind map sent back to be changed', () => {
+    const request = readRequest({
+      description: 'add a budget branch',
+      kind: 'mindmap',
+      previous: [topic(0, 'Trip'), 'not a topic', topic(1, 'Flights')],
+    });
+    expect(request.previous).toEqual([topic(0, 'Trip'), topic(1, 'Flights')]);
+    expect(() =>
+      readRequest({ description: 'change', kind: 'mindmap', previous: ['nothing usable'] }),
+    ).toThrow(BadRequestException);
   });
 });
