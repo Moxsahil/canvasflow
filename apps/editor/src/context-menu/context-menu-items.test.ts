@@ -97,10 +97,10 @@ describe('the short form, for a screen without the height', () => {
   });
 
   it('stands a good deal shorter than the full menus', () => {
-    expect(rowsShown(SELECTION_MENU)).toBe(22);
-    expect(rowsShown(SHORT_SELECTION_MENU)).toBe(17);
-    expect(rowsShown(CANVAS_MENU)).toBe(17);
-    expect(rowsShown(SHORT_CANVAS_MENU)).toBe(11);
+    expect(rowsShown(SELECTION_MENU)).toBe(23);
+    expect(rowsShown(SHORT_SELECTION_MENU)).toBe(18);
+    expect(rowsShown(CANVAS_MENU)).toBe(18);
+    expect(rowsShown(SHORT_CANVAS_MENU)).toBe(12);
   });
 
   it('folds the order rows and the flips into Arrange, and the board toggles into two', () => {

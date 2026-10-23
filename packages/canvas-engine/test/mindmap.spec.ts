@@ -4,7 +4,14 @@ import { shapeToYMap, yMapToShape } from '../src/document/yjs-shape.js';
 import { hitTest } from '../src/hit-testing/hit-test.js';
 import {
   layoutMindMaps,
+  looksLikeOutline,
+  MAX_OUTLINE_TOPICS,
   mindMapBranches,
+  mindMapMermaid,
+  mindMapOutline,
+  parseOutline,
+  topicsFromOutline,
+  type OutlineNode,
   mindMapDropAt,
   mindMapFoldBadgeAt,
   mindMapFoldBadges,
@@ -545,5 +552,88 @@ describe('lines and outlines', () => {
   it('carries a topic’s outline on to the topics grown from it', () => {
     const shapes = [topic('root', null, { topicShape: 'pill' })];
     expect(newChildTopic(shapes, 'root', 'c')!.topicShape).toBe('pill');
+  });
+});
+
+describe('outlines in and out', () => {
+  const tree = (nodes: readonly OutlineNode[]): unknown =>
+    nodes.map((n) => (n.children.length ? { [n.text]: tree(n.children) } : n.text));
+
+  it('nests indented lines, with spaces or tabs, under the line above', () => {
+    const outline = parseOutline(
+      'Launch plan\n  Marketing\n    Ads\n    SEO\n  Pricing\n  Website',
+    )!;
+    expect(tree(outline)).toEqual([
+      { 'Launch plan': [{ Marketing: ['Ads', 'SEO'] }, 'Pricing', 'Website'] },
+    ]);
+  });
+
+  it('reads tabs as indentation too', () => {
+    expect(tree(parseOutline('Plan\n\tA\n\t\tA1\n\tB')!)).toEqual([{ Plan: [{ A: ['A1'] }, 'B'] }]);
+  });
+
+  it('drops bullets, numbers and checkboxes, keeping the words', () => {
+    const outline = parseOutline('- Plan\n  * [ ] Ads\n  2. SEO\n  • [x] Done')!;
+    expect(tree(outline)).toEqual([{ Plan: ['Ads', 'SEO', 'Done'] }]);
+  });
+
+  it('hangs what follows a Markdown heading under it, a ## under a #', () => {
+    const outline = parseOutline('# Trip\n## Flights\n- Out\n- Back\n## Hotels')!;
+    expect(tree(outline)).toEqual([{ Trip: [{ Flights: ['Out', 'Back'] }, 'Hotels'] }]);
+  });
+
+  it('reads a Mermaid mind map, node shapes and all', () => {
+    const outline = parseOutline(
+      'mindmap\n  root((Launch))\n    a[Marketing]\n      Ads\n    b("Pricing")\n    ::icon(fa fa-book)',
+    )!;
+    expect(tree(outline)).toEqual([{ Launch: [{ Marketing: ['Ads'] }, 'Pricing'] }]);
+  });
+
+  it('tells a list from a sentence', () => {
+    expect(looksLikeOutline('Plan\n  Ads')).toBe(true);
+    expect(looksLikeOutline('- one\n- two')).toBe(true);
+    expect(looksLikeOutline('just one line')).toBe(false);
+    expect(looksLikeOutline('two lines\nof plain prose')).toBe(false);
+  });
+
+  it('grows an outline under a topic, colours and all', () => {
+    const board = [topic('root', null)];
+    let n = 0;
+    const made = topicsFromOutline(board, 'root', parseOutline('A\n  A1\nB')!, () => `n${n++}`);
+    expect(made.map((t) => [t.text, t.parentId])).toEqual([
+      ['A', 'root'],
+      ['A1', 'n0'],
+      ['B', 'root'],
+    ]);
+    expect(made[0]!.strokeColor).not.toBe(made[2]!.strokeColor);
+  });
+
+  it('stops at the most topics one paste makes', () => {
+    const many = Array.from({ length: MAX_OUTLINE_TOPICS + 50 }, (_, i) => `item ${i}`).join('\n');
+    expect(parseOutline(many)!.length).toBe(MAX_OUTLINE_TOPICS);
+  });
+
+  const map = [
+    topic('root', null, { text: 'Launch', y: 0 }),
+    topic('a', 'root', { text: 'Marketing', order: 1 }),
+    topic('a1', 'a', { text: 'Ads (paid)' }),
+    topic('b', 'root', { text: 'Pricing', order: 2 }),
+  ];
+
+  it('copies a map as an indented list that pastes back as the same map', () => {
+    const text = mindMapOutline(map);
+    expect(text).toBe('Launch\n  Marketing\n    Ads (paid)\n  Pricing');
+    expect(tree(parseOutline(text)!)).toEqual([
+      { Launch: [{ Marketing: ['Ads (paid)'] }, 'Pricing'] },
+    ]);
+  });
+
+  it('copies a map as Mermaid that reads back as the same map', () => {
+    const chart = mindMapMermaid(map);
+    expect(chart.split('\n')[0]).toBe('mindmap');
+    expect(chart).toContain('root(("`Launch`"))');
+    expect(tree(parseOutline(chart)!)).toEqual([
+      { Launch: [{ Marketing: ['Ads (paid)'] }, 'Pricing'] },
+    ]);
   });
 });
