@@ -6,6 +6,7 @@ import {
   Layers,
   ListTree,
   MousePointerClick,
+  Network,
   PanelRight,
   PenTool,
   RectangleEllipsis,
@@ -36,6 +37,7 @@ export type ContextMenuItemId =
   | 'copy'
   | 'paste'
   | 'pasteHere'
+  | 'pasteAsMindMap'
   | 'duplicate'
   // Copy as
   | 'copyAsPng'
@@ -56,6 +58,7 @@ export type ContextMenuItemId =
   | 'wrapTextInContainer'
   | 'convertToEmbed'
   | 'convertToBookmark'
+  | 'turnIntoMindMap'
   // Boards
   | 'moveToNewBoard'
   // Z-order
@@ -176,6 +179,9 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   // Built, but run from this menu alone: there is no command to take an icon
   // and a key from, and no key of its own.
   pasteHere: { labelKey: 'contextMenu.pasteHere', icon: MousePointerClick, edits: true },
+  // Built, and run from this menu alone, as Paste here is: the words on the
+  // clipboard as a new map, where the menu was opened.
+  pasteAsMindMap: { labelKey: 'contextMenu.pasteAsMindMap', icon: Network, edits: true },
   duplicate: fromCommand('duplicate', 'contextMenu.duplicate'),
 
   copyAsPng: fromCommand('copyAsPng', 'contextMenu.copyAsPng', false),
@@ -203,6 +209,8 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   // page, each turned into the other where it stands.
   convertToEmbed: { labelKey: 'contextMenu.convertToEmbed', icon: AppWindow, edits: true },
   convertToBookmark: { labelKey: 'contextMenu.convertToBookmark', icon: Bookmark, edits: true },
+  // A text box holding a list, turned into the map the list describes.
+  turnIntoMindMap: { labelKey: 'contextMenu.turnIntoMindMap', icon: Network, edits: true },
 
   moveToNewBoard: soon('contextMenu.moveToNewBoard', SquarePlus),
 
@@ -295,6 +303,7 @@ const EDIT: ContextSubmenu = {
     'wrapTextInContainer',
     'convertToEmbed',
     'convertToBookmark',
+    'turnIntoMindMap',
   ],
 };
 
@@ -327,7 +336,7 @@ const STYLE_PANEL: ContextSubmenu = {
  */
 export const SELECTION_MENU: readonly ContextMenuGroup[] = [
   ['selectBranch'],
-  ['cut', 'copy', 'paste', 'pasteHere', 'duplicate'],
+  ['cut', 'copy', 'paste', 'pasteHere', 'pasteAsMindMap', 'duplicate'],
   [COPY_AS, 'exportImage'],
   [EDIT, MOVE_TO],
   ['bringToFront', 'bringForward', 'sendBackward', 'sendToBack'],
@@ -340,7 +349,7 @@ export const SELECTION_MENU: readonly ContextMenuGroup[] = [
 
 /** Right-click on empty board: nothing is selected, so these act on the board. */
 export const CANVAS_MENU: readonly ContextMenuGroup[] = [
-  ['paste', 'pasteHere'],
+  ['paste', 'pasteHere', 'pasteAsMindMap'],
   [COPY_AS, 'exportImage'],
   ['selectAll', 'unlockAll', 'showAll'],
   ['showGrid', 'snapToObjects', 'snapToMidpoints', 'arrowBinding'],
@@ -383,7 +392,7 @@ const VIEW: ContextSubmenu = {
  */
 export const SHORT_SELECTION_MENU: readonly ContextMenuGroup[] = [
   ['selectBranch'],
-  ['cut', 'copy', 'paste', 'pasteHere', 'duplicate'],
+  ['cut', 'copy', 'paste', 'pasteHere', 'pasteAsMindMap', 'duplicate'],
   [COPY_AS, 'exportImage'],
   [EDIT, MOVE_TO, ARRANGE],
   ['addLink', 'copyLinkToSelection'],
@@ -393,7 +402,7 @@ export const SHORT_SELECTION_MENU: readonly ContextMenuGroup[] = [
 ];
 
 export const SHORT_CANVAS_MENU: readonly ContextMenuGroup[] = [
-  ['paste', 'pasteHere'],
+  ['paste', 'pasteHere', 'pasteAsMindMap'],
   [COPY_AS, 'exportImage'],
   ['selectAll', 'unlockAll', 'showAll'],
   [GRID_AND_SNAPPING, VIEW, STYLE_PANEL],

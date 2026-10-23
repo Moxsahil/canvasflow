@@ -1,9 +1,12 @@
 import {
+  computeBoundingRect,
   isArrow,
   isBookmark,
   isFrame,
   isText,
   isTopic,
+  mindMapForest,
+  mindMapOutline,
   readBookmarkUrl,
   shapeBounds,
   withMindMapBranches,
@@ -81,7 +84,24 @@ interface Placed {
  */
 export function copyTextOf(shapes: readonly Shape[]): string {
   const placed: Placed[] = [];
+  // A mind map reads as one indented list, standing where the map does —
+  // what pastes into notes as the outline it is, and back onto a board as
+  // the same map.
+  const topics = shapes.filter(isTopic);
+  for (const root of mindMapForest(topics).roots) {
+    const map = new Set(withMindMapBranches([root.id], topics));
+    const members = topics.filter((topic) => map.has(topic.id));
+    const bounds = computeBoundingRect(members);
+    if (!bounds) continue;
+    placed.push({
+      words: mindMapOutline(members),
+      top: bounds.y,
+      bottom: bounds.y + bounds.height,
+      left: bounds.x,
+    });
+  }
   for (const shape of shapes) {
+    if (isTopic(shape)) continue;
     const words = wordsOf(shape);
     if (words === '') continue;
     const bounds = shapeBounds(shape);

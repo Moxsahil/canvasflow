@@ -41,7 +41,11 @@ import {
   isFrame,
   isText,
   isTopic,
+  hasMindMap,
   layoutMindMaps,
+  mindMapMermaid,
+  parseOutline,
+  topicsFromOutline,
   mindMapDropAt,
   mindMapForest,
   topicGrowth,
@@ -159,6 +163,7 @@ import {
   grownTopic,
   hasBranches,
   mapStyleFor,
+  mindMapFromOutline,
   mindMapRootAt,
   topicTextPatch,
   withTopicBeingTyped,
@@ -4580,7 +4585,10 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const canCopyAs = copyData.length > 0;
   const canCopyAsPng = canCopyAs && canWriteClipboardItems();
   const canCopyAsText = useMemo(() => hasWords(copyData), [copyData]);
-  const canCopyAsMermaid = useMemo(() => hasFlowchart(copyData), [copyData]);
+  const canCopyAsMermaid = useMemo(
+    () => hasMindMap(copyData) || hasFlowchart(copyData),
+    [copyData],
+  );
 
   // A link card and an embed of the same page, each made into the other. One
   // shape, unlocked; and a card only for a page a site lets the board show.
@@ -4732,7 +4740,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
   }, [canCopyAsText, copyData, copyAsPlainText]);
 
   const handleCopyAsMermaid = useCallback(() => {
-    const chart = mermaidFlowchart(copyData);
+    // A mind map copies as Mermaid's own mind map; anything else as a
+    // flowchart, which is all the rest of the board can be.
+    const chart = hasMindMap(copyData)
+      ? mindMapMermaid(copyData.filter(isTopic))
+      : mermaidFlowchart(copyData);
     if (chart !== null) copyAsPlainText(chart, 'Mermaid');
   }, [copyData, copyAsPlainText]);
 
@@ -5100,6 +5112,30 @@ export function Editor({ boardId, local = false }: EditorProps) {
         return true;
       }
 
+      // Words pasted with one topic selected grow under it, an indented list
+      // as branches of branches — however the list was copied, from wherever.
+      if (content.kind === 'text' && !readOnly && !at) {
+        const { selectedIds: picked } = actorRef.getSnapshot().context;
+        const current = doc.getShapes();
+        const parent =
+          picked.length === 1 ? current.find((shape) => shape.id === picked[0]) : undefined;
+        const outline = parent && isTopic(parent) ? parseOutline(content.text) : null;
+        if (parent && isTopic(parent) && outline && !lockedShapeIds(current).has(parent.id)) {
+          const grown = topicsFromOutline(current, parent.id, outline, genId);
+          doc.breakUndoGroup();
+          doc.batch(() => {
+            if (parent.collapsed === true) doc.updateShape(parent.id, { collapsed: false });
+            for (const topic of grown) doc.addShape(topic);
+          });
+          doc.breakUndoGroup();
+          actorRef.send({
+            type: 'SELECT_ALL',
+            shapeIds: grown.filter((topic) => topic.parentId === parent.id).map((t) => t.id),
+          });
+          return true;
+        }
+      }
+
       // A link to a page a site lets the board show is pasted as that page,
       // not as its address written out.
       const embedUrl = content.kind === 'text' && !readOnly ? parseEmbedInput(content.text) : null;
@@ -5215,7 +5251,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
    * keyboard with the mouse resting on the sidebar — has no "here" to offer,
    * so the paste lands in the middle of the view instead of out of sight.
    */
-  const handlePasteHere = useCallback(() => {
+  const pointerSpot = useCallback((): Point => {
     const pointer = lastPointerPosition();
     const container = containerRef.current;
     let at = viewportCentre();
@@ -5229,9 +5265,75 @@ export function Editor({ boardId, local = false }: EditorProps) {
         pointer.y <= rect.bottom;
       if (overBoard) at = screenToWorld(pointer.x, pointer.y, container, camera);
     }
+    return at;
+  }, [lastPointerPosition, camera, viewportCentre]);
 
-    return pasteFromMenu(at);
-  }, [lastPointerPosition, pasteFromMenu, camera, viewportCentre]);
+  const handlePasteHere = useCallback(
+    () => pasteFromMenu(pointerSpot()),
+    [pasteFromMenu, pointerSpot],
+  );
+
+  /** A new map from an outline, its centre on `at`, added as one step and selected. */
+  const placeMindMapFromOutline = useCallback(
+    (outline: ReturnType<typeof parseOutline>, at: Point, replacing?: string) => {
+      if (!outline) return false;
+      const { itemStyle: style, camera: view, dynamicSize } = actorRef.getSnapshot().context;
+      const topics = mindMapFromOutline(
+        outline,
+        at,
+        style,
+        newShapeScale(view, dynamicSize),
+        translate('mindMap.defaultCentre'),
+        genId,
+      );
+      doc.breakUndoGroup();
+      doc.batch(() => {
+        if (replacing) doc.deleteShapes([replacing]);
+        for (const topic of topics) doc.addShape(topic);
+      });
+      doc.breakUndoGroup();
+      actorRef.send({ type: 'SELECT_ALL', shapeIds: topics[0] ? [topics[0].id] : [] });
+      return true;
+    },
+    [actorRef, doc],
+  );
+
+  /**
+   * Whatever words are on the clipboard as a new mind map, where the menu was
+   * opened: an indented list as branches of branches, plain lines each a
+   * branch of their own.
+   */
+  const handlePasteAsMindMap = useCallback(async () => {
+    if (readOnly) return;
+    const at = pointerSpot();
+    let raw = '';
+    try {
+      raw = (await navigator.clipboard?.readText()) ?? '';
+    } catch {
+      // Refused, or not on offer here: said below as nothing to paste.
+    }
+    if (!placeMindMapFromOutline(parseOutline(raw), at)) {
+      showToast(translate('mindMap.nothingToPaste'), 'warn');
+    }
+  }, [readOnly, pointerSpot, placeMindMapFromOutline, showToast]);
+
+  /** The one text box selected, which Turn into mind map reads its list from. */
+  const selectedTextBox = useMemo(() => {
+    if (selectedIds.length !== 1 || lockedIds.has(selectedIds[0]!)) return null;
+    const shape = shapes.find((s) => s.id === selectedIds[0]);
+    return shape && isText(shape) && shape.text.trim() !== '' ? shape : null;
+  }, [selectedIds, lockedIds, shapes]);
+
+  /** The selected text box as a map, standing where it stood — one undo puts the text back. */
+  const handleTurnIntoMindMap = useCallback(() => {
+    if (readOnly || !selectedTextBox) return;
+    const bounds = shapeBounds(selectedTextBox);
+    placeMindMapFromOutline(
+      parseOutline(selectedTextBox.text),
+      { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 },
+      selectedTextBox.id,
+    );
+  }, [readOnly, selectedTextBox, placeMindMapFromOutline]);
 
   const toggleGrid = useCallback(() => {
     preferences.set('showGrid', !preferences.values.showGrid);
@@ -5706,6 +5808,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 copy: selectedIds.length > 0 ? handleCopy : null,
                 paste: handlePaste,
                 pasteHere: handlePasteHere,
+                pasteAsMindMap: handlePasteAsMindMap,
+                turnIntoMindMap: selectedTextBox ? handleTurnIntoMindMap : null,
                 duplicate: selectedIds.length > 0 ? handleDuplicate : null,
                 flipHorizontal: canFlip ? handleFlipHorizontal : null,
                 flipVertical: canFlip ? handleFlipVertical : null,

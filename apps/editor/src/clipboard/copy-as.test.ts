@@ -4,6 +4,8 @@ import {
   createFrame,
   createRectangle,
   createText,
+  createTopic,
+  layoutMindMaps,
   type Shape,
 } from '@canvasflow/canvas-engine';
 import { exportScopeFor } from '../file/export-image';
@@ -119,5 +121,31 @@ describe('copyJsonOf', () => {
       kind: 'shapes',
       shapes: [{ id: 'new', kind: 'text', text: 'Hello' }],
     });
+  });
+});
+
+describe('copying a mind map as text', () => {
+  const map = layoutMindMaps([
+    createTopic({ id: 'root', x: 0, y: 0, text: 'Launch', parentId: null }),
+    createTopic({ id: 'a', x: 0, y: 0, text: 'Marketing', parentId: 'root', order: 1 }),
+    createTopic({ id: 'a1', x: 0, y: 0, text: 'Ads', parentId: 'a' }),
+    createTopic({ id: 'b', x: 0, y: 0, text: 'Pricing', parentId: 'root', order: 2 }),
+  ]);
+
+  it('gives the map as one indented list', () => {
+    expect(copyTextOf(map)).toBe('Launch\n  Marketing\n    Ads\n  Pricing');
+  });
+
+  it('gives a branch on its own as a list of its own', () => {
+    const branch = copyDataFor(
+      map,
+      map.filter((s) => s.id === 'a'),
+    );
+    expect(copyTextOf(branch)).toBe('Marketing\n  Ads');
+  });
+
+  it('keeps other words beside the map, in reading order', () => {
+    const note = createText({ id: 'note', x: 0, y: -500, text: 'Heading' });
+    expect(copyTextOf([note, ...map])).toBe('Heading\n\nLaunch\n  Marketing\n    Ads\n  Pricing');
   });
 });

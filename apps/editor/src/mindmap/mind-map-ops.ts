@@ -8,7 +8,9 @@ import {
   readMapLines,
   newChildTopic,
   newSiblingTopic,
+  topicsFromOutline,
   topicSize,
+  type OutlineNode,
   type Shape,
   type TopicShape,
 } from '@canvasflow/canvas-engine';
@@ -112,4 +114,27 @@ export function mapStyleFor(shape: Shape, shapes: readonly Shape[], style: ItemS
     mapLayout: readMapLayout(root.mapLayout),
     mapLines: readMapLines(root.mapLines),
   };
+}
+
+/**
+ * A new map from an outline, its centre on `point`: the outline's one top
+ * line as the centre, or — when it has several — a centre called
+ * `centreName` with each of them a branch off it.
+ */
+export function mindMapFromOutline(
+  outline: readonly OutlineNode[],
+  point: Point,
+  style: ItemStyle,
+  scale: number,
+  centreName: string,
+  genId: () => string,
+): TopicShape[] {
+  const [only] = outline;
+  const single = outline.length === 1 && only !== undefined;
+  const blank = mindMapRootAt(point, style, scale, genId());
+  const named = { ...blank, text: single ? only.text : centreName };
+  const { width, height } = topicSize(named);
+  const root = { ...named, x: point.x - width / 2, y: point.y - height / 2 };
+  const branches = single ? only.children : outline;
+  return [root, ...topicsFromOutline([root], root.id, branches, genId)];
 }
