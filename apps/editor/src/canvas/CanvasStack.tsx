@@ -29,6 +29,8 @@ interface CanvasStackProps {
   editingFrameIds?: ReadonlySet<string>;
   /** The arrow whose label is open for typing, so its line breaks for the caret. */
   editingArrowLabelId?: string;
+  /** The topic whose words are open in the text overlay. */
+  editingTopicId?: string;
   newElement: Shape | null;
   selectedIds: readonly string[];
   marquee: { x: number; y: number; width: number; height: number } | null;
@@ -125,6 +127,7 @@ export function CanvasStack({
   pendingErasureIds,
   editingFrameIds,
   editingArrowLabelId,
+  editingTopicId,
   newElement,
   selectedIds,
   marquee,
@@ -183,6 +186,7 @@ export function CanvasStack({
     pendingErasureIds,
     editingFrameIds,
     editingArrowLabelId,
+    editingTopicId,
     images,
     imageRevision,
     darkMode,

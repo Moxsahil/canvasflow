@@ -271,3 +271,107 @@ export function AlignRightIcon() {
     </svg>
   );
 }
+
+// --- mind map layout ---
+
+/** A centre with branches leaving it both ways. */
+export function MapBothIcon() {
+  return (
+    <svg {...base}>
+      <rect x="9" y="10" width="6" height="4" rx="1" />
+      <path d="M15 12c2 0 2-5 5-5M15 12c2 0 2 5 5 5M9 12c-2 0-2-5-5-5M9 12c-2 0-2 5-5 5" />
+    </svg>
+  );
+}
+
+/** A centre with every branch to its right. */
+export function MapRightIcon() {
+  return (
+    <svg {...base}>
+      <rect x="3" y="10" width="6" height="4" rx="1" />
+      <path d="M9 12c3 0 3-6 7-6h4M9 12h11M9 12c3 0 3 6 7 6h4" />
+    </svg>
+  );
+}
+
+/** A centre with every branch to its left. */
+export function MapLeftIcon() {
+  return (
+    <svg {...base}>
+      <rect x="15" y="10" width="6" height="4" rx="1" />
+      <path d="M15 12c-3 0-3-6-7-6H4M15 12H4M15 12c-3 0-3 6-7 6H4" />
+    </svg>
+  );
+}
+
+/** A centre with its branches hanging down in a row. */
+export function MapDownIcon() {
+  return (
+    <svg {...base}>
+      <rect x="9" y="3" width="6" height="4" rx="1" />
+      <path d="M12 7v4M5 15v-2h14v2M12 11v4" />
+      <path d="M3.5 17h3M10.5 17h3M17.5 17h3" />
+    </svg>
+  );
+}
+
+// --- mind map lines ---
+
+export function LinesCurvedIcon() {
+  return (
+    <svg {...base}>
+      <path d="M4 18c8 0 8-12 16-12" />
+    </svg>
+  );
+}
+
+export function LinesStraightIcon() {
+  return (
+    <svg {...base}>
+      <path d="M4 18L20 6" />
+    </svg>
+  );
+}
+
+export function LinesElbowIcon() {
+  return (
+    <svg {...base}>
+      <path d="M4 18h8V6h8" />
+    </svg>
+  );
+}
+
+// --- topic outline ---
+
+export function TopicRoundedIcon() {
+  return (
+    <svg {...base}>
+      <rect x="3" y="7" width="18" height="10" rx="3" />
+    </svg>
+  );
+}
+
+export function TopicPillIcon() {
+  return (
+    <svg {...base}>
+      <rect x="3" y="7" width="18" height="10" rx="5" />
+    </svg>
+  );
+}
+
+export function TopicRectangleIcon() {
+  return (
+    <svg {...base}>
+      <rect x="3" y="7" width="18" height="10" />
+    </svg>
+  );
+}
+
+export function TopicUnderlineIcon() {
+  return (
+    <svg {...base}>
+      <path d="M7 9h10" strokeWidth={1.5} />
+      <path d="M3 17h18" />
+    </svg>
+  );
+}

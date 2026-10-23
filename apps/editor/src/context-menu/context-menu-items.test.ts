@@ -97,8 +97,8 @@ describe('the short form, for a screen without the height', () => {
   });
 
   it('stands a good deal shorter than the full menus', () => {
-    expect(rowsShown(SELECTION_MENU)).toBe(21);
-    expect(rowsShown(SHORT_SELECTION_MENU)).toBe(16);
+    expect(rowsShown(SELECTION_MENU)).toBe(22);
+    expect(rowsShown(SHORT_SELECTION_MENU)).toBe(17);
     expect(rowsShown(CANVAS_MENU)).toBe(17);
     expect(rowsShown(SHORT_CANVAS_MENU)).toBe(11);
   });
@@ -192,8 +192,17 @@ describe('row metadata', () => {
 
 describe('contextMenuFor', () => {
   it('gives an editor every row of the menu the click called for', () => {
-    expect(idsIn(contextMenuFor('selection', { readOnly: false }))).toEqual(idsIn(SELECTION_MENU));
+    expect(idsIn(contextMenuFor('selection', { readOnly: false, mindMap: true }))).toEqual(
+      idsIn(SELECTION_MENU),
+    );
     expect(idsIn(contextMenuFor('canvas', { readOnly: false }))).toEqual(idsIn(CANVAS_MENU));
+  });
+
+  it('offers Select branch only when a topic is selected, to viewers too', () => {
+    expect(idsIn(contextMenuFor('selection', { readOnly: false }))).not.toContain('selectBranch');
+    expect(idsIn(contextMenuFor('selection', { readOnly: true, mindMap: true }))[0]).toBe(
+      'selectBranch',
+    );
   });
 
   it('leaves a viewer the rows that read the board and none that change it', () => {

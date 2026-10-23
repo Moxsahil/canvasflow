@@ -2,6 +2,7 @@ import * as Y from 'yjs';
 import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing';
 import { lockedShapeIds, type LockFacts } from '../shapes/lock.js';
 import type { ArrowShape, Shape } from '../shapes/shape.js';
+import { layoutMindMaps } from '../mindmap/layout.js';
 import { shapeToYMap, yMapToShape } from './yjs-shape.js';
 
 const UNDO_CAPTURE_TIMEOUT_MS = 1000;
@@ -234,11 +235,16 @@ export class BoardDocument {
     // Stable, so shapes sharing a key — boards still carry them from before
     // keys were compared by character code — keep the order they were added
     // in, which every client agrees on.
-    return shapes.sort((a, b) => {
+    shapes.sort((a, b) => {
       const az = (a as Shape & { zIndex?: string }).zIndex ?? '';
       const bz = (b as Shape & { zIndex?: string }).zIndex ?? '';
       return compareZIndex(az, bz);
     });
+    // A mind map's branches are where its layout puts them, not where they
+    // were last written — see `TopicShape`. Placed here, on the one read every
+    // part of the editor goes through, so nothing downstream sees a branch
+    // anywhere else.
+    return layoutMindMaps(shapes);
   }
 
   /**
@@ -656,6 +662,11 @@ export class BoardDocument {
             const copiedFrame = remapped.get(value as string);
             if (copiedFrame) clone.set('frameId', copiedFrame);
             else if (!locked.has(value as string)) clone.set('frameId', value);
+          } else if (key === 'parentId' && typeof value === 'string') {
+            // A topic copied with the topic it branches from hangs off the
+            // copy. One copied without it joins the same map beside the
+            // original, which is where a copy of one branch belongs.
+            clone.set('parentId', remapped.get(value) ?? value);
           } else if (key === 'locked') {
             // A copy is something to work on. One that came out locked could
             // not even be moved off the original it was copied from.

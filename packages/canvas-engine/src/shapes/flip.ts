@@ -114,7 +114,11 @@ export function flipShape(shape: Shape, axis: FlipAxis, center: Point): Shape {
     case 'image':
     case 'embed':
     case 'bookmark':
-    case 'frame': {
+    case 'frame':
+    case 'topic': {
+      // A topic is moved like any box. Only a centre's position is read — the
+      // rest are put where the layout says — and which way a map's branches
+      // grow is turned over by `mindMapFlipPatches`.
       const bounds = shapeBounds(shape);
       if (!finiteBounds(bounds)) return shape;
 

@@ -1,6 +1,7 @@
 import {
   frameForShape,
   framesIn,
+  relinkTopicParents,
   sanitizeShape,
   type SanitizeOptions,
   type Shape,
@@ -27,16 +28,21 @@ export function sanitizeShapes(
   genId: () => string,
   options?: SanitizeOptions,
 ): SanitizeResult {
-  const shapes: Shape[] = [];
+  const rebuilt: Shape[] = [];
+  // Old id to new, for the topics that name their parent by it.
+  const renamed = new Map<string, string>();
   let skipped = 0;
   for (const candidate of candidates) {
     const shape = sanitizeShape(candidate, genId, options);
     if (shape) {
-      shapes.push(shape);
+      rebuilt.push(shape);
+      const oldId = (candidate as { id?: unknown }).id;
+      if (typeof oldId === 'string') renamed.set(oldId, shape.id);
     } else {
       skipped += 1;
     }
   }
+  const shapes = relinkTopicParents(rebuilt, renamed);
 
   // Membership, rebuilt from the geometry now that every shape has its new id.
   // Nothing about who was in which frame has to survive the file for this to

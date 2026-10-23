@@ -295,6 +295,76 @@ export interface FrameShape extends BaseShape {
   readonly name: string;
 }
 
+// --- Mind map topic ---
+
+/**
+ * One idea in a mind map: words in a box, joined by a branch to the topic it
+ * grows from.
+ *
+ * A map is nothing but its topics. Each names its parent, and the topic with
+ * none is the centre the rest branch out from; there is no map object to keep
+ * in step with them. Only the centre's position is its own. Every other topic
+ * is placed by the layout each time the board is read — see
+ * `layoutMindMaps` — so the map is tidy for everyone at once, two people
+ * adding branches together cannot leave it overlapping, and the `x` and `y`
+ * stored on a branch are never read.
+ *
+ * The box is sized by its words, as a text shape is, so there is no width or
+ * height to store either.
+ */
+/**
+ * How a map is laid out: branches either side of the centre, all to one side,
+ * or hanging down from it like an organisation chart.
+ */
+export type MindMapLayout = 'both' | 'right' | 'left' | 'down';
+
+/** How the lines between topics are drawn. */
+export type MindMapLines = 'curved' | 'straight' | 'elbow';
+
+/** The outline a topic is drawn in; `underline` is a rule under its words alone. */
+export type TopicLook = 'rounded' | 'pill' | 'rectangle' | 'underline';
+
+export interface TopicShape extends BaseShape {
+  readonly kind: 'topic';
+  readonly text: string;
+  readonly fontSize: number;
+  readonly fontFamily: string;
+  /**
+   * The topic this one branches from, or null for the centre of a map.
+   *
+   * One that names a topic no longer on the board — copied away from its map,
+   * or left by a delete that raced an add — is read as the centre of a map of
+   * its own, which keeps everything it holds on the board and in reach.
+   */
+  readonly parentId: string | null;
+  /**
+   * Which side of the centre the branch grows on. Read only on the centre's
+   * own children; everything further out follows the branch it is on.
+   */
+  readonly side: 'left' | 'right';
+  /** Place among its siblings, top to bottom, lowest first. */
+  readonly order: number;
+  /**
+   * Its branches folded away: everything further out is kept, but not drawn
+   * or found, and takes no room in the map — see `foldedTopicIds`.
+   *
+   * Absent and false both mean open. Absent is what every topic written
+   * before folding existed says, which is why there is no migration.
+   */
+  readonly collapsed?: boolean;
+  /**
+   * The map's layout and its lines. Read on the centre alone — a map has one
+   * of each — so changing them anywhere means changing them on the centre.
+   *
+   * Absent means `both` and `curved`, which is how every map made before
+   * either existed was drawn, so there is no migration.
+   */
+  readonly mapLayout?: MindMapLayout;
+  readonly mapLines?: MindMapLines;
+  /** This topic's own outline. Absent means `rounded`. */
+  readonly topicShape?: TopicLook;
+}
+
 // --- The union ---
 
 export type Shape =
@@ -308,7 +378,8 @@ export type Shape =
   | ImageShape
   | EmbedShape
   | BookmarkShape
-  | FrameShape;
+  | FrameShape
+  | TopicShape;
 
 /**
  * A shape's scale, checked at every read rather than trusted.
@@ -336,7 +407,7 @@ export function strokeWidthOf(shape: BaseShape): number {
 }
 
 /** The font size to draw and measure with. `fontSize` is the chosen preset. */
-export function fontSizeOf(shape: TextShape): number {
+export function fontSizeOf(shape: Pick<TextShape, 'fontSize' | 'scale'>): number {
   return shape.fontSize * shapeScale(shape);
 }
 
@@ -379,6 +450,10 @@ export function isBookmark(s: Shape): s is BookmarkShape {
 
 export function isFrame(s: Shape): s is FrameShape {
   return s.kind === 'frame';
+}
+
+export function isTopic(s: Shape): s is TopicShape {
+  return s.kind === 'topic';
 }
 
 export function assertNever(value: never): never {

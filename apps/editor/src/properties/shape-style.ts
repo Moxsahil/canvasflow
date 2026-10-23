@@ -1,4 +1,13 @@
-import { isArrow, isFreehand, isText, type Shape } from '@canvasflow/canvas-engine';
+import {
+  isArrow,
+  isFreehand,
+  isText,
+  isTopic,
+  readMapLayout,
+  readMapLines,
+  readTopicLook,
+  type Shape,
+} from '@canvasflow/canvas-engine';
 import type { ItemStyle } from '../machine/tool-machine.types';
 
 /**
@@ -18,12 +27,17 @@ export function itemStyleFromShape(shape: Shape, fallback: ItemStyle): ItemStyle
     roughness: shape.roughness,
     opacity: shape.opacity,
     edges: 'edges' in shape ? shape.edges : fallback.edges,
-    fontFamily: isText(shape) ? shape.fontFamily : fallback.fontFamily,
-    fontSize: isText(shape) ? shape.fontSize : fallback.fontSize,
+    fontFamily: isText(shape) || isTopic(shape) ? shape.fontFamily : fallback.fontFamily,
+    fontSize: isText(shape) || isTopic(shape) ? shape.fontSize : fallback.fontSize,
     textAlign: isText(shape) ? shape.textAlign : fallback.textAlign,
     arrowType: isArrow(shape) ? shape.arrowType : fallback.arrowType,
     startArrowhead: isArrow(shape) ? shape.startArrowhead : fallback.startArrowhead,
     endArrowhead: isArrow(shape) ? shape.endArrowhead : fallback.endArrowhead,
     simulatePressure: isFreehand(shape) ? shape.simulatePressure : fallback.simulatePressure,
+    // A topic's layout and lines are its map's, which only the centre holds:
+    // the editor puts in the centre's for a branch — see `mapStyleFor`.
+    mapLayout: isTopic(shape) ? readMapLayout(shape.mapLayout) : fallback.mapLayout,
+    mapLines: isTopic(shape) ? readMapLines(shape.mapLines) : fallback.mapLines,
+    topicShape: isTopic(shape) ? readTopicLook(shape.topicShape) : fallback.topicShape,
   };
 }

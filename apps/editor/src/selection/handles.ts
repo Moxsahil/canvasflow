@@ -16,7 +16,7 @@ export function hitTestHandles(
   py: number,
   zoom: number,
 ): HandleIndex | null {
-  if (hasPointHandles(shape)) return null;
+  if (hasPointHandles(shape) || shape.kind === 'topic') return null;
 
   const b = shapeBounds(shape);
   const pad = 4 / zoom;

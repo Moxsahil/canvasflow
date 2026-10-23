@@ -15,7 +15,9 @@ import {
   descendantsOf,
   hiddenShapeIds,
   lockedShapeIds,
+  mindMapForest,
   shapeBounds,
+  withMindMapBranches,
   type FrameShape,
   type Shape,
 } from '@canvasflow/canvas-engine';
@@ -55,20 +57,22 @@ export function withFrameMembers(ids: readonly string[], shapes: readonly Shape[
 /**
  * Where a duplicate of this selection should land.
  *
- * Clear of the original along one axis when a frame is involved, so repeating
- * the gesture lays copies out in a row instead of stacking them.
+ * Clear of the original along one axis when a frame or the centre of a mind
+ * map is involved, so repeating the gesture lays copies out in a row instead
+ * of stacking them.
  */
 export function duplicateOffsetFor(
   ids: readonly string[],
   shapes: readonly Shape[],
 ): { dx: number; dy: number } {
   const hasFrame = shapes.some((s) => ids.includes(s.id) && isFrame(s));
-  if (!hasFrame) return DEFAULT_DUPLICATE_OFFSET;
+  const hasMap = mindMapForest(shapes).roots.some((root) => ids.includes(root.id));
+  if (!hasFrame && !hasMap) return DEFAULT_DUPLICATE_OFFSET;
 
   // Measured across everything that will be copied, members included: a frame
   // with something sticking out of it still has to clear what it came from,
   // and measuring the frame alone would drop the copy on top of the overhang.
-  const copied = new Set(withFrameMembers(ids, shapes));
+  const copied = new Set(withFrameMembers(withMindMapBranches(ids, shapes), shapes));
 
   let minX = Infinity;
   let maxX = -Infinity;

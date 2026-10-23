@@ -73,6 +73,8 @@ interface CanvasContextMenuProps {
   readOnly: boolean;
   /** False takes out the rows that hand out a link to the board. */
   canShareLinks?: boolean;
+  /** True puts in the rows about a mind map, for a selection holding a topic. */
+  mindMap?: boolean;
   actions: ContextMenuActions;
   checks: ContextMenuChecks;
   /**
@@ -103,6 +105,7 @@ export function CanvasContextMenu({
   target,
   readOnly,
   canShareLinks = true,
+  mindMap = false,
   actions,
   checks,
   labels,
@@ -116,8 +119,8 @@ export function CanvasContextMenu({
   const t = useT();
   const short = useSyncExternalStore(subscribeToShortScreen, isShortScreen, isShortOnServer);
   const groups = useMemo(
-    () => contextMenuFor(target, { readOnly, canShareLinks, short }),
-    [target, readOnly, canShareLinks, short],
+    () => contextMenuFor(target, { readOnly, canShareLinks, mindMap, short }),
+    [target, readOnly, canShareLinks, mindMap, short],
   );
 
   return (

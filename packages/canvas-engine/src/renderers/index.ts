@@ -5,3 +5,4 @@ export * from './draw-embed.js';
 export * from './draw-bookmark.js';
 export * from './interactive.js';
 export * from './new-element.js';
+export * from './draw-topic.js';

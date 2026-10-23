@@ -4,6 +4,7 @@ import {
   Bookmark,
   Crop,
   Layers,
+  ListTree,
   MousePointerClick,
   PanelRight,
   PenTool,
@@ -28,6 +29,8 @@ import { PREFERENCE_GROUPS, type PreferenceId } from '../preferences/preferences
  * can land one row at a time — the same bargain the sidebar strikes.
  */
 export type ContextMenuItemId =
+  // Mind maps
+  | 'selectBranch'
   // Clipboard
   | 'cut'
   | 'copy'
@@ -163,6 +166,10 @@ const soon = (labelKey: TranslationKey, icon: CommandIcon, edits = true): Contex
 });
 
 export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuItemMeta>> = {
+  // Built, and run from this menu alone. Picking things out changes nothing,
+  // so a viewer keeps it.
+  selectBranch: { labelKey: 'contextMenu.selectBranch', icon: ListTree },
+
   cut: fromCommand('cut', 'contextMenu.cut'),
   copy: fromCommand('copy', 'contextMenu.copy', false),
   paste: fromCommand('paste', 'contextMenu.paste'),
@@ -319,6 +326,7 @@ const STYLE_PANEL: ContextSubmenu = {
  * Delete is last and on its own, being the one row that discards work.
  */
 export const SELECTION_MENU: readonly ContextMenuGroup[] = [
+  ['selectBranch'],
   ['cut', 'copy', 'paste', 'pasteHere', 'duplicate'],
   [COPY_AS, 'exportImage'],
   [EDIT, MOVE_TO],
@@ -374,6 +382,7 @@ const VIEW: ContextSubmenu = {
  * test holds both forms to that.
  */
 export const SHORT_SELECTION_MENU: readonly ContextMenuGroup[] = [
+  ['selectBranch'],
   ['cut', 'copy', 'paste', 'pasteHere', 'duplicate'],
   [COPY_AS, 'exportImage'],
   [EDIT, MOVE_TO, ARRANGE],
@@ -402,16 +411,21 @@ export type ContextMenuTarget = 'selection' | 'canvas';
  */
 /** Rows that hand out a link to the board: only for those who run its sharing. */
 const SHARING_ROWS: ReadonlySet<ContextMenuItemId> = new Set(['copyLinkToSelection']);
+/** Rows about a mind map: only when a topic is among what was right-clicked. */
+const MIND_MAP_ROWS: ReadonlySet<ContextMenuItemId> = new Set(['selectBranch']);
 
 export function contextMenuFor(
   target: ContextMenuTarget,
   {
     readOnly,
     canShareLinks = true,
+    mindMap = false,
     short = false,
   }: {
     readOnly: boolean;
     canShareLinks?: boolean;
+    /** A topic is selected, which puts the mind map rows in. */
+    mindMap?: boolean;
     /** The folded form, for a screen without the height for the full one. */
     short?: boolean;
   },
@@ -425,7 +439,9 @@ export function contextMenuFor(
         ? SHORT_CANVAS_MENU
         : CANVAS_MENU;
   const usable = (id: ContextMenuItemId) =>
-    !(readOnly && CONTEXT_MENU_ITEMS[id].edits) && (canShareLinks || !SHARING_ROWS.has(id));
+    !(readOnly && CONTEXT_MENU_ITEMS[id].edits) &&
+    (canShareLinks || !SHARING_ROWS.has(id)) &&
+    (mindMap || !MIND_MAP_ROWS.has(id));
 
   const groups: ContextMenuGroup[] = [];
   for (const group of layout) {

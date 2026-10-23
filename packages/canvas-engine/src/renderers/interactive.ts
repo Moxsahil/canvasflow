@@ -223,8 +223,13 @@ export function renderInteractiveScene(
     ctx.setLineDash([]);
 
     // --- Handles — only when exactly one shape is selected, and it is not
-    // locked: a locked shape has nothing a handle could change ---
-    if (selectedShapes.length === 1 && !lockedIds?.has(selectedShapes[0]!.id)) {
+    // locked: a locked shape has nothing a handle could change. Nor a topic,
+    // which its words size and its map places ---
+    if (
+      selectedShapes.length === 1 &&
+      !lockedIds?.has(selectedShapes[0]!.id) &&
+      selectedShapes[0]!.kind !== 'topic'
+    ) {
       const only = selectedShapes[0]!;
       const pointHandles = visibleShapeHandles(only, zoom);
       if (pointHandles) {

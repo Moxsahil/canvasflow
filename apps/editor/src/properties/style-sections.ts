@@ -12,6 +12,7 @@ const FILLABLE_KINDS: ReadonlySet<Shape['kind']> = new Set([
   'diamond',
   'line',
   'freehand',
+  'topic',
 ]);
 
 /** Shape kinds whose corners or joints can be rounded off. */
@@ -39,6 +40,8 @@ export interface StyleSections {
   fillPattern: boolean;
   corners: boolean;
   arrow: boolean;
+  /** A mind map's layout, its lines and its topics' outline. */
+  mindMap: boolean;
 }
 
 /**
@@ -64,6 +67,7 @@ export function styleSections(
       fillPattern: true,
       corners: false,
       arrow: false,
+      mindMap: false,
     };
   }
 
@@ -75,7 +79,11 @@ export function styleSections(
   // Text is sized by fontSize and drawn without Rough; an image paints its own
   // pixels, and an embed and a link card are cards around someone else's
   // page; none of them is outlined, and none has a stroke to configure.
-  const stroke = !textOnly && !every((k) => k === 'image' || k === 'embed' || k === 'bookmark');
+  // A topic is drawn as a clean box sized by its words, so its look is its
+  // colours alone: no weight, dash or roughness, and a fill without a pattern.
+  const stroke =
+    !textOnly && !every((k) => k === 'image' || k === 'embed' || k === 'bookmark' || k === 'topic');
+  const anyTopic = shapeKinds.includes('topic');
   const freehandOnly = every((k) => k === 'freehand');
 
   return {
@@ -90,11 +98,12 @@ export function styleSections(
      * rather than described carries its own character, and cutting it into
      * dashes reads as fighting the stroke instead of styling it.
      */
-    strokeTreatments: stroke && !freehandOnly,
+    strokeTreatments: stroke && !freehandOnly && !anyTopic,
     pressure: freehandOnly,
     fill,
-    fillPattern: fill && style.fillColor !== null,
+    fillPattern: fill && style.fillColor !== null && !anyTopic,
     corners: every((k) => EDGED_KINDS.has(k)),
     arrow: every((k) => k === 'arrow'),
+    mindMap: every((k) => k === 'topic'),
   };
 }

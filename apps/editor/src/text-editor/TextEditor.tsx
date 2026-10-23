@@ -24,6 +24,15 @@ interface TextEditorProps {
    * different: this is what is being typed, not what has been decided.
    */
   onChange?: (text: string) => void;
+  /**
+   * Enter and Tab, when the caller has a use for them beyond finishing: a
+   * mind map topic grows a sibling on one and a child on the other. Each is
+   * handed what was typed, in place of the commit the key would otherwise be.
+   */
+  onEnter?: (text: string) => void;
+  onTab?: (text: string) => void;
+  /** Escape keeps what was typed rather than throwing it away. */
+  commitOnEscape?: boolean;
 }
 
 export function TextEditor({
@@ -36,6 +45,9 @@ export function TextEditor({
   onCommit,
   onCancel,
   onChange,
+  onEnter,
+  onTab,
+  commitOnEscape = false,
 }: TextEditorProps) {
   const [value, setValue] = useState(initialText ?? '');
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -62,9 +74,15 @@ export function TextEditor({
   // Always commit on blur/Enter — the caller (Editor.tsx) decides what an
   // empty commit means (discard a new box vs. delete an edited shape).
   // Escape is the only path that reverts without committing.
-  const commit = () => {
-    onCommit(value);
+  // Once a key has finished the session, the blur that follows — this box
+  // giving way to the next one Enter or Tab opened — is not a second ending.
+  const settledRef = useRef(false);
+  const settle = (finish: () => void) => {
+    if (settledRef.current) return;
+    settledRef.current = true;
+    finish();
   };
+  const commit = () => settle(() => onCommit(value));
 
   const font = `${fontSize}px ${fontFamily}`;
   const lineCount = value.split('\n').length;
@@ -100,10 +118,15 @@ export function TextEditor({
           e.stopPropagation();
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            commit();
+            if (onEnter) settle(() => onEnter(value));
+            else commit();
+          } else if (e.key === 'Tab' && onTab && !e.shiftKey) {
+            e.preventDefault();
+            settle(() => onTab(value));
           } else if (e.key === 'Escape') {
             e.preventDefault();
-            onCancel();
+            if (commitOnEscape) commit();
+            else settle(onCancel);
           }
         }}
         style={{

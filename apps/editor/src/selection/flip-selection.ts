@@ -5,6 +5,7 @@ import {
   flipShape,
   isArrow,
   isFrame,
+  mindMapFlipPatches,
   type BoardDocument,
   type FlipAxis,
   type Point,
@@ -103,6 +104,12 @@ function planSelectionFlip(
     if (flipped === shape) continue;
     next.set(shape.id, flipped);
     changed.add(shape.id);
+  }
+  // A map is laid out rather than placed, so turning it over is a matter of
+  // which side its branches grow on and which way up its stacks run.
+  for (const { id, patch } of mindMapFlipPatches(board, ids, axis)) {
+    next.set(id, { ...next.get(id)!, ...patch } as Shape);
+    changed.add(id);
   }
   if (changed.size === 0) return null;
 

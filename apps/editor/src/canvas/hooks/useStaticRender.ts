@@ -18,6 +18,8 @@ interface UseStaticRenderOptions {
   /** Frames whose name is open for editing: label suppressed, border highlighted. */
   editingFrameIds?: ReadonlySet<string>;
   editingArrowLabelId?: string;
+  /** The topic whose words are open in the text overlay. */
+  editingTopicId?: string;
   /** Decoded image bitmaps. */
   images?: ImageSource;
   /**
@@ -55,6 +57,7 @@ export function useStaticRender(
     pendingErasureIds,
     editingFrameIds,
     editingArrowLabelId,
+    editingTopicId,
     images,
     imageRevision,
     darkMode,
@@ -74,6 +77,7 @@ export function useStaticRender(
       pendingErasureIds,
       editingFrameIds,
       editingArrowLabelId,
+      editingTopicId,
       images,
       darkMode,
     });
@@ -87,6 +91,7 @@ export function useStaticRender(
     pendingErasureIds,
     editingFrameIds,
     editingArrowLabelId,
+    editingTopicId,
     images,
     imageRevision,
     darkMode,

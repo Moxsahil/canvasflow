@@ -3,8 +3,10 @@ import {
   isBookmark,
   isFrame,
   isText,
+  isTopic,
   readBookmarkUrl,
   shapeBounds,
+  withMindMapBranches,
   type Shape,
 } from '@canvasflow/canvas-engine';
 import { withFrameMembers } from '../file/export-image';
@@ -22,7 +24,8 @@ export function copySubjectFor(selected: readonly Shape[]): CopySubject {
 
 /**
  * The shapes the text, Mermaid and JSON copies read: the selection, frames
- * with everything in them, or the whole of `shapes` when nothing is selected.
+ * with everything in them and topics with their branches, or the whole of
+ * `shapes` when nothing is selected.
  *
  * A frame selected on its own comes with itself here, unlike in an image of
  * it: its name heads a subgraph and its record is part of the data.
@@ -31,12 +34,22 @@ export function copyDataFor(
   shapes: readonly Shape[],
   selected: readonly Shape[],
 ): readonly Shape[] {
-  return selected.length > 0 ? withFrameMembers(selected, shapes) : shapes;
+  if (selected.length === 0) return shapes;
+  const branches = new Set(
+    withMindMapBranches(
+      selected.map((shape) => shape.id),
+      shapes,
+    ),
+  );
+  return withFrameMembers(
+    shapes.filter((shape) => branches.has(shape.id)),
+    shapes,
+  );
 }
 
-/** The words a shape carries: a text's own, an arrow's label. Frame names are chrome. */
+/** The words a shape carries: a text's or a topic's own, an arrow's label. Frame names are chrome. */
 function wordsOf(shape: Shape): string {
-  if (isText(shape)) return shape.text.trim();
+  if (isText(shape) || isTopic(shape)) return shape.text.trim();
   if (isArrow(shape)) return shape.label.trim();
   // A link card's words are its title and the page it opens.
   if (isBookmark(shape)) {

@@ -29,8 +29,11 @@ import {
   FONT_OPTIONS,
   FONT_SIZE_OPTIONS,
   LOOK_OPTIONS,
+  MAP_LAYOUT_OPTIONS,
+  MAP_LINES_OPTIONS,
   PATTERN_OPTIONS,
   PRESSURE_OPTIONS,
+  TOPIC_SHAPE_OPTIONS,
   WEIGHT_STEPS,
   arrowheadLabel,
 } from './style-options';
@@ -294,6 +297,56 @@ export function PropertiesPanel({
           </InspectorRow>
           {arrowheadRow('start')}
           {arrowheadRow('end')}
+        </InspectorSection>
+      ),
+    });
+  }
+
+  if (show.mindMap) {
+    sections.push({
+      key: 'mindMap',
+      node: (
+        <InspectorSection title={t('style.mindMap')}>
+          <InspectorRow label={t('style.layout')}>
+            <SegmentedControl
+              label={t('style.mapLayout')}
+              value={style.mapLayout}
+              options={MAP_LAYOUT_OPTIONS}
+              onChange={(mapLayout) => onStyleChange({ mapLayout })}
+            />
+          </InspectorRow>
+          <InspectorRow label={t('style.lines')}>
+            <SegmentedControl
+              label={t('style.mapLines')}
+              value={style.mapLines}
+              options={MAP_LINES_OPTIONS}
+              onChange={(mapLines) => onStyleChange({ mapLines })}
+            />
+          </InspectorRow>
+          <InspectorRow label={t('style.outline')}>
+            <SegmentedControl
+              label={t('style.topicShape')}
+              value={style.topicShape}
+              options={TOPIC_SHAPE_OPTIONS}
+              onChange={(topicShape) => onStyleChange({ topicShape })}
+            />
+          </InspectorRow>
+          <InspectorRow label={t('style.font')}>
+            <SegmentedControl
+              label={t('style.font')}
+              value={style.fontFamily}
+              options={FONT_OPTIONS}
+              onChange={(fontFamily) => onStyleChange({ fontFamily })}
+            />
+          </InspectorRow>
+          <InspectorRow label={t('style.size')}>
+            <SegmentedControl
+              label={t('style.fontSize')}
+              value={style.fontSize}
+              options={FONT_SIZE_OPTIONS}
+              onChange={(fontSize) => onStyleChange({ fontSize })}
+            />
+          </InspectorRow>
         </InspectorSection>
       ),
     });

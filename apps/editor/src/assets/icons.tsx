@@ -112,6 +112,21 @@ export const FrameIcon = createIcon(
   </>,
 );
 
+/** A centre with branches leaving it both ways, each ending in a topic. */
+export const MindMapIcon = createIcon(
+  <>
+    <rect x="8.5" y="10" width="7" height="4" rx="1.5" />
+    <path d="M15.5 12c1.5 0 1.5-5 3-5" />
+    <path d="M15.5 12c1.5 0 1.5 5 3 5" />
+    <path d="M8.5 12c-1.5 0-1.5-5-3-5" />
+    <path d="M8.5 12c-1.5 0-1.5 5-3 5" />
+    <circle cx="20" cy="7" r="1" />
+    <circle cx="20" cy="17" r="1" />
+    <circle cx="4" cy="7" r="1" />
+    <circle cx="4" cy="17" r="1" />
+  </>,
+);
+
 /** A loose stroke, with the corners it is about to be squared off into. */
 export const SketchIcon = createIcon(
   <>
