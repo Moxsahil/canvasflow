@@ -28,6 +28,8 @@ export interface DiagramRun {
   chatId: string;
   /** Drawn by the larger model, which plans before it writes. */
   detailed: boolean;
+  /** A mind map rather than a diagram. */
+  mindMap?: boolean;
   lines: string[];
   /** When it was asked for (ms since the epoch), for the time shown while it runs. */
   startedAt: number;
@@ -75,6 +77,9 @@ export type DiagramNotice =
   /** A detailed diagram needs more of the month's diagrams than are left. */
   | { kind: 'not-enough' };
 
+/** A box of a diagram, or a topic of a mind map: what says something was drawn. */
+export const isBox = (line: string) => line.includes('"t":"node"') || line.includes('"t":"topic"');
+
 const newId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
@@ -120,6 +125,12 @@ export function useDiagramPanel({
   const [attachments, setAttachments] = useState<DiagramAttachment[]>([]);
   const [changing, setChanging] = useState<string | null>(null);
   const [detailed, setDetailed] = useState(false);
+  const [mindMap, setMindMap] = useState(false);
+  /** The tool picked on top of a plain request, or none: one at a time. */
+  const setTool = useCallback((id: 'detailed' | 'mindmap' | null) => {
+    setDetailed(id === 'detailed');
+    setMindMap(id === 'mindmap');
+  }, []);
   const controller = useRef<AbortController | null>(null);
 
   // Another board is another list, read from storage, which answers later.
@@ -241,12 +252,16 @@ export function useDiagramPanel({
       setChat(chatId);
       const startedAt = Date.now();
       let fixing = 0;
-      const cost = detailed ? DIAGRAM_DETAILED_COST : 1;
+      // A change to a mind map is a mind map, whatever tool is picked now.
+      const asMap = previous ? previous.kind === 'mindmap' : mindMap;
+      const deep = detailed && !asMap;
+      const cost = deep ? DIAGRAM_DETAILED_COST : 1;
       setRun({
         description,
         ...(changeOf ? { changeOf } : {}),
         chatId,
-        detailed,
+        detailed: deep,
+        ...(asMap ? { mindMap: true } : {}),
         lines: [],
         startedAt,
         fixing: 0,
@@ -262,7 +277,8 @@ export function useDiagramPanel({
             boardId,
             description,
             ...(previous ? { previous: previous.lines } : {}),
-            ...(detailed ? { detailed: true } : {}),
+            ...(deep ? { detailed: true } : {}),
+            ...(asMap ? { kind: 'mindmap' as const } : {}),
           },
           (line) => {
             // The gateway's word that it is fixing lines is about the work, not
@@ -299,8 +315,14 @@ export function useDiagramPanel({
         setUsage(end.usage);
         keepUsage(userId, boardId, end.usage);
         if (end.usage.used >= end.usage.limit) setNotice({ kind: 'limit' });
-        const boxes = lines.filter((line) => line.includes('"t":"node"')).length;
-        track('diagram_generated', { change: Boolean(previous), detailed, ok: end.ok, boxes });
+        const boxes = lines.filter(isBox).length;
+        track('diagram_generated', {
+          change: Boolean(previous),
+          detailed: deep,
+          mindMap: asMap,
+          ok: end.ok,
+          boxes,
+        });
         if (!end.ok) {
           const problem = end.reason ?? 'unavailable';
           setRun((current) => current && { ...current, status: 'failed', problem });
@@ -314,6 +336,7 @@ export function useDiagramPanel({
           took: Date.now() - startedAt,
           ...(fixing ? { fixed: fixing } : {}),
           ...(changeOf ? { changeOf } : {}),
+          ...(asMap ? { kind: 'mindmap' as const } : {}),
           chatId,
         });
         setRun(null);
@@ -333,7 +356,7 @@ export function useDiagramPanel({
         setRun(null);
         // Stopped after boxes had arrived: the gateway counted it, so it is kept
         // as far as it got rather than thrown away.
-        if (lines.some((line) => line.includes('"t":"node"'))) {
+        if (lines.some(isBox)) {
           remember({
             id: newId(),
             description,
@@ -341,6 +364,7 @@ export function useDiagramPanel({
             createdAt: Date.now(),
             took: Date.now() - startedAt,
             ...(changeOf ? { changeOf } : {}),
+            ...(asMap ? { kind: 'mindmap' as const } : {}),
             chatId,
           });
           setUsage((current) => {
@@ -368,10 +392,20 @@ export function useDiagramPanel({
       userId,
       remember,
       detailed,
+      mindMap,
     ],
   );
 
   const generate = useCallback(() => ask(), [ask]);
+
+  /** A count that came back from elsewhere — Expand on the board — shown and kept. */
+  const noteUsage = useCallback(
+    (answer: DiagramUsage) => {
+      takeUsage(answer);
+      keepUsage(userId, boardId, answer);
+    },
+    [takeUsage, userId, boardId],
+  );
 
   /** The usage banner closed for this month and level, so it stays closed. */
   const [closed, setClosed] = useState(() => closedBanner(userId));
@@ -473,9 +507,12 @@ export function useDiagramPanel({
     markInserted,
     detailed,
     setDetailed,
+    mindMap,
+    setTool,
     startChange,
     cancelChange,
     generate,
+    noteUsage,
     /** Reads the count ahead of opening, e.g. while the pointer is on the button. */
     warmUsage: refreshUsage,
     bannerClosed,

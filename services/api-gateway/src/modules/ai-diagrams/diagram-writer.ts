@@ -27,6 +27,8 @@ export interface DiagramWriter {
 export interface DiagramWriteOptions {
   /** The larger model, planning before it writes: for big diagrams such as system architectures. */
   detailed?: boolean;
+  /** What the model is told, in place of the diagram instructions: a mind map's own. */
+  system?: string;
 }
 
 /** Why no reply came, in the terms the person is told. */
@@ -82,7 +84,7 @@ export class AnthropicDiagramWriter implements DiagramWriter {
               // the service picks, inside the same request.
               betas: ['server-side-fallback-2026-07-01'],
               fallbacks: 'default',
-              system: DIAGRAM_SYSTEM_PROMPT,
+              system: options.system ?? DIAGRAM_SYSTEM_PROMPT,
               messages,
             },
             { signal, timeout: DETAILED_TIMEOUT_MS },
@@ -95,7 +97,7 @@ export class AnthropicDiagramWriter implements DiagramWriter {
               // back the first line the person is waiting to see.
               thinking: { type: 'disabled' },
               output_config: { effort: 'low' },
-              system: DIAGRAM_SYSTEM_PROMPT,
+              system: options.system ?? DIAGRAM_SYSTEM_PROMPT,
               messages,
             },
             { signal },
@@ -109,7 +111,7 @@ export class AnthropicDiagramWriter implements DiagramWriter {
 
       const message = await stream.finalMessage();
       this.logger.log(
-        `Diagram (${options.detailed ? 'detailed' : 'quick'}): ${message.usage.input_tokens} in, ${message.usage.output_tokens} out, ${message.stop_reason}`,
+        `${options.system ? 'Mind map' : 'Diagram'} (${options.detailed ? 'detailed' : 'quick'}): ${message.usage.input_tokens} in, ${message.usage.output_tokens} out, ${message.stop_reason}`,
       );
       if (message.stop_reason === 'refusal') throw new DiagramWriterError('refused');
     } catch (error) {

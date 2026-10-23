@@ -17,7 +17,7 @@ import { DIAGRAM_DETAILED_COST } from '@canvasflow/types';
 import { cn } from '@/lib/utils';
 import { useT, type WordKey } from '../i18n';
 
-export type DiagramToolId = 'detailed';
+export type DiagramToolId = 'detailed' | 'mindmap';
 
 interface DiagramTool {
   id: DiagramToolId;
@@ -51,6 +51,15 @@ export const DIAGRAM_TOOLS: readonly DiagramTool[] = [
     hint: 'diagrams.detailedHint',
     cost: DIAGRAM_DETAILED_COST,
   },
+  {
+    id: 'mindmap',
+    icon: Waypoints,
+    color: '#8a74c4',
+    label: 'diagrams.toolMindmap',
+    row: 'diagrams.toolMindmapRow',
+    hint: 'diagrams.mindmapHint',
+    cost: 1,
+  },
 ];
 
 /** A tool on its way: listed so people know it is coming, not yet to be picked. */
@@ -70,13 +79,6 @@ export const DIAGRAM_TOOLS_SOON: readonly SoonTool[] = [
     color: '#4f9a7a',
     label: 'diagrams.toolFlowchart',
     row: 'diagrams.toolFlowchartRow',
-  },
-  {
-    id: 'mindmap',
-    icon: Waypoints,
-    color: '#8a74c4',
-    label: 'diagrams.toolMindmap',
-    row: 'diagrams.toolMindmapRow',
   },
   {
     id: 'er',

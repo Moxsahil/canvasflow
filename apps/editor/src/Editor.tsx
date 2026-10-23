@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { can } from '@canvasflow/types';
+import { can, DIAGRAM_LIMIT_REACHED } from '@canvasflow/types';
 import { useActorRef, useSelector } from '@xstate/react';
 import {
   arrowsAffectedBy,
@@ -204,6 +204,7 @@ import {
   composeDiagram,
   DiagramPanel,
   DiagramsButton,
+  expandTopic,
   useDiagramPanel,
   type DiagramEntry,
 } from './diagrams';
@@ -4284,22 +4285,46 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // Zoom to fit all shapes
   // Fitted to what is drawn: a hidden shape far off would leave the board
   // zoomed out around empty space.
+  /**
+   * The camera that frames these shapes in the board as it measures right now.
+   *
+   * Measured at the moment of asking rather than from the size last kept,
+   * which can lag a layout change around the board — and with no size to fit
+   * into, the shapes would be framed into nothing and land in a corner at the
+   * smallest zoom. A shape whose bounds are not numbers is left out rather
+   * than allowed to throw the whole frame off.
+   */
+  const cameraFraming = useCallback(
+    (target: readonly Shape[]) => {
+      const finite = target.filter((shape) => {
+        const b = shapeBounds(shape);
+        return [b.x, b.y, b.width, b.height].every(Number.isFinite);
+      });
+      const rect = computeBoundingRect(finite);
+      if (!rect) return null;
+      const box = containerRef.current?.getBoundingClientRect();
+      const viewport =
+        box && box.width > 0 && box.height > 0
+          ? { width: box.width, height: box.height }
+          : { width, height };
+      if (viewport.width <= 0 || viewport.height <= 0) return null;
+      return fitRectToViewport(rect, viewport);
+    },
+    [width, height],
+  );
+
   const handleZoomToFit = useCallback(() => {
-    const rect = computeBoundingRect(shownShapes);
-    if (!rect) return; // No shapes to fit
-    const newCamera = fitRectToViewport(rect, { width, height });
-    actorRef.send({ type: 'SET_CAMERA', camera: newCamera });
-  }, [actorRef, shownShapes, width, height]);
+    const newCamera = cameraFraming(shownShapes);
+    if (newCamera) actorRef.send({ type: 'SET_CAMERA', camera: newCamera });
+  }, [actorRef, shownShapes, cameraFraming]);
 
   // Zoom to selection (falls back to zoom-to-fit if nothing selected)
   const handleZoomToSelection = useCallback(() => {
     const target =
       selectedIds.length > 0 ? shownShapes.filter((s) => selectedIds.includes(s.id)) : shownShapes;
-    const rect = computeBoundingRect(target);
-    if (!rect) return;
-    const newCamera = fitRectToViewport(rect, { width, height });
-    actorRef.send({ type: 'SET_CAMERA', camera: newCamera });
-  }, [actorRef, shownShapes, selectedIds, width, height]);
+    const newCamera = cameraFraming(target);
+    if (newCamera) actorRef.send({ type: 'SET_CAMERA', camera: newCamera });
+  }, [actorRef, shownShapes, selectedIds, cameraFraming]);
 
   // --- edits that also move the viewport ------------------------------------
   /**
@@ -4854,12 +4879,19 @@ export function Editor({ boardId, local = false }: EditorProps) {
     [actorRef, camera, width, height],
   );
 
+  /** How a mind map from the AI panel is drawn: in the layout, lines and outline the panel shows. */
+  const mindMapLook = useCallback(() => {
+    const { mapLayout, mapLines, topicShape } = actorRef.getSnapshot().context.itemStyle;
+    return { mapLayout, mapLines, topicShape };
+  }, [actorRef]);
+
   const insertDiagram = useCallback(
     async (entry: DiagramEntry) => {
       if (readOnly) return;
       const { shapes, icons, pictures } = await composeDiagram(entry.lines, genId, {
         style: diagramStyle,
         scale: newShapeScale(camera, preferences.values.dynamicSize),
+        mindMap: mindMapLook(),
       });
       const centre = {
         x: camera.x + width / 2 / camera.zoom,
@@ -4884,6 +4916,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       track('diagram_inserted', { change: Boolean(entry.changeOf) });
     },
     [
+      mindMapLook,
       readOnly,
       width,
       height,
@@ -4918,6 +4951,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       const { shapes, icons, pictures } = await composeDiagram(entry.lines, genId, {
         style: diagramStyle,
         scale: newShapeScale(camera, preferences.values.dynamicSize),
+        mindMap: mindMapLook(),
       });
       const going = leaving.map((shape) => shape.id);
       const goingSet = new Set(going);
@@ -4946,6 +4980,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       track('diagram_inserted', { change: true });
     },
     [
+      mindMapLook,
       readOnly,
       doc,
       camera,
@@ -5323,6 +5358,100 @@ export function Editor({ boardId, local = false }: EditorProps) {
     const shape = shapes.find((s) => s.id === selectedIds[0]);
     return shape && isText(shape) && shape.text.trim() !== '' ? shape : null;
   }, [selectedIds, lockedIds, shapes]);
+
+  /**
+   * Ideas for the one topic selected, from the AI, hung under it in one step.
+   * It is told the path down from the map's centre and what is under the
+   * topic already, so the ideas fit where they go and repeat nothing. One of
+   * the month's AI diagrams, given back if nothing comes.
+   */
+  const expandingRef = useRef(false);
+  const handleExpandWithAi = useCallback(async () => {
+    if (readOnly || selectedIds.length !== 1) return;
+    if (local) {
+      setSignUpReason('diagram');
+      return;
+    }
+    if (!authToken || !accountHere || expandingRef.current) return;
+    const forest = mindMapForest(doc.getShapes());
+    const topic = forest.topics.get(selectedIds[0]!);
+    if (!topic || topic.text.trim() === '') return;
+
+    const path: string[] = [];
+    const seen = new Set<string>([topic.id]);
+    let above = topic.parentId === null ? undefined : forest.topics.get(topic.parentId);
+    while (above && !seen.has(above.id)) {
+      seen.add(above.id);
+      path.unshift(above.text);
+      above = above.parentId === null ? undefined : forest.topics.get(above.parentId);
+    }
+    const children = (forest.children.get(topic.id) ?? []).map((child) => child.text);
+    const name = topic.text.replace(/\s+/g, ' ').trim();
+
+    expandingRef.current = true;
+    showToast(translate('mindMap.expanding', { topic: name }));
+    try {
+      const outcome = await expandTopic(
+        authToken,
+        { boardId, topic: topic.text, path, children },
+        new AbortController().signal,
+      );
+      if (outcome.kind === 'refused') {
+        const { code } = outcome.refusal;
+        if (code === 'sign-in-required') setSignUpReason('diagram');
+        else
+          showToast(
+            code === DIAGRAM_LIMIT_REACHED
+              ? translate('mindMap.expandLimit')
+              : translate('mindMap.expandFailed'),
+            'warn',
+          );
+        return;
+      }
+      if (outcome.kind === 'cut') {
+        showToast(translate('mindMap.expandCut'), 'warn');
+        return;
+      }
+      diagrams.noteUsage(outcome.end.usage);
+      track('mind_map_expanded', { ok: outcome.end.ok, ideas: outcome.ideas.length });
+      // The topic may have gone while the ideas were on their way.
+      const current = doc.getShapes();
+      const still = current.find((shape) => shape.id === topic.id);
+      if (!outcome.end.ok || outcome.ideas.length === 0 || !still || !isTopic(still)) {
+        showToast(translate('mindMap.noNewIdeas', { topic: name }), 'warn');
+        return;
+      }
+      const grown = topicsFromOutline(
+        current,
+        still.id,
+        outcome.ideas.map((text) => ({ text, children: [] })),
+        genId,
+      );
+      doc.breakUndoGroup();
+      doc.batch(() => {
+        if (still.collapsed === true) doc.updateShape(still.id, { collapsed: false });
+        for (const idea of grown) doc.addShape(idea);
+      });
+      doc.breakUndoGroup();
+      actorRef.send({ type: 'SELECT_ALL', shapeIds: grown.map((idea) => idea.id) });
+      showToast(translate('mindMap.expanded', { count: grown.length, topic: name }));
+    } catch {
+      showToast(translate('mindMap.expandCut'), 'warn');
+    } finally {
+      expandingRef.current = false;
+    }
+  }, [
+    readOnly,
+    selectedIds,
+    local,
+    authToken,
+    accountHere,
+    doc,
+    boardId,
+    showToast,
+    diagrams,
+    actorRef,
+  ]);
 
   /** The selected text box as a map, standing where it stood — one undo puts the text back. */
   const handleTurnIntoMindMap = useCallback(() => {
@@ -5804,6 +5933,10 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 // Locked shapes can be copied and duplicated — the copies come
                 // out unlocked — but nothing that would change them is offered.
                 selectBranch: selectionHasTopic ? handleSelectBranch : null,
+                expandWithAi:
+                  selectedIds.length === 1 && selectionHasTopic && editableIds.length === 1
+                    ? () => void handleExpandWithAi()
+                    : null,
                 cut: editableIds.length > 0 ? handleCut : null,
                 copy: selectedIds.length > 0 ? handleCopy : null,
                 paste: handlePaste,

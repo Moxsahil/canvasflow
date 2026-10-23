@@ -13,6 +13,8 @@ export interface DiagramProgress {
   direction: 'TB' | 'LR' | null;
   /** The boxes' labels, in the order they arrived. */
   boxes: string[];
+  /** A mind map's topics, in the order they arrived; empty for a diagram. */
+  topics: string[];
   arrows: number;
   /** Lines being fixed by the one fix-up pass; 0 when there is none. */
   fixing: number;
@@ -21,6 +23,7 @@ export interface DiagramProgress {
 export function progressOf(lines: readonly string[], fixing = 0): DiagramProgress {
   let direction: 'TB' | 'LR' | null = null;
   const boxes: string[] = [];
+  const topics: string[] = [];
   let arrows = 0;
   for (const line of lines) {
     let parsed: unknown;
@@ -34,18 +37,19 @@ export function progressOf(lines: readonly string[], fixing = 0): DiagramProgres
     if (element.t === 'meta') direction = element.direction === 'LR' ? 'LR' : 'TB';
     else if (element.t === 'node' && typeof element.text === 'string') boxes.push(element.text);
     else if (element.t === 'edge') arrows += 1;
+    else if (element.t === 'topic' && typeof element.text === 'string') topics.push(element.text);
   }
   const phase: WorkPhase =
     fixing > 0
       ? 'fixing'
       : arrows > 0
         ? 'arrows'
-        : boxes.length > 0
+        : boxes.length > 0 || topics.length > 0
           ? 'boxes'
           : direction
             ? 'layout'
             : 'reading';
-  return { phase, direction, boxes, arrows, fixing };
+  return { phase, direction, boxes, topics, arrows, fixing };
 }
 
 /** Whether a streamed line is the gateway saying it has started the fix-up pass, and for how many lines. */
