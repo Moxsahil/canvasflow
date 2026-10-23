@@ -11,6 +11,7 @@ import { lineBounds } from './line.js';
 import { rectangleBounds } from './rectangle.js';
 import { assertNever, type Shape } from './shape.js';
 import { textBoundsEstimate } from './text.js';
+import { topicBounds } from './topic.js';
 
 export function shapeBounds(shape: Shape) {
   switch (shape.kind) {
@@ -36,6 +37,8 @@ export function shapeBounds(shape: Shape) {
       return bookmarkBounds(shape);
     case 'frame':
       return frameBounds(shape);
+    case 'topic':
+      return topicBounds(shape);
 
     default:
       return assertNever(shape);

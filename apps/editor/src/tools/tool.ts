@@ -14,6 +14,7 @@ import {
   EmbedIcon,
   CommentIcon,
   FrameIcon,
+  MindMapIcon,
   LaserIcon,
   SketchIcon,
   EraserIcon,
@@ -35,6 +36,7 @@ export type Tool =
   | 'image'
   | 'embed'
   | 'frame'
+  | 'mindmap'
   | 'laser'
   | 'comment'
   | 'bucket'
@@ -57,6 +59,9 @@ export const TOOL_TO_SHAPE_KIND = {
   text: 'text',
   image: 'image',
   frame: 'frame',
+  // A topic's look is its branch colour and its fill, which the panel offers
+  // whatever kind it is asked about, so the mind map answers with its own.
+  mindmap: 'topic',
   // The laser is absent on purpose: it paints a trail that fades, not a shape,
   // so there is no kind for it to map to. Nor is there one for the comment
   // tool, which leaves a pin on the board and no shape in it, or for the
@@ -137,6 +142,14 @@ export const TOOLS: readonly ToolMeta[] = [
     labelKey: 'tools.frame',
     icon: FrameIcon,
     shortcut: 'F',
+    numericKey: null,
+    overflow: true,
+  },
+  {
+    id: 'mindmap',
+    labelKey: 'tools.mindMap',
+    icon: MindMapIcon,
+    shortcut: 'N',
     numericKey: null,
     overflow: true,
   },

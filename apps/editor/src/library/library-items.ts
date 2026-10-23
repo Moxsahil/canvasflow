@@ -6,8 +6,10 @@ import {
   isFrame,
   isImage,
   isText,
+  relinkTopicParents,
   renderSceneToSvgString,
   sanitizeShape,
+  withMindMapBranches,
   type ArrowBinding,
   type Shape,
 } from '@canvasflow/canvas-engine';
@@ -37,6 +39,7 @@ const KIND_NAMES: Readonly<Record<Shape['kind'], TranslationKey>> = {
   image: 'shapes.image',
   embed: 'shapes.embed',
   bookmark: 'shapes.bookmark',
+  topic: 'shapes.topic',
 };
 
 /** "3 rectangles": a run of one kind, counted. */
@@ -52,6 +55,7 @@ const KIND_COUNTS: Readonly<Record<Shape['kind'], WordKey>> = {
   image: 'library.count.image',
   embed: 'library.count.embed',
   bookmark: 'library.count.bookmark',
+  topic: 'library.count.topic',
 };
 
 export interface LibraryShapes {
@@ -79,7 +83,7 @@ export function libraryShapesFor(
   selectedIds: readonly string[],
   board: readonly Shape[],
 ): LibraryShapes {
-  const ids = new Set(withFrameMembers(selectedIds, board));
+  const ids = new Set(withFrameMembers(withMindMapBranches(selectedIds, board), board));
   const hidden = hiddenShapeIds(board);
   const picked = board.filter((shape) => ids.has(shape.id) && !hidden.has(shape.id));
 
@@ -194,10 +198,13 @@ export function readLibraryShapes(
     return { shapeId: target, anchor: { x, y }, precise: precise === true };
   };
 
-  const shapes = rebuilt.map(({ shape, raw }) =>
-    isArrow(shape)
-      ? { ...shape, startBinding: binding(raw.startBinding), endBinding: binding(raw.endBinding) }
-      : shape,
+  const shapes = relinkTopicParents(
+    rebuilt.map(({ shape, raw }) =>
+      isArrow(shape)
+        ? { ...shape, startBinding: binding(raw.startBinding), endBinding: binding(raw.endBinding) }
+        : shape,
+    ),
+    renamed,
   );
 
   const frames = framesIn(shapes);

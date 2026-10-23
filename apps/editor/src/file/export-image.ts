@@ -7,6 +7,7 @@ import {
   renderSceneToSvgString,
   shapesForFrameExport,
   SVG_DOCUMENT_PREAMBLE,
+  withMindMapBranches,
   type ImageSource,
   type Rect,
   type Shape,
@@ -54,7 +55,13 @@ export function withFrameMembers(
   selected: readonly Shape[],
   shapes: readonly Shape[],
 ): readonly Shape[] {
-  const ids = new Set(selected.map((shape) => shape.id));
+  // A topic is pictured with its branch, as a frame is with its contents.
+  const ids = new Set(
+    withMindMapBranches(
+      selected.map((shape) => shape.id),
+      shapes,
+    ),
+  );
   for (const frame of selected.filter(isFrame)) {
     for (const member of descendantsOf(frame.id, shapes)) ids.add(member.id);
   }

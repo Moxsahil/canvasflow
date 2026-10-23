@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { can } from '@canvasflow/types';
 import { useActorRef, useSelector } from '@xstate/react';
@@ -40,6 +40,20 @@ import {
   isEmbed,
   isFrame,
   isText,
+  isTopic,
+  layoutMindMaps,
+  mindMapDropAt,
+  mindMapForest,
+  topicGrowth,
+  mindMapFoldBadgeAt,
+  topicCentre,
+  topicDropPatches,
+  withTopicDropped,
+  type TopicDrop,
+  topicInk,
+  withMindMapBranches,
+  withMindMapRoots,
+  type TopicShape,
   hiddenShapeIds,
   lockedShapeIds,
   lockSourcesOf,
@@ -141,6 +155,17 @@ import { HistoryPanel } from './toolbar/HistoryPanel';
 import { ToolLockButton } from './toolbar/ToolLockButton';
 import { GlassDock, GlassDockSeparator } from '@/components/ui/glass-dock';
 import { TextEditor } from './text-editor/TextEditor';
+import {
+  grownTopic,
+  hasBranches,
+  mapStyleFor,
+  mindMapRootAt,
+  topicTextPatch,
+  withTopicBeingTyped,
+  type TopicGrowth,
+} from './mindmap/mind-map-ops';
+import { TopicHandles } from './mindmap/TopicHandles';
+import { usePeerTyping, withPeerTyping } from './collab/peer-typing';
 import { ZoomPanel } from './zoom-panel/ZoomPanel';
 import { ExitModeButton } from './modes/ExitModeButton';
 import { toolMachine, resizeShape, resizeSnapHandle } from './machine/tool-machine';
@@ -1279,8 +1304,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // places: a text shape is its text, an arrow only carries one.
   const editingText = editingTextShape && isText(editingTextShape) ? editingTextShape : null;
   const editingArrow = editingTextShape && isArrow(editingTextShape) ? editingTextShape : null;
+  // A topic keeps its words as a text shape does, in a box its map places.
+  const editingTopic = editingTextShape && isTopic(editingTextShape) ? editingTextShape : null;
   const editingTextInitialValue =
-    editingText?.text ?? (editingArrow ? arrowLabelOf(editingArrow) : undefined);
+    editingText?.text ??
+    editingTopic?.text ??
+    (editingArrow ? arrowLabelOf(editingArrow) : undefined);
   // Bump a key whenever a new text-editing session starts (a new textEditingAt
   // reference), so <TextEditor> remounts with blank state instead of reusing
   // the previous instance — commit/re-entry into editingText happens within
@@ -1290,6 +1319,19 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // be shown it. The overlay stays the owner of the value; this is a copy that
   // exists only to be published.
   const [liveText, setLiveText] = useState('');
+  /**
+   * A topic being dragged to a new place in its map: where the pointer is,
+   * where on the topic it took hold, and where it would land if let go now.
+   * The map is drawn as if it already had, so the drop is seen before it is
+   * made. Mirrored in a ref for the release, which reads it after the render.
+   */
+  const [topicDrag, setTopicDrag] = useState<{
+    readonly id: string;
+    readonly point: Point;
+    readonly grab: Point;
+    readonly drop: TopicDrop | null;
+  } | null>(null);
+  const topicDragRef = useRef<{ id: string; grab: Point; drop: TopicDrop | null } | null>(null);
   const prevTextEditingAtRef = useRef(textEditingAt);
   if (textEditingAt !== prevTextEditingAtRef.current) {
     if (textEditingAt) textEditingKeyRef.current += 1;
@@ -1379,7 +1421,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
     setCamera: (next) => actorRef.send({ type: 'SET_CAMERA', camera: next }),
   });
 
-  const { setCursor, setSelection, setLasering, setDraft } = useSelfPresence({
+  const { setCursor, setSelection, setLasering, setDraft, setTyping } = useSelfPresence({
     channel,
     user,
     cursorColor,
@@ -1414,6 +1456,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
     self: rosterSelf,
     selfActivity: activity,
   });
+  const peerTyping = usePeerTyping(peersRef, subscribe);
 
   // Peers' trails are rebuilt from the cursor stream on their presence record,
   // so this reads the same roster the cursor layer does.
@@ -1468,13 +1511,41 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // arrow is more than its label, though: it keeps its line, and carries what
   // is being typed rather than what was last committed, so the gap the words
   // sit in grows under them as they are written.
+  const boardShapes = shapes;
   const shapesForRender = useMemo(() => {
+    // Everyone else's words in progress first, so what this client does on
+    // top of them — typing, dragging a topic — is drawn over the latest.
+    const shapes = withPeerTyping(boardShapes, peerTyping, editingTextShapeId);
+    if (topicDrag) {
+      // The map as it would be with the topic let go here, and a faint copy
+      // of the topic under the pointer, carried along by it.
+      const dragged = shapes.find((shape) => shape.id === topicDrag.id);
+      const preview = topicDrag.drop
+        ? layoutMindMaps(withTopicDropped(shapes, topicDrag.id, topicDrag.drop))
+        : shapes;
+      if (!dragged || !isTopic(dragged)) return preview;
+      const carried: TopicShape = {
+        ...dragged,
+        id: `${dragged.id}:carried`,
+        x: topicDrag.point.x - topicDrag.grab.x,
+        y: topicDrag.point.y - topicDrag.grab.y,
+        parentId: null,
+        collapsed: false,
+        opacity: Math.round(dragged.opacity * 0.45),
+      };
+      return [...preview, carried];
+    }
     if (!editingTextShapeId) return shapes;
+    // A topic stays on the board, holding what is being typed, and its map
+    // makes room around it keystroke by keystroke.
+    if (shapes.some((shape) => shape.id === editingTextShapeId && isTopic(shape))) {
+      return withTopicBeingTyped(shapes, editingTextShapeId, liveText);
+    }
     return shapes.flatMap((shape) => {
       if (shape.id !== editingTextShapeId) return [shape];
       return isArrow(shape) ? [{ ...shape, label: liveText }] : [];
     });
-  }, [shapes, editingTextShapeId, liveText]);
+  }, [boardShapes, peerTyping, editingTextShapeId, liveText, topicDrag]);
 
   // An arrow with its label open shows no selection chrome. The outline traces
   // the line, so it would run straight through the gap the caret is standing
@@ -1485,6 +1556,126 @@ export function Editor({ boardId, local = false }: EditorProps) {
     () => (editingArrow ? selectedIds.filter((id) => id !== editingArrow.id) : selectedIds),
     [selectedIds, editingArrow],
   );
+
+  /**
+   * Put a topic's words in, as the overlay hands them over. Emptied out, a
+   * topic with nothing branching from it goes — it was only ever a box to
+   * type into — and one that still holds a branch keeps the words it had.
+   *
+   * Answers whether the topic is still on the board.
+   */
+  const settleTopicText = useCallback(
+    (topic: TopicShape, text: string): boolean => {
+      const current = doc.getShapes();
+      if (text.trim() === '') {
+        if (hasBranches(current, topic.id)) return true;
+        doc.deleteShapes([topic.id]);
+        return false;
+      }
+      if (text !== topic.text) doc.updateShape(topic.id, topicTextPatch(current, topic, text));
+      return true;
+    },
+    [doc],
+  );
+
+  /** Select a topic and open its words for typing. */
+  const editTopic = useCallback(
+    (topicId: string) => {
+      const topic = doc.getShapes().find((shape) => shape.id === topicId);
+      if (!topic || !isTopic(topic)) return;
+      actorRef.send({ type: 'SELECT_ALL', shapeIds: [topicId] });
+      actorRef.send({
+        type: 'EDIT_TEXT_SHAPE',
+        shapeId: topicId,
+        position: topicCentre(topic),
+        existingText: topic.text,
+      });
+    },
+    [actorRef, doc],
+  );
+
+  /**
+   * Grow a map from a topic, and open the new one for typing: Tab for a topic
+   * under it, Enter for one beside it. The new topic is on the board from the
+   * start, so everyone sees the map make room for it as it is named.
+   *
+   * Answers whether there was a topic to grow from.
+   */
+  const growMindMap = useCallback(
+    (topicId: string, growth: TopicGrowth): boolean => {
+      if (readOnly) return false;
+      const current = doc.getShapes();
+      const grown = grownTopic(current, topicId, growth, genId());
+      if (!grown) return false;
+      doc.breakUndoGroup();
+      // A topic added under a folded one opens it, or it would be added out
+      // of sight.
+      const parent = current.find((shape) => shape.id === grown.parentId);
+      doc.batch(() => {
+        if (parent && isTopic(parent) && parent.collapsed === true) {
+          doc.updateShape(parent.id, { collapsed: false });
+        }
+        doc.addShape(grown);
+      });
+      editTopic(grown.id);
+      return true;
+    },
+    [doc, editTopic, readOnly],
+  );
+
+  /**
+   * A new map, its centre put down where the tool was pressed and opened for
+   * its name. The tool goes back to select, unless the lock holds it.
+   */
+  const startMindMap = useCallback(
+    (point: Point) => {
+      const {
+        itemStyle: style,
+        camera: view,
+        dynamicSize,
+        toolLocked,
+      } = actorRef.getSnapshot().context;
+      const root = mindMapRootAt(point, style, newShapeScale(view, dynamicSize), genId());
+      doc.breakUndoGroup();
+      doc.addShape(root);
+      if (!toolLocked) actorRef.send({ type: 'SELECT_TOOL', tool: 'select' });
+      editTopic(root.id);
+    },
+    [actorRef, doc, editTopic],
+  );
+
+  /**
+   * Tab or Enter on the board, with one topic selected: grow its map from it.
+   * Answers whether it did, so the keys keep their usual jobs everywhere else.
+   */
+  const handleGrowSelectedTopic = useCallback(
+    (growth: TopicGrowth): boolean => {
+      if (selectedIds.length !== 1 || viewMode) return false;
+      const only = shapes.find((shape) => shape.id === selectedIds[0]);
+      if (!only || !isTopic(only) || lockedIds.has(only.id)) return false;
+      return growMindMap(only.id, growth);
+    },
+    [selectedIds, shapes, lockedIds, viewMode, growMindMap],
+  );
+
+  /** Enter or Tab in a topic's overlay: keep what was typed, then grow from it. */
+  const handleTopicKey = useCallback(
+    (growth: TopicGrowth) => (text: string) => {
+      const editingId = actorRef.getSnapshot().context.editingTextShapeId;
+      const topic = doc.getShapes().find((shape) => shape.id === editingId);
+      if (!topic || !isTopic(topic)) return;
+      if (!settleTopicText(topic, text)) {
+        // Left empty, so it is gone: the key ends typing rather than grow
+        // from a topic that is no longer there.
+        actorRef.send({ type: 'COMMIT_TEXT', text });
+        return;
+      }
+      if (!growMindMap(topic.id, growth)) actorRef.send({ type: 'COMMIT_TEXT', text });
+    },
+    [actorRef, doc, settleTopicText, growMindMap],
+  );
+  const handleTopicEnter = useMemo(() => handleTopicKey('sibling'), [handleTopicKey]);
+  const handleTopicTab = useMemo(() => handleTopicKey('child'), [handleTopicKey]);
 
   const showImageNotice = useCallback(
     (body: string) => setNotice({ title: translate('tools.image'), body, tone: 'warn' }),
@@ -1709,12 +1900,44 @@ export function Editor({ boardId, local = false }: EditorProps) {
     [doc, actorRef, embedPlacement, readOnly],
   );
 
-  const textEditorScreenPosition = textEditingAt
-    ? {
-        x: (textEditingAt.x - camera.x) * camera.zoom,
-        y: (textEditingAt.y - camera.y) * camera.zoom,
-      }
-    : null;
+  // A topic's words sit in the middle of its box, which grows and moves as
+  // they are typed, so the overlay follows the box as it is drawn.
+  const typedTopic = editingTopic
+    ? (shapesForRender.find((shape) => shape.id === editingTopic.id) as TopicShape | undefined)
+    : undefined;
+  const textEditorWorldPosition = typedTopic ? topicCentre(typedTopic) : textEditingAt;
+  // The one topic selected, with nothing else going on: what the dots for
+  // growing and folding it are put around.
+  const selectedTopic = useMemo(() => {
+    if (selectedIds.length !== 1 || !isIdle || readOnly || viewMode || topicDrag) return null;
+    if (activeTool !== 'select' || lockedIds.has(selectedIds[0]!)) return null;
+    const topic = shownShapes.find((shape) => shape.id === selectedIds[0]);
+    if (!topic || !isTopic(topic)) return null;
+    return {
+      topic,
+      isRoot: withMindMapRoots([topic.id], shapes)[0] === topic.id,
+      growth: topicGrowth(topic, mindMapForest(shapes)),
+      hasBranches: hasBranches(shapes, topic.id),
+    };
+  }, [
+    selectedIds,
+    isIdle,
+    readOnly,
+    viewMode,
+    topicDrag,
+    activeTool,
+    lockedIds,
+    shownShapes,
+    shapes,
+  ]);
+
+  const textEditorScreenPosition =
+    textEditingAt && textEditorWorldPosition
+      ? {
+          x: (textEditorWorldPosition.x - camera.x) * camera.zoom,
+          y: (textEditorWorldPosition.y - camera.y) * camera.zoom,
+        }
+      : null;
 
   // --- frame rename --------------------------------------------------------
   // Local state rather than a machine event: renaming edits one field of one
@@ -1783,17 +2006,20 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // the style the panel is set to. Either way the overlay is set the way the
   // commit will be, so nothing shifts at the moment it lands.
   const arrowLabelType = editingArrow ? arrowLabelFont(editingArrow) : null;
+  const typedWords = editingText ?? editingTopic;
   const textEditorFontSize =
     (arrowLabelType?.fontSize ??
-      (editingText ? fontSizeOf(editingText) : itemStyle.fontSize * newTextScale)) * camera.zoom;
+      (typedWords ? fontSizeOf(typedWords) : itemStyle.fontSize * newTextScale)) * camera.zoom;
   const textEditorFontFamily =
-    arrowLabelType?.fontFamily ?? (editingText ? editingText.fontFamily : itemStyle.fontFamily);
+    arrowLabelType?.fontFamily ?? (typedWords ? typedWords.fontFamily : itemStyle.fontFamily);
   // Resolved for the board being typed on, so the caret's text is the colour
   // the shape takes the moment it is committed.
-  const textEditorColor = strokeColorFor(
-    editingArrow?.strokeColor ?? editingText?.strokeColor ?? itemStyle.strokeColor,
-    resolvedTheme === 'dark',
-  );
+  const textEditorColor = editingTopic
+    ? topicInk(editingTopic, resolvedTheme === 'dark')
+    : strokeColorFor(
+        editingArrow?.strokeColor ?? editingText?.strokeColor ?? itemStyle.strokeColor,
+        resolvedTheme === 'dark',
+      );
 
   // Rebuilt only when the marked set actually changes, so the static canvas
   // isn't invalidated on every pointer move of an eraser stroke.
@@ -1936,7 +2162,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
 
   const firstSelected = selectedShapes[0];
   const propertyStyle: ItemStyle = firstSelected
-    ? itemStyleFromShape(firstSelected, itemStyle)
+    ? mapStyleFor(firstSelected, shapes, itemStyleFromShape(firstSelected, itemStyle))
     : editingBucket
       ? { ...itemStyle, fillColor: pourColor }
       : itemStyle;
@@ -2014,9 +2240,27 @@ export function Editor({ boardId, local = false }: EditorProps) {
       // Always remember the choice, so the next shape drawn inherits it.
       actorRef.send({ type: 'SET_ITEM_STYLE', style: patch });
       if (selectedIds.length === 0) return;
-      for (const id of selectedIds) {
-        doc.updateShape(id, patch);
-      }
+      // A map's layout and lines belong to the map, which keeps them on its
+      // centre, and an outline only means something to a topic.
+      const { mapLayout, mapLines, topicShape, ...rest } = patch;
+      const current = doc.getShapes();
+      doc.batch(() => {
+        for (const id of selectedIds) {
+          doc.updateShape(id, rest);
+        }
+        const topics = selectedIds.filter((id) =>
+          current.some((shape) => shape.id === id && isTopic(shape)),
+        );
+        if (topicShape) for (const id of topics) doc.updateShape(id, { topicShape });
+        if (mapLayout || mapLines) {
+          for (const id of withMindMapRoots(topics, current)) {
+            doc.updateShape(id, {
+              ...(mapLayout && { mapLayout }),
+              ...(mapLines && { mapLines }),
+            });
+          }
+        }
+      });
 
       if (!transient) doc.breakUndoGroup();
     },
@@ -2154,9 +2398,32 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // starting, not to every render that changes it.
   const openingTextRef = useRef(editingTextInitialValue);
   openingTextRef.current = editingTextInitialValue;
-  useEffect(() => {
+  // Before the paint, so a topic opened for typing is never drawn for a frame
+  // holding the words from the one opened before it.
+  // Which session `liveText` belongs to. For the one render between a new
+  // session starting and this resetting it, `liveText` still holds the last
+  // session's words, and those must not go out as this one's.
+  const [liveTextAt, setLiveTextAt] = useState(textEditingAt);
+  useLayoutEffect(() => {
     setLiveText(openingTextRef.current ?? '');
+    setLiveTextAt(textEditingAt);
   }, [textEditingAt]);
+
+  /**
+   * Words typed into a shape already on the board go out as they are typed,
+   * so everyone sees them letter by letter — as a new text box is seen
+   * through its draft. Cleared the moment typing ends; the words that were
+   * kept arrive through the document.
+   */
+  useEffect(() => {
+    const typed = editingTextShapeId ? shapes.find((s) => s.id === editingTextShapeId) : undefined;
+    if (!typed || !(isTopic(typed) || isText(typed) || isArrow(typed))) {
+      setTyping(null);
+      return;
+    }
+    const text = liveTextAt === textEditingAt ? liveText : (openingTextRef.current ?? '');
+    setTyping({ shapeId: typed.id, text });
+  }, [editingTextShapeId, shapes, liveText, liveTextAt, textEditingAt, setTyping]);
 
   const draft = useMemo<Shape | null>(() => {
     if (newElement) return newElement;
@@ -2235,7 +2502,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
       // here as well as by the document, so no arrow lets go of a shape that
       // is not going and no comment is lifted off one.
       const locked = lockedShapeIds(current);
-      const going = withFrameMembers(emitted.ids, current).filter((id) => !locked.has(id));
+      // A topic goes with everything branching from it, as a frame goes with
+      // what stands in it.
+      const going = withFrameMembers(withMindMapBranches(emitted.ids, current), current).filter(
+        (id) => !locked.has(id),
+      );
       if (going.length === 0) return;
       releaseArrowsFrom(doc, going);
       // A comment pinned to one of these stays on the board, where its shape
@@ -2626,6 +2897,14 @@ export function Editor({ boardId, local = false }: EditorProps) {
         }
       }
 
+      // The mind map tool puts a map's centre down where it is pressed, open
+      // for its name, and is done: the map grows from the keyboard after
+      // that. Any other button, or one with Space held, pans as usual.
+      if (tool === 'mindmap' && pressButton === 0 && !isSpacePressed) {
+        if (!readOnly) startMindMap(point);
+        return;
+      }
+
       let hitShapeId: string | null = null;
       let hitHandle: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | null = null;
       let hitVertex: VertexGrab | null = null;
@@ -2667,6 +2946,16 @@ export function Editor({ boardId, local = false }: EditorProps) {
             }
           }
         }
+        // The count on a folded topic opens it again.
+        const foldedId =
+          hitHandle === null && hitVertex === null && !readOnly && !shiftKey
+            ? mindMapFoldBadgeAt(shapes, point)
+            : null;
+        if (foldedId && !lockedIds.has(foldedId)) {
+          doc.updateShape(foldedId, { collapsed: false });
+          actorRef.send({ type: 'SELECT_ALL', shapeIds: [foldedId] });
+          return;
+        }
         if (hitHandle === null && hitVertex === null) {
           // A locked shape is passed over for whatever is under it, as if it
           // were part of the board. The selection answers anywhere in its box,
@@ -2689,10 +2978,29 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 ? [...new Set([...selectedIds, hit.id])]
                 : [hit.id]
             ).filter((id) => !lockedIds.has(id));
+            // One topic off the centre of its map is dragged to a new place
+            // in a map, rather than moved: nothing moves until it is let go,
+            // and the layout says where everything goes when it is.
+            topicDragRef.current =
+              picked.length === 1 &&
+              picked[0] === hit.id &&
+              isTopic(hit) &&
+              !readOnly &&
+              withMindMapRoots([hit.id], shapes)[0] !== hit.id
+                ? { id: hit.id, grab: { x: point.x - hit.x, y: point.y - hit.y }, drop: null }
+                : null;
             // Dragging a frame drags what is standing in it. The members are
             // moved by the same loop as everything else, so the whole of
-            // "a frame moves as one object" is this one expansion.
-            const idsToMove = new Set(withFrameMembers(picked, shapes));
+            // "a frame moves as one object" is this one expansion. A topic
+            // drags its whole map, by its centre: the layout places the rest.
+            const idsToMove = new Set(
+              topicDragRef.current
+                ? []
+                : withFrameMembers(
+                    withMindMapRoots(picked, shapes).filter((id) => !lockedIds.has(id)),
+                    shapes,
+                  ),
+            );
             const origins: Record<string, Shape> = {};
             for (const s of shapes) {
               if (idsToMove.has(s.id)) origins[s.id] = s;
@@ -2809,6 +3117,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       preferences.values.snapToObjects,
       embedClickTool,
       embedMiddleAt,
+      startMindMap,
     ],
   );
 
@@ -2954,6 +3263,19 @@ export function Editor({ boardId, local = false }: EditorProps) {
         if (ids.length > 0) {
           actorRef.send({ type: 'ERASE_MARK', ids, restore: altKey });
         }
+      }
+
+      const topicGrab = topicDragRef.current;
+      if (snap.matches('draggingSelection') && topicGrab) {
+        // A press that wobbles is still a click: nothing lands until the
+        // pointer has really gone somewhere.
+        const start = pointerDownWorldRef.current;
+        const travelled = start
+          ? Math.hypot(point.x - start.x, point.y - start.y) * camera.zoom
+          : 0;
+        const drop = travelled > 4 ? mindMapDropAt(shownShapes, topicGrab.id, point) : null;
+        topicGrab.drop = drop;
+        setTopicDrag({ id: topicGrab.id, point, grab: topicGrab.grab, drop });
       }
 
       if (snap.matches('draggingSelection') && pointerDownWorldRef.current) {
@@ -3127,6 +3449,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       followComment,
       doc,
       shapes,
+      shownShapes,
       pickableShapes,
       spatialIndex,
       camera.zoom,
@@ -3330,6 +3653,17 @@ export function Editor({ boardId, local = false }: EditorProps) {
         }
       }
 
+      // A topic let go somewhere it can go takes its place there, branch and
+      // all, in one step.
+      const topicGrab = topicDragRef.current;
+      topicDragRef.current = null;
+      setTopicDrag(null);
+      if (topicGrab?.drop && snap.matches('draggingSelection')) {
+        doc.breakUndoGroup();
+        doc.updateShapes(topicDropPatches(doc.getShapes(), topicGrab.id, topicGrab.drop));
+        doc.breakUndoGroup();
+      }
+
       actorRef.send({ type: 'POINTER_UP', point });
       dragOriginsRef.current = {};
       carriedLockedRef.current = EMPTY_IDS;
@@ -3511,6 +3845,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
         return;
       }
 
+      if (hit && isTopic(hit)) {
+        editTopic(hit.id);
+        return;
+      }
+
       // An arrow is captioned rather than covered: the box opens in the break
       // in its line, centred on the same point the label will be drawn at,
       // whether or not it has one yet.
@@ -3539,7 +3878,16 @@ export function Editor({ boardId, local = false }: EditorProps) {
       if (activeTool !== 'select') return;
       actorRef.send({ type: 'START_TEXT_AT', point });
     },
-    [actorRef, pickableShapes, shownShapes, spatialIndex, camera.zoom, readOnly, activeTool],
+    [
+      actorRef,
+      pickableShapes,
+      shownShapes,
+      spatialIndex,
+      camera.zoom,
+      readOnly,
+      activeTool,
+      editTopic,
+    ],
   );
 
   // Moving the view yourself ends a follow. You cannot be carried and steer at
@@ -3901,7 +4249,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
     // A frame copies with its contents, and lands clear of the original
     // rather than offset over it — so pressing duplicate repeatedly lays
     // frames out in a row instead of stacking them where none can be seen.
-    const ids = withFrameMembers(selectedIds, current);
+    const ids = withFrameMembers(withMindMapBranches(selectedIds, current), current);
     const newIds = doc.duplicateShapes(ids, duplicateOffsetFor(selectedIds, current), genId);
 
     if (newIds.length > 0) {
@@ -4651,15 +4999,33 @@ export function Editor({ boardId, local = false }: EditorProps) {
     setShareOpen(true);
   }, []);
 
+  const selectionHasTopic = useMemo(
+    () => shapes.some((shape) => isTopic(shape) && selectedIds.includes(shape.id)),
+    [shapes, selectedIds],
+  );
+  /**
+   * Pick out every topic further out along the selected ones, as well as them
+   * — what restyling a branch wants. Folded topics stay out, as they are out
+   * of sight, and so do locked ones, as they could not be changed anyway.
+   */
+  const handleSelectBranch = useCallback(() => {
+    const branch = new Set(withMindMapBranches(selectedIds, shapes));
+    const picked = pickableShapes.filter((shape) => branch.has(shape.id)).map((shape) => shape.id);
+    actorRef.send({ type: 'SELECT_ALL', shapeIds: picked });
+  }, [actorRef, selectedIds, shapes, pickableShapes]);
+
   const handleCopy = useCallback(async () => {
     if (selectedIds.length === 0) return;
-    const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
+    // A topic is copied with its branch, as it is deleted with it.
+    const copied = new Set(withMindMapBranches(selectedIds, shapes));
+    const selectedShapes = shapes.filter((s) => copied.has(s.id));
     await writeShapesToClipboard(selectedShapes);
   }, [shapes, selectedIds]);
 
   const handleCut = useCallback(async () => {
     if (selectedIds.length === 0) return;
-    const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
+    const copied = new Set(withMindMapBranches(selectedIds, shapes));
+    const selectedShapes = shapes.filter((s) => copied.has(s.id));
     const wroteOK = await writeShapesToClipboard(selectedShapes);
     // Delete via same event as Delete key — one undo step. Locked shapes are
     // copied and stay; with nothing else picked the cut is only a copy, and
@@ -5064,6 +5430,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
     onExportImage: showExport,
     onFind: search.openSearch,
     onCommandPalette: togglePalette,
+    onGrowMindMap: handleGrowSelectedTopic,
     // The dialogs own the keyboard while they're up, so ⌘O can't stack a
     // second picker on top of an unanswered replace confirmation.
     //
@@ -5175,6 +5542,18 @@ export function Editor({ boardId, local = false }: EditorProps) {
 
       if (editingId) {
         const editing = doc.getShapes().find((shape) => shape.id === editingId);
+        if (editing && isTopic(editing)) {
+          // Held selected afterwards, as a text box just typed is. One left
+          // empty is gone, and its parent is picked up again instead — where
+          // the next Tab or Enter carries on from.
+          const kept = settleTopicText(editing, text);
+          actorRef.send({ type: 'COMMIT_TEXT', text, ...(kept && { shapeId: editingId }) });
+          const held = kept ? editingId : editing.parentId;
+          if (held && doc.getShapes().some((shape) => shape.id === held)) {
+            actorRef.send({ type: 'SELECT_ALL', shapeIds: [held] });
+          }
+          return;
+        }
         if (editing && isArrow(editing)) {
           // Trimmed, because a centred caption hangs off its own trailing
           // space — and emptied out it leaves the arrow, which was never the
@@ -5213,7 +5592,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
 
       actorRef.send({ type: 'COMMIT_TEXT', text });
     },
-    [actorRef, doc],
+    [actorRef, doc, settleTopicText],
   );
 
   const handleCancelText = useCallback(() => actorRef.send({ type: 'CANCEL_TEXT' }), [actorRef]);
@@ -5314,6 +5693,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
               target={contextMenuTarget}
               readOnly={readOnly}
               canShareLinks={runsSharing}
+              mindMap={selectionHasTopic}
               moveTo={moveToBoards}
               open={contextMenuOpen}
               onOpenChange={handleContextMenuOpenChange}
@@ -5321,6 +5701,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
               actions={{
                 // Locked shapes can be copied and duplicated — the copies come
                 // out unlocked — but nothing that would change them is offered.
+                selectBranch: selectionHasTopic ? handleSelectBranch : null,
                 cut: editableIds.length > 0 ? handleCut : null,
                 copy: selectedIds.length > 0 ? handleCopy : null,
                 paste: handlePaste,
@@ -5397,6 +5778,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   pendingErasureIds={pendingErasureIds}
                   editingFrameIds={editingFrameIds}
                   editingArrowLabelId={editingArrow?.id}
+                  editingTopicId={editingTopic?.id}
                   newElement={newElement}
                   selectedIds={selectedIdsForRender}
                   marquee={marquee}
@@ -5501,6 +5883,21 @@ export function Editor({ boardId, local = false }: EditorProps) {
               onSubmitCard={handleLinkCardFromField}
               onCancel={cancelEmbedPlacement}
             />
+
+            {selectedTopic && (
+              <TopicHandles
+                topic={selectedTopic.topic}
+                camera={camera}
+                isRoot={selectedTopic.isRoot}
+                growth={selectedTopic.growth}
+                hasBranches={selectedTopic.hasBranches}
+                onGrow={(growth) => growMindMap(selectedTopic.topic.id, growth)}
+                onFold={() => {
+                  doc.breakUndoGroup();
+                  doc.updateShape(selectedTopic.topic.id, { collapsed: true });
+                }}
+              />
+            )}
 
             {/* A badge on the corner of every linked shape on screen, which
                 opens its link. Under the comment pins, and still up with the
@@ -5783,7 +6180,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
               <TextEditor
                 key={textEditingKeyRef.current}
                 position={textEditorScreenPosition}
-                align={editingArrow ? 'center' : 'left'}
+                align={editingArrow || editingTopic ? 'center' : 'left'}
                 fontSize={textEditorFontSize}
                 fontFamily={textEditorFontFamily}
                 color={textEditorColor}
@@ -5791,6 +6188,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 onCommit={handleCommitText}
                 onCancel={handleCancelText}
                 onChange={setLiveText}
+                onEnter={editingTopic ? handleTopicEnter : undefined}
+                onTab={editingTopic ? handleTopicTab : undefined}
+                // A map is named as it is grown, and Escape is how the
+                // growing stops: it keeps the last name typed.
+                commitOnEscape={Boolean(editingTopic)}
               />
             )}
 

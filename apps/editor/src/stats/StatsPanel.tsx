@@ -43,6 +43,7 @@ const KIND_NAMES: Record<Shape['kind'], TranslationKey> = {
   embed: 'shapes.embed',
   bookmark: 'shapes.bookmark',
   frame: 'shapes.frame',
+  topic: 'shapes.topic',
 };
 
 /**

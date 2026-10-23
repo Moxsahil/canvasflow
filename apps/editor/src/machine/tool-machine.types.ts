@@ -7,6 +7,9 @@ import {
   type ArrowType,
   type Edges,
   type FillStyle,
+  type MindMapLayout,
+  type MindMapLines,
+  type TopicLook,
   type Roughness,
   type Shape,
   type StrokeStyle,
@@ -92,6 +95,11 @@ export interface ItemStyle {
   readonly endArrowhead: Arrowhead;
   // freehand
   readonly simulatePressure: boolean;
+  // mind map: the map's layout and lines, read off its centre, and a topic's
+  // own outline
+  readonly mapLayout: MindMapLayout;
+  readonly mapLines: MindMapLines;
+  readonly topicShape: TopicLook;
 }
 
 /** strokeColor matches the first swatch in the panel, so it opens with a selection. */
@@ -111,6 +119,9 @@ export const DEFAULT_ITEM_STYLE: ItemStyle = {
   startArrowhead: 'none',
   endArrowhead: 'triangle',
   simulatePressure: false,
+  mapLayout: 'both',
+  mapLines: 'curved',
+  topicShape: 'rounded',
 };
 
 export interface ToolMachineContext {

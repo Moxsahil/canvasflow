@@ -59,6 +59,11 @@ export interface PresenceUser {
   readonly username?: string | null;
 }
 
+export interface PresenceTyping {
+  readonly shapeId: string;
+  readonly text: string;
+}
+
 export interface PresenceState {
   /**
    * Id and name are taken from the verified editor token, never asserted by
@@ -106,6 +111,17 @@ export interface PresenceState {
    * clears and the real shape arrives through the document.
    */
   readonly draft: Shape | null;
+
+  /**
+   * The words this peer is typing into a shape already on the board — a
+   * topic, a text, an arrow's label — before they are committed.
+   *
+   * A draft cannot carry these: the shape is already in the document and
+   * drawn on everyone's board, and a second copy of it on top would read as
+   * the words doubled. So the shape is named instead, and each board draws it
+   * holding what is being typed, letter by letter.
+   */
+  readonly typing: PresenceTyping | null;
 
   readonly camera: PresenceCamera | null;
   /** Paired with `camera`: the follower needs both to reconstruct a viewport. */
@@ -199,6 +215,21 @@ function parseDraft(raw: unknown): Shape | null {
   return sanitizeShape(raw, () => DRAFT_ID);
 }
 
+/** Longer than anyone types into one shape; past it, the words are not shown live. */
+const MAX_TYPING_LENGTH = 20_000;
+const MAX_SHAPE_ID_LENGTH = 200;
+
+/** A peer's words in progress, or nothing if they are not a shape id and a string. */
+function parseTyping(raw: unknown): PresenceTyping | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const { shapeId, text } = raw as Record<string, unknown>;
+  if (typeof shapeId !== 'string' || shapeId === '' || shapeId.length > MAX_SHAPE_ID_LENGTH) {
+    return null;
+  }
+  if (typeof text !== 'string' || text.length > MAX_TYPING_LENGTH) return null;
+  return { shapeId, text };
+}
+
 /**
  * Validate an incoming presence payload, or reject it.
  *
@@ -240,6 +271,7 @@ export function parsePresenceState(raw: unknown): PresenceState | null {
     // older build simply omits it, and reading that as "no" is correct.
     lasering: candidate.lasering === true,
     draft: parseDraft(candidate.draft),
+    typing: parseTyping(candidate.typing),
     camera: parseCamera(candidate.camera),
     screen: parseScreen(candidate.screen),
     following: typeof candidate.following === 'string' ? candidate.following : null,

@@ -20,6 +20,7 @@ import {
   readPreviewImageName,
 } from '../shapes/bookmark.js';
 import { createEmbed, resolveEmbed } from '../shapes/embed.js';
+import { createTopic, readMapLayout, readMapLines, readTopicLook } from '../shapes/topic.js';
 import { readLink } from '../shapes/link.js';
 import type { Shape } from '../shapes/shape.js';
 
@@ -243,6 +244,29 @@ function rebuildShape(
         fontSize: finite(candidate.fontSize),
         fontFamily: text(candidate.fontFamily),
         textAlign: oneOf(candidate.textAlign, TEXT_ALIGNS),
+      });
+    }
+
+    case 'topic': {
+      const value = text(candidate.text);
+      if (value === undefined) return null;
+      // The parent is named by the id it had where it came from, which this
+      // shape is about to lose. Kept as it was for the caller to point at the
+      // parent's new id — see `relinkTopicParents` — and read as the centre
+      // of a map of its own if it never is.
+      const parentId = text(candidate.parentId);
+      return createTopic({
+        ...common,
+        text: value,
+        fontSize: finite(candidate.fontSize),
+        fontFamily: text(candidate.fontFamily),
+        parentId: parentId || null,
+        side: candidate.side === 'left' ? 'left' : 'right',
+        order: finite(candidate.order),
+        collapsed: candidate.collapsed === true,
+        mapLayout: readMapLayout(candidate.mapLayout),
+        mapLines: readMapLines(candidate.mapLines),
+        topicShape: readTopicLook(candidate.topicShape),
       });
     }
 

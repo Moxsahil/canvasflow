@@ -85,6 +85,10 @@ export function canBindTo(shape: Shape): boolean {
     case 'arrow':
     case 'freehand':
       return false;
+    // A topic is moved by its map's layout rather than by anyone dragging it,
+    // and an end attached to it would be left behind every time it moved.
+    case 'topic':
+      return false;
     default:
       return assertNever(shape);
   }

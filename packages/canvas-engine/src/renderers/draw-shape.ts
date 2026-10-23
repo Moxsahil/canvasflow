@@ -8,6 +8,7 @@ import { drawBookmarkShape } from './draw-bookmark.js';
 import { drawEmbedShape } from './draw-embed.js';
 import { drawImageShape, type ImageSource } from './draw-image.js';
 import { drawFrameBody } from './draw-frame.js';
+import { drawTopicShape } from './draw-topic.js';
 import {
   generateRectangleDrawable,
   generateEllipseDrawable,
@@ -88,6 +89,11 @@ export interface SceneShapeContext {
    * One id rather than a set: there is a single text overlay.
    */
   readonly editingArrowLabelId?: string;
+  /**
+   * The topic whose words are open in the text overlay, if one is. Its box is
+   * drawn, sized to what is being typed, and its words left to the overlay.
+   */
+  readonly editingTopicId?: string;
 }
 
 /**
@@ -182,6 +188,14 @@ export function drawSceneShape(
         zoom: context.zoom ?? 1,
         highlight: context.editingFrameIds?.has(painted.id),
       });
+      break;
+    case 'topic':
+      drawTopicShape(
+        ctx,
+        painted,
+        context.darkMode ?? false,
+        painted.id !== context.editingTopicId,
+      );
       break;
     default:
       assertNever(painted);

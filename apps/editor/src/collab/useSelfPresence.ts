@@ -4,6 +4,7 @@ import {
   type PresenceActivity,
   type PresenceCamera,
   type PresenceScreen,
+  type PresenceTyping,
   type Shape,
 } from '@canvasflow/canvas-engine';
 import type { CursorColor } from '@canvasflow/types';
@@ -96,6 +97,12 @@ export interface SelfPresence {
    * Safe to call on every pointer move; writes are coalesced to one per frame.
    */
   readonly setDraft: (shape: Shape | null) => void;
+  /**
+   * The words being typed into a shape already on the board, or null once
+   * they are committed or abandoned. Each change goes out as it is made, so
+   * everyone sees them arrive letter by letter.
+   */
+  readonly setTyping: (typing: PresenceTyping | null) => void;
 }
 
 /**
@@ -125,6 +132,7 @@ export function useSelfPresence({
   const frameRef = useRef<number | null>(null);
   const draftRef = useRef<Shape | null>(null);
   const draftFrameRef = useRef<number | null>(null);
+  const typingRef = useRef<PresenceTyping | null>(null);
 
   const followedRef = useRef(false);
 
@@ -177,6 +185,7 @@ export function useSelfPresence({
       selection: selectionRef.current,
       lasering: false,
       draft: null,
+      typing: typingRef.current,
       camera: null,
       screen: null,
       following: followingRef.current,
@@ -306,6 +315,18 @@ export function useSelfPresence({
     [channel, flushDraft],
   );
 
+  // Sent as it comes rather than once a frame: keys arrive far slower than a
+  // pointer moves, and a letter held back would be one the others miss seeing.
+  const setTyping = useCallback(
+    (typing: PresenceTyping | null) => {
+      const previous = typingRef.current;
+      if (previous?.shapeId === typing?.shapeId && previous?.text === typing?.text) return;
+      typingRef.current = typing;
+      channel?.patch({ typing });
+    },
+    [channel],
+  );
+
   useEffect(
     () => () => {
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
@@ -315,7 +336,7 @@ export function useSelfPresence({
   );
 
   return useMemo(
-    () => ({ setCursor, setSelection, setLasering, setDraft }),
-    [setCursor, setSelection, setLasering, setDraft],
+    () => ({ setCursor, setSelection, setLasering, setDraft, setTyping }),
+    [setCursor, setSelection, setLasering, setDraft, setTyping],
   );
 }

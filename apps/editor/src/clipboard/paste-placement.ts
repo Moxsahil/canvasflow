@@ -5,6 +5,7 @@ import {
   isArrow,
   hiddenShapeIds,
   isFrame,
+  isTopic,
   lockedShapeIds,
   type ArrowBinding,
   type Shape,
@@ -18,7 +19,9 @@ import type { Point } from '../machine/tool-machine.types';
  * attached to. Where both ends of that were copied together the copy names the
  * copy, so a pasted frame holds its own pasted contents and a pasted arrow
  * joins the pasted boxes rather than reaching back to the ones they came from.
- * A reference to something left behind is kept as it was.
+ * A reference to something left behind is kept as it was — bar a topic's
+ * parent: a topic pasted without it is the centre of a map of its own, where
+ * it lands, rather than a branch reaching back to the map it was copied from.
  */
 export function withFreshIds(shapes: readonly Shape[], genId: () => string): Shape[] {
   // An id per shape rather than per old id: two entries claiming the same old
@@ -37,6 +40,9 @@ export function withFreshIds(shapes: readonly Shape[], genId: () => string): Sha
     // be moved off the original it was copied from.
     const { locked: _wasLocked, ...unlocked } = shape;
     const copy = (frameId ? { ...unlocked, id, frameId } : { ...unlocked, id }) as Shape;
+    if (isTopic(copy) && copy.parentId !== null) {
+      return { ...copy, parentId: fresh.get(copy.parentId) ?? null };
+    }
     return isArrow(copy)
       ? {
           ...copy,

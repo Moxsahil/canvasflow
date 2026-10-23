@@ -43,14 +43,26 @@ import {
   FONT_OPTIONS,
   FONT_SIZE_OPTIONS,
   LOOK_OPTIONS,
+  MAP_LAYOUT_OPTIONS,
+  MAP_LINES_OPTIONS,
   PATTERN_OPTIONS,
   PRESSURE_OPTIONS,
+  TOPIC_SHAPE_OPTIONS,
   WEIGHT_STEPS,
 } from './style-options';
 import { styleSections } from './style-sections';
 import { useT } from '../i18n';
 
-type HaloMenu = 'stroke' | 'fill' | 'line' | 'look' | 'arrow' | 'text' | 'opacity' | 'arrange';
+type HaloMenu =
+  | 'stroke'
+  | 'fill'
+  | 'line'
+  | 'look'
+  | 'arrow'
+  | 'text'
+  | 'mindMap'
+  | 'opacity'
+  | 'arrange';
 
 interface StyleHaloProps extends StyleSurfaceProps {
   /** The selection's box on the board, or null with nothing selected. */
@@ -311,6 +323,19 @@ export function StyleHalo({
           </button>
         )}
 
+        {show.mindMap && (
+          <button
+            type="button"
+            title={t('style.mindMap')}
+            aria-label={t('style.mindMap')}
+            className={menuChipClasses}
+            {...chipState('mindMap')}
+          >
+            {MAP_LAYOUT_OPTIONS.find((option) => option.value === style.mapLayout)?.icon}
+            <Chevron />
+          </button>
+        )}
+
         {/* The bucket has nothing between its fill and its opacity, and two
             rules side by side would read as a gap where a chip went missing. */}
         {!show.bucket && <Separator />}
@@ -502,6 +527,54 @@ export function StyleHalo({
               />
             </InspectorRow>
           </>,
+        )}
+
+      {open?.menu === 'mindMap' &&
+        menu(
+          t('style.mindMap'),
+          <>
+            <InspectorRow label={t('style.layout')}>
+              <SegmentedControl
+                label={t('style.mapLayout')}
+                value={style.mapLayout}
+                options={MAP_LAYOUT_OPTIONS}
+                onChange={(mapLayout) => onStyleChange({ mapLayout })}
+              />
+            </InspectorRow>
+            <InspectorRow label={t('style.lines')}>
+              <SegmentedControl
+                label={t('style.mapLines')}
+                value={style.mapLines}
+                options={MAP_LINES_OPTIONS}
+                onChange={(mapLines) => onStyleChange({ mapLines })}
+              />
+            </InspectorRow>
+            <InspectorRow label={t('style.outline')}>
+              <SegmentedControl
+                label={t('style.topicShape')}
+                value={style.topicShape}
+                options={TOPIC_SHAPE_OPTIONS}
+                onChange={(topicShape) => onStyleChange({ topicShape })}
+              />
+            </InspectorRow>
+            <InspectorRow label={t('style.font')}>
+              <SegmentedControl
+                label={t('style.font')}
+                value={style.fontFamily}
+                options={FONT_OPTIONS}
+                onChange={(fontFamily) => onStyleChange({ fontFamily })}
+              />
+            </InspectorRow>
+            <InspectorRow label={t('style.size')}>
+              <SegmentedControl
+                label={t('style.fontSize')}
+                value={style.fontSize}
+                options={FONT_SIZE_OPTIONS}
+                onChange={(fontSize) => onStyleChange({ fontSize })}
+              />
+            </InspectorRow>
+          </>,
+          'w-72',
         )}
 
       {open?.menu === 'opacity' &&

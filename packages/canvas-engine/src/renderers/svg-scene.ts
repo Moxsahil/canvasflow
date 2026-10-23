@@ -24,6 +24,7 @@ import { visibleShapes } from '../shapes/visibility.js';
 import { strokeColorFor } from '../shapes/style.js';
 import { FRAME_BORDER_WIDTH } from './draw-frame.js';
 import { bookmarkToSvg } from './draw-bookmark.js';
+import { mindMapBranchesToSvg, mindMapFoldBadgesToSvg, topicToSvg } from './draw-topic.js';
 import { embedToSvg } from './draw-embed.js';
 import { frameChain } from '../frames/membership.js';
 import { FRAME_LABEL_FONT_FAMILY } from '../frames/frame-geometry.js';
@@ -137,6 +138,12 @@ export function renderSceneToSvgString(
     })
     .join('\n');
 
+  // Under every shape, as on the board.
+  const branches = mindMapBranchesToSvg(shapes, options.darkMode ?? false);
+  const branchesBlock = branches ? `${branches}\n` : '';
+  const badges = mindMapFoldBadgesToSvg(allShapes, options.darkMode ?? false);
+  const badgesBlock = badges ? `\n${badges}` : '';
+
   const background = backgroundColor
     ? `<rect x="0" y="0" width="${num(viewWidth)}" height="${num(viewHeight)}" fill="${escapeXml(
         backgroundColor,
@@ -155,7 +162,9 @@ export function renderSceneToSvgString(
     defs +
     background +
     `<g transform="translate(${num(-region.x)} ${num(-region.y)})">\n` +
+    branchesBlock +
     body +
+    badgesBlock +
     `\n</g>\n</svg>`
   );
 }
@@ -397,6 +406,9 @@ function shapeToSvg(
       break;
     case 'frame':
       content = frameToSvg(shape);
+      break;
+    case 'topic':
+      content = topicToSvg(shape, darkMode);
       break;
     default:
       assertNever(shape);

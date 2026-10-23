@@ -26,12 +26,23 @@ import {
   DottedStrokeIcon,
   ElbowArrowIcon,
   HachureIcon,
+  LinesCurvedIcon,
+  LinesElbowIcon,
+  LinesStraightIcon,
+  MapBothIcon,
+  MapDownIcon,
+  MapLeftIcon,
+  MapRightIcon,
   PressureIcon,
   RoundEdgeIcon,
   SharpEdgeIcon,
   SolidFillIcon,
   SolidStrokeIcon,
   StraightArrowIcon,
+  TopicPillIcon,
+  TopicRectangleIcon,
+  TopicRoundedIcon,
+  TopicUnderlineIcon,
 } from './icons';
 import { ARROWHEADS, FONT_FAMILIES, FONT_SIZES, STROKE_WIDTHS } from './palette';
 import { useT, type TranslationKey } from '../i18n';
@@ -86,6 +97,26 @@ export const ARROW_TYPE_OPTIONS: SegmentOption<ItemStyle['arrowType']>[] = [
   { value: 'straight', labelKey: 'style.arrowType.straight', icon: <StraightArrowIcon /> },
   { value: 'curved', labelKey: 'style.arrowType.curved', icon: <CurvedArrowIcon /> },
   { value: 'elbow', labelKey: 'style.arrowType.elbow', icon: <ElbowArrowIcon /> },
+];
+
+export const MAP_LAYOUT_OPTIONS: SegmentOption<ItemStyle['mapLayout']>[] = [
+  { value: 'both', labelKey: 'style.mapLayout.both', icon: <MapBothIcon /> },
+  { value: 'right', labelKey: 'style.mapLayout.right', icon: <MapRightIcon /> },
+  { value: 'left', labelKey: 'style.mapLayout.left', icon: <MapLeftIcon /> },
+  { value: 'down', labelKey: 'style.mapLayout.down', icon: <MapDownIcon /> },
+];
+
+export const MAP_LINES_OPTIONS: SegmentOption<ItemStyle['mapLines']>[] = [
+  { value: 'curved', labelKey: 'style.mapLines.curved', icon: <LinesCurvedIcon /> },
+  { value: 'straight', labelKey: 'style.mapLines.straight', icon: <LinesStraightIcon /> },
+  { value: 'elbow', labelKey: 'style.mapLines.elbow', icon: <LinesElbowIcon /> },
+];
+
+export const TOPIC_SHAPE_OPTIONS: SegmentOption<ItemStyle['topicShape']>[] = [
+  { value: 'rounded', labelKey: 'style.topicShape.rounded', icon: <TopicRoundedIcon /> },
+  { value: 'pill', labelKey: 'style.topicShape.pill', icon: <TopicPillIcon /> },
+  { value: 'rectangle', labelKey: 'style.topicShape.rectangle', icon: <TopicRectangleIcon /> },
+  { value: 'underline', labelKey: 'style.topicShape.underline', icon: <TopicUnderlineIcon /> },
 ];
 
 export const ALIGN_OPTIONS: SegmentOption<ItemStyle['textAlign']>[] = [

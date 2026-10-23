@@ -53,9 +53,15 @@ const TEXT_HANDLE_FRACTIONS: Record<HandleIndex, readonly [number, number]> = {
  * Handle indices: 0=TL 1=TC 2=TR 3=MR 4=BR 5=BC 6=BL 7=ML
  */
 function resizeShape(original: Shape, handle: HandleIndex, dx: number, dy: number): Shape {
-  if (original.kind === 'line' || original.kind === 'arrow' || original.kind === 'freehand') {
+  if (
+    original.kind === 'line' ||
+    original.kind === 'arrow' ||
+    original.kind === 'freehand' ||
+    original.kind === 'topic'
+  ) {
     // A stroke has no box of its own to stretch. Lines and arrows are edited
-    // point by point instead and never reach here; freehand has no handles yet.
+    // point by point instead and never reach here; freehand has no handles
+    // yet, and a topic never will: its words size it.
     return original;
   }
   if (original.kind === 'text') {
@@ -235,6 +241,7 @@ function resizeSnapHandle(
     case 'line':
     case 'arrow':
     case 'freehand':
+    case 'topic':
       return handle;
     default:
       break;
@@ -469,6 +476,7 @@ export const toolMachine = setup({
         case 'image':
         case 'embed':
         case 'bookmark':
+        case 'topic':
           return {};
         default: {
           // Every kind is listed above, so this is unreachable — and a new

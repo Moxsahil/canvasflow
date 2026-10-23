@@ -55,7 +55,8 @@ export function shapeOutlineSegments(shape: Shape): Segment[] {
     case 'image':
     case 'embed':
     case 'bookmark':
-    case 'frame': {
+    case 'frame':
+    case 'topic': {
       const b = shapeBounds(shape);
       return polylineSegments(rectCorners(b.x, b.y, b.width, b.height), true);
     }
@@ -157,7 +158,8 @@ export function shapeExactOutline(shape: Shape): Vec2[] | null {
     case 'image':
     case 'embed':
     case 'bookmark':
-    case 'frame': {
+    case 'frame':
+    case 'topic': {
       const b = shapeBounds(shape);
       return rectCorners(b.x, b.y, b.width, b.height);
     }
@@ -191,6 +193,7 @@ export function shapeHasSolidInterior(shape: Shape): boolean {
     case 'image':
     case 'embed':
     case 'bookmark':
+    case 'topic':
       return true;
     case 'arrow':
       return false;
@@ -218,7 +221,8 @@ export function shapeContainsPoint(shape: Shape, x: number, y: number): boolean 
     shape.kind === 'image' ||
     shape.kind === 'embed' ||
     shape.kind === 'bookmark' ||
-    shape.kind === 'frame'
+    shape.kind === 'frame' ||
+    shape.kind === 'topic'
   ) {
     const b = shapeBounds(shape);
     return x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height;

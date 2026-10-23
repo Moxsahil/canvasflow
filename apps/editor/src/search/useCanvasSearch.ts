@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   findTextMatches,
-  isText,
   matchRects,
+  searchableText,
   shapeBounds,
   type Camera,
   type Rect,
@@ -108,10 +108,13 @@ export function useCanvasSearch({
     return () => clearTimeout(timer);
   }, [query]);
 
+  // Every shape with words, as the text they are drawn as — a topic's
+  // centred in its box — so a match is found and outlined the same way in both.
   const textShapes = useMemo(() => {
     const map = new Map<string, TextShape>();
     for (const shape of shapes) {
-      if (isText(shape)) map.set(shape.id, shape);
+      const text = searchableText(shape);
+      if (text) map.set(shape.id, text);
     }
     return map;
   }, [shapes]);

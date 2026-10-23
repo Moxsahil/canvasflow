@@ -1,5 +1,6 @@
 import * as Y from 'yjs';
 import { readLink } from '../shapes/link.js';
+import { readMapLayout, readMapLines, readTopicLook } from '../shapes/topic.js';
 import type { ArrowBinding, Shape } from '../shapes/shape.js';
 import { DEFAULT_STROKE_COLOR } from '../shapes/style.js';
 import type {
@@ -156,6 +157,21 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
       map.set('width', shape.width);
       map.set('height', shape.height);
       map.set('name', shape.name);
+      break;
+    case 'topic':
+      map.set('text', shape.text);
+      map.set('fontSize', shape.fontSize);
+      map.set('fontFamily', shape.fontFamily);
+      map.set('parentId', shape.parentId);
+      map.set('side', shape.side);
+      map.set('order', shape.order);
+      // Written only when folded, as a lock is only when locked.
+      if (shape.collapsed === true) map.set('collapsed', true);
+      // Written only when set, so a topic drawn the default way carries no
+      // key for them.
+      if (shape.mapLayout) map.set('mapLayout', shape.mapLayout);
+      if (shape.mapLines) map.set('mapLines', shape.mapLines);
+      if (shape.topicShape) map.set('topicShape', shape.topicShape);
       break;
   }
 
@@ -416,6 +432,32 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
         // a non-string here would take the board down at the first draw.
         name: readTextValue(map.get('name')),
       } as Shape);
+    case 'topic': {
+      const parentId = map.get('parentId');
+      const order = map.get('order');
+      return withZ({
+        ...base,
+        kind: 'topic',
+        text: readTextValue(map.get('text')),
+        fontSize: (map.get('fontSize') as number) ?? 20,
+        fontFamily: (map.get('fontFamily') as string) ?? 'system-ui',
+        // Anything but a usable id reads as the centre of a map, which keeps
+        // the topic on the board rather than hanging it off nothing.
+        parentId: typeof parentId === 'string' && parentId !== '' ? parentId : null,
+        side: map.get('side') === 'left' ? 'left' : 'right',
+        order: typeof order === 'number' && Number.isFinite(order) ? order : 0,
+        // Only `true` folds, so nothing another client wrote can hide a branch.
+        ...(map.get('collapsed') === true && { collapsed: true }),
+        // Anything this client does not know reads as the default.
+        ...(map.get('mapLayout') !== undefined && {
+          mapLayout: readMapLayout(map.get('mapLayout')),
+        }),
+        ...(map.get('mapLines') !== undefined && { mapLines: readMapLines(map.get('mapLines')) }),
+        ...(map.get('topicShape') !== undefined && {
+          topicShape: readTopicLook(map.get('topicShape')),
+        }),
+      } as Shape);
+    }
     default:
       return null;
   }

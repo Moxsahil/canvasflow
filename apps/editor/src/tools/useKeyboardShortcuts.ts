@@ -60,6 +60,11 @@ interface UseKeyboardShortcutsOptions {
   onExportImage: () => void;
   onFind: () => void;
   onCommandPalette: () => void;
+  /**
+   * Tab or Enter, for a selected mind map topic to grow a child or a sibling.
+   * Answers whether it did; when it did not, the key is left to the page.
+   */
+  onGrowMindMap?: (growth: 'child' | 'sibling') => boolean;
   disabled?: boolean;
   /**
    * Answer a paste even while the rest are off. For the one window that is up
@@ -113,6 +118,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onExportImage,
     onFind,
     onCommandPalette,
+    onGrowMindMap,
     disabled,
     pasteWhileDisabled,
   } = opts;
@@ -430,6 +436,22 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
         return;
       }
 
+      // Grow a mind map: Tab for a topic under the selected one, Enter for one
+      // beside it. Taken only when a topic is selected, so Tab still moves
+      // focus and Enter still presses whatever button holds it.
+      if (
+        (event.key === 'Tab' || event.key === 'Enter') &&
+        !mod &&
+        !event.altKey &&
+        !event.shiftKey &&
+        !event.repeat &&
+        !shouldIgnoreShortcut(event) &&
+        onGrowMindMap?.(event.key === 'Tab' ? 'child' : 'sibling')
+      ) {
+        event.preventDefault();
+        return;
+      }
+
       if ((event.key === 'Delete' || event.key === 'Backspace') && !shouldIgnoreShortcut(event)) {
         event.preventDefault();
         onDelete();
@@ -524,6 +546,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onExportImage,
     onFind,
     onCommandPalette,
+    onGrowMindMap,
     disabled,
     pasteWhileDisabled,
   ]);

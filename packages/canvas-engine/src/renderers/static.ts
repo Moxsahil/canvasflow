@@ -5,6 +5,7 @@ import { frameChain } from '../frames/membership.js';
 import { visibleShapes } from '../shapes/visibility.js';
 import { clipToFrame, drawFrameLabel } from './draw-frame.js';
 import { drawSceneShape, type SceneShapeContext } from './draw-shape.js';
+import { drawMindMapBranches, drawMindMapFoldBadges } from './draw-topic.js';
 
 export interface StaticSceneOptions extends SceneShapeContext {
   readonly width: number;
@@ -23,6 +24,8 @@ export interface StaticSceneOptions extends SceneShapeContext {
   readonly editingFrameIds?: ReadonlySet<string>;
   /** The arrow whose label is open in the text overlay — see SceneShapeContext. */
   readonly editingArrowLabelId?: string;
+  /** The topic whose words are open in the text overlay — see SceneShapeContext. */
+  readonly editingTopicId?: string;
   readonly camera?: {
     readonly x: number;
     readonly y: number;
@@ -55,6 +58,7 @@ export function renderStaticScene(
     pendingErasureIds,
     editingFrameIds,
     editingArrowLabelId,
+    editingTopicId,
     backgroundColor,
     images,
     darkMode,
@@ -90,6 +94,8 @@ export function renderStaticScene(
     if (isFrame(shape)) frames.set(shape.id, shape);
   }
 
+  drawMindMapBranches(ctx, shapes, darkMode ?? false);
+
   for (const shape of shapes) {
     // A member is cropped at its frame's edge — the thing that makes a frame a
     // frame rather than a drawn rectangle. Clipping per shape rather than
@@ -112,10 +118,15 @@ export function renderStaticScene(
       zoom,
       editingFrameIds,
       editingArrowLabelId,
+      editingTopicId,
     });
 
     if (chain.length > 0) ctx.restore();
   }
+
+  // Over the topics they sit beside. From the whole board, since what a
+  // badge counts is what is folded away and so not drawn.
+  drawMindMapFoldBadges(ctx, opts.shapes, darkMode ?? false);
 
   // Labels last: they sit above their frame's top edge, in space that belongs
   // to the board, so anything drawn near the top of a frame would otherwise
