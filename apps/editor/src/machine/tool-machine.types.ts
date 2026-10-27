@@ -2,6 +2,7 @@ import type { Tool } from '@/tools/tool';
 import {
   DEFAULT_FONT_FAMILY,
   DEFAULT_FONT_SIZE,
+  DEFAULT_NOTE_COLOR,
   DEFAULT_STROKE_COLOR,
   type Arrowhead,
   type ArrowType,
@@ -100,6 +101,12 @@ export interface ItemStyle {
   readonly mapLayout: MindMapLayout;
   readonly mapLines: MindMapLines;
   readonly topicShape: TopicLook;
+  // sticky note: its paper, and the size and alignment of its words, kept
+  // apart from the fill, size and alignment every other shape shares — a
+  // note always has paper, and its words sit larger and centred
+  readonly noteColor: string;
+  readonly noteFontSize: number;
+  readonly noteTextAlign: 'left' | 'center' | 'right';
 }
 
 /** strokeColor matches the first swatch in the panel, so it opens with a selection. */
@@ -122,6 +129,11 @@ export const DEFAULT_ITEM_STYLE: ItemStyle = {
   mapLayout: 'both',
   mapLines: 'curved',
   topicShape: 'rounded',
+  noteColor: DEFAULT_NOTE_COLOR,
+  // The large step of the panel's sizes: a note is read from further off
+  // than a label, and its words shrink to fit anyway.
+  noteFontSize: 28,
+  noteTextAlign: 'center',
 };
 
 export interface ToolMachineContext {

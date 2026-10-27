@@ -27,9 +27,10 @@ export const DEFAULT_NOTE_FONT_SIZE = 24;
 /** Space between the paper's edge and the words, at 1:1. */
 const PADDING = 16;
 /**
- * A band kept clear along the bottom for a line about the note — who wrote
- * it — so the words never run under it. Kept on every note, written or not,
- * so where the words sit never depends on whether there is anything to show.
+ * A band kept clear along the bottom for the name of who wrote the note, so
+ * the words never run under it. Only on a note that has one: kept on every
+ * note, an unsigned one's words would sit visibly above its middle, over an
+ * empty strip.
  */
 export const NOTE_FOOTER_HEIGHT = 20;
 /** The smallest the words are set before the note grows instead, at 1:1. */
@@ -51,6 +52,7 @@ export function createNote(
     fontSize?: number;
     fontFamily?: string;
     textAlign?: 'left' | 'center' | 'right';
+    author?: string;
   },
 ): NoteShape {
   return {
@@ -71,6 +73,9 @@ export function createNote(
     fillStyle: 'solid',
     roughness: 0,
     strokeStyle: 'solid',
+    // Trimmed, and left off rather than kept empty, so a note with no name
+    // carries no key for one.
+    ...(input.author?.trim() && { author: input.author.trim() }),
   };
 }
 
@@ -198,7 +203,7 @@ const LAYOUT_CACHE_LIMIT = 512;
 
 type LayoutInput = Pick<
   NoteShape,
-  'width' | 'height' | 'text' | 'fontSize' | 'fontFamily' | 'textAlign' | 'scale'
+  'width' | 'height' | 'text' | 'fontSize' | 'fontFamily' | 'textAlign' | 'scale' | 'author'
 >;
 
 /**
@@ -221,6 +226,7 @@ function relativeNoteLayout(note: LayoutInput): NoteLayout {
     note.height,
     note.fontSize,
     note.scale ?? 1,
+    note.author ? 1 : 0,
     note.fontFamily,
     note.textAlign,
     note.text,
@@ -230,7 +236,7 @@ function relativeNoteLayout(note: LayoutInput): NoteLayout {
 
   const scale = shapeScale(note);
   const padding = PADDING * scale;
-  const footer = NOTE_FOOTER_HEIGHT * scale;
+  const footer = note.author ? NOTE_FOOTER_HEIGHT * scale : 0;
   const width = Math.max(note.width, padding * 2 + 1);
   const baseHeight = Math.max(note.height, padding * 2 + footer + 1);
   const textWidth = width - padding * 2;
@@ -315,6 +321,51 @@ export function noteLayout(note: NoteShape): NoteLayout {
 export function noteBounds(note: NoteShape): Rect {
   const { width, height } = relativeNoteLayout(note);
   return { x: note.x, y: note.y, width, height };
+}
+
+/** The face the author's name is set in, whatever the note's words are. */
+const FOOTER_FONT_FAMILY = 'Helvetica, Arial, system-ui, sans-serif';
+const FOOTER_FONT_SIZE = 12;
+
+export interface NoteFooter {
+  /** The name, cut short with an ellipsis where it would run off the paper. */
+  readonly text: string;
+  /** Its left end and its middle, in board coordinates. */
+  readonly x: number;
+  readonly y: number;
+  readonly fontSize: number;
+  readonly fontFamily: string;
+}
+
+/**
+ * Where the author's name goes: along the band kept clear at the foot of the
+ * paper, from the left edge of the words. Null when the note has no author.
+ */
+export function noteFooter(note: NoteShape): NoteFooter | null {
+  if (!note.author) return null;
+  const scale = shapeScale(note);
+  const { height, textWidth, width } = relativeNoteLayout(note);
+  const fontSize = FOOTER_FONT_SIZE * scale;
+  const font = `${fontSize}px ${FOOTER_FONT_FAMILY}`;
+  const fits = (value: string) => lineWidth(value, font, fontSize) <= textWidth;
+
+  let text = note.author;
+  if (!fits(text)) {
+    // Whole characters off the end until it fits with its ellipsis.
+    const chars = [...text];
+    while (chars.length > 0 && !fits(`${chars.join('')}…`)) chars.pop();
+    text = chars.length > 0 ? `${chars.join('').trimEnd()}…` : '';
+  }
+  if (text === '') return null;
+
+  const padding = (width - textWidth) / 2;
+  return {
+    text,
+    x: note.x + padding,
+    y: note.y + height - padding - (NOTE_FOOTER_HEIGHT * scale) / 2,
+    fontSize,
+    fontFamily: FOOTER_FONT_FAMILY,
+  };
 }
 
 /** The smallest a note can be made, at its scale. */

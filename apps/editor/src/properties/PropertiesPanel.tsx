@@ -18,7 +18,7 @@ import {
   SegmentedControl,
   StepperControl,
 } from './inspector';
-import { BACKGROUND_SWATCHES, BUCKET_SWATCHES, STROKE_SWATCHES } from './palette';
+import { BACKGROUND_SWATCHES, BUCKET_SWATCHES, NOTE_SWATCHES, STROKE_SWATCHES } from './palette';
 import {
   ALIGN_OPTIONS,
   ARROWHEAD_ICONS,
@@ -114,12 +114,16 @@ export function PropertiesPanel({
   const popoverPosition = popover ? { top: popover.top, right: 'calc(100% + 0.5rem)' } : {};
 
   const show = styleSections(shapeKinds, style, bucket);
-  const paintStroke = (colour: string) => strokeColorFor(colour, darkMode);
+  // A note's ink is drawn as stored on either board, so it is shown that way.
+  const paintStroke = (colour: string) => (show.note ? colour : strokeColorFor(colour, darkMode));
+
+  // A note's ink is its words, as text's is.
+  const inkIsText = show.textOnly || show.note;
 
   const strokeColourRow = (
-    <InspectorRow label={t('style.colour')}>
+    <InspectorRow label={show.note ? t('style.text') : t('style.colour')}>
       <ColorChip
-        label={show.textOnly ? t('style.textColour') : t('style.strokeColour')}
+        label={inkIsText ? t('style.textColour') : t('style.strokeColour')}
         value={style.strokeColor}
         paint={paintStroke}
         expanded={popover?.target === 'stroke'}
@@ -152,6 +156,47 @@ export function PropertiesPanel({
       key: 'text',
       node: (
         <InspectorSection title={t('style.text')}>
+          {strokeColourRow}
+          <InspectorRow label={t('style.font')}>
+            <SegmentedControl
+              label={t('style.font')}
+              value={style.fontFamily}
+              options={FONT_OPTIONS}
+              onChange={(fontFamily) => onStyleChange({ fontFamily })}
+            />
+          </InspectorRow>
+          <InspectorRow label={t('style.size')}>
+            <SegmentedControl
+              label={t('style.fontSize')}
+              value={style.fontSize}
+              options={FONT_SIZE_OPTIONS}
+              onChange={(fontSize) => onStyleChange({ fontSize })}
+            />
+          </InspectorRow>
+          <InspectorRow label={t('style.align')}>
+            <SegmentedControl
+              label={t('style.textAlign')}
+              value={style.textAlign}
+              options={ALIGN_OPTIONS}
+              onChange={(textAlign) => onStyleChange({ textAlign })}
+            />
+          </InspectorRow>
+        </InspectorSection>
+      ),
+    });
+  } else if (show.note) {
+    sections.push({
+      key: 'note',
+      node: (
+        <InspectorSection title={t('style.note')}>
+          <InspectorRow label={t('style.paper')}>
+            <ColorChip
+              label={t('style.paperColour')}
+              value={style.fillColor}
+              expanded={popover?.target === 'fill'}
+              onOpen={openPopover('fill')}
+            />
+          </InspectorRow>
           {strokeColourRow}
           <InspectorRow label={t('style.font')}>
             <SegmentedControl
@@ -404,8 +449,10 @@ export function PropertiesPanel({
           key={popover.target}
           title={
             popover.target === 'fill'
-              ? t('style.fillColour')
-              : show.textOnly
+              ? show.note
+                ? t('style.paperColour')
+                : t('style.fillColour')
+              : inkIsText
                 ? t('style.textColour')
                 : t('style.strokeColour')
           }
@@ -415,7 +462,9 @@ export function PropertiesPanel({
               ? STROKE_SWATCHES
               : show.bucket
                 ? BUCKET_SWATCHES
-                : BACKGROUND_SWATCHES
+                : show.note
+                  ? NOTE_SWATCHES
+                  : BACKGROUND_SWATCHES
           }
           paint={popover.target === 'stroke' ? paintStroke : undefined}
           position={popoverPosition}
@@ -425,8 +474,8 @@ export function PropertiesPanel({
               popover.target === 'stroke'
                 ? // Stroke has no transparent state, so a cleared value is ignored.
                   { strokeColor: next ?? style.strokeColor }
-                : // Nor does the bucket's pour.
-                  { fillColor: show.bucket ? (next ?? style.fillColor) : next },
+                : // Nor does the bucket's pour, or a note's paper.
+                  { fillColor: show.bucket || show.note ? (next ?? style.fillColor) : next },
               transient,
             )
           }

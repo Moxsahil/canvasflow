@@ -20,6 +20,8 @@ interface UseStaticRenderOptions {
   editingArrowLabelId?: string;
   /** The topic whose words are open in the text overlay. */
   editingTopicId?: string;
+  /** The note whose words are open in its overlay: its paper drawn, its words not. */
+  editingNoteId?: string;
   /** Decoded image bitmaps. */
   images?: ImageSource;
   /**
@@ -58,6 +60,7 @@ export function useStaticRender(
     editingFrameIds,
     editingArrowLabelId,
     editingTopicId,
+    editingNoteId,
     images,
     imageRevision,
     darkMode,
@@ -78,6 +81,7 @@ export function useStaticRender(
       editingFrameIds,
       editingArrowLabelId,
       editingTopicId,
+      editingNoteId,
       images,
       darkMode,
     });
@@ -92,6 +96,7 @@ export function useStaticRender(
     editingFrameIds,
     editingArrowLabelId,
     editingTopicId,
+    editingNoteId,
     images,
     imageRevision,
     darkMode,

@@ -39,6 +39,7 @@ import {
   isBookmark,
   isEmbed,
   isFrame,
+  isNote,
   isText,
   isTopic,
   hasMindMap,
@@ -51,12 +52,14 @@ import {
   topicGrowth,
   mindMapFoldBadgeAt,
   topicCentre,
+  noteLayout,
   topicDropPatches,
   withTopicDropped,
   type TopicDrop,
   topicInk,
   withMindMapBranches,
   withMindMapRoots,
+  type NoteShape,
   type TopicShape,
   hiddenShapeIds,
   lockedShapeIds,
@@ -158,6 +161,7 @@ import { Toolbar } from './toolbar/Toolbar';
 import { HistoryPanel } from './toolbar/HistoryPanel';
 import { ToolLockButton } from './toolbar/ToolLockButton';
 import { GlassDock, GlassDockSeparator } from '@/components/ui/glass-dock';
+import { NoteEditor } from './text-editor/NoteEditor';
 import { TextEditor } from './text-editor/TextEditor';
 import {
   grownTopic,
@@ -809,6 +813,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
     [local, authToken],
   );
   const userId = user?.id ?? null;
+  // The name a note put down here is signed with. Nobody signs one on the
+  // local board, which has no one else to tell apart. A ref, because it is
+  // read where a shape is committed — a subscription, not a render.
+  const noteAuthorRef = useRef<string | undefined>(undefined);
+  noteAuthorRef.current = !local && user ? user.name : undefined;
   // An account has been here: the editor's own address checks for it first
   // next time, and opens its boards rather than the local board.
   const accountHere = !local && user !== null && !user.isGuest;
@@ -1312,9 +1321,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const editingArrow = editingTextShape && isArrow(editingTextShape) ? editingTextShape : null;
   // A topic keeps its words as a text shape does, in a box its map places.
   const editingTopic = editingTextShape && isTopic(editingTextShape) ? editingTextShape : null;
+  // A note keeps its words as well, in the room its paper gives them.
+  const editingNote = editingTextShape && isNote(editingTextShape) ? editingTextShape : null;
   const editingTextInitialValue =
     editingText?.text ??
     editingTopic?.text ??
+    editingNote?.text ??
     (editingArrow ? arrowLabelOf(editingArrow) : undefined);
   // Bump a key whenever a new text-editing session starts (a new textEditingAt
   // reference), so <TextEditor> remounts with blank state instead of reusing
@@ -1549,6 +1561,9 @@ export function Editor({ boardId, local = false }: EditorProps) {
     }
     return shapes.flatMap((shape) => {
       if (shape.id !== editingTextShapeId) return [shape];
+      // A note stays too, holding what is being typed, so its words are
+      // fitted and its paper grows as they go in.
+      if (isNote(shape)) return [{ ...shape, text: liveText }];
       return isArrow(shape) ? [{ ...shape, label: liveText }] : [];
     });
   }, [boardShapes, peerTyping, editingTextShapeId, liveText, topicDrag]);
@@ -1595,6 +1610,22 @@ export function Editor({ boardId, local = false }: EditorProps) {
         shapeId: topicId,
         position: topicCentre(topic),
         existingText: topic.text,
+      });
+    },
+    [actorRef, doc],
+  );
+
+  /** Select a note and open its words for typing. */
+  const editNote = useCallback(
+    (noteId: string) => {
+      const note = doc.getShapes().find((shape) => shape.id === noteId);
+      if (!note || !isNote(note)) return;
+      actorRef.send({ type: 'SELECT_ALL', shapeIds: [noteId] });
+      actorRef.send({
+        type: 'EDIT_TEXT_SHAPE',
+        shapeId: noteId,
+        position: { x: note.x, y: note.y },
+        existingText: note.text,
       });
     },
     [actorRef, doc],
@@ -1656,12 +1687,19 @@ export function Editor({ boardId, local = false }: EditorProps) {
    */
   const handleGrowSelectedTopic = useCallback(
     (growth: TopicGrowth): boolean => {
-      if (selectedIds.length !== 1 || viewMode) return false;
+      if (selectedIds.length !== 1 || viewMode || readOnly) return false;
       const only = shapes.find((shape) => shape.id === selectedIds[0]);
-      if (!only || !isTopic(only) || lockedIds.has(only.id)) return false;
+      if (!only || lockedIds.has(only.id)) return false;
+      // Enter on a note opens its words, as a double press does.
+      if (isNote(only)) {
+        if (growth !== 'sibling') return false;
+        editNote(only.id);
+        return true;
+      }
+      if (!isTopic(only)) return false;
       return growMindMap(only.id, growth);
     },
-    [selectedIds, shapes, lockedIds, viewMode, growMindMap],
+    [selectedIds, shapes, lockedIds, viewMode, readOnly, growMindMap, editNote],
   );
 
   /** Enter or Tab in a topic's overlay: keep what was typed, then grow from it. */
@@ -1937,6 +1975,26 @@ export function Editor({ boardId, local = false }: EditorProps) {
     shapes,
   ]);
 
+  // A note's words are typed where they will be drawn: over the room its
+  // paper gives them, at the size it fits them to as they stand.
+  const typedNote = editingNote
+    ? (shapesForRender.find((shape) => shape.id === editingNote.id) as NoteShape | undefined)
+    : undefined;
+  const noteEditor = useMemo(() => {
+    if (!typedNote || !textEditingAt) return null;
+    const layout = noteLayout(typedNote);
+    return {
+      box: {
+        left: (typedNote.x + (layout.width - layout.textWidth) / 2 - camera.x) * camera.zoom,
+        top: (layout.textY - camera.y) * camera.zoom,
+        width: layout.textWidth * camera.zoom,
+      },
+      fontSize: layout.fontSize * camera.zoom,
+      lineHeight: layout.lineHeight * camera.zoom,
+      lineCount: layout.lines.length,
+    };
+  }, [typedNote, textEditingAt, camera]);
+
   const textEditorScreenPosition =
     textEditingAt && textEditorWorldPosition
       ? {
@@ -2167,11 +2225,24 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const pourColor = bucketFillColor(itemStyle.fillColor);
 
   const firstSelected = selectedShapes[0];
+  // Only notes being edited, selected or about to be put down. The panel
+  // shows a note's paper, size and alignment in the places every shape's
+  // fill, size and alignment go, and a choice made for the tool is
+  // remembered for notes alone — see `ItemStyle`.
+  const editingNotes =
+    propertyShapeKinds.length > 0 && propertyShapeKinds.every((kind) => kind === 'note');
   const propertyStyle: ItemStyle = firstSelected
     ? mapStyleFor(firstSelected, shapes, itemStyleFromShape(firstSelected, itemStyle))
     : editingBucket
       ? { ...itemStyle, fillColor: pourColor }
-      : itemStyle;
+      : editingNotes
+        ? {
+            ...itemStyle,
+            fillColor: itemStyle.noteColor,
+            fontSize: itemStyle.noteFontSize,
+            textAlign: itemStyle.noteTextAlign,
+          }
+        : itemStyle;
 
   // Nothing in the properties panel does anything for a viewer, and offering
   // controls that silently no-op is worse than not offering them. Focus mode
@@ -2243,8 +2314,23 @@ export function Editor({ boardId, local = false }: EditorProps) {
 
   const handleStyleChange = useCallback(
     (patch: Partial<ItemStyle>, transient = false) => {
-      // Always remember the choice, so the next shape drawn inherits it.
-      actorRef.send({ type: 'SET_ITEM_STYLE', style: patch });
+      // Always remember the choice, so the next shape drawn inherits it — a
+      // note's paper, size and alignment as the next note's, and not as the
+      // fill, size and alignment of everything else.
+      if (editingNotes) {
+        const { fillColor, fontSize, textAlign, ...shared } = patch;
+        actorRef.send({
+          type: 'SET_ITEM_STYLE',
+          style: {
+            ...shared,
+            ...(fillColor && { noteColor: fillColor }),
+            ...(fontSize !== undefined && { noteFontSize: fontSize }),
+            ...(textAlign && { noteTextAlign: textAlign }),
+          },
+        });
+      } else {
+        actorRef.send({ type: 'SET_ITEM_STYLE', style: patch });
+      }
       if (selectedIds.length === 0) return;
       // A map's layout and lines belong to the map, which keeps them on its
       // centre, and an outline only means something to a topic.
@@ -2270,7 +2356,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
 
       if (!transient) doc.breakUndoGroup();
     },
-    [actorRef, doc, selectedIds],
+    [actorRef, doc, selectedIds, editingNotes],
   );
 
   const dragOriginsRef = useRef<Record<string, Shape>>({});
@@ -2423,7 +2509,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
    */
   useEffect(() => {
     const typed = editingTextShapeId ? shapes.find((s) => s.id === editingTextShapeId) : undefined;
-    if (!typed || !(isTopic(typed) || isText(typed) || isArrow(typed))) {
+    if (!typed || !(isTopic(typed) || isText(typed) || isNote(typed) || isArrow(typed))) {
       setTyping(null);
       return;
     }
@@ -2484,7 +2570,10 @@ export function Editor({ boardId, local = false }: EditorProps) {
       // lands so it never exists unowned, which would flash unclipped.
       const onBoard = doc.getShapes();
       const frameId = frameForShape(shape, joinableFrames(onBoard, lockedShapeIds(onBoard)));
-      const placed = frameId ? ({ ...shape, frameId } as Shape) : shape;
+      const inFrame = frameId ? ({ ...shape, frameId } as Shape) : shape;
+      // A note is signed by whoever put it down, where there is anyone to sign.
+      const author = isNote(inFrame) ? noteAuthorRef.current : undefined;
+      const placed = author ? ({ ...inFrame, author } as Shape) : inFrame;
 
       // An arrow drawn onto a shape keeps hold of it. Decided here rather than
       // during the gesture because it is the released ends that matter, and
@@ -2497,6 +2586,16 @@ export function Editor({ boardId, local = false }: EditorProps) {
       // edge from the moment it is released rather than on the first drag.
       if (isArrow(bound) && (bound.startBinding || bound.endBinding)) {
         settleBoundArrowsInDocument(doc, new Set([bound.id]));
+      }
+
+      // A note is put down to be written on, so its words open at once.
+      if (isNote(bound)) {
+        actorRef.send({
+          type: 'EDIT_TEXT_SHAPE',
+          shapeId: bound.id,
+          position: { x: bound.x, y: bound.y },
+          existingText: '',
+        });
       }
     });
     const sub2 = actorRef.on('shapes.deleted', (emitted) => {
@@ -3856,6 +3955,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
         return;
       }
 
+      if (hit && isNote(hit)) {
+        editNote(hit.id);
+        return;
+      }
+
       // An arrow is captioned rather than covered: the box opens in the break
       // in its line, centred on the same point the label will be drawn at,
       // whether or not it has one yet.
@@ -3893,6 +3997,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       readOnly,
       activeTool,
       editTopic,
+      editNote,
     ],
   );
 
@@ -5785,6 +5890,13 @@ export function Editor({ boardId, local = false }: EditorProps) {
           }
           return;
         }
+        if (editing && isNote(editing)) {
+          // Kept however little is on it: an empty note is still a note,
+          // put down to be written on. Held selected, as text just typed is.
+          if (text !== editing.text) doc.updateShape(editingId, { text });
+          actorRef.send({ type: 'COMMIT_TEXT', text, shapeId: editingId });
+          return;
+        }
         if (editing && isArrow(editing)) {
           // Trimmed, because a centred caption hangs off its own trailing
           // space — and emptied out it leaves the arrow, which was never the
@@ -6016,6 +6128,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   editingFrameIds={editingFrameIds}
                   editingArrowLabelId={editingArrow?.id}
                   editingTopicId={editingTopic?.id}
+                  editingNoteId={editingNote?.id}
                   newElement={newElement}
                   selectedIds={selectedIdsForRender}
                   marquee={marquee}
@@ -6413,25 +6526,44 @@ export function Editor({ boardId, local = false }: EditorProps) {
               />
             )}
 
-            {textEditorScreenPosition && (
-              <TextEditor
+            {editingNote && noteEditor && (
+              <NoteEditor
                 key={textEditingKeyRef.current}
-                position={textEditorScreenPosition}
-                align={editingArrow || editingTopic ? 'center' : 'left'}
-                fontSize={textEditorFontSize}
-                fontFamily={textEditorFontFamily}
-                color={textEditorColor}
-                initialText={editingTextInitialValue}
-                onCommit={handleCommitText}
-                onCancel={handleCancelText}
+                {...noteEditor}
+                fontFamily={editingNote.fontFamily}
+                // As stored, not themed: the words sit on pale paper on
+                // either board, as the note draws them.
+                color={editingNote.strokeColor}
+                textAlign={editingNote.textAlign}
+                initialText={editingNote.text}
                 onChange={setLiveText}
-                onEnter={editingTopic ? handleTopicEnter : undefined}
-                onTab={editingTopic ? handleTopicTab : undefined}
-                // A map is named as it is grown, and Escape is how the
-                // growing stops: it keeps the last name typed.
-                commitOnEscape={Boolean(editingTopic)}
+                onCommit={handleCommitText}
               />
             )}
+
+            {/* Not for a shape that has not reached the board yet: a note
+                just put down is opened in the same breath it is added. */}
+            {textEditorScreenPosition &&
+              !editingNote &&
+              (!editingTextShapeId || editingTextShape) && (
+                <TextEditor
+                  key={textEditingKeyRef.current}
+                  position={textEditorScreenPosition}
+                  align={editingArrow || editingTopic ? 'center' : 'left'}
+                  fontSize={textEditorFontSize}
+                  fontFamily={textEditorFontFamily}
+                  color={textEditorColor}
+                  initialText={editingTextInitialValue}
+                  onCommit={handleCommitText}
+                  onCancel={handleCancelText}
+                  onChange={setLiveText}
+                  onEnter={editingTopic ? handleTopicEnter : undefined}
+                  onTab={editingTopic ? handleTopicTab : undefined}
+                  // A map is named as it is grown, and Escape is how the
+                  // growing stops: it keeps the last name typed.
+                  commitOnEscape={Boolean(editingTopic)}
+                />
+              )}
 
             {!chromeHidden && (
               <ZoomPanel

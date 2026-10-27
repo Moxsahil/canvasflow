@@ -210,6 +210,12 @@ export interface NoteShape extends BaseShape {
   readonly fontSize: number;
   readonly fontFamily: string;
   readonly textAlign: 'left' | 'center' | 'right';
+  /**
+   * The name of whoever put the note down, written along its foot. A name
+   * rather than an id, so it reads the same for everyone however long ago
+   * they left the board. Absent on a note made with nobody signed in.
+   */
+  readonly author?: string;
 }
 
 // --- Image shape ---

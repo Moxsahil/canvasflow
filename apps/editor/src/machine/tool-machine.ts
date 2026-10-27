@@ -7,9 +7,14 @@ import {
   createFrame,
   createFreehand,
   createLine,
+  createNote,
   createRectangle,
+  DEFAULT_NOTE_SIZE,
+  minNoteSize,
+  noteBounds,
   recogniseStroke,
   shapeBounds,
+  type NoteShape,
   type Shape,
 } from '@canvasflow/canvas-engine';
 import { sketchPreview, sketchShape, sketchStroke } from './sketch-shape';
@@ -97,6 +102,8 @@ function resizeShape(original: Shape, handle: HandleIndex, dx: number, dy: numbe
     };
   }
 
+  if (original.kind === 'note') return resizeNote(original, handle, dx, dy);
+
   // For rect/ellipse/diamond/image
   const shape = original as typeof original & { width: number; height: number };
 
@@ -115,6 +122,26 @@ function resizeShape(original: Shape, handle: HandleIndex, dx: number, dy: numbe
 
   const { x, y, width, height } = resizeBox(shape, handle, dx, dy, aspectRatio);
   return { ...shape, x, y, width, height } as Shape;
+}
+
+/**
+ * A note's paper, resized from the size it is drawn at rather than the size it
+ * was given: words that grew it have made it taller than it was asked to be,
+ * and a drag measured from the smaller box would jump at the first move. What
+ * the drag leaves is what it asks for, never smaller than a note can be.
+ */
+function resizeNote(original: NoteShape, handle: HandleIndex, dx: number, dy: number): NoteShape {
+  const drawn = { ...original, height: noteBounds(original).height };
+  const box = resizeBox(drawn, handle, dx, dy, null);
+  const min = minNoteSize(original);
+  // Held at the edge the handle is opposite, so the paper stops shrinking
+  // rather than sliding once it reaches its smallest.
+  const [fx, fy] = TEXT_HANDLE_FRACTIONS[handle];
+  const width = Math.max(min, box.width);
+  const height = Math.max(min, box.height);
+  const x = box.width >= min ? box.x : fx === 0 ? drawn.x + drawn.width - min : drawn.x;
+  const y = box.height >= min ? box.y : fy === 0 ? drawn.y + drawn.height - min : drawn.y;
+  return { ...original, x, y, width, height };
 }
 
 /** The smallest a box can be dragged to, in world units. */
@@ -330,6 +357,25 @@ export const toolMachine = setup({
         case 'frame':
           newElement = createFrame({ id: genId(), x: p.x, y: p.y, width: 1, height: 1 });
           break;
+        // Its own paper, size and alignment rather than the shared fill, size
+        // and alignment — see `ItemStyle`. The ink and the face are shared
+        // with text, as they are the same words.
+        case 'note':
+          newElement = createNote({
+            id: genId(),
+            x: p.x,
+            y: p.y,
+            width: 1,
+            height: 1,
+            strokeColor: style.strokeColor,
+            opacity: style.opacity,
+            fillColor: style.noteColor,
+            fontFamily: style.fontFamily,
+            fontSize: style.noteFontSize,
+            textAlign: style.noteTextAlign,
+            scale,
+          });
+          break;
         case 'line':
           newElement = createLine({
             id: genId(),
@@ -536,6 +582,39 @@ export const toolMachine = setup({
       freehandPoints: [],
       sketchPoints: [],
     }),
+    /**
+     * Give the note being put down its paper. A press that never became a drag
+     * is a note of the usual size, centred where it was pressed; a drag sizes
+     * the paper, but never smaller than a note can be.
+     */
+    settleNote: assign(({ context, event }) => {
+      const note = context.newElement;
+      const start = context.pointerDownAt;
+      if (event.type !== 'POINTER_UP' || !note || note.kind !== 'note' || !start) return {};
+      const dragged = Math.hypot(event.point.x - start.x, event.point.y - start.y) > 3;
+      if (!dragged) {
+        const size = DEFAULT_NOTE_SIZE * (note.scale ?? 1);
+        return {
+          newElement: {
+            ...note,
+            x: start.x - size / 2,
+            y: start.y - size / 2,
+            width: size,
+            height: size,
+          },
+        };
+      }
+      const min = minNoteSize(note);
+      return {
+        newElement: {
+          ...note,
+          x: event.point.x < start.x ? start.x - Math.max(min, note.width) : note.x,
+          y: event.point.y < start.y ? start.y - Math.max(min, note.height) : note.y,
+          width: Math.max(min, note.width),
+          height: Math.max(min, note.height),
+        },
+      };
+    }),
     clearTextEditing: assign({ textEditingAt: null, editingTextShapeId: null }),
     setToolLock: assign(({ event }) => {
       if (event.type !== 'SET_TOOL_LOCK') return {};
@@ -660,9 +739,11 @@ export const toolMachine = setup({
         t === 'diamond' ||
         t === 'line' ||
         t === 'arrow' ||
-        t === 'frame'
+        t === 'frame' ||
+        t === 'note'
       );
     },
+    isNoteDraw: ({ context }) => context.newElement?.kind === 'note',
     isFreehandTool: ({ context }) => context.activeTool === 'freehand',
     isSketchTool: ({ context }) => context.activeTool === 'sketch',
     isTextTool: ({ context }) => context.activeTool === 'text',
@@ -924,6 +1005,25 @@ export const toolMachine = setup({
       on: {
         POINTER_MOVE: { actions: 'updateShapeDraw' },
         POINTER_UP: [
+          // A note is put down by a press as well as a drag, so it skips the
+          // bar the others have to clear. Selected either way, lock or not:
+          // its words are opened straight after, and they belong to it.
+          {
+            guard: and(['isNoteDraw', 'returnsToSelect']),
+            target: 'idle',
+            actions: [
+              'settleNote',
+              'emitCommittedShape',
+              'selectCommittedShape',
+              'returnToSelect',
+              'clearDraw',
+            ],
+          },
+          {
+            guard: 'isNoteDraw',
+            target: 'idle',
+            actions: ['settleNote', 'emitCommittedShape', 'selectCommittedShape', 'clearDraw'],
+          },
           {
             guard: and(['hasMovedEnough', 'returnsToSelect']),
             target: 'idle',

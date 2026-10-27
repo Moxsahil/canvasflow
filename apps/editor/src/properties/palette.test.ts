@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { bucketFillColor, nextBucketColor } from './palette';
+import { NOTE_COLORS } from '@canvasflow/canvas-engine';
+import { bucketFillColor, nextBucketColor, NOTE_SWATCHES } from './palette';
 
 describe('bucket colours', () => {
   it('pours green when the shared fill colour is transparent', () => {
@@ -16,5 +17,11 @@ describe('bucket colours', () => {
   it('starts the round at the first swatch from any other colour', () => {
     expect(nextBucketColor('#ffffff')).toBe('#ffc9c9');
     expect(nextBucketColor('#123456')).toBe('#ffc9c9');
+  });
+});
+
+describe('note papers', () => {
+  it('offers exactly the papers a note comes in, in the same order', () => {
+    expect(NOTE_SWATCHES.map((swatch) => swatch.value)).toEqual([...NOTE_COLORS]);
   });
 });

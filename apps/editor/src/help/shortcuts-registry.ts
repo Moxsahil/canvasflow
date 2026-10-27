@@ -33,6 +33,7 @@ export const SHORTCUTS: ShortcutCategory[] = [
       { keys: 'i', descriptionKey: 'shortcuts.image' },
       { keys: 'f', descriptionKey: 'shortcuts.frame' },
       { keys: 'n', descriptionKey: 'shortcuts.mindMap' },
+      { keys: 's', descriptionKey: 'shortcuts.note' },
       { keys: 'x', descriptionKey: 'shortcuts.sketchToShape' },
       { keys: 'q', descriptionKey: 'shortcuts.toolLock' },
       { keys: 'k', descriptionKey: 'shortcuts.laserPointer' },

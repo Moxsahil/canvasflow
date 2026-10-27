@@ -11,6 +11,7 @@ import {
   DEFAULT_NOTE_COLOR,
   DEFAULT_NOTE_FONT_SIZE,
   DEFAULT_NOTE_SIZE,
+  noteFooter,
   noteLayout,
 } from '../src/shapes/note.js';
 import { shapeContainsPoint } from '../src/shapes/outline.js';
@@ -182,6 +183,37 @@ describe('a note on the board', () => {
     expect(svg).toContain('fill="#1e1e1e"');
     expect(svg).toContain(`fill="${DEFAULT_NOTE_COLOR}"`);
     expect(svg).toContain('>hi</text>');
+  });
+
+  it('carries its author through the document, and none when it has none', () => {
+    const signed = note({ author: 'Asha Rao' });
+    expect(yMapToShape(integrate(shapeToYMap(signed)))).toEqual(signed);
+    expect(shapeToYMap(note()).has('author')).toBe(false);
+    expect(note({ author: '   ' })).not.toHaveProperty('author');
+  });
+
+  it('writes its author along its foot, below the words', () => {
+    const shape = note({ text: 'hi', author: 'Asha Rao' });
+    const footer = noteFooter(shape);
+    const layout = noteLayout(shape);
+    expect(footer?.text).toBe('Asha Rao');
+    expect(footer!.y).toBeGreaterThan(layout.textY + layout.lineHeight);
+    expect(footer!.y).toBeLessThan(shape.y + layout.height);
+    expect(noteFooter(note())).toBeNull();
+    expect(renderSceneToSvgString([shape])).toContain('>Asha Rao</text>');
+  });
+
+  it('keeps a band clear for the author only on a note that has one', () => {
+    const signed = noteLayout(note({ text: 'hi', author: 'Asha Rao' }));
+    const unsigned = noteLayout(note({ text: 'hi' }));
+    // Centred on the paper without a name; raised above the name with one.
+    expect(unsigned.textY + unsigned.lineHeight / 2).toBeCloseTo(50 + DEFAULT_NOTE_SIZE / 2);
+    expect(signed.textY).toBeLessThan(unsigned.textY);
+  });
+
+  it('cuts a long author short rather than run off the paper', () => {
+    const footer = noteFooter(note({ author: 'Somebody With A Very Long Name Indeed '.repeat(4) }));
+    expect(footer?.text.endsWith('…')).toBe(true);
   });
 
   it('exports every line of its words to SVG', () => {

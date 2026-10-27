@@ -3,6 +3,7 @@ import {
   DEFAULT_NOTE_COLOR,
   noteBounds,
   noteCornerRadius,
+  noteFooter,
   noteLayout,
   noteShadowOffset,
 } from '../shapes/note.js';
@@ -14,6 +15,9 @@ const SHADOW_COLOR = 'rgba(0, 0, 0, 0.16)';
 /** A hairline round the paper, so a pale note still has an edge on a white board. */
 const EDGE_COLOR = 'rgba(0, 0, 0, 0.08)';
 const EDGE_WIDTH = 1;
+/** The author's name is the note's ink, quietened so the words lead — but
+ * still past 4.5:1 on the palest and the deepest of the papers. */
+const FOOTER_OPACITY = 0.7;
 
 function roundedRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number): void {
   const radius = Math.min(r, w / 2, h / 2);
@@ -61,6 +65,17 @@ export function drawNoteShape(ctx: Ctx, note: NoteShape, withText: boolean): voi
       ctx.fillText(line.text, layout.textX, layout.textY + leading + index * layout.lineHeight);
     });
   }
+
+  // Kept while the words are open for typing: the name is not what is typed.
+  const footer = noteFooter(note);
+  if (footer) {
+    ctx.globalAlpha *= FOOTER_OPACITY;
+    ctx.fillStyle = note.strokeColor;
+    ctx.font = `${footer.fontSize}px ${footer.fontFamily}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(footer.text, footer.x, footer.y);
+  }
   ctx.restore();
 }
 
@@ -101,5 +116,13 @@ export function noteToSvg(note: NoteShape): string {
         `dominant-baseline="text-before-edge" style="white-space: pre;">${escapeXml(line.text)}</text>`,
     )
     .join('');
-  return paper + words;
+
+  const footer = noteFooter(note);
+  const byline = footer
+    ? `<text x="${num(footer.x)}" y="${num(footer.y)}" ` +
+      `font-family="${escapeXml(footer.fontFamily)}" font-size="${num(footer.fontSize)}px" ` +
+      `fill="${escapeXml(note.strokeColor)}" fill-opacity="${FOOTER_OPACITY}" ` +
+      `dominant-baseline="central" style="white-space: pre;">${escapeXml(footer.text)}</text>`
+    : '';
+  return paper + words + byline;
 }

@@ -42,6 +42,12 @@ export interface StyleSections {
   arrow: boolean;
   /** A mind map's layout, its lines and its topics' outline. */
   mindMap: boolean;
+  /**
+   * A sticky note's paper and words: its paper colour from the notes' own
+   * swatches, which has no transparent, and the words' colour, face, size and
+   * alignment, as text has. Nothing about an outline — a note has none.
+   */
+  note: boolean;
 }
 
 /**
@@ -68,6 +74,7 @@ export function styleSections(
       corners: false,
       arrow: false,
       mindMap: false,
+      note: false,
     };
   }
 
@@ -75,14 +82,19 @@ export function styleSections(
     shapeKinds.length > 0 && shapeKinds.every(predicate);
 
   const textOnly = every((k) => k === 'text');
+  const note = every((k) => k === 'note');
   const fill = every((k) => FILLABLE_KINDS.has(k));
   // Text is sized by fontSize and drawn without Rough; an image paints its own
   // pixels, and an embed and a link card are cards around someone else's
   // page; none of them is outlined, and none has a stroke to configure.
   // A topic is drawn as a clean box sized by its words, so its look is its
   // colours alone: no weight, dash or roughness, and a fill without a pattern.
+  // A note is clean paper with words on it, and has no outline to weigh.
   const stroke =
-    !textOnly && !every((k) => k === 'image' || k === 'embed' || k === 'bookmark' || k === 'topic');
+    !textOnly &&
+    !every(
+      (k) => k === 'image' || k === 'embed' || k === 'bookmark' || k === 'topic' || k === 'note',
+    );
   const anyTopic = shapeKinds.includes('topic');
   const freehandOnly = every((k) => k === 'freehand');
 
@@ -105,5 +117,6 @@ export function styleSections(
     corners: every((k) => EDGED_KINDS.has(k)),
     arrow: every((k) => k === 'arrow'),
     mindMap: every((k) => k === 'topic'),
+    note,
   };
 }

@@ -182,6 +182,7 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
       map.set('fontSize', shape.fontSize);
       map.set('fontFamily', shape.fontFamily);
       map.set('textAlign', shape.textAlign);
+      if (shape.author) map.set('author', shape.author);
       break;
   }
 
@@ -476,6 +477,7 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
         typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
       const fontFamily = map.get('fontFamily');
       const textAlign = map.get('textAlign');
+      const author = map.get('author');
       return withZ({
         ...base,
         kind: 'note',
@@ -485,6 +487,7 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
         fontSize: positive(map.get('fontSize'), DEFAULT_NOTE_FONT_SIZE),
         fontFamily: typeof fontFamily === 'string' ? fontFamily : DEFAULT_FONT_FAMILY,
         textAlign: textAlign === 'left' || textAlign === 'right' ? textAlign : 'center',
+        ...(typeof author === 'string' && author !== '' && { author }),
       } as Shape);
     }
     default:

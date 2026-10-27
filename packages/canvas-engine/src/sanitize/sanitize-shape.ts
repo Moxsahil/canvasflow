@@ -286,6 +286,7 @@ function rebuildShape(
         fontSize: fontSize !== undefined && fontSize > 0 ? fontSize : undefined,
         fontFamily: text(candidate.fontFamily),
         textAlign: oneOf(candidate.textAlign, TEXT_ALIGNS),
+        author: text(candidate.author),
       });
     }
 
