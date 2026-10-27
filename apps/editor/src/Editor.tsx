@@ -183,6 +183,7 @@ import {
   noteBeside,
   nudgeIntoSpot,
   signedCopies,
+  withArrowsFollowing,
   NOTE_SPOT_RADIUS,
   type NoteSide,
 } from './notes/note-neighbours';
@@ -1565,19 +1566,27 @@ export function Editor({ boardId, local = false }: EditorProps) {
       };
       return [...preview, carried];
     }
-    if (!editingTextShapeId) return shapes;
+    // A note being typed in grows as the words go in, here or on someone
+    // else's screen, and the arrows attached to it keep meeting its edge.
+    const typedNotes = new Set(
+      [...peerTyping.keys(), ...(editingTextShapeId ? [editingTextShapeId] : [])].filter((id) =>
+        boardShapes.some((shape) => shape.id === id && isNote(shape)),
+      ),
+    );
+    if (!editingTextShapeId) return withArrowsFollowing(shapes, typedNotes);
     // A topic stays on the board, holding what is being typed, and its map
     // makes room around it keystroke by keystroke.
     if (shapes.some((shape) => shape.id === editingTextShapeId && isTopic(shape))) {
       return withTopicBeingTyped(shapes, editingTextShapeId, liveText);
     }
-    return shapes.flatMap((shape) => {
+    const typed = shapes.flatMap((shape) => {
       if (shape.id !== editingTextShapeId) return [shape];
       // A note stays too, holding what is being typed, so its words are
       // fitted and its paper grows as they go in.
       if (isNote(shape)) return [{ ...shape, text: liveText }];
       return isArrow(shape) ? [{ ...shape, label: liveText }] : [];
     });
+    return withArrowsFollowing(typed, typedNotes);
   }, [boardShapes, peerTyping, editingTextShapeId, liveText, topicDrag]);
 
   // An arrow with its label open shows no selection chrome. The outline traces
@@ -1686,7 +1695,10 @@ export function Editor({ boardId, local = false }: EditorProps) {
       const editingId = actorRef.getSnapshot().context.editingTextShapeId;
       const note = doc.getShapes().find((shape) => shape.id === editingId);
       if (!note || !isNote(note)) return false;
-      if (text !== note.text) doc.updateShape(note.id, { text });
+      if (text !== note.text) {
+        doc.updateShape(note.id, { text });
+        settleBoundArrowsInDocument(doc, new Set([note.id]));
+      }
       return openNoteBeside(note.id, side);
     },
     [actorRef, doc, openNoteBeside],
@@ -2421,6 +2433,14 @@ export function Editor({ boardId, local = false }: EditorProps) {
               ...(mapLines && { mapLines }),
             });
           }
+        }
+        // A note's words sized or set in another face can grow its paper, and
+        // the arrows attached to it go where its edge now is.
+        if (rest.fontSize !== undefined || rest.fontFamily !== undefined) {
+          const notes = selectedIds.filter((id) =>
+            current.some((shape) => shape.id === id && isNote(shape)),
+          );
+          if (notes.length > 0) settleBoundArrowsInDocument(doc, new Set(notes));
         }
       });
 
@@ -6004,7 +6024,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
         if (editing && isNote(editing)) {
           // Kept however little is on it: an empty note is still a note,
           // put down to be written on. Held selected, as text just typed is.
-          if (text !== editing.text) doc.updateShape(editingId, { text });
+          if (text !== editing.text) {
+            doc.updateShape(editingId, { text });
+            // Words that grew the paper move the arrows attached to it.
+            settleBoundArrowsInDocument(doc, new Set([editingId]));
+          }
           actorRef.send({ type: 'COMMIT_TEXT', text, shapeId: editingId });
           return;
         }

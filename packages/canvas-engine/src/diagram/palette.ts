@@ -9,6 +9,7 @@
  */
 
 import type { DiagramColor } from '@canvasflow/types';
+import { NOTE_COLORS } from '../shapes/note.js';
 
 export interface DiagramPaint {
   readonly stroke: string;
@@ -36,3 +37,18 @@ export const DEFAULT_DIAGRAM_COLOR: DiagramColor = 'gray';
  * turns light on a dark board — and would then be pale words on a pale box.
  */
 export const DIAGRAM_BOX_INK = '#1f2328';
+
+/**
+ * The paper a note node is put on for each colour: the note colours, the red
+ * a note's pink, so a generated note looks like one stuck down by hand.
+ */
+export const DIAGRAM_NOTE_PAPER: Record<DiagramColor, string> = {
+  yellow: NOTE_COLORS[0],
+  orange: NOTE_COLORS[1],
+  red: NOTE_COLORS[2],
+  purple: NOTE_COLORS[3],
+  blue: NOTE_COLORS[4],
+  teal: NOTE_COLORS[5],
+  green: NOTE_COLORS[6],
+  gray: NOTE_COLORS[7],
+};

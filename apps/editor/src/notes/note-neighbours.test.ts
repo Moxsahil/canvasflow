@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { createNote, createRectangle, noteBounds, type NoteShape } from '@canvasflow/canvas-engine';
+import {
+  createArrow,
+  createNote,
+  createRectangle,
+  noteBounds,
+  type ArrowShape,
+  type NoteShape,
+} from '@canvasflow/canvas-engine';
 import {
   cameraShowing,
   freeNoteSpots,
@@ -7,6 +14,7 @@ import {
   nudgeIntoSpot,
   signedCopies,
   spotBeside,
+  withArrowsFollowing,
   NOTE_GAP,
 } from './note-neighbours';
 
@@ -162,5 +170,39 @@ describe('following along', () => {
     const camera = { x: 0, y: 0, zoom: 2 };
     const moved = cameraShowing({ x: -100, y: 0, width: 50, height: 50 }, camera, view, 16);
     expect(moved.x).toBe(-100 - 8);
+  });
+});
+
+describe('arrows on a note being typed in', () => {
+  const tied = (shapeId: string) => ({ shapeId, anchor: { x: 0.5, y: 0.5 }, precise: false });
+  const from = note('from', 0, 2000);
+  const growing = note('growing', 0, 0);
+  const arrow = createArrow({
+    id: 'arrow',
+    x: 100,
+    y: 2000,
+    points: [
+      [0, 0],
+      [0, -1800],
+    ],
+    startBinding: tied('from'),
+    endBinding: tied('growing'),
+  });
+
+  it('meet the paper where it has grown to', () => {
+    const grown = {
+      ...growing,
+      text: 'every word written here makes the note fuller still '.repeat(30),
+    };
+    const bottom = noteBounds(grown).height;
+    const [, , redrawn] = withArrowsFollowing([from, grown, arrow], new Set(['growing']));
+    const end = redrawn as ArrowShape;
+    const tip = end.y + end.points[end.points.length - 1]![1];
+    expect(Math.abs(tip - bottom)).toBeLessThan(3);
+  });
+
+  it('are left as they are when no note is being typed in', () => {
+    const shapes = [from, growing, arrow];
+    expect(withArrowsFollowing(shapes, new Set())).toBe(shapes);
   });
 });

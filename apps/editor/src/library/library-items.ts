@@ -5,6 +5,7 @@ import {
   isArrow,
   isFrame,
   isImage,
+  isNote,
   isText,
   relinkTopicParents,
   renderSceneToSvgString,
@@ -134,7 +135,7 @@ export function libraryItemName(shapes: readonly Shape[]): string {
   return t('stats.shapeCount', { count: shapes.length });
 }
 
-/** What an item's words say — a frame's name, text, a caption — or null where it has none. */
+/** What an item's words say — a frame's name, text or a note's words, a caption — or null where it has none. */
 export function wordedItemName(shapes: readonly Shape[]): string | null {
   const named = (value: string) => {
     const line = value.split('\n').find((part) => part.trim() !== '') ?? '';
@@ -146,7 +147,7 @@ export function wordedItemName(shapes: readonly Shape[]): string | null {
   if (frame && isFrame(frame)) return named(frame.name);
 
   for (const shape of shapes) {
-    if (isText(shape) && shape.text.trim() !== '') return named(shape.text);
+    if ((isText(shape) || isNote(shape)) && shape.text.trim() !== '') return named(shape.text);
   }
   for (const shape of shapes) {
     if (isArrow(shape) && shape.label && shape.label.trim() !== '') return named(shape.label);

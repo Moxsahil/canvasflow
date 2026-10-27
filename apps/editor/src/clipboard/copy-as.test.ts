@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   createArrow,
   createFrame,
+  createNote,
   createRectangle,
   createText,
   createTopic,
@@ -109,6 +110,19 @@ describe('copyTextOf', () => {
     expect(copyTextOf(shapes)).toBe('Words\n\nyes');
     expect(hasWords(shapes)).toBe(true);
     expect(hasWords([frame('f', 0, 0), box('blank', 0, 100)])).toBe(false);
+  });
+});
+
+describe('copying notes as text', () => {
+  it('reads a note’s words with the rest, in reading order', () => {
+    const shapes = [
+      createNote({ id: 'second', x: 300, y: 0, text: '  Two  ' }),
+      createNote({ id: 'first', x: 0, y: 0, text: 'One' }),
+      createNote({ id: 'blank', x: 0, y: 300 }),
+    ];
+
+    expect(copyTextOf(shapes)).toBe('One\n\nTwo');
+    expect(hasWords([createNote({ id: 'blank', x: 0, y: 0 })])).toBe(false);
   });
 });
 

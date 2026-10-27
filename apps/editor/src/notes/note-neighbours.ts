@@ -1,4 +1,6 @@
 import {
+  arrowsAffectedBy,
+  boundArrowPatches,
   createNote,
   isNote,
   noteBounds,
@@ -191,4 +193,29 @@ export function cameraShowing(rect: Rect, camera: Camera, viewport: Size, inset:
   const x = along(rect.x, rect.width, camera.x, viewWidth);
   const y = along(rect.y, rect.height, camera.y, viewHeight);
   return x === camera.x && y === camera.y ? camera : { ...camera, x, y };
+}
+
+/**
+ * The board with the arrows attached to `changed` redrawn to meet them where
+ * they are now drawn: notes whose words are being typed, here or by someone
+ * else, and growing as they go. For drawing only — the arrows are written
+ * where they belong once the words are.
+ */
+export function withArrowsFollowing(
+  shapes: readonly Shape[],
+  changed: ReadonlySet<string>,
+): readonly Shape[] {
+  if (changed.size === 0) return shapes;
+  const arrows = arrowsAffectedBy(shapes, changed);
+  if (arrows.length === 0) return shapes;
+  const patches = new Map(
+    boundArrowPatches(arrows, new Map(shapes.map((shape) => [shape.id, shape]))).map((patch) => [
+      patch.id,
+      patch,
+    ]),
+  );
+  return shapes.map((shape) => {
+    const patch = patches.get(shape.id);
+    return patch ? ({ ...shape, x: patch.x, y: patch.y, points: patch.points } as Shape) : shape;
+  });
 }

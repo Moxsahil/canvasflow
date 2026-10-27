@@ -3,6 +3,7 @@ import {
   isArrow,
   isBookmark,
   isFrame,
+  isNote,
   isText,
   isTopic,
   mindMapForest,
@@ -50,9 +51,9 @@ export function copyDataFor(
   );
 }
 
-/** The words a shape carries: a text's or a topic's own, an arrow's label. Frame names are chrome. */
+/** The words a shape carries: a text's, a topic's or a note's own, an arrow's label. Frame names are chrome. */
 function wordsOf(shape: Shape): string {
-  if (isText(shape) || isTopic(shape)) return shape.text.trim();
+  if (isText(shape) || isTopic(shape) || isNote(shape)) return shape.text.trim();
   if (isArrow(shape)) return shape.label.trim();
   // A link card's words are its title and the page it opens.
   if (isBookmark(shape)) {

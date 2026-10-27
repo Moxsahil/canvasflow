@@ -6,6 +6,7 @@
  * box fit its label rather than every box being one size.
  */
 
+import { DEFAULT_NOTE_SIZE } from '../shapes/note.js';
 import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '../shapes/text.js';
 import type { Arrowhead, Edges, FillStyle, Roughness, StrokeStyle } from '../shapes/style.js';
 import { measureTextWidth } from '../utils/text-measure.js';
@@ -99,6 +100,7 @@ const INFLATION: Record<DiagramNode['kind'], number> = {
   ellipse: 1.2,
   diamond: 1.45,
   icon: 1,
+  note: 1,
 };
 
 export function diagramFont(size: number, family: string): string {
@@ -175,6 +177,20 @@ export function sizeNode(node: DiagramNode, style: DiagramStyle): SizedNode {
       height: ICON_NODE_SIZE,
       labelWidth: wrapped.width,
       labelHeight: wrapped.height,
+      iconSize,
+    };
+  }
+
+  if (node.kind === 'note') {
+    // A note is the size a note is put down at, whatever it says: it fits its
+    // words to its paper itself, so there is nothing to measure here.
+    return {
+      ...node,
+      label: node.text,
+      width: DEFAULT_NOTE_SIZE,
+      height: DEFAULT_NOTE_SIZE,
+      labelWidth: DEFAULT_NOTE_SIZE,
+      labelHeight: DEFAULT_NOTE_SIZE,
       iconSize,
     };
   }
