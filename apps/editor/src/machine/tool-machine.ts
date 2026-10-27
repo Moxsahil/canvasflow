@@ -451,6 +451,7 @@ export const toolMachine = setup({
         case 'ellipse':
         case 'diamond':
         case 'frame':
+        case 'note':
           return {
             newElement: {
               ...el,

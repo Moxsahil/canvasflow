@@ -14,6 +14,7 @@ export * from './embed.js';
 export * from './bookmark.js';
 export * from './frame.js';
 export * from './topic.js';
+export * from './note.js';
 export * from './bounds.js';
 export * from './outline.js';
 export * from './handles.js';

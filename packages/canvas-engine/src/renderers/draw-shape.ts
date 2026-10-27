@@ -9,6 +9,7 @@ import { drawEmbedShape } from './draw-embed.js';
 import { drawImageShape, type ImageSource } from './draw-image.js';
 import { drawFrameBody } from './draw-frame.js';
 import { drawTopicShape } from './draw-topic.js';
+import { drawNoteShape } from './draw-note.js';
 import {
   generateRectangleDrawable,
   generateEllipseDrawable,
@@ -53,6 +54,9 @@ function clipOutsideLabel(
  * common case allocates nothing: this runs for every shape of every frame.
  */
 function withThemedStroke<T extends Shape>(shape: T, darkMode: boolean): T {
+  // A note's ink is on its paper rather than on the board, and the paper is
+  // pale on either board.
+  if (shape.kind === 'note') return shape;
   const strokeColor = strokeColorFor(shape.strokeColor, darkMode);
   return strokeColor === shape.strokeColor ? shape : { ...shape, strokeColor };
 }
@@ -94,6 +98,8 @@ export interface SceneShapeContext {
    * drawn, sized to what is being typed, and its words left to the overlay.
    */
   readonly editingTopicId?: string;
+  /** The note whose words are open in the text overlay, if one is — as for a topic. */
+  readonly editingNoteId?: string;
 }
 
 /**
@@ -196,6 +202,9 @@ export function drawSceneShape(
         context.darkMode ?? false,
         painted.id !== context.editingTopicId,
       );
+      break;
+    case 'note':
+      drawNoteShape(ctx, painted, painted.id !== context.editingNoteId);
       break;
     default:
       assertNever(painted);

@@ -185,6 +185,33 @@ export interface TextShape extends BaseShape {
   readonly textAlign: 'left' | 'center' | 'right';
 }
 
+// --- Sticky note ---
+
+/**
+ * A square of coloured paper with words on it.
+ *
+ * `width` and `height` are the size somebody gave it. The words are fitted to
+ * that size every time the note is read — set smaller until they fit, and only
+ * once they are at the smallest size a note sets words in does the note grow
+ * taller to hold them — so what is drawn can be taller than `height`, never
+ * shorter. Worked out rather than stored, as a topic's box is, so two people
+ * typing into notes at once never write sizes over each other. See
+ * `noteLayout`.
+ *
+ * `fillColor` is the paper and `strokeColor` the ink. Both are drawn as they
+ * are on either board: the paper is pale in both, so the ink stays dark.
+ */
+export interface NoteShape extends BaseShape {
+  readonly kind: 'note';
+  readonly width: number;
+  readonly height: number;
+  readonly text: string;
+  /** The size asked for: the largest the words are set in, never exceeded. */
+  readonly fontSize: number;
+  readonly fontFamily: string;
+  readonly textAlign: 'left' | 'center' | 'right';
+}
+
 // --- Image shape ---
 
 /**
@@ -379,7 +406,8 @@ export type Shape =
   | EmbedShape
   | BookmarkShape
   | FrameShape
-  | TopicShape;
+  | TopicShape
+  | NoteShape;
 
 /**
  * A shape's scale, checked at every read rather than trusted.
@@ -454,6 +482,10 @@ export function isFrame(s: Shape): s is FrameShape {
 
 export function isTopic(s: Shape): s is TopicShape {
   return s.kind === 'topic';
+}
+
+export function isNote(s: Shape): s is NoteShape {
+  return s.kind === 'note';
 }
 
 export function assertNever(value: never): never {

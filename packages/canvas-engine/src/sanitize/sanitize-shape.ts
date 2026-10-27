@@ -20,6 +20,7 @@ import {
   readPreviewImageName,
 } from '../shapes/bookmark.js';
 import { createEmbed, resolveEmbed } from '../shapes/embed.js';
+import { createNote } from '../shapes/note.js';
 import { createTopic, readMapLayout, readMapLines, readTopicLook } from '../shapes/topic.js';
 import { readLink } from '../shapes/link.js';
 import type { Shape } from '../shapes/shape.js';
@@ -267,6 +268,24 @@ function rebuildShape(
         mapLayout: readMapLayout(candidate.mapLayout),
         mapLines: readMapLines(candidate.mapLines),
         topicShape: readTopicLook(candidate.topicShape),
+      });
+    }
+
+    case 'note': {
+      const value = text(candidate.text);
+      if (value === undefined) return null;
+      const width = finite(candidate.width);
+      const height = finite(candidate.height);
+      const fontSize = finite(candidate.fontSize);
+      if (width === undefined || height === undefined || width <= 0 || height <= 0) return null;
+      return createNote({
+        ...common,
+        width,
+        height,
+        text: value,
+        fontSize: fontSize !== undefined && fontSize > 0 ? fontSize : undefined,
+        fontFamily: text(candidate.fontFamily),
+        textAlign: oneOf(candidate.textAlign, TEXT_ALIGNS),
       });
     }
 

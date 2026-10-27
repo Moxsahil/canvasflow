@@ -26,6 +26,8 @@ export interface StaticSceneOptions extends SceneShapeContext {
   readonly editingArrowLabelId?: string;
   /** The topic whose words are open in the text overlay — see SceneShapeContext. */
   readonly editingTopicId?: string;
+  /** The note whose words are open in the text overlay — see SceneShapeContext. */
+  readonly editingNoteId?: string;
   readonly camera?: {
     readonly x: number;
     readonly y: number;
@@ -59,6 +61,7 @@ export function renderStaticScene(
     editingFrameIds,
     editingArrowLabelId,
     editingTopicId,
+    editingNoteId,
     backgroundColor,
     images,
     darkMode,
@@ -119,6 +122,7 @@ export function renderStaticScene(
       editingFrameIds,
       editingArrowLabelId,
       editingTopicId,
+      editingNoteId,
     });
 
     if (chain.length > 0) ctx.restore();

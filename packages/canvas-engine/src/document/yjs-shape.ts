@@ -1,6 +1,8 @@
 import * as Y from 'yjs';
 import { readLink } from '../shapes/link.js';
 import { readMapLayout, readMapLines, readTopicLook } from '../shapes/topic.js';
+import { DEFAULT_NOTE_FONT_SIZE, DEFAULT_NOTE_SIZE } from '../shapes/note.js';
+import { DEFAULT_FONT_FAMILY } from '../shapes/text.js';
 import type { ArrowBinding, Shape } from '../shapes/shape.js';
 import { DEFAULT_STROKE_COLOR } from '../shapes/style.js';
 import type {
@@ -172,6 +174,14 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
       if (shape.mapLayout) map.set('mapLayout', shape.mapLayout);
       if (shape.mapLines) map.set('mapLines', shape.mapLines);
       if (shape.topicShape) map.set('topicShape', shape.topicShape);
+      break;
+    case 'note':
+      map.set('width', shape.width);
+      map.set('height', shape.height);
+      map.set('text', shape.text);
+      map.set('fontSize', shape.fontSize);
+      map.set('fontFamily', shape.fontFamily);
+      map.set('textAlign', shape.textAlign);
       break;
   }
 
@@ -456,6 +466,25 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
         ...(map.get('topicShape') !== undefined && {
           topicShape: readTopicLook(map.get('topicShape')),
         }),
+      } as Shape);
+    }
+    case 'note': {
+      // Checked rather than cast, unlike the older boxes: everything about a
+      // note is worked out from these when it is read, and a NaN here would
+      // spread through its layout into the spatial index.
+      const positive = (value: unknown, fallback: number) =>
+        typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+      const fontFamily = map.get('fontFamily');
+      const textAlign = map.get('textAlign');
+      return withZ({
+        ...base,
+        kind: 'note',
+        width: positive(map.get('width'), DEFAULT_NOTE_SIZE),
+        height: positive(map.get('height'), DEFAULT_NOTE_SIZE),
+        text: readTextValue(map.get('text')),
+        fontSize: positive(map.get('fontSize'), DEFAULT_NOTE_FONT_SIZE),
+        fontFamily: typeof fontFamily === 'string' ? fontFamily : DEFAULT_FONT_FAMILY,
+        textAlign: textAlign === 'left' || textAlign === 'right' ? textAlign : 'center',
       } as Shape);
     }
     default:

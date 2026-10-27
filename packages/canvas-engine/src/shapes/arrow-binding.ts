@@ -80,6 +80,7 @@ export function canBindTo(shape: Shape): boolean {
     case 'bookmark':
     case 'text':
     case 'frame':
+    case 'note':
       return true;
     case 'line':
     case 'arrow':
