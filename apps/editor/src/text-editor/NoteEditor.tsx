@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import type { NoteSide } from '../notes/note-neighbours';
 
 interface NoteEditorProps {
   /**
@@ -19,6 +20,29 @@ interface NoteEditorProps {
   /** Every keystroke, so the note can be fitted and redrawn around them. */
   onChange: (text: string) => void;
   onCommit: (text: string) => void;
+  /**
+   * Keep what was typed and carry on in the note on `side`: Tab for the one to
+   * the right, Shift+Tab left, Ctrl or Cmd+Enter below, with Shift above.
+   * Answers whether there was a note to carry on in; when there was not,
+   * typing goes on here.
+   */
+  onNext: (text: string, side: NoteSide) => boolean;
+}
+
+/** The note a key carries typing on into, if it is one of those keys. */
+function sideFor(event: {
+  key: string;
+  shiftKey: boolean;
+  ctrlKey: boolean;
+  metaKey: boolean;
+}): NoteSide | null {
+  if (event.key === 'Tab' && !event.ctrlKey && !event.metaKey) {
+    return event.shiftKey ? 'left' : 'right';
+  }
+  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+    return event.shiftKey ? 'up' : 'down';
+  }
+  return null;
 }
 
 /**
@@ -29,9 +53,10 @@ interface NoteEditorProps {
  * room the note gives its words, at the size the note fits them to, and the
  * note works that out afresh as each letter goes in.
  *
- * Enter starts a new line, as it does on paper. Escape, Ctrl or Cmd+Enter
- * and clicking away all keep what was typed — a note has nothing to cancel
- * back to that is worth losing words for.
+ * Enter starts a new line, as it does on paper. Escape and clicking away
+ * keep what was typed — a note has nothing to cancel back to that is worth
+ * losing words for — and Tab or Ctrl or Cmd+Enter keep it and go on to the
+ * next note along.
  */
 export function NoteEditor({
   box,
@@ -44,6 +69,7 @@ export function NoteEditor({
   initialText,
   onChange,
   onCommit,
+  onNext,
 }: NoteEditorProps) {
   const [value, setValue] = useState(initialText);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -77,9 +103,19 @@ export function NoteEditor({
       onBlur={commit}
       onKeyDown={(e) => {
         e.stopPropagation();
-        if (e.key === 'Escape' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) {
+        if (e.key === 'Escape') {
           e.preventDefault();
           commit();
+          return;
+        }
+        const side = sideFor(e);
+        if (side) {
+          // Never a focus move or a line break, whether or not there is a
+          // note to go on to.
+          e.preventDefault();
+          if (settledRef.current || e.repeat) return;
+          settledRef.current = true;
+          if (!onNext(value, side)) settledRef.current = false;
         }
       }}
       style={{

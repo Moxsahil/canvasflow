@@ -618,11 +618,15 @@ export class BoardDocument {
    * shape IDs so the caller can select them.
    *
    * All duplicates share one transact = one undo step.
+   *
+   * A copied note is signed by `noteAuthor`, whoever is making the copy, and
+   * by nobody when that is nobody — never by whoever signed the original.
    */
   duplicateShapes(
     ids: readonly string[],
     offset: { dx: number; dy: number },
     genId: () => string,
+    noteAuthor?: string,
   ): string[] {
     if (this.readOnly) return [];
     const idSet = new Set(ids);
@@ -670,11 +674,15 @@ export class BoardDocument {
           } else if (key === 'locked') {
             // A copy is something to work on. One that came out locked could
             // not even be moved off the original it was copied from.
+          } else if (key === 'author') {
+            // Signed afresh below, by whoever is copying.
           } else {
             clone.set(key, value);
           }
         });
         clone.set('id', newId);
+        // Asked of the original: a map not yet on the document reads as empty.
+        if (noteAuthor && yMap.get('kind') === 'note') clone.set('author', noteAuthor);
 
         // Give the clone a fresh zIndex above current max
         const newZIndex = generateKeyBetween(currentMax, null);

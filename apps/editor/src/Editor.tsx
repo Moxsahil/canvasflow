@@ -52,6 +52,7 @@ import {
   topicGrowth,
   mindMapFoldBadgeAt,
   topicCentre,
+  noteBounds,
   noteLayout,
   topicDropPatches,
   withTopicDropped,
@@ -174,6 +175,17 @@ import {
   type TopicGrowth,
 } from './mindmap/mind-map-ops';
 import { TopicHandles } from './mindmap/TopicHandles';
+import { NoteHandles } from './notes/NoteHandles';
+import {
+  cameraShowing,
+  freeNoteSpots,
+  noteAt,
+  noteBeside,
+  nudgeIntoSpot,
+  signedCopies,
+  NOTE_SPOT_RADIUS,
+  type NoteSide,
+} from './notes/note-neighbours';
 import { usePeerTyping, withPeerTyping } from './collab/peer-typing';
 import { ZoomPanel } from './zoom-panel/ZoomPanel';
 import { ExitModeButton } from './modes/ExitModeButton';
@@ -1632,6 +1644,55 @@ export function Editor({ boardId, local = false }: EditorProps) {
   );
 
   /**
+   * Open the note on `side` of a note for typing: the one already standing
+   * there, or a blank one put there — the same size and style, signed by
+   * whoever put it down, and one undo step. The view follows along if it has
+   * to. Answers whether there was a note to open: a locked one in the way is
+   * left alone, and nothing is put on top of it.
+   */
+  const openNoteBeside = useCallback(
+    (noteId: string, side: NoteSide): boolean => {
+      if (readOnly) return false;
+      const current = doc.getShapes();
+      const from = current.find((shape) => shape.id === noteId);
+      if (!from || !isNote(from)) return false;
+      const beside = noteBeside(from, side, visibleShapes(current), genId(), noteAuthorRef.current);
+      let next: NoteShape;
+      if ('existing' in beside) {
+        if (lockedShapeIds(current).has(beside.existing.id)) return false;
+        next = beside.existing;
+      } else {
+        const frameId = frameForShape(
+          beside.created,
+          joinableFrames(current, lockedShapeIds(current)),
+        );
+        next = frameId ? { ...beside.created, frameId } : beside.created;
+        doc.breakUndoGroup();
+        doc.addShape(next);
+        doc.breakUndoGroup();
+      }
+      const view = actorRef.getSnapshot().context.camera;
+      const shown = cameraShowing(noteBounds(next), view, { width, height }, 16);
+      if (shown !== view) actorRef.send({ type: 'SET_CAMERA', camera: shown });
+      editNote(next.id);
+      return true;
+    },
+    [actorRef, doc, editNote, readOnly, width, height],
+  );
+
+  /** Tab or Ctrl/Cmd+Enter in a note's overlay: keep its words, go on to the next. */
+  const handleNoteNext = useCallback(
+    (text: string, side: NoteSide): boolean => {
+      const editingId = actorRef.getSnapshot().context.editingTextShapeId;
+      const note = doc.getShapes().find((shape) => shape.id === editingId);
+      if (!note || !isNote(note)) return false;
+      if (text !== note.text) doc.updateShape(note.id, { text });
+      return openNoteBeside(note.id, side);
+    },
+    [actorRef, doc, openNoteBeside],
+  );
+
+  /**
    * Grow a map from a topic, and open the new one for typing: Tab for a topic
    * under it, Enter for one beside it. The new topic is on the board from the
    * start, so everyone sees the map make room for it as it is named.
@@ -1974,6 +2035,15 @@ export function Editor({ boardId, local = false }: EditorProps) {
     shownShapes,
     shapes,
   ]);
+
+  // The one note selected, with nothing else going on: what the dots for the
+  // next note along are put around.
+  const selectedNote = useMemo(() => {
+    if (selectedIds.length !== 1 || !isIdle || readOnly || viewMode) return null;
+    if (activeTool !== 'select' || lockedIds.has(selectedIds[0]!)) return null;
+    const note = shownShapes.find((shape) => shape.id === selectedIds[0]);
+    return note && isNote(note) ? note : null;
+  }, [selectedIds, isIdle, readOnly, viewMode, activeTool, lockedIds, shownShapes]);
 
   // A note's words are typed where they will be drawn: over the room its
   // paper gives them, at the size it fits them to as they stand.
@@ -2360,6 +2430,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
   );
 
   const dragOriginsRef = useRef<Record<string, Shape>>({});
+  /** The note a drag took hold of, and the free spots beside others it can settle into. */
+  const noteSpotsRef = useRef<{ note: NoteShape; spots: Point[] } | null>(null);
   /** Locked members of a frame being dragged, which go where it goes. */
   const carriedLockedRef = useRef<ReadonlySet<string>>(EMPTY_IDS);
   const resizeOriginRef = useRef<Shape | null>(null);
@@ -2569,8 +2641,17 @@ export function Editor({ boardId, local = false }: EditorProps) {
       // Drawn inside a frame is drawn into it. Assigned before the shape
       // lands so it never exists unowned, which would flash unclipped.
       const onBoard = doc.getShapes();
-      const frameId = frameForShape(shape, joinableFrames(onBoard, lockedShapeIds(onBoard)));
-      const inFrame = frameId ? ({ ...shape, frameId } as Shape) : shape;
+      // A note pressed down just off a free spot beside another settles into
+      // it, lined up and the gap apart, as the next one in its row.
+      let settled = shape;
+      if (emitted.pressed && isNote(shape)) {
+        const spots = freeNoteSpots(visibleShapes(onBoard), shape, new Set());
+        const radius = NOTE_SPOT_RADIUS / actorRef.getSnapshot().context.camera.zoom;
+        const nudge = nudgeIntoSpot(shape, spots, radius);
+        if (nudge) settled = { ...shape, x: shape.x + nudge.dx, y: shape.y + nudge.dy };
+      }
+      const frameId = frameForShape(settled, joinableFrames(onBoard, lockedShapeIds(onBoard)));
+      const inFrame = frameId ? ({ ...settled, frameId } as Shape) : settled;
       // A note is signed by whoever put it down, where there is anyone to sign.
       const author = isNote(inFrame) ? noteAuthorRef.current : undefined;
       const placed = author ? ({ ...inFrame, author } as Shape) : inFrame;
@@ -3148,6 +3229,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
       } else if (tool === 'select' && hitShapeId) {
         const moving = new Set(Object.keys(dragOriginsRef.current));
         measureSnapTargets(moving);
+        // A note taken hold of is offered the free spots beside the others,
+        // measured once, as everything else to snap to is.
+        const held = noteAt(Object.values(dragOriginsRef.current), point);
+        noteSpotsRef.current = held
+          ? { note: held, spots: freeNoteSpots(shownShapes, held, moving) }
+          : null;
         boundArrowsRef.current = affectedArrowIds(shapes, moving);
         gestureShapesRef.current = shapeMapFor(shapes, boundArrowsRef.current);
       } else if (DRAWS_FROM_POINTER.has(tool)) {
@@ -3411,6 +3498,20 @@ export function Editor({ boardId, local = false }: EditorProps) {
           showSnapGuides(result.guides);
         } else {
           showSnapGuides(EMPTY_GUIDES);
+          // With nothing else to line up with, a note held near a free spot
+          // beside another settles into it.
+          const held = noteSpotsRef.current;
+          const nudge = held
+            ? nudgeIntoSpot(
+                { x: held.note.x + dx, y: held.note.y + dy },
+                held.spots,
+                NOTE_SPOT_RADIUS / camera.zoom,
+              )
+            : null;
+          if (nudge) {
+            dx += nudge.dx;
+            dy += nudge.dy;
+          }
         }
 
         const redrawingArrows = boundArrowsRef.current.size > 0;
@@ -3771,6 +3872,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
 
       actorRef.send({ type: 'POINTER_UP', point });
       dragOriginsRef.current = {};
+      noteSpotsRef.current = null;
       carriedLockedRef.current = EMPTY_IDS;
       resizeOriginRef.current = null;
       vertexOriginRef.current = null;
@@ -4361,7 +4463,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
     // rather than offset over it — so pressing duplicate repeatedly lays
     // frames out in a row instead of stacking them where none can be seen.
     const ids = withFrameMembers(withMindMapBranches(selectedIds, current), current);
-    const newIds = doc.duplicateShapes(ids, duplicateOffsetFor(selectedIds, current), genId);
+    const newIds = doc.duplicateShapes(
+      ids,
+      duplicateOffsetFor(selectedIds, current),
+      genId,
+      noteAuthorRef.current,
+    );
 
     if (newIds.length > 0) {
       // Only the copied frames, not their contents: selecting everything
@@ -4920,7 +5027,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
     (entry: LibraryEntry, at?: Point) => {
       if (readOnly) return;
       const placed = shapesCentredOn(
-        withFreshIds(entry.shapes, genId),
+        signedCopies(withFreshIds(entry.shapes, genId), noteAuthorRef.current),
         at ?? viewportCentre(),
         doc.getShapes(),
       );
@@ -5300,12 +5407,16 @@ export function Editor({ boardId, local = false }: EditorProps) {
           doc.getShapes(),
         );
       } else if (at) {
-        placedShapes = shapesCentredOn(content.shapes, at, doc.getShapes());
+        placedShapes = shapesCentredOn(
+          signedCopies(content.shapes, noteAuthorRef.current),
+          at,
+          doc.getShapes(),
+        );
       } else {
         // With nowhere to aim for, offset each pasted shape 20px in both axes
         // so they're visually distinguishable from the originals
         const OFFSET = 20;
-        placedShapes = content.shapes.map((s) => ({
+        placedShapes = signedCopies(content.shapes, noteAuthorRef.current).map((s) => ({
           ...s,
           x: s.x + OFFSET,
           y: s.y + OFFSET,
@@ -6249,6 +6360,14 @@ export function Editor({ boardId, local = false }: EditorProps) {
               />
             )}
 
+            {selectedNote && (
+              <NoteHandles
+                note={selectedNote}
+                camera={camera}
+                onAdd={(side) => openNoteBeside(selectedNote.id, side)}
+              />
+            )}
+
             {/* A badge on the corner of every linked shape on screen, which
                 opens its link. Under the comment pins, and still up with the
                 chrome away — a link is part of what is on the board. */}
@@ -6538,6 +6657,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 initialText={editingNote.text}
                 onChange={setLiveText}
                 onCommit={handleCommitText}
+                onNext={handleNoteNext}
               />
             )}
 

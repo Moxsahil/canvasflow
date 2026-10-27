@@ -90,29 +90,35 @@ export function TopicHandles({
       className="pointer-events-none absolute inset-0 z-(--zIndex-wysiwyg) overflow-hidden"
       data-testid="topic-handles"
     >
-      <Dot x={child.x} y={child.y} label={t('mindMap.addChild')} onPress={() => onGrow('child')}>
+      <HandleDot
+        x={child.x}
+        y={child.y}
+        label={t('mindMap.addChild')}
+        onPress={() => onGrow('child')}
+      >
         <ChildIcon className={cn('size-3.5', growth === 'left' && '-scale-x-100')} />
-      </Dot>
+      </HandleDot>
       {!isRoot && (
-        <Dot
+        <HandleDot
           x={sibling.x}
           y={sibling.y}
           label={t('mindMap.addSibling')}
           onPress={() => onGrow('sibling')}
         >
           <SiblingIcon className="size-3.5" />
-        </Dot>
+        </HandleDot>
       )}
       {open && (
-        <Dot x={fold.x} y={fold.y} label={t('mindMap.fold')} onPress={onFold}>
+        <HandleDot x={fold.x} y={fold.y} label={t('mindMap.fold')} onPress={onFold}>
           <Minus className="size-3.5" />
-        </Dot>
+        </HandleDot>
       )}
     </div>
   );
 }
 
-function Dot({
+/** A dot by a selected shape that opens into a button when the pointer finds it. */
+export function HandleDot({
   x,
   y,
   label,
@@ -133,7 +139,7 @@ function Dot({
       className="group pointer-events-auto absolute flex items-center justify-center rounded-full outline-none"
       style={{ left: x - HIT / 2, top: y - HIT / 2, width: HIT, height: HIT }}
       // Kept from the board, which would take the press for a click on the
-      // topic underneath and start a drag.
+      // shape underneath and start a drag.
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => {
         event.stopPropagation();
@@ -141,7 +147,7 @@ function Dot({
       }}
     >
       <span
-        // The selection's own colour: these belong to the selected topic.
+        // The selection's own colour: these belong to the selected shape.
         style={{ backgroundColor: SELECTION_COLOR }}
         className="flex size-2 items-center justify-center rounded-full text-white shadow-[0_1px_2px_rgb(0_0_0/0.2)] transition-[width,height] duration-100 group-hover:size-[22px] group-focus-visible:size-[22px]"
       >

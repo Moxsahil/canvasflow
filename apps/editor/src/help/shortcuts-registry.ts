@@ -64,6 +64,8 @@ export const SHORTCUTS: ShortcutCategory[] = [
       { keys: 'mod+d', descriptionKey: 'shortcuts.duplicateSelection' },
       { keys: 'tab', descriptionKey: 'shortcuts.addChildTopic' },
       { keys: 'enter', descriptionKey: 'shortcuts.addSiblingTopic' },
+      { keys: 'tab', altKeys: 'shift+tab', descriptionKey: 'shortcuts.noteBeside' },
+      { keys: 'mod+enter', altKeys: 'mod+shift+enter', descriptionKey: 'shortcuts.noteBelow' },
       { keys: 'delete', altKeys: 'backspace', descriptionKey: 'shortcuts.deleteSelection' },
       { keys: 'mod+a', descriptionKey: 'shortcuts.selectAll' },
       { keys: 'mod+k', descriptionKey: 'shortcuts.addOrEditALink' },

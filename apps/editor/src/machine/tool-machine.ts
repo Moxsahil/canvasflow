@@ -25,6 +25,7 @@ import {
   MIN_ZOOM,
   newShapeScale,
   type HandleIndex,
+  type Point,
   type ToolMachineContext,
   type ToolMachineEvent,
 } from './tool-machine.types';
@@ -281,12 +282,25 @@ function resizeSnapHandle(
   return mirrored;
 }
 
+/** Whether the pointer went far enough between press and release to be a drag. */
+function wasDragged(from: Point, to: Point): boolean {
+  return Math.hypot(to.x - from.x, to.y - from.y) > 3;
+}
+
 export const toolMachine = setup({
   types: {
     context: {} as ToolMachineContext,
     events: {} as ToolMachineEvent,
     emitted: {} as
-      | { type: 'shape.committed'; shape: Shape }
+      | {
+          type: 'shape.committed';
+          shape: Shape;
+          /**
+           * Put down by a press rather than drawn out: a note placed where it
+           * was pressed, which may settle into a free spot beside another.
+           */
+          pressed?: boolean;
+        }
       | { type: 'shapes.updated'; shapes: Shape[] }
       | { type: 'shapes.deleted'; ids: string[] },
   },
@@ -570,11 +584,21 @@ export const toolMachine = setup({
         editingTextShapeId: event.shapeId,
       };
     }),
-    emitCommittedShape: emit(({ context }) => {
+    emitCommittedShape: emit(({ context, event }) => {
       if (!context.newElement) {
         throw new Error('emitCommittedShape called with no newElement');
       }
-      return { type: 'shape.committed' as const, shape: context.newElement };
+      const start = context.pointerDownAt;
+      const pressed =
+        context.newElement.kind === 'note' &&
+        event.type === 'POINTER_UP' &&
+        start !== null &&
+        !wasDragged(start, event.point);
+      return {
+        type: 'shape.committed' as const,
+        shape: context.newElement,
+        ...(pressed && { pressed }),
+      };
     }),
     clearDraw: assign({
       pointerDownAt: null,
@@ -591,8 +615,7 @@ export const toolMachine = setup({
       const note = context.newElement;
       const start = context.pointerDownAt;
       if (event.type !== 'POINTER_UP' || !note || note.kind !== 'note' || !start) return {};
-      const dragged = Math.hypot(event.point.x - start.x, event.point.y - start.y) > 3;
-      if (!dragged) {
+      if (!wasDragged(start, event.point)) {
         const size = DEFAULT_NOTE_SIZE * (note.scale ?? 1);
         return {
           newElement: {

@@ -86,6 +86,20 @@ describe('the note tool', () => {
     });
   });
 
+  it('says which notes were put down by a press, the ones that may settle beside another', () => {
+    const actor = createActor(toolMachine).start();
+    const presses: Array<boolean | undefined> = [];
+    actor.on('shape.committed', (event) => presses.push(event.pressed));
+    actor.send({ type: 'SET_TOOL_LOCK', locked: true });
+    actor.send({ type: 'SELECT_TOOL', tool: 'note' });
+    actor.send(down(0, 0));
+    actor.send({ type: 'POINTER_UP', point: { x: 1, y: 1 } });
+    actor.send(down(500, 500));
+    actor.send({ type: 'POINTER_MOVE', point: { x: 800, y: 800 }, screenDelta: { x: 0, y: 0 } });
+    actor.send({ type: 'POINTER_UP', point: { x: 800, y: 800 } });
+    expect(presses).toEqual([true, undefined]);
+  });
+
   it('grows the note by the zoom when dynamic size is on', () => {
     const { actor, committed } = noteTool();
     actor.send({ type: 'SET_DYNAMIC_SIZE', enabled: true });

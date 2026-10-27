@@ -1,5 +1,6 @@
 import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
+import { BoardDocument } from '../src/document/document.js';
 import { shapeToYMap, yMapToShape } from '../src/document/yjs-shape.js';
 import { renderStaticScene } from '../src/renderers/static.js';
 import { renderSceneToSvgString } from '../src/renderers/svg-scene.js';
@@ -190,6 +191,18 @@ describe('a note on the board', () => {
     expect(yMapToShape(integrate(shapeToYMap(signed)))).toEqual(signed);
     expect(shapeToYMap(note()).has('author')).toBe(false);
     expect(note({ author: '   ' })).not.toHaveProperty('author');
+  });
+
+  it('is signed by whoever duplicates it, and by nobody when nobody is signed in', () => {
+    const doc = new BoardDocument();
+    doc.replaceShapes([note({ author: 'Asha Rao' })]);
+    const [signed] = doc.duplicateShapes(['n1'], { dx: 10, dy: 10 }, () => 'by-ravi', 'Ravi');
+    const [unsigned] = doc.duplicateShapes(['n1'], { dx: 20, dy: 20 }, () => 'by-nobody');
+    const byId = (id: string) => doc.getShapes().find((shape) => shape.id === id) as NoteShape;
+    expect(byId(signed!).author).toBe('Ravi');
+    expect(byId(unsigned!)).not.toHaveProperty('author');
+    expect(byId('n1').author).toBe('Asha Rao');
+    doc.destroy();
   });
 
   it('writes its author along its foot, below the words', () => {
