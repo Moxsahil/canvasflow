@@ -11,12 +11,9 @@ import {
   PanelRight,
   PenTool,
   RectangleEllipsis,
-  RemoveFormatting,
   Spline,
   SquarePlus,
-  TextCursorInput,
   VenetianMask,
-  WrapText,
 } from 'lucide-react';
 import { COMMANDS_BY_ID, type CommandIcon, type CommandId } from '../commands/commands';
 import type { TranslationKey } from '../i18n';
@@ -208,9 +205,9 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   editLine: soon('contextMenu.editLine', Spline),
   cropImage: soon('contextMenu.cropImage', Crop),
   textAutoSize: soon('contextMenu.textAutoSize', ALargeSmall),
-  bindText: soon('contextMenu.bindText', TextCursorInput),
-  unbindText: soon('contextMenu.unbindText', RemoveFormatting),
-  wrapTextInContainer: soon('contextMenu.wrapTextInContainer', WrapText),
+  bindText: fromCommand('bindText', 'contextMenu.bindText'),
+  unbindText: fromCommand('unbindText', 'contextMenu.unbindText'),
+  wrapTextInContainer: fromCommand('wrapTextInContainer', 'contextMenu.wrapTextInContainer'),
   // Built, and run from this menu alone: a link card and an embed of the same
   // page, each turned into the other where it stands.
   convertToEmbed: { labelKey: 'contextMenu.convertToEmbed', icon: AppWindow, edits: true },

@@ -3,6 +3,7 @@ import {
   isFreehand,
   isNote,
   isText,
+  isTextContainer,
   isTopic,
   readMapLayout,
   readMapLines,
@@ -28,10 +29,26 @@ export function itemStyleFromShape(shape: Shape, fallback: ItemStyle): ItemStyle
     roughness: shape.roughness,
     opacity: shape.opacity,
     edges: 'edges' in shape ? shape.edges : fallback.edges,
+    // A shape's own words are set in the same three fields as a text shape's;
+    // its alignment, when it has none, is the middle its words are drawn in.
     fontFamily:
-      isText(shape) || isTopic(shape) || isNote(shape) ? shape.fontFamily : fallback.fontFamily,
-    fontSize: isText(shape) || isTopic(shape) || isNote(shape) ? shape.fontSize : fallback.fontSize,
-    textAlign: isText(shape) || isNote(shape) ? shape.textAlign : fallback.textAlign,
+      isText(shape) || isTopic(shape) || isNote(shape)
+        ? shape.fontFamily
+        : isTextContainer(shape)
+          ? (shape.fontFamily ?? fallback.fontFamily)
+          : fallback.fontFamily,
+    fontSize:
+      isText(shape) || isTopic(shape) || isNote(shape)
+        ? shape.fontSize
+        : isTextContainer(shape)
+          ? (shape.fontSize ?? fallback.fontSize)
+          : fallback.fontSize,
+    textAlign:
+      isText(shape) || isNote(shape)
+        ? shape.textAlign
+        : isTextContainer(shape)
+          ? (shape.textAlign ?? 'center')
+          : fallback.textAlign,
     arrowType: isArrow(shape) ? shape.arrowType : fallback.arrowType,
     startArrowhead: isArrow(shape) ? shape.startArrowhead : fallback.startArrowhead,
     endArrowhead: isArrow(shape) ? shape.endArrowhead : fallback.endArrowhead,

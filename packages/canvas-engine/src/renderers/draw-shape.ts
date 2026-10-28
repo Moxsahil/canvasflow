@@ -1,8 +1,9 @@
 import type { RoughCanvas } from 'roughjs/bin/canvas';
-import type { ArrowShape, Shape } from '../shapes/shape.js';
+import type { ArrowShape, Shape, TextContainerShape } from '../shapes/shape.js';
 import { assertNever, fontSizeOf } from '../shapes/shape.js';
 import { arrowInkBounds } from '../shapes/arrow.js';
 import { arrowLabelLayout, type ArrowLabelLayout } from '../shapes/arrow-label.js';
+import { shapeTextLayout } from '../shapes/shape-text.js';
 import { strokeColorFor } from '../shapes/style.js';
 import { drawBookmarkShape } from './draw-bookmark.js';
 import { drawEmbedShape } from './draw-embed.js';
@@ -84,15 +85,16 @@ export interface SceneShapeContext {
   /** Frames whose name is open for editing, drawn in the selection colour. */
   readonly editingFrameIds?: ReadonlySet<string>;
   /**
-   * The arrow whose label is open in the text overlay, if one is.
+   * The arrow or shape whose words are open in the text overlay, if one is.
    *
-   * Its gap is cut to what is being typed — and cut at all, even before the
-   * first character — while the glyphs are left to the overlay that owns the
-   * caret. Drawing them here as well would double them, a pixel out of step.
+   * The glyphs are left to the overlay that owns the caret: drawing them here
+   * as well would double them, a pixel out of step. An arrow still has its gap
+   * cut to what is being typed — and cut at all, even before the first
+   * character — so the caret has somewhere to stand.
    *
    * One id rather than a set: there is a single text overlay.
    */
-  readonly editingArrowLabelId?: string;
+  readonly editingLabelId?: string;
   /**
    * The topic whose words are open in the text overlay, if one is. Its box is
    * drawn, sized to what is being typed, and its words left to the overlay.
@@ -100,6 +102,29 @@ export interface SceneShapeContext {
   readonly editingTopicId?: string;
   /** The note whose words are open in the text overlay, if one is — as for a topic. */
   readonly editingNoteId?: string;
+}
+
+/**
+ * A shape's own words, over it, in its stroke colour — unless they are open
+ * for typing, when the overlay draws them.
+ */
+function drawShapeText(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  shape: TextContainerShape,
+  context: SceneShapeContext,
+): void {
+  if (shape.id === context.editingLabelId) return;
+  const layout = shapeTextLayout(shape);
+  if (!layout) return;
+  drawText(ctx, {
+    x: layout.x,
+    y: layout.textTop,
+    text: layout.lines.join('\n'),
+    fontSize: layout.fontSize,
+    fontFamily: layout.fontFamily,
+    textAlign: layout.textAlign,
+    strokeColor: shape.strokeColor,
+  });
 }
 
 /**
@@ -127,18 +152,21 @@ export function drawSceneShape(
   switch (painted.kind) {
     case 'rectangle':
       drawShape(rc, generateRectangleDrawable(rc, painted));
+      drawShapeText(ctx, painted, context);
       break;
     case 'ellipse':
       drawShape(rc, generateEllipseDrawable(rc, painted));
+      drawShapeText(ctx, painted, context);
       break;
     case 'diamond':
       drawShape(rc, generateDiamondDrawable(rc, painted));
+      drawShapeText(ctx, painted, context);
       break;
     case 'line':
       drawShape(rc, generateLineDrawable(rc, painted));
       break;
     case 'arrow': {
-      const beingTyped = painted.id === context.editingArrowLabelId;
+      const beingTyped = painted.id === context.editingLabelId;
       const label = arrowLabelLayout(painted, { caret: beingTyped });
       if (label) {
         ctx.save();

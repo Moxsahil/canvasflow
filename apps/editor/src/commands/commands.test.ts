@@ -19,6 +19,9 @@ const editing: CommandContext = {
   canCopyAsMermaid: true,
   canShareLinks: true,
   hasAccount: true,
+  canBindText: true,
+  canUnbindText: true,
+  canWrapText: true,
 };
 
 const available = (context: CommandContext) =>
@@ -194,6 +197,15 @@ describe('availability', () => {
     expect(noWords).not.toContain('copyAsText');
     expect(noWords).not.toContain('copyAsMermaid');
     expect(noWords).toContain('copyAsJson');
+  });
+
+  it('offers moving words in and out of shapes only for a selection they apply to', () => {
+    const none = { ...editing, canBindText: false, canUnbindText: false, canWrapText: false };
+    for (const id of ['bindText', 'unbindText', 'wrapTextInContainer']) {
+      expect(available(none), id).not.toContain(id);
+      expect(available(editing), id).toContain(id);
+      expect(available({ ...editing, readOnly: true }), id).not.toContain(id);
+    }
   });
 
   it('keeps Unlock all for any board with shapes on it, and away from a viewer', () => {

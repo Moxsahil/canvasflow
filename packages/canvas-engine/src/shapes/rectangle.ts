@@ -1,16 +1,18 @@
 import type { Rect } from '../math';
+import { newShapeTextFields, type ShapeTextInput } from './shape-text.js';
 import type { RectangleShape } from './shape';
 import { resolveBaseStyle, type BaseStyleInput, type Edges } from './style.js';
 
 export function createRectangle(
-  input: BaseStyleInput & {
-    id: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    edges?: Edges;
-  },
+  input: BaseStyleInput &
+    ShapeTextInput & {
+      id: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      edges?: Edges;
+    },
 ): RectangleShape {
   return {
     kind: 'rectangle',
@@ -21,6 +23,7 @@ export function createRectangle(
     height: input.height,
     edges: input.edges ?? 'sharp',
     ...resolveBaseStyle(input),
+    ...newShapeTextFields(input),
   };
 }
 

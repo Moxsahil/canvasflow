@@ -69,6 +69,8 @@ export interface StyleSurfaceProps {
    * `style.fillColor` is then the colour it pours, never null.
    */
   bucket?: boolean;
+  /** Every selected shape has words written inside it, whose font can be set. */
+  hasText?: boolean;
 }
 
 /** Which popover is open, and where to anchor it. */
@@ -96,6 +98,7 @@ export function PropertiesPanel({
   layerActions,
   darkMode,
   bucket = false,
+  hasText = false,
 }: StyleSurfaceProps) {
   const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -113,7 +116,7 @@ export function PropertiesPanel({
   // Opens inward, into the board: the panel sits against the right edge.
   const popoverPosition = popover ? { top: popover.top, right: 'calc(100% + 0.5rem)' } : {};
 
-  const show = styleSections(shapeKinds, style, bucket);
+  const show = styleSections(shapeKinds, style, bucket, hasText);
   // A note's ink is drawn as stored on either board, so it is shown that way.
   const paintStroke = (colour: string) => (show.note ? colour : strokeColorFor(colour, darkMode));
 
@@ -149,6 +152,35 @@ export function PropertiesPanel({
     );
   };
 
+  const textRows = (
+    <>
+      <InspectorRow label={t('style.font')}>
+        <SegmentedControl
+          label={t('style.font')}
+          value={style.fontFamily}
+          options={FONT_OPTIONS}
+          onChange={(fontFamily) => onStyleChange({ fontFamily })}
+        />
+      </InspectorRow>
+      <InspectorRow label={t('style.size')}>
+        <SegmentedControl
+          label={t('style.fontSize')}
+          value={style.fontSize}
+          options={FONT_SIZE_OPTIONS}
+          onChange={(fontSize) => onStyleChange({ fontSize })}
+        />
+      </InspectorRow>
+      <InspectorRow label={t('style.align')}>
+        <SegmentedControl
+          label={t('style.textAlign')}
+          value={style.textAlign}
+          options={ALIGN_OPTIONS}
+          onChange={(textAlign) => onStyleChange({ textAlign })}
+        />
+      </InspectorRow>
+    </>
+  );
+
   const sections: { key: string; node: ReactNode }[] = [];
 
   if (show.textOnly) {
@@ -157,30 +189,7 @@ export function PropertiesPanel({
       node: (
         <InspectorSection title={t('style.text')}>
           {strokeColourRow}
-          <InspectorRow label={t('style.font')}>
-            <SegmentedControl
-              label={t('style.font')}
-              value={style.fontFamily}
-              options={FONT_OPTIONS}
-              onChange={(fontFamily) => onStyleChange({ fontFamily })}
-            />
-          </InspectorRow>
-          <InspectorRow label={t('style.size')}>
-            <SegmentedControl
-              label={t('style.fontSize')}
-              value={style.fontSize}
-              options={FONT_SIZE_OPTIONS}
-              onChange={(fontSize) => onStyleChange({ fontSize })}
-            />
-          </InspectorRow>
-          <InspectorRow label={t('style.align')}>
-            <SegmentedControl
-              label={t('style.textAlign')}
-              value={style.textAlign}
-              options={ALIGN_OPTIONS}
-              onChange={(textAlign) => onStyleChange({ textAlign })}
-            />
-          </InspectorRow>
+          {textRows}
         </InspectorSection>
       ),
     });
@@ -394,6 +403,13 @@ export function PropertiesPanel({
           </InspectorRow>
         </InspectorSection>
       ),
+    });
+  }
+
+  if (show.shapeText) {
+    sections.push({
+      key: 'shapeText',
+      node: <InspectorSection title={t('style.text')}>{textRows}</InspectorSection>,
     });
   }
 

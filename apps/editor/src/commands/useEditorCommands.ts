@@ -67,6 +67,9 @@ export function useEditorCommands(
     canCopyAsMermaid,
     canShareLinks,
     hasAccount,
+    canBindText,
+    canUnbindText,
+    canWrapText,
   } = context;
 
   // Rebuilt from the fields rather than the object, so the editor can pass a
@@ -89,6 +92,9 @@ export function useEditorCommands(
       canCopyAsMermaid,
       canShareLinks,
       hasAccount,
+      canBindText,
+      canUnbindText,
+      canWrapText,
     };
 
     const commands: EditorCommand[] = [];
@@ -122,6 +128,9 @@ export function useEditorCommands(
     canCopyAsMermaid,
     canShareLinks,
     hasAccount,
+    canBindText,
+    canUnbindText,
+    canWrapText,
     t,
   ]);
 }

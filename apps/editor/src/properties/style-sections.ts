@@ -30,6 +30,11 @@ export interface StyleSections {
   strokeColour: boolean;
   /** Text has a section of its own in place of the stroke. */
   textOnly: boolean;
+  /**
+   * Font, size and alignment for words written inside shapes — alongside the
+   * stroke and fill, which the shapes still have. Their colour is the stroke's.
+   */
+  shapeText: boolean;
   /** Stroke weight. */
   stroke: boolean;
   /** Dash and look — the treatments a hand-drawn line isn't offered. */
@@ -60,12 +65,15 @@ export function styleSections(
   shapeKinds: readonly Shape['kind'][],
   style: Pick<ItemStyle, 'fillColor'>,
   bucket = false,
+  /** Every shape being edited has words written inside it. */
+  hasText = false,
 ): StyleSections {
   if (bucket) {
     return {
       bucket,
       strokeColour: false,
       textOnly: false,
+      shapeText: false,
       stroke: false,
       strokeTreatments: false,
       pressure: false,
@@ -102,6 +110,7 @@ export function styleSections(
     bucket,
     strokeColour: true,
     textOnly,
+    shapeText: hasText && !textOnly,
     stroke,
     /**
      * Roughness and corner treatment genuinely miss a hand-drawn line — a
