@@ -436,6 +436,13 @@ const SidebarRail = React.forwardRef<HTMLButtonElement, React.ComponentPropsWith
           'group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full hover:group-data-[collapsible=offcanvas]:bg-sidebar',
           '[[data-side=left][data-collapsible=offcanvas]_&]:-right-2',
           '[[data-side=right][data-collapsible=offcanvas]_&]:-left-2',
+          // Inset: the rail is the gap between the sidebar and the rounded
+          // panel, and draws no line of its own; the panel's edge is the line.
+          'group-data-[variant=inset]:w-2! group-data-[variant=inset]:translate-x-0! group-data-[variant=inset]:after:hidden',
+          'group-data-[side=left]:group-data-[variant=inset]:right-0!',
+          // Collapsed, the panel keeps a margin of its own, so the gap is wider.
+          '[[data-variant=inset][data-state=collapsed]_&]:w-3.5! [[data-side=left][data-variant=inset][data-state=collapsed]_&]:-right-1.5!',
+          'group-data-[side=right]:group-data-[variant=inset]:left-0!',
           className,
         )}
         {...props}

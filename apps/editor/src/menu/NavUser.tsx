@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from 'react';
+import { PLAN_NAMES, type WorkspacePlan } from '@canvasflow/types';
 import { Check, ChevronsUpDown, UserRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { menuDangerRowClasses } from '@/components/ui/menu-look';
@@ -46,6 +47,8 @@ interface NavUserProps {
   user: SidebarUser | null;
   actions?: MenuActions;
   portalContainer: HTMLElement | null;
+  /** The plan of the workspace the sidebar is showing, beside the name. */
+  plan?: WorkspacePlan | null;
 }
 
 /**
@@ -56,7 +59,7 @@ interface NavUserProps {
  * On the board kept in this browser there is no account in it. The row says
  * so, and offers one — or, to someone already signed in, their own boards.
  */
-export function NavUser({ user, actions, portalContainer }: NavUserProps) {
+export function NavUser({ user, actions, portalContainer, plan = null }: NavUserProps) {
   const t = useT();
   const toBoards = typeof actions?.yourBoards === 'function';
   const accountless = !user && (toBoards || typeof actions?.signIn === 'function');
@@ -83,6 +86,7 @@ export function NavUser({ user, actions, portalContainer }: NavUserProps) {
         >
           <Identity
             name={name}
+            plan={accountless ? null : plan}
             detail={detail}
             avatarUrl={user?.avatarUrl ?? null}
             // No name to take letters from: "Not signed in" is not one.
@@ -254,12 +258,15 @@ function LearnMoreRow({ item, actions }: { item: LearnMoreItem; actions?: MenuAc
 
 function Identity({
   name,
+  plan = null,
   detail,
   avatarUrl,
   icon,
   className,
 }: {
   name: string;
+  /** A pill between the name and the chevron: coloured once paid for, outlined on Free. */
+  plan?: WorkspacePlan | null;
   /** The line under the name: their username, else their address. */
   detail: string | null;
   avatarUrl?: string | null;
@@ -271,10 +278,33 @@ function Identity({
       {/* A person, so: a circle, two letters, and the quiet fill — the board
           and workspace rows above keep the square accent badge. */}
       <InitialBadge label={name} src={avatarUrl} icon={icon} person />
-      <span className={cn('grid min-w-0 flex-1 text-left text-sm leading-tight', className)}>
+      <span
+        className={cn(
+          'grid min-w-0 text-left text-sm leading-tight',
+          plan ? 'shrink' : 'flex-1',
+          className,
+        )}
+      >
         <span className="truncate font-medium">{name}</span>
         {detail && <span className="truncate text-xs opacity-70">{detail}</span>}
       </span>
+      {/* The plan, centred in the space between the name and the chevron: in
+          the accent once paid for, quiet on Free. */}
+      {plan && (
+        <span className={cn('flex min-w-fit flex-1 justify-center', className)}>
+          <span
+            data-testid="account-plan"
+            className={cn(
+              'rounded-full px-1.5 text-[10px] leading-4 font-medium',
+              plan === 'free'
+                ? 'border border-sidebar-border text-sidebar-foreground/70'
+                : 'bg-sidebar-primary text-sidebar-primary-foreground',
+            )}
+          >
+            {PLAN_NAMES[plan]}
+          </span>
+        </span>
+      )}
     </>
   );
 }
