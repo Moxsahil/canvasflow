@@ -73,6 +73,16 @@ describe('the two menus', () => {
     expect(idsIn(contextMenuFor('selection', { readOnly: true }))).not.toContain('hide');
   });
 
+  it('offers Show likes only to whoever runs the board', () => {
+    expect(idsIn(contextMenuFor('canvas', { readOnly: false }))).not.toContain('showLikes');
+    expect(idsIn(contextMenuFor('canvas', { readOnly: false, canHideLikes: true }))).toContain(
+      'showLikes',
+    );
+    expect(
+      idsIn(contextMenuFor('selection', { readOnly: false, canHideLikes: true, short: true })),
+    ).toContain('showLikes');
+  });
+
   it('lets a viewer copy a link to the selection, but not add one', () => {
     const ids = idsIn(contextMenuFor('selection', { readOnly: true }));
     expect(ids).toContain('copyLinkToSelection');
@@ -97,9 +107,9 @@ describe('the short form, for a screen without the height', () => {
   });
 
   it('stands a good deal shorter than the full menus', () => {
-    expect(rowsShown(SELECTION_MENU)).toBe(24);
-    expect(rowsShown(SHORT_SELECTION_MENU)).toBe(19);
-    expect(rowsShown(CANVAS_MENU)).toBe(18);
+    expect(rowsShown(SELECTION_MENU)).toBe(25);
+    expect(rowsShown(SHORT_SELECTION_MENU)).toBe(20);
+    expect(rowsShown(CANVAS_MENU)).toBe(19);
     expect(rowsShown(SHORT_CANVAS_MENU)).toBe(12);
   });
 
@@ -192,10 +202,9 @@ describe('row metadata', () => {
 
 describe('contextMenuFor', () => {
   it('gives an editor every row of the menu the click called for', () => {
-    expect(idsIn(contextMenuFor('selection', { readOnly: false, mindMap: true }))).toEqual(
-      idsIn(SELECTION_MENU),
-    );
-    expect(idsIn(contextMenuFor('canvas', { readOnly: false }))).toEqual(idsIn(CANVAS_MENU));
+    const all = { readOnly: false, mindMap: true, canHideLikes: true };
+    expect(idsIn(contextMenuFor('selection', all))).toEqual(idsIn(SELECTION_MENU));
+    expect(idsIn(contextMenuFor('canvas', all))).toEqual(idsIn(CANVAS_MENU));
   });
 
   it('offers Expand with AI beside Select branch, to editors only', () => {

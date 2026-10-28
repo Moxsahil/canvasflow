@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import { noteBounds, shapeScale, type NoteShape } from '@canvasflow/canvas-engine';
+import { noteBounds, noteFootHeight, shapeScale, type NoteShape } from '@canvasflow/canvas-engine';
 import { useT } from '../i18n';
 import type { Camera } from '../machine/tool-machine.types';
 import { HandleDot } from '../mindmap/TopicHandles';
@@ -43,7 +43,8 @@ export function NoteHandles({ note, camera, onAdd }: NoteHandlesProps) {
   const dots: Array<[NoteSide, number, number]> = [
     ['up', left + width / 2, top - OFFSET],
     ['right', left + width + OFFSET, top + height / 2],
-    ['down', left + width / 2, top + height + OFFSET],
+    // Past the strip under the paper, clear of the heart and the name.
+    ['down', left + width / 2, top + height + noteFootHeight(note) * camera.zoom + OFFSET / 2],
     ['left', left - OFFSET, top + height / 2],
   ];
   const shown = onScreen < 0.5 ? dots.filter(([side]) => side === 'down') : dots;

@@ -4,6 +4,7 @@ import {
   createNote,
   isNote,
   noteBounds,
+  noteFootHeight,
   pointInRect,
   shapeScale,
   type NoteShape,
@@ -37,20 +38,22 @@ interface Size {
  * between them. Lined up with the top of a note beside it and the left of one
  * above or below — the edges a row or a column of notes shares. Below means
  * below the paper as drawn, which words may have made taller than it was put
- * down.
+ * down. Above and below, the gap leaves room for the strip under a note's
+ * paper, where its heart and its author go.
  */
 export function spotBeside(note: NoteShape, side: NoteSide, size: Size): Point {
   const paper = noteBounds(note);
   const gap = NOTE_GAP * shapeScale(note);
+  const column = gap + noteFootHeight(note);
   switch (side) {
     case 'right':
       return { x: paper.x + paper.width + gap, y: paper.y };
     case 'left':
       return { x: paper.x - gap - size.width, y: paper.y };
     case 'down':
-      return { x: paper.x, y: paper.y + paper.height + gap };
+      return { x: paper.x, y: paper.y + paper.height + column };
     case 'up':
-      return { x: paper.x, y: paper.y - gap - size.height };
+      return { x: paper.x, y: paper.y - column - size.height };
   }
 }
 

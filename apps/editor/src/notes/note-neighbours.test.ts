@@ -4,6 +4,7 @@ import {
   createNote,
   createRectangle,
   noteBounds,
+  NOTE_FOOT_HEIGHT,
   type ArrowShape,
   type NoteShape,
 } from '@canvasflow/canvas-engine';
@@ -18,6 +19,9 @@ import {
   NOTE_GAP,
 } from './note-neighbours';
 
+/** Between two notes in a column: the gap, and the strip under the upper one. */
+const COLUMN_GAP = NOTE_GAP + NOTE_FOOT_HEIGHT;
+
 const note = (id: string, x: number, y: number, extra: Partial<NoteShape> = {}): NoteShape => ({
   ...createNote({ id, x, y, seed: 1 }),
   ...extra,
@@ -29,8 +33,8 @@ describe('the spot beside a note', () => {
     const size = { width: 200, height: 200 };
     expect(spotBeside(from, 'right', size)).toEqual({ x: 200 + NOTE_GAP, y: 0 });
     expect(spotBeside(from, 'left', size)).toEqual({ x: -200 - NOTE_GAP, y: 0 });
-    expect(spotBeside(from, 'down', size)).toEqual({ x: 0, y: 200 + NOTE_GAP });
-    expect(spotBeside(from, 'up', size)).toEqual({ x: 0, y: -200 - NOTE_GAP });
+    expect(spotBeside(from, 'down', size)).toEqual({ x: 0, y: 200 + COLUMN_GAP });
+    expect(spotBeside(from, 'up', size)).toEqual({ x: 0, y: -200 - COLUMN_GAP });
   });
 
   it('goes below the paper as drawn, grown part included', () => {
@@ -39,7 +43,7 @@ describe('the spot beside a note', () => {
     });
     const drawn = noteBounds(grown).height;
     expect(drawn).toBeGreaterThan(200);
-    expect(spotBeside(grown, 'down', { width: 200, height: 200 }).y).toBe(drawn + NOTE_GAP);
+    expect(spotBeside(grown, 'down', { width: 200, height: 200 }).y).toBe(drawn + COLUMN_GAP);
   });
 
   it('keeps the gap in step with a note drawn larger for the zoom', () => {
@@ -120,7 +124,7 @@ describe('free spots', () => {
     const small = note('m', 900, 900, { width: 100, height: 100 });
     const spots = freeNoteSpots([note('a', 0, 0)], small, new Set(['m']));
     expect(spots).toContainEqual({ x: -100 - NOTE_GAP, y: 0 });
-    expect(spots).toContainEqual({ x: 0, y: -100 - NOTE_GAP });
+    expect(spots).toContainEqual({ x: 0, y: -100 - COLUMN_GAP });
   });
 });
 

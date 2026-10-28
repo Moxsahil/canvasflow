@@ -176,6 +176,8 @@ import {
 } from './mindmap/mind-map-ops';
 import { TopicHandles } from './mindmap/TopicHandles';
 import { NoteHandles } from './notes/NoteHandles';
+import { NoteLikeHearts } from './notes/NoteLikeHearts';
+import { useNoteLikes } from './notes/useNoteLikes';
 import {
   cameraShowing,
   freeNoteSpots,
@@ -1122,6 +1124,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
 
   const comments = useComments(doc);
   const commenting = useCommentPlacement();
+  const noteLikes = useNoteLikes(doc);
   // Taken apart for the pointer handlers, which depend on these four and on
   // nothing else about it.
   const {
@@ -5282,6 +5285,35 @@ export function Editor({ boardId, local = false }: EditorProps) {
     () => shapes.some((shape) => isTopic(shape) && selectedIds.includes(shape.id)),
     [shapes, selectedIds],
   );
+  // Whoever runs the board's sharing hides likes from everyone and shows them
+  // again: from the board's menu, or from a note's.
+  const canHideLikes =
+    runsSharing &&
+    !local &&
+    (contextMenuTarget === 'canvas' ||
+      shapes.some((shape) => isNote(shape) && selectedIds.includes(shape.id)));
+  const { store: likeStore, likes } = noteLikes;
+  const toggleLikesHidden = useCallback(() => {
+    const hiding = !likes.hidden;
+    if (likeStore.setHidden(hiding)) {
+      showToast(t(hiding ? 'notes.likesHiddenToast' : 'notes.likesShownToast'));
+    }
+  }, [likeStore, likes.hidden, showToast, t]);
+  const toggleNoteLike = useCallback(
+    (noteId: string) => {
+      if (user) likeStore.toggle(noteId, { id: user.id, name: user.name });
+    },
+    [likeStore, user],
+  );
+  // The notes the hearts sit on: drawn as the canvas draws them, grown by
+  // whatever is being typed, less the one open for typing here.
+  const likeableNotes = useMemo(
+    () =>
+      visibleShapes(shapesForRender).filter(
+        (shape): shape is NoteShape => isNote(shape) && shape.id !== editingTextShapeId,
+      ),
+    [shapesForRender, editingTextShapeId],
+  );
   /**
    * Pick out every topic further out along the selected ones, as well as them
    * — what restyling a branch wants. Folded topics stay out, as they are out
@@ -6172,6 +6204,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
               readOnly={readOnly}
               canShareLinks={runsSharing}
               mindMap={selectionHasTopic}
+              canHideLikes={canHideLikes}
               moveTo={moveToBoards}
               open={contextMenuOpen}
               onOpenChange={handleContextMenuOpenChange}
@@ -6227,6 +6260,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 viewMode: toggleViewMode,
                 canvasStats: toggleCanvasStats,
                 showComments: toggleComments,
+                showLikes: toggleLikesHidden,
                 commandPalette: togglePalette,
                 stylePanelInspector: chooseInspector,
                 stylePanelHalo: chooseHalo,
@@ -6240,6 +6274,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 viewMode,
                 canvasStats: preferences.values.canvasStats,
                 showComments: preferences.values.showComments,
+                showLikes: !likes.hidden,
                 stylePanelInspector: !preferences.values.floatingStyleBar,
                 stylePanelHalo: preferences.values.floatingStyleBar,
               }}
@@ -6391,6 +6426,18 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 onAdd={(side) => openNoteBeside(selectedNote.id, side)}
               />
             )}
+
+            {/* A heart at the foot of every note, to like it with. Board
+                content, so still up with the chrome away. */}
+            <NoteLikeHearts
+              notes={likeableNotes}
+              camera={camera}
+              board={screen}
+              likes={likes}
+              userId={userId}
+              canLike={!readOnly && user !== null}
+              onToggle={toggleNoteLike}
+            />
 
             {/* A badge on the corner of every linked shape on screen, which
                 opens its link. Under the comment pins, and still up with the

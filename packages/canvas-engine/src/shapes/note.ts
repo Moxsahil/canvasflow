@@ -27,12 +27,11 @@ export const DEFAULT_NOTE_FONT_SIZE = 24;
 /** Space between the paper's edge and the words, at 1:1. */
 const PADDING = 16;
 /**
- * A band kept clear along the bottom for the name of who wrote the note, so
- * the words never run under it. Only on a note that has one: kept on every
- * note, an unsigned one's words would sit visibly above its middle, over an
- * empty strip.
+ * The strip under the paper, at 1:1: the heart people like a note with on
+ * the left, the name of who wrote it on the right. Outside the paper, so the
+ * words have all of it, and notes stacked in a column leave it room.
  */
-export const NOTE_FOOTER_HEIGHT = 20;
+export const NOTE_FOOT_HEIGHT = 30;
 /** The smallest the words are set before the note grows instead, at 1:1. */
 const MIN_FONT_SIZE = 14;
 /** How far apart the sizes tried are, at 1:1. */
@@ -203,7 +202,7 @@ const LAYOUT_CACHE_LIMIT = 512;
 
 type LayoutInput = Pick<
   NoteShape,
-  'width' | 'height' | 'text' | 'fontSize' | 'fontFamily' | 'textAlign' | 'scale' | 'author'
+  'width' | 'height' | 'text' | 'fontSize' | 'fontFamily' | 'textAlign' | 'scale'
 >;
 
 /**
@@ -226,7 +225,6 @@ function relativeNoteLayout(note: LayoutInput): NoteLayout {
     note.height,
     note.fontSize,
     note.scale ?? 1,
-    note.author ? 1 : 0,
     note.fontFamily,
     note.textAlign,
     note.text,
@@ -236,11 +234,10 @@ function relativeNoteLayout(note: LayoutInput): NoteLayout {
 
   const scale = shapeScale(note);
   const padding = PADDING * scale;
-  const footer = note.author ? NOTE_FOOTER_HEIGHT * scale : 0;
   const width = Math.max(note.width, padding * 2 + 1);
-  const baseHeight = Math.max(note.height, padding * 2 + footer + 1);
+  const baseHeight = Math.max(note.height, padding * 2 + 1);
   const textWidth = width - padding * 2;
-  const room = baseHeight - padding * 2 - footer;
+  const room = baseHeight - padding * 2;
 
   const ceiling = fontSizeOf(note);
   const floor = Math.min(MIN_FONT_SIZE * scale, ceiling);
@@ -287,8 +284,8 @@ function relativeNoteLayout(note: LayoutInput): NoteLayout {
   const fontSize = chosen.size;
   const lineHeight = fontSize * LINE_HEIGHT;
   const textHeight = (note.text === '' ? 1 : chosen.lines.length) * lineHeight;
-  const height = Math.max(baseHeight, textHeight + padding * 2 + footer);
-  const bodyHeight = height - padding * 2 - footer;
+  const height = Math.max(baseHeight, textHeight + padding * 2);
+  const bodyHeight = height - padding * 2;
 
   const layout: NoteLayout = {
     width,
@@ -326,11 +323,28 @@ export function noteBounds(note: NoteShape): Rect {
 /** The face the author's name is set in, whatever the note's words are. */
 const FOOTER_FONT_FAMILY = 'Helvetica, Arial, system-ui, sans-serif';
 const FOOTER_FONT_SIZE = 12;
+/** The heart's height, at 1:1. */
+const HEART_SIZE = 16;
+/**
+ * The left-hand end of the strip, kept for the heart and its count: a name
+ * long enough to reach it is cut short first.
+ */
+const LIKE_ROOM = 48;
+
+/** How tall the strip under a note's paper is, at its scale. */
+export function noteFootHeight(note: Pick<NoteShape, 'scale'>): number {
+  return NOTE_FOOT_HEIGHT * shapeScale(note);
+}
+
+/** The middle of the strip under the paper, in board coordinates. */
+function footMiddle(note: NoteShape, height: number): number {
+  return note.y + height + noteFootHeight(note) / 2;
+}
 
 export interface NoteFooter {
-  /** The name, cut short with an ellipsis where it would run off the paper. */
+  /** The name, cut short with an ellipsis where it would run past the heart. */
   readonly text: string;
-  /** Its left end and its middle, in board coordinates. */
+  /** Its right-hand end and its middle, in board coordinates. */
   readonly x: number;
   readonly y: number;
   readonly fontSize: number;
@@ -338,16 +352,17 @@ export interface NoteFooter {
 }
 
 /**
- * Where the author's name goes: along the band kept clear at the foot of the
- * paper, from the left edge of the words. Null when the note has no author.
+ * Where the author's name goes: under the paper, at its right-hand end.
+ * Null when the note has no author.
  */
 export function noteFooter(note: NoteShape): NoteFooter | null {
   if (!note.author) return null;
   const scale = shapeScale(note);
-  const { height, textWidth, width } = relativeNoteLayout(note);
+  const { height, width } = relativeNoteLayout(note);
   const fontSize = FOOTER_FONT_SIZE * scale;
   const font = `${fontSize}px ${FOOTER_FONT_FAMILY}`;
-  const fits = (value: string) => lineWidth(value, font, fontSize) <= textWidth;
+  const room = width - LIKE_ROOM * scale;
+  const fits = (value: string) => lineWidth(value, font, fontSize) <= room;
 
   let text = note.author;
   if (!fits(text)) {
@@ -358,14 +373,33 @@ export function noteFooter(note: NoteShape): NoteFooter | null {
   }
   if (text === '') return null;
 
-  const padding = (width - textWidth) / 2;
   return {
     text,
-    x: note.x + padding,
-    y: note.y + height - padding - (NOTE_FOOTER_HEIGHT * scale) / 2,
+    x: note.x + width,
+    y: footMiddle(note, height),
     fontSize,
     fontFamily: FOOTER_FONT_FAMILY,
   };
+}
+
+/** The strip under the paper, where the name is drawn: what an export must take in. */
+export function noteFootBounds(note: NoteShape): Rect {
+  const { height, width } = relativeNoteLayout(note);
+  return { x: note.x, y: note.y + height, width, height: noteFootHeight(note) };
+}
+
+export interface NoteLikeSpot {
+  /** The left-hand end and the middle of the heart and its count, in board coordinates. */
+  readonly left: number;
+  readonly y: number;
+  /** The heart's height, in board units. */
+  readonly size: number;
+}
+
+/** Where the heart goes: under the paper, at its left-hand end, level with the name. */
+export function noteLikeSpot(note: NoteShape): NoteLikeSpot {
+  const { height } = relativeNoteLayout(note);
+  return { left: note.x, y: footMiddle(note, height), size: HEART_SIZE * shapeScale(note) };
 }
 
 /** The smallest a note can be made, at its scale. */

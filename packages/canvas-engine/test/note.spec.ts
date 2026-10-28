@@ -2,6 +2,7 @@ import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
 import { BoardDocument } from '../src/document/document.js';
 import { shapeToYMap, yMapToShape } from '../src/document/yjs-shape.js';
+import { exportRegion } from '../src/export/export-scene.js';
 import { renderStaticScene } from '../src/renderers/static.js';
 import { renderSceneToSvgString } from '../src/renderers/svg-scene.js';
 import { sanitizeShape } from '../src/sanitize/sanitize-shape.js';
@@ -14,6 +15,8 @@ import {
   DEFAULT_NOTE_SIZE,
   noteFooter,
   noteLayout,
+  noteFootHeight,
+  noteLikeSpot,
 } from '../src/shapes/note.js';
 import { shapeContainsPoint } from '../src/shapes/outline.js';
 import type { NoteShape } from '../src/shapes/shape.js';
@@ -205,28 +208,55 @@ describe('a note on the board', () => {
     doc.destroy();
   });
 
-  it('writes its author along its foot, below the words', () => {
+  it('writes its author under the paper, at its right-hand end', () => {
     const shape = note({ text: 'hi', author: 'Asha Rao' });
     const footer = noteFooter(shape);
     const layout = noteLayout(shape);
     expect(footer?.text).toBe('Asha Rao');
-    expect(footer!.y).toBeGreaterThan(layout.textY + layout.lineHeight);
-    expect(footer!.y).toBeLessThan(shape.y + layout.height);
+    expect(footer!.x).toBe(shape.x + layout.width);
+    expect(footer!.y).toBeGreaterThan(shape.y + layout.height);
     expect(noteFooter(note())).toBeNull();
-    expect(renderSceneToSvgString([shape])).toContain('>Asha Rao</text>');
+    const svg = renderSceneToSvgString([shape]);
+    expect(svg).toContain('>Asha Rao</text>');
+    expect(svg).toContain('text-anchor="end"');
   });
 
-  it('keeps a band clear for the author only on a note that has one', () => {
+  it('gives the words the whole paper, signed or not', () => {
     const signed = noteLayout(note({ text: 'hi', author: 'Asha Rao' }));
     const unsigned = noteLayout(note({ text: 'hi' }));
-    // Centred on the paper without a name; raised above the name with one.
+    expect(signed).toEqual(unsigned);
     expect(unsigned.textY + unsigned.lineHeight / 2).toBeCloseTo(50 + DEFAULT_NOTE_SIZE / 2);
-    expect(signed.textY).toBeLessThan(unsigned.textY);
   });
 
-  it('cuts a long author short rather than run off the paper', () => {
+  it('writes the author in the board’s ink, light on a dark board', () => {
+    const shape = note({ author: 'Asha Rao' });
+    expect(renderSceneToSvgString([shape], { darkMode: true })).not.toContain(
+      `fill="#1e1e1e" fill-opacity`,
+    );
+  });
+
+  it('cuts a long author short rather than run under the heart', () => {
     const footer = noteFooter(note({ author: 'Somebody With A Very Long Name Indeed '.repeat(4) }));
     expect(footer?.text.endsWith('…')).toBe(true);
+  });
+
+  it('puts the heart under the paper at its left-hand end, level with the name', () => {
+    const signed = note({ text: HUGE, author: 'Asha Rao' });
+    const layout = noteLayout(signed);
+    const spot = noteLikeSpot(signed);
+    expect(spot.left).toBe(signed.x);
+    expect(spot.y).toBeCloseTo(noteFooter(signed)!.y);
+    expect(spot.y - spot.size / 2).toBeGreaterThanOrEqual(signed.y + layout.height);
+    expect(spot.y + spot.size / 2).toBeLessThanOrEqual(
+      signed.y + layout.height + noteFootHeight(signed),
+    );
+  });
+
+  it('takes in the author under the bottom note when exported', () => {
+    const shape = note({ author: 'Asha Rao' });
+    const region = exportRegion([shape], { padding: 0 });
+    expect(region.y + region.height).toBe(shape.y + DEFAULT_NOTE_SIZE + noteFootHeight(shape));
+    expect(exportRegion([note()], { padding: 0 }).height).toBe(DEFAULT_NOTE_SIZE);
   });
 
   it('exports every line of its words to SVG', () => {

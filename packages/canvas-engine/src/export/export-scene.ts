@@ -1,4 +1,5 @@
-import type { Shape } from '../shapes/shape.js';
+import { isNote, type Shape } from '../shapes/shape.js';
+import { noteFootBounds } from '../shapes/note.js';
 import { unionRect, type Rect } from '../math.js';
 import { framesIn } from '../frames/membership.js';
 import { frameLabelBounds } from '../frames/frame-geometry.js';
@@ -93,6 +94,10 @@ export function exportRegion(
   // stops short and the labels come out sliced through the middle.
   for (const frame of framesIn(shown)) {
     rect = unionRect(rect, frameLabelBounds(frame, scale));
+  }
+  // A note's author is written under its paper, outside its bounds likewise.
+  for (const shape of shown) {
+    if (isNote(shape) && shape.author) rect = unionRect(rect, noteFootBounds(shape));
   }
 
   return {

@@ -415,7 +415,7 @@ function shapeToSvg(
       content = topicToSvg(shape, darkMode);
       break;
     case 'note':
-      content = noteToSvg(shape);
+      content = noteToSvg(shape, darkMode);
       break;
     default:
       assertNever(shape);

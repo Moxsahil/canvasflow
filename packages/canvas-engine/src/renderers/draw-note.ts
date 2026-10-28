@@ -7,6 +7,7 @@ import {
   noteLayout,
   noteShadowOffset,
 } from '../shapes/note.js';
+import { DEFAULT_STROKE_COLOR, strokeColorFor } from '../shapes/style.js';
 
 type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -15,9 +16,16 @@ const SHADOW_COLOR = 'rgba(0, 0, 0, 0.16)';
 /** A hairline round the paper, so a pale note still has an edge on a white board. */
 const EDGE_COLOR = 'rgba(0, 0, 0, 0.08)';
 const EDGE_WIDTH = 1;
-/** The author's name is the note's ink, quietened so the words lead — but
- * still past 4.5:1 on the palest and the deepest of the papers. */
+/**
+ * The author's name sits on the board under the paper, so it is the board's
+ * ink rather than the note's, quietened so the words lead — and still past
+ * 4.5:1 on either board.
+ */
 const FOOTER_OPACITY = 0.7;
+
+function footerInk(darkMode: boolean): string {
+  return strokeColorFor(DEFAULT_STROKE_COLOR, darkMode);
+}
 
 function roundedRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number): void {
   const radius = Math.min(r, w / 2, h / 2);
@@ -36,7 +44,12 @@ function roundedRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: nu
  *
  * `withText` false leaves the words to the overlay they are being typed in.
  */
-export function drawNoteShape(ctx: Ctx, note: NoteShape, withText: boolean): void {
+export function drawNoteShape(
+  ctx: Ctx,
+  note: NoteShape,
+  withText: boolean,
+  darkMode: boolean,
+): void {
   const { x, y, width, height } = noteBounds(note);
   const radius = noteCornerRadius(note);
   ctx.save();
@@ -70,9 +83,9 @@ export function drawNoteShape(ctx: Ctx, note: NoteShape, withText: boolean): voi
   const footer = noteFooter(note);
   if (footer) {
     ctx.globalAlpha *= FOOTER_OPACITY;
-    ctx.fillStyle = note.strokeColor;
+    ctx.fillStyle = footerInk(darkMode);
     ctx.font = `${footer.fontSize}px ${footer.fontFamily}`;
-    ctx.textAlign = 'left';
+    ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
     ctx.fillText(footer.text, footer.x, footer.y);
   }
@@ -95,7 +108,7 @@ function escapeXml(value: string): string {
 const SVG_ANCHOR = { left: 'start', center: 'middle', right: 'end' } as const;
 
 /** A note as SVG, drawn as the canvas draws it. */
-export function noteToSvg(note: NoteShape): string {
+export function noteToSvg(note: NoteShape, darkMode: boolean): string {
   const { x, y, width, height } = noteBounds(note);
   const radius = num(Math.min(noteCornerRadius(note), width / 2, height / 2));
   const box = `width="${num(width)}" height="${num(height)}" rx="${radius}"`;
@@ -121,8 +134,8 @@ export function noteToSvg(note: NoteShape): string {
   const byline = footer
     ? `<text x="${num(footer.x)}" y="${num(footer.y)}" ` +
       `font-family="${escapeXml(footer.fontFamily)}" font-size="${num(footer.fontSize)}px" ` +
-      `fill="${escapeXml(note.strokeColor)}" fill-opacity="${FOOTER_OPACITY}" ` +
-      `dominant-baseline="central" style="white-space: pre;">${escapeXml(footer.text)}</text>`
+      `fill="${escapeXml(footerInk(darkMode))}" fill-opacity="${FOOTER_OPACITY}" ` +
+      `text-anchor="end" dominant-baseline="central" style="white-space: pre;">${escapeXml(footer.text)}</text>`
     : '';
   return paper + words + byline;
 }

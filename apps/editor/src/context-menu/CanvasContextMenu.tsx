@@ -75,6 +75,8 @@ interface CanvasContextMenuProps {
   canShareLinks?: boolean;
   /** True puts in the rows about a mind map, for a selection holding a topic. */
   mindMap?: boolean;
+  /** True puts in the row that hides and shows likes on notes. */
+  canHideLikes?: boolean;
   actions: ContextMenuActions;
   checks: ContextMenuChecks;
   /**
@@ -106,6 +108,7 @@ export function CanvasContextMenu({
   readOnly,
   canShareLinks = true,
   mindMap = false,
+  canHideLikes = false,
   actions,
   checks,
   labels,
@@ -119,8 +122,8 @@ export function CanvasContextMenu({
   const t = useT();
   const short = useSyncExternalStore(subscribeToShortScreen, isShortScreen, isShortOnServer);
   const groups = useMemo(
-    () => contextMenuFor(target, { readOnly, canShareLinks, mindMap, short }),
-    [target, readOnly, canShareLinks, mindMap, short],
+    () => contextMenuFor(target, { readOnly, canShareLinks, mindMap, canHideLikes, short }),
+    [target, readOnly, canShareLinks, mindMap, canHideLikes, short],
   );
 
   return (

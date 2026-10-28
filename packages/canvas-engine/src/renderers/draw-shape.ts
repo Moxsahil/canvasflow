@@ -204,7 +204,7 @@ export function drawSceneShape(
       );
       break;
     case 'note':
-      drawNoteShape(ctx, painted, painted.id !== context.editingNoteId);
+      drawNoteShape(ctx, painted, painted.id !== context.editingNoteId, context.darkMode ?? false);
       break;
     default:
       assertNever(painted);
