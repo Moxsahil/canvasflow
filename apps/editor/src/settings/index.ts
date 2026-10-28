@@ -7,3 +7,4 @@ export {
   type DeletionInput,
 } from './account-deletion-api';
 export { takeDeletionResume } from './account-deletion';
+export { takeSettingsLink } from './settings-link';

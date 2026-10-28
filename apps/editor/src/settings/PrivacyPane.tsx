@@ -146,7 +146,12 @@ export function PrivacyPane({
         >
           <ValueText>
             {storage.usage
-              ? formatStorageSize(storage.usage.totalBytes)
+              ? storage.usage.allowanceGb
+                ? t('storage.ofAllowance', {
+                    used: formatStorageSize(storage.usage.totalBytes),
+                    allowance: storage.usage.allowanceGb,
+                  })
+                : formatStorageSize(storage.usage.totalBytes)
               : storage.failed
                 ? t('settings.unavailable')
                 : '—'}

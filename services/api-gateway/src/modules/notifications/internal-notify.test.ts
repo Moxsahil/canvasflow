@@ -33,6 +33,12 @@ describe('parseNotifyEvent', () => {
     expect(parseNotifyEvent({ event: 'workspace-joined', inviteId: A })).toEqual({
       event: 'workspace-joined',
       inviteId: A,
+      workspaceId: null,
+    });
+    expect(parseNotifyEvent({ event: 'workspace-joined', inviteId: A, workspaceId: A })).toEqual({
+      event: 'workspace-joined',
+      inviteId: A,
+      workspaceId: A,
     });
     expect(
       parseNotifyEvent({

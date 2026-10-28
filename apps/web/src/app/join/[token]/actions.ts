@@ -42,8 +42,13 @@ export async function acceptInvite(token: string): Promise<AcceptResult> {
   // have open.
   if (outcome.joined) {
     await notifyWorkspaceChanged(outcome.workspaceId, [user.id]);
-    // Whoever sent the invitation may be emailed that it was accepted.
-    await notifyGateway({ event: 'workspace-joined', inviteId: outcome.inviteId });
+    // Whoever sent the invitation may be emailed that it was accepted,
+    // and a Team plan adds a seat for the person joining.
+    await notifyGateway({
+      event: 'workspace-joined',
+      inviteId: outcome.inviteId,
+      workspaceId: outcome.workspaceId,
+    });
   }
 
   const access = board && (await checkBoardAccess(user.id, board.id));

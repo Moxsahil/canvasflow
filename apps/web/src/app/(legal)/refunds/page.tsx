@@ -15,12 +15,10 @@ const supportEmail = <a href={`mailto:${CONTACT.support}`}>{CONTACT.support}</a>
 const legalEmail = <a href={`mailto:${CONTACT.legal}`}>{CONTACT.legal}</a>;
 
 /**
- * Paid plans aren't on sale yet, so this is the policy that will apply when
- * they are, and the intro says so. The prices come from plans.ts, like the
- * pricing section's. Polar sells the plans as merchant of record, so receipts,
- * card retries and the refund itself are Polar's; what is refunded is ours.
- * When checkout launches, drop the "not on sale yet" lines and check each
- * promise below against what the billing code does.
+ * The prices come from plans.ts, like the pricing section's. Polar sells the
+ * plans as merchant of record, so receipts, card retries and the refund itself
+ * are Polar's; what is refunded is ours. Each promise below is what the billing
+ * code does: change one, change the other.
  */
 const SECTIONS: LegalSection[] = [
   {
@@ -86,8 +84,10 @@ const SECTIONS: LegalSection[] = [
             receipt.
           </li>
           <li>
-            Team is charged for each member of the workspace. When members join or leave, the number
-            you pay for changes with them, and we’ll show you the new price before it’s charged.
+            Team is charged for each member of the workspace. When someone joins, a seat is added
+            straight away and charged for the rest of the current period on your next invoice. When
+            someone leaves, their seat comes off at the next renewal; the rest of the period isn’t
+            refunded.
           </li>
         </ul>
       </>
@@ -100,7 +100,9 @@ const SECTIONS: LegalSection[] = [
       <>
         <p>
           You can cancel at any time, with no fee, in <strong>Settings → Billing</strong>, or by
-          emailing {supportEmail} from the address on your account.
+          emailing {supportEmail} from the address on your account. A workspace with a plan that
+          still renews can’t be deleted until the plan is cancelled, so you’re never charged for a
+          workspace that’s gone. Deleting your account cancels the plans of the workspaces you own.
         </p>
         <p>
           When you cancel, nothing more is charged. Your plan stays on until the end of the period
@@ -206,9 +208,7 @@ export default function RefundsPage() {
             charges are refunded.
           </p>
           <p>
-            <strong>Paid plans aren’t on sale yet.</strong> Nothing on CanvasFlow costs money today.
-            This is the policy that will apply once they are, and it’s also part of our{' '}
-            <a href="/terms">Terms of Service</a> from then on.
+            It’s part of our <a href="/terms">Terms of Service</a>.
           </p>
         </>
       }

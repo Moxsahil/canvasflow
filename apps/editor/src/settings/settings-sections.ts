@@ -207,21 +207,7 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     titleKey: 'settings.row.plan',
     section: 'billing',
     groupKey: 'settings.group.plan',
-    terms: 'upgrade free',
-  },
-  {
-    id: 'seats',
-    titleKey: 'settings.row.seats',
-    section: 'billing',
-    groupKey: 'settings.group.usage',
-    terms: 'collaborators editors',
-  },
-  {
-    id: 'storage',
-    titleKey: 'settings.row.storage',
-    section: 'billing',
-    groupKey: 'settings.group.usage',
-    terms: 'space',
+    terms: 'upgrade free pro team subscription cancel',
   },
   {
     id: 'payment-method',

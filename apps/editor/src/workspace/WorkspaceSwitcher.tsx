@@ -9,6 +9,7 @@ import {
 import { MenuBadge, MenuRowEnd, menuButtonRowClasses } from '@/components/ui/menu-look';
 import { SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
 import { Workspaces, WorkspaceContent, WorkspaceTrigger } from '@/components/ui/workspaces';
+import { PLAN_NAMES, type WorkspacePlan } from '@canvasflow/types';
 import { t as translate, useT } from '../i18n';
 import { SHARED_WITH_YOU, type BoardSwitcherState } from './useBoardSwitcher';
 
@@ -32,6 +33,7 @@ interface Entry {
   logoUrl?: string | null;
   boardCount: number;
   shared?: boolean;
+  plan?: WorkspacePlan;
 }
 
 /**
@@ -146,7 +148,11 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
               ) : (
                 <InitialBadge label={listed.name} src={listed.logoUrl} className="rounded-full" />
               )}
-              <Lines primary={listed.name} secondary={boardCount(listed.boardCount)} />
+              <Lines
+                primary={listed.name}
+                secondary={boardCount(listed.boardCount)}
+                plan={listed.plan}
+              />
               <ChevronsUpDown className={cn('ml-auto size-4 shrink-0', identityDetailClasses)} />
             </>
           )}
@@ -235,13 +241,40 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
   );
 }
 
-/** The two lines of an identity row, which the collapsed rail hides. */
-function Lines({ primary, secondary }: { primary: string; secondary: string }) {
+/**
+ * The two lines of an identity row, which the collapsed rail hides. A
+ * workspace's plan rides beside its name, quiet for Free and in the accent for
+ * one that is paid for.
+ */
+function Lines({
+  primary,
+  secondary,
+  plan,
+}: {
+  primary: string;
+  secondary: string;
+  plan?: WorkspacePlan;
+}) {
   return (
     <span
       className={cn('grid min-w-0 flex-1 text-left text-sm leading-tight', identityDetailClasses)}
     >
-      <span className="truncate font-medium">{primary}</span>
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span className="truncate font-medium">{primary}</span>
+        {plan && (
+          <span
+            data-testid="workspace-plan"
+            className={cn(
+              'shrink-0 rounded-full px-1.5 text-[10px] leading-4 font-medium',
+              plan === 'free'
+                ? 'border border-sidebar-border text-sidebar-foreground/70'
+                : 'bg-sidebar-primary text-sidebar-primary-foreground',
+            )}
+          >
+            {PLAN_NAMES[plan]}
+          </span>
+        )}
+      </span>
       <span className="truncate text-xs opacity-70">{secondary}</span>
     </span>
   );

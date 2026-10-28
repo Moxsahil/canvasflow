@@ -63,6 +63,8 @@ interface SettingsDialogProps {
    * back from signing in again to do it.
    */
   resumeDeletion?: boolean;
+  /** The tab to open at, such as Billing on coming back from Polar's portal. */
+  initialSection?: SettingsSectionId;
   /** Ask for the account to be deleted, and leave once it is. */
   deleteAccount?: (input: DeletionInput) => Promise<void>;
   /** The workspace the sidebar is showing, for the Workspace tab. */
@@ -71,6 +73,8 @@ interface SettingsDialogProps {
   renameWorkspace?: (workspaceId: string, name: string) => Promise<void>;
   /** Lists one of one's workspaces in the sidebar, which Settings then follows. */
   showWorkspace?: (workspaceId: string) => void;
+  /** Opens the upgrade page for a workspace. */
+  upgradeWorkspace?: (workspaceId: string) => void;
   /** The board on screen, which Export all boards reads live. */
   openBoard?: OpenBoard | null;
   /** The account's usage analytics answer: null before it has given one. */
@@ -102,17 +106,21 @@ export function SettingsDialog({
   userId = null,
   isGuest = false,
   resumeDeletion = false,
+  initialSection = 'profile',
   deleteAccount,
   workspace = LOADING_WORKSPACE,
   renameWorkspace,
   showWorkspace,
+  upgradeWorkspace,
   openBoard = null,
   analytics = null,
   chooseAnalytics,
   onClose,
 }: SettingsDialogProps) {
   const t = useT();
-  const [section, setSection] = useState<SettingsSectionId>(resumeDeletion ? 'privacy' : 'profile');
+  const [section, setSection] = useState<SettingsSectionId>(
+    resumeDeletion ? 'privacy' : initialSection,
+  );
   const [direction, setDirection] = useState(1);
   // Only the first time Data & Privacy shows: leaving it and coming back is
   // an ordinary visit, not a return from signing in.
@@ -342,7 +350,7 @@ export function SettingsDialog({
       case 'notifications':
         return <NotificationsPane token={token} isGuest={isGuest} />;
       case 'billing':
-        return <BillingPane />;
+        return <BillingPane workspace={workspace} onUpgrade={upgradeWorkspace} />;
       case 'privacy':
         return (
           <PrivacyPane

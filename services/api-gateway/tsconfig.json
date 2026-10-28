@@ -6,7 +6,10 @@
     "baseUrl": "./",
     "types": ["node"],
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      // The SDK publishes this entry only through package exports, which the
+      // CommonJS resolution here does not read. Node does at run time.
+      "@polar-sh/sdk/2026-10": ["node_modules/@polar-sh/sdk/dist/2026-10/index.d.cts"]
     }
   },
   "include": ["src/**/*"],

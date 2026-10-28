@@ -8,12 +8,14 @@ import {
   Post,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import {
   INTERNAL_AUTH_HEADER,
   INTERNAL_PURPOSE,
   isInternalCaller,
 } from '../../common/internal-caller.js';
 import { parseEnv } from '../../config/env.js';
+import { syncSeatsLater } from '../billing/seat-sync.js';
 import { NotifyService } from './notify.service.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -21,7 +23,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** What the web app reports. Ids only: every word of an email is read back here. */
 export type NotifyEvent =
   | { event: 'board-joined'; boardId: string; userId: string }
-  | { event: 'workspace-joined'; inviteId: string }
+  /** `workspaceId` lets a Team plan add the joiner's seat; the count is read here, not trusted. */
+  | { event: 'workspace-joined'; inviteId: string; workspaceId: string | null }
   | {
       event: 'board-access-changed';
       boardId: string;
@@ -41,7 +44,9 @@ export function parseNotifyEvent(body: unknown): NotifyEvent | null {
     }
     case 'workspace-joined': {
       const inviteId = id('inviteId');
-      return inviteId ? { event: 'workspace-joined', inviteId } : null;
+      return inviteId
+        ? { event: 'workspace-joined', inviteId, workspaceId: id('workspaceId') }
+        : null;
     }
     case 'board-access-changed': {
       const [boardId, userId, actorId] = [id('boardId'), id('userId'), id('actorId')];
@@ -69,7 +74,10 @@ export class InternalNotifyController {
   private readonly logger = new Logger(InternalNotifyController.name);
   private readonly env = parseEnv();
 
-  constructor(private readonly notify: NotifyService) {}
+  constructor(
+    private readonly notify: NotifyService,
+    private readonly moduleRef: ModuleRef,
+  ) {}
 
   @Post()
   @HttpCode(202)
@@ -91,6 +99,7 @@ export class InternalNotifyController {
       case 'board-joined':
         return this.notify.boardJoined(event.boardId, event.userId);
       case 'workspace-joined':
+        if (event.workspaceId) syncSeatsLater(this.moduleRef, event.workspaceId);
         return this.notify.workspaceJoined(event.inviteId);
       case 'board-access-changed':
         return this.notify.boardAccessChanged(

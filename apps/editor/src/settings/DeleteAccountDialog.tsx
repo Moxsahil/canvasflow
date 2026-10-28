@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ACCOUNT_DELETION_GRACE_DAYS, SUPPORT_EMAIL } from '@canvasflow/types';
+import { ACCOUNT_DELETION_GRACE_DAYS, PLAN_NAMES, SUPPORT_EMAIL } from '@canvasflow/types';
+import { formatDay } from '../billing/UpgradeShell';
 import { rich, t as translate, useT } from '../i18n';
 import { PasswordField } from './AccountDialogs';
 import {
@@ -199,6 +200,20 @@ export function DeleteAccountDialog({
         </div>
       ) : (
         <div className="flex flex-col gap-[10px]">
+          {preview?.paidPlans?.map((paid) => (
+            <Note key={paid.workspaceName}>
+              {paid.endsAt
+                ? t('deleteAccount.planEnds', {
+                    name: paid.workspaceName,
+                    plan: planName(paid.plan),
+                    date: formatDay(new Date(paid.endsAt)),
+                  })
+                : t('deleteAccount.planEndsNoDate', {
+                    name: paid.workspaceName,
+                    plan: planName(paid.plan),
+                  })}
+            </Note>
+          ))}
           <label className="flex flex-col gap-[6px] text-[12px] text-[var(--surface-fg-muted)]">
             <span>
               {email
@@ -242,4 +257,8 @@ export function DeleteAccountDialog({
       <ErrorLine>{error}</ErrorLine>
     </SettingsModal>
   );
+}
+
+function planName(plan: string): string {
+  return (PLAN_NAMES as Record<string, string>)[plan] ?? plan;
 }

@@ -6,7 +6,7 @@
  * reader was shown, and the API records it against an account only while it
  * still matches this. Move it whenever the text of the terms changes.
  */
-export const TERMS_VERSION = '2026-09-25';
+export const TERMS_VERSION = '2026-10-28';
 
 /**
  * Where someone writes for help with their account — including to stop a

@@ -18,6 +18,7 @@ import { SUPPORT_EMAIL } from '@canvasflow/types';
 import type { RequestOrigin } from '../../common/request-origin.js';
 import { DatabaseService } from '../../infra/database/database.service.js';
 import { AuditService, type RequestContext } from '../auth/audit.service.js';
+import { BillingService } from '../billing/billing.service.js';
 import { PasswordService } from '../auth/password.service.js';
 import { SignInRateLimiter, SignInThrottledException } from '../auth/sign-in-rate-limit.service.js';
 import { EmailService } from '../email/email.service.js';
@@ -41,6 +42,8 @@ export interface DeletionPreview extends AccountDeletionPreview {
    */
   recentSignInUntil: string | null;
   graceDays: number;
+  /** Paid plans on workspaces they own, which stop renewing with the account. */
+  paidPlans: Array<{ workspaceName: string; plan: string; endsAt: string | null }>;
 }
 
 export interface DeletionRequestInput {
@@ -69,6 +72,7 @@ export class AccountDeletionService {
     private readonly signInLimits: SignInRateLimiter,
     private readonly audit: AuditService,
     private readonly email: EmailService,
+    private readonly billing: BillingService,
   ) {}
 
   /** Null for an account that is gone, already locked, or a guest's. */
@@ -77,9 +81,10 @@ export class AccountDeletionService {
     if (!account) return null;
 
     const identityCheck = identityCheckFor(account);
-    const [what, signedInAt] = await Promise.all([
+    const [what, signedInAt, paidPlans] = await Promise.all([
       accountDeletionPreview(this.database.db, userId),
       identityCheck === 'recent-sign-in' ? this.signedInAt(userId, sessionId) : null,
+      this.billing.plansEndingWithAccount(userId),
     ]);
 
     return {
@@ -91,6 +96,7 @@ export class AccountDeletionService {
           ? (recentSignInUntil(signedInAt, new Date())?.toISOString() ?? null)
           : null,
       graceDays: ACCOUNT_DELETION_GRACE_DAYS,
+      paidPlans,
     };
   }
 
@@ -140,8 +146,14 @@ export class AccountDeletionService {
       });
     }
 
+    // Plans stop renewing first, so an account is never deleted while one would
+    // keep charging. Each runs to the end of its period; restoring the account
+    // within the grace period lets the owner resubscribe from Settings.
+    const stopped = await this.billing.cancelForAccountDeletion(userId);
+
     const outcome = await requestAccountDeletion(this.database.db, userId);
     if (!outcome.ok) {
+      await this.billing.resumeAfterFailedDeletion(stopped);
       switch (outcome.reason) {
         case 'no-account':
         case 'guest':

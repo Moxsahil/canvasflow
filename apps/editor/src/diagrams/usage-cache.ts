@@ -71,6 +71,20 @@ export function keepUsage(
   }
 }
 
+/** Drop the kept count, for when the plan behind its limit has changed. */
+export function forgetUsage(
+  userId: string | null,
+  boardId: string,
+  store: Storage | null = storage(),
+): void {
+  if (!userId) return;
+  try {
+    store?.removeItem(keyFor(userId, boardId));
+  } catch {
+    // Nothing kept to drop.
+  }
+}
+
 /** Whether a kept count can stand without asking: recent, and from this month. */
 export function isFresh(kept: Kept | null, now = Date.now()): boolean {
   return kept !== null && now - kept.at < USAGE_FRESH_MS && Date.parse(kept.usage.resetsAt) > now;

@@ -12,3 +12,4 @@ export * from './legal.js';
 export * from './username.js';
 export * from './workspace-roles.js';
 export * from './notifications.js';
+export * from './billing.js';

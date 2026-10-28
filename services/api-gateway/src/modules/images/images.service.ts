@@ -1,8 +1,16 @@
 import { DatabaseService } from '../../infra/database/database.service.js';
 import { StorageService } from '../../infra/storage/storage.service.js';
-import { boardImages, canEdit, resolveBoardAccess } from '@canvasflow/db';
+import {
+  boardImages,
+  boardOwnerId,
+  canEdit,
+  resolveBoardAccess,
+  storageAllowanceGb,
+  storageUsage,
+} from '@canvasflow/db';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -13,6 +21,8 @@ import {
   isAllowedImageMimeType,
   type AllowedImageMimeType,
 } from './image-formats.js';
+
+const BYTES_PER_GB = 1024 ** 3;
 
 export interface PresignedUpload {
   fileId: string;
@@ -46,6 +56,35 @@ export class ImagesService {
     private readonly database: DatabaseService,
     private readonly storage: StorageService,
   ) {}
+
+  /**
+   * Refuses a picture that would take the board's owner past their plan's
+   * storage. Counted against the owner, whoever adds it, as Storage used
+   * counts it. A picture already on the board is let through: it takes no
+   * more room.
+   */
+  private async requireRoom(boardId: string, fileId: string, sizeBytes: number): Promise<void> {
+    const db = this.database.db;
+    const [already] = await db
+      .select({ fileId: boardImages.fileId })
+      .from(boardImages)
+      .where(and(eq(boardImages.boardId, boardId), eq(boardImages.fileId, fileId)))
+      .limit(1);
+    if (already) return;
+    const owner = await boardOwnerId(db, boardId);
+    if (!owner) return;
+    const [usage, allowanceGb] = await Promise.all([
+      storageUsage(db, owner),
+      storageAllowanceGb(db, owner),
+    ]);
+    if (usage.totalBytes + sizeBytes > allowanceGb * BYTES_PER_GB) {
+      throw new ConflictException({
+        message: `No room for this picture: the board's owner has used all ${allowanceGb} GB of their plan's storage. Delete pictures or boards, or upgrade the plan.`,
+        error: 'Conflict',
+        code: 'storage-full',
+      });
+    }
+  }
 
   /**
    * Read access to a board, or 404.
@@ -106,6 +145,8 @@ export class ImagesService {
         `Image too large (${request.sizeBytes} bytes, max ${MAX_STORED_IMAGE_BYTES})`,
       );
     }
+
+    await this.requireRoom(boardId, request.fileId, request.sizeBytes);
 
     const presigned = await this.storage.presignUpload({
       key: imageObjectKey(boardId, request.fileId),

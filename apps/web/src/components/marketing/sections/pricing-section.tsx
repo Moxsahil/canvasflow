@@ -13,6 +13,7 @@ import {
 } from '@canvasflow/types';
 import { SectionLabel } from '@/components/marketing/section-label';
 import { useInView } from '@/components/marketing/use-in-view';
+import { WHITEBOARD_HREF } from '@/lib/whiteboard';
 
 type Billing = 'monthly' | 'yearly';
 
@@ -32,14 +33,9 @@ const diagrams = (plan: WorkspacePlan) =>
 const storage = (plan: WorkspacePlan) =>
   `${PLAN_ALLOWANCES[plan].storageGb} GB storage${perMember(plan)}`;
 
-const history = (plan: WorkspacePlan) => {
-  const days = PLAN_ALLOWANCES[plan].historyDays;
-  return days === null ? 'Unlimited version history' : `${days}-day version history`;
-};
-
 /**
- * Quoted in US dollars. None of these can be bought yet — the header's badge
- * says so — so the figures are what the plans are meant to cost, not a checkout.
+ * Quoted in US dollars. A paid card's button opens the editor's upgrade page,
+ * where Polar takes the payment.
  *
  * Names, limits and prices come from `@canvasflow/types`, the same place the
  * gateway enforces them from; only the words around them live here. Enterprise
@@ -54,7 +50,6 @@ const PLANS: Plan[] = [
       'Live drawing, comments + share links',
       diagrams('free'),
       storage('free'),
-      history('free'),
       'Trash + restore',
     ],
   },
@@ -65,7 +60,6 @@ const PLANS: Plan[] = [
       'Everything in Free',
       diagrams('pro'),
       storage('pro'),
-      history('pro'),
       'Expiring share links',
       'Embeds without the badge',
     ],
@@ -77,7 +71,6 @@ const PLANS: Plan[] = [
       'Everything in Pro',
       diagrams('team'),
       storage('team'),
-      history('team'),
       'Workspace invites + roles',
       'Guests on your boards',
     ],
@@ -94,6 +87,15 @@ const YEARLY_SAVING = Math.min(
     Math.floor((1 - price.yearly / price.monthly) * 100),
   ),
 );
+
+/** Where a card's button goes: the editor for Free, its upgrade page for a paid plan. */
+function ctaHref(plan: WorkspacePlan, billing: Billing): string {
+  if (!PLAN_PRICES[plan]) return WHITEBOARD_HREF;
+  const url = new URL('/upgrade', WHITEBOARD_HREF);
+  url.searchParams.set('plan', plan);
+  url.searchParams.set('cycle', billing);
+  return url.toString();
+}
 
 const perMonth = (price: PlanPrice) => (price.per === 'member' ? '/member/mo' : '/mo');
 
@@ -123,9 +125,6 @@ export function PricingSection() {
           <div className="lg:col-span-7">
             <div className="flex flex-wrap items-center gap-4 mb-8">
               <SectionLabel dark>Pricing</SectionLabel>
-              <span className="inline-flex items-center px-3 py-1 border border-[#eca8d6]/40 text-[#eca8d6] text-xs font-mono uppercase tracking-widest">
-                Coming soon
-              </span>
             </div>
             <h2
               className={`text-6xl md:text-7xl lg:text-[128px] tracking-tight leading-[0.9] transition-all duration-1000 ${
@@ -192,8 +191,10 @@ export function PricingSection() {
                     ))}
                   </ul>
 
-                  {/* CTA */}
-                  <button
+                  {/* CTA: Free opens the editor; a paid plan opens its upgrade
+                      page on the period shown here. */}
+                  <a
+                    href={ctaHref(plan.id, billing)}
                     className={`w-full py-4 flex items-center justify-center gap-2 text-sm font-medium transition-all group ${
                       plan.highlight
                         ? 'bg-foreground text-background hover:bg-foreground/90'
@@ -202,7 +203,7 @@ export function PricingSection() {
                   >
                     GET STARTED
                     <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                  </button>
+                  </a>
                 </div>
               </div>
             ))}
@@ -223,10 +224,6 @@ export function PricingSection() {
             <span className="flex items-center gap-2">
               <Check className="w-4 h-4 text-[#eca8d6]" />
               Full activity logs
-            </span>
-            <span className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-[#eca8d6]" />
-              Unlimited version history
             </span>
           </div>
           <a

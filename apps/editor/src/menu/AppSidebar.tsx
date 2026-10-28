@@ -59,6 +59,8 @@ interface AppSidebarProps {
    * popup would paint with unresolved var()s and ignore the dark theme.
    */
   portalContainer: HTMLElement | null;
+  /** Opens Settings at Billing on a workspace, for a delete that waits on its plan. */
+  onOpenBilling?: (workspaceId: string) => void;
 }
 
 /**
@@ -81,6 +83,7 @@ export function AppSidebar({
   preferences,
   actions,
   portalContainer,
+  onOpenBilling,
 }: AppSidebarProps) {
   return (
     // No rule down the edge: the canvas runs right up to the sidebar, and a
@@ -130,7 +133,7 @@ export function AppSidebar({
       />
 
       {/* Same reasoning: opened from the workspace menu and from the list. */}
-      <ManageDialog state={boardSwitcher} theme={surfaceTheme} />
+      <ManageDialog state={boardSwitcher} theme={surfaceTheme} onOpenBilling={onOpenBilling} />
     </Sidebar>
   );
 }

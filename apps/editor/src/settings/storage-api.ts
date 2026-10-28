@@ -12,6 +12,8 @@ export interface StorageUsage {
   /** Shapes saved to your own library. */
   libraryBytes: number;
   totalBytes: number;
+  /** What the plan allows, in gigabytes: the largest of the workspaces you're in. */
+  allowanceGb?: number;
 }
 
 export async function fetchStorageUsage(token: string | null): Promise<StorageUsage> {

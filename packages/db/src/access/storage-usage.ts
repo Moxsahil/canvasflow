@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { PLAN_ALLOWANCES, isWorkspacePlan } from '@canvasflow/types';
 import type { Database } from '../client.js';
 
 /**
@@ -82,4 +83,30 @@ export async function storageUsage(db: Database, userId: string): Promise<Storag
       ) AS library_bytes
   `);
   return storageUsageFromRow(result.rows[0]);
+}
+
+/**
+ * How much an account may keep, in gigabytes: the largest allowance among the
+ * workspaces it belongs to, so a member of a Team workspace has Team's room.
+ * Free's when it belongs to none.
+ */
+export async function storageAllowanceGb(db: Database, userId: string): Promise<number> {
+  const result = await db.execute<{ plan: string }>(sql`
+    SELECT DISTINCT workspace.plan FROM memberships
+    INNER JOIN workspace ON workspace.id = memberships.workspace_id
+    WHERE memberships.user_id = ${userId} AND workspace.deleted_at IS NULL
+  `);
+  return result.rows.reduce(
+    (most, row) =>
+      Math.max(most, isWorkspacePlan(row.plan) ? PLAN_ALLOWANCES[row.plan].storageGb : 0),
+    PLAN_ALLOWANCES.free.storageGb,
+  );
+}
+
+/** Who owns a board, whose storage its pictures count against; null for none. */
+export async function boardOwnerId(db: Database, boardId: string): Promise<string | null> {
+  const result = await db.execute<{ owner_id: string }>(sql`
+    SELECT owner_id FROM boards WHERE id = ${boardId} AND deleted_at IS NULL
+  `);
+  return result.rows[0]?.owner_id ?? null;
 }

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
+import { BillingModule } from '../billing/billing.module.js';
 import { EmailModule } from '../email/email.module.js';
 import { AccountDeletionController } from './account-deletion.controller.js';
 import { AccountDeletionService } from './account-deletion.service.js';
@@ -9,7 +10,7 @@ import { AccountDeletionService } from './account-deletion.service.js';
  * a scheduled job outside this service.
  */
 @Module({
-  imports: [AuthModule, EmailModule],
+  imports: [AuthModule, BillingModule, EmailModule],
   controllers: [AccountDeletionController],
   providers: [AccountDeletionService],
 })

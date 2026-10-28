@@ -3,6 +3,7 @@ import {
   can,
   createClient,
   deleteWorkspace,
+  payingSubscriptionOf,
   renameWorkspace,
   workspaceRoleOf,
 } from '@canvasflow/db';
@@ -102,6 +103,19 @@ export async function DELETE(
 
   if (!can(authorized.role, 'delete')) {
     return corsJson({ error: 'Only the owner can delete this workspace.' }, { status: 403 });
+  }
+
+  // A plan still renewing is cancelled first, in Settings → Billing, so a
+  // deleted workspace is never charged for. A cancelled one runs out unused.
+  const paying = await payingSubscriptionOf(db, workspaceId);
+  if (paying && !paying.cancelAtPeriodEnd) {
+    return corsJson(
+      {
+        error: 'Cancel this workspace’s plan in Settings → Billing before deleting it.',
+        code: 'plan-active',
+      },
+      { status: 409 },
+    );
   }
 
   const result = await deleteWorkspace(db, workspaceId);

@@ -1,5 +1,5 @@
 import { Controller, Get, NotFoundException, UseGuards } from '@nestjs/common';
-import { getProfile, storageUsage, type StorageUsage } from '@canvasflow/db';
+import { getProfile, storageAllowanceGb, storageUsage, type StorageUsage } from '@canvasflow/db';
 import { DatabaseService } from '../../infra/database/database.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { type AuthenticatedUser, JwtAuthGuard } from '../auth/jwt.guard.js';
@@ -50,8 +50,15 @@ export class UsersController {
    * number follows boards being drawn on, added and deleted.
    */
   @Get('storage')
-  async storage(@CurrentUser() user: AuthenticatedUser): Promise<{ data: StorageUsage }> {
-    return { data: await storageUsage(this.database.db, user.id) };
+  async storage(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ data: StorageUsage & { allowanceGb: number } }> {
+    const db = this.database.db;
+    const [usage, allowanceGb] = await Promise.all([
+      storageUsage(db, user.id),
+      storageAllowanceGb(db, user.id),
+    ]);
+    return { data: { ...usage, allowanceGb } };
   }
 }
 

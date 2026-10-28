@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { can, canManageMember } from '@canvasflow/types';
+import { PLAN_PRICES, can, canManageMember, type WorkspacePlan } from '@canvasflow/types';
 import {
   ChevronDown,
   Crown,
@@ -241,9 +241,12 @@ function sentNotice(email: string, emailSent: boolean, again: boolean): Notice {
  */
 function InviteForm({
   workspaceId,
+  seatPlan,
   onSent,
 }: {
   workspaceId: string;
+  /** On a per-member plan, whoever joins adds a paid seat, and the form says so. */
+  seatPlan: boolean;
   onSent: (notice: Notice) => void;
 }) {
   const t = useT();
@@ -306,6 +309,9 @@ function InviteForm({
           {busy ? t('common.sending') : t('members.invite')}
         </SettingsButton>
       </div>
+      {seatPlan && (
+        <p className="text-[11.5px] text-[var(--surface-fg-muted)]">{t('members.seatNote')}</p>
+      )}
       <ErrorLine>{error}</ErrorLine>
     </form>
   );
@@ -676,10 +682,13 @@ export function MembersDialog({
   people,
   userId,
   viewerRole = null,
+  plan = 'free',
   onChanged,
   onClose,
 }: {
   workspaceName: string;
+  /** The workspace's plan: Team charges a seat for each member. */
+  plan?: WorkspacePlan;
   /** Needed to change anything; without it the window only lists. */
   workspaceId?: string | null;
   people: WorkspacePeople;
@@ -753,7 +762,11 @@ export function MembersDialog({
       >
         {inviting && (
           <div className="flex flex-col gap-[6px] border-b border-[var(--surface-line)] pb-[14px]">
-            <InviteForm workspaceId={workspaceId} onSent={done} />
+            <InviteForm
+              workspaceId={workspaceId}
+              seatPlan={PLAN_PRICES[plan]?.per === 'member'}
+              onSent={done}
+            />
           </div>
         )}
         <NoticeLine notice={notice} />

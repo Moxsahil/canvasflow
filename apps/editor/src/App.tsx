@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Editor } from './Editor';
+import { UpgradeCompletePage } from './billing/UpgradeCompletePage';
+import { UpgradePage } from './billing/UpgradePage';
 import { useT } from './i18n';
 import {
   LOCAL_BOARD_ID,
@@ -18,6 +20,8 @@ export function App() {
       <Routes>
         <Route path="/" element={<HomeRoute />} />
         <Route path="/boards/:boardId" element={<EditorRoute />} />
+        <Route path="/upgrade" element={<UpgradePage />} />
+        <Route path="/upgrade/complete" element={<UpgradeCompletePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

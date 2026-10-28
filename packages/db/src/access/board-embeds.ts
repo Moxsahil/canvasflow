@@ -1,8 +1,10 @@
 import { and, desc, eq, isNull } from 'drizzle-orm';
+import type { WorkspacePlan } from '@canvasflow/types';
 import type { Database } from '../client.js';
 import { boardEmbeds } from '../schema/board-embeds.js';
 import { boardUpdates } from '../schema/board-updates.js';
 import { boards } from '../schema/boards.js';
+import { workspaces } from '../schema/workspaces.js';
 import { BOARD_SNAPSHOT_WINDOW } from './board-export.js';
 
 /**
@@ -52,14 +54,17 @@ export async function disableBoardEmbed(db: Database, boardId: string): Promise<
 export interface EmbeddedBoard {
   boardId: string;
   title: string;
+  /** The plan of the board's workspace, which decides the embed's badge. */
+  plan: WorkspacePlan;
 }
 
 /** The board an embed id shows, or null when there is none to show. */
 export async function embeddedBoard(db: Database, publicId: string): Promise<EmbeddedBoard | null> {
   const [row] = await db
-    .select({ boardId: boards.id, title: boards.title })
+    .select({ boardId: boards.id, title: boards.title, plan: workspaces.plan })
     .from(boardEmbeds)
     .innerJoin(boards, eq(boards.id, boardEmbeds.boardId))
+    .innerJoin(workspaces, eq(workspaces.id, boards.workspaceId))
     .where(and(eq(boardEmbeds.publicId, publicId), isNull(boards.deletedAt)))
     .limit(1);
   return row ?? null;

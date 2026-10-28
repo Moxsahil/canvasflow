@@ -18,7 +18,16 @@ import {
   type DiagramEntry,
 } from './diagram-history';
 import { fixingLines } from './diagram-progress';
-import { bannerFor, closeBanner, closedBanner, isFresh, keepUsage, keptUsage } from './usage-cache';
+import {
+  bannerFor,
+  closeBanner,
+  closedBanner,
+  forgetUsage,
+  isFresh,
+  keepUsage,
+  keptUsage,
+} from './usage-cache';
+import { useWorkspaceChanges } from '../workspace/workspace-events';
 
 /** The diagram being written, shown as a card that fills in. */
 export interface DiagramRun {
@@ -202,6 +211,16 @@ export function useDiagramPanel({
   useEffect(() => {
     if (open) refreshUsage();
   }, [open, refreshUsage]);
+
+  // A plan bought or ended changes the limit at once, so the kept count is
+  // dropped whenever a workspace is said to have changed, and asked for again
+  // if the panel is open to show it.
+  const openRef = useRef(open);
+  openRef.current = open;
+  useWorkspaceChanges(null, () => {
+    forgetUsage(userId, boardId);
+    if (openRef.current) refreshUsage();
+  });
   useEffect(
     () => () => {
       asking.current?.abort();

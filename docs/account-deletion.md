@@ -11,6 +11,9 @@ to say they didn't mean it.
    minutes instead). At that moment the account is locked, the boards it owns
    disappear for everyone, every session ends, and an email tells them when the
    deletion becomes final and to write to support@canvasflowapp.com to stop it.
+   Any paid plan on a workspace they own is cancelled first, in Polar: it
+   stops renewing and runs to the end of its paid period. If Polar can't be
+   reached, the deletion is refused and nothing changes.
 2. **Waiting.** Nothing is erased for 7 days (`ACCOUNT_DELETION_GRACE_DAYS`).
    During that time support can restore the account, as below.
 3. **Erasing.** The nightly job, **Purge deleted accounts** in GitHub Actions
@@ -92,6 +95,10 @@ sign in again.
 > Your CanvasFlow account is back, with your boards. For your security, we
 > signed you out everywhere when you asked to delete it, so please sign in
 > again at https://canvasflowapp.com/login.
+>
+> If you had a paid plan, it was cancelled when you asked to delete the
+> account. It still runs to the end of the period you paid for; to keep it,
+> press Resubscribe in Settings → Billing.
 >
 > If you didn't ask to delete your account yourself, someone else may have had
 > access to it. Reset your password at https://canvasflowapp.com/forgot-password,

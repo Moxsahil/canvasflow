@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { can, DIAGRAM_LIMIT_REACHED } from '@canvasflow/types';
 import { useActorRef, useSelector } from '@xstate/react';
 import {
@@ -312,6 +313,7 @@ import {
   SHARED_WITH_YOU,
   useBoardSwitcher,
 } from './workspace';
+import { useBillingReadAhead } from './billing/billing-cache';
 import { announceAccountChanged } from './sync/account-events';
 import {
   CursorLayer,
@@ -345,7 +347,9 @@ import {
   accountDeletedUrl,
   requestAccountDeletion,
   takeDeletionResume,
+  takeSettingsLink,
   type DeletionInput,
+  type SettingsSectionId,
   type WorkspaceSettingsSource,
 } from './settings';
 import { warmAccountSecurity } from './settings/account-security-api';
@@ -741,6 +745,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // Settings is opening at Delete account, because the person has just signed
   // in again in order to delete it.
   const [resumeDeletion, setResumeDeletion] = useState(false);
+  // The tab Settings opens at when a link names one, such as Polar's way back.
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionId | undefined>();
   /**
    * A request to delete the account is out, or has gone through.
    *
@@ -799,6 +805,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const hideSettings = useCallback(() => {
     setSettingsOpen(false);
     setResumeDeletion(false);
+    setSettingsSection(undefined);
   }, []);
   // Toggled rather than opened: the combo that summons it is the natural way
   // to dismiss it again, and pressing it twice should leave the board alone.
@@ -875,6 +882,16 @@ export function Editor({ boardId, local = false }: EditorProps) {
     const timer = setTimeout(() => warmAccountSecurity(authToken), 2500);
     return () => clearTimeout(timer);
   }, [accountAsked, authToken]);
+
+  // Back from Polar's portal, or any link to a Settings tab: open at that tab.
+  useEffect(() => {
+    if (!user || user.isGuest) return;
+    const section = takeSettingsLink();
+    if (section) {
+      setSettingsSection(section);
+      setSettingsOpen(true);
+    }
+  }, [user]);
 
   // Back from signing in again to delete the account: open straight at it.
   // The note is read once and is only honoured for the account that left it.
@@ -1061,6 +1078,24 @@ export function Editor({ boardId, local = false }: EditorProps) {
     const workspace = workspaces.find((candidate) => candidate.id === listedId);
     return workspace ? { status: 'ready', workspace } : { status: 'loading' };
   }, [user?.isGuest, boardSwitcher, boardId]);
+  useBillingReadAhead(
+    settingsWorkspace.status === 'ready'
+      ? settingsWorkspace.workspace.id
+      : settingsWorkspace.status === 'shared'
+        ? (settingsWorkspace.own?.id ?? null)
+        : null,
+  );
+  // Settings at Billing on one workspace, listed first so the tab shows it:
+  // where a delete waiting on a plan sends its owner to cancel.
+  const { browseWorkspace } = boardSwitcher;
+  const openBillingFor = useCallback(
+    (workspaceId: string) => {
+      browseWorkspace(workspaceId);
+      setSettingsSection('billing');
+      setSettingsOpen(true);
+    },
+    [browseWorkspace],
+  );
   const { renameWorkspace, dismissError: dismissSwitcherError } = boardSwitcher;
   const renameWorkspaceFromSettings = useCallback(
     async (workspaceId: string, name: string) => {
@@ -5991,9 +6026,22 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const signInForDiagrams = useCallback(() => {
     window.location.assign(new URL('/login?next=/open', env.VITE_WEB_URL).toString());
   }, []);
-  const showPlans = useCallback(() => {
-    window.open(new URL('/#pricing', env.VITE_WEB_URL).toString(), '_blank', 'noopener');
-  }, []);
+  // Upgrading the open board's workspace, from the AI panel's limit and the
+  // pricing page's links; Settings names the workspace it is showing.
+  const navigate = useNavigate();
+  const upgradeWorkspace = useCallback(
+    (workspaceId: string | null) => {
+      const target = new URLSearchParams();
+      if (workspaceId) target.set('workspace', workspaceId);
+      if (!local) target.set('from', boardId);
+      navigate(`/upgrade?${target.toString()}`);
+    },
+    [navigate, local, boardId],
+  );
+  const showPlans = useCallback(
+    () => upgradeWorkspace(boardSwitcher.workspaceId),
+    [upgradeWorkspace, boardSwitcher.workspaceId],
+  );
 
   /**
    * Geometry from the stats panel, written as it arrives: once for a number
@@ -6364,6 +6412,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
         className="h-full min-h-0"
       >
         <AppSidebar
+          onOpenBilling={openBillingFor}
           boardSwitcher={boardSwitcher}
           user={chromeUser}
           theme={theme}
@@ -7106,10 +7155,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   userId={userId}
                   isGuest={user?.isGuest ?? false}
                   resumeDeletion={resumeDeletion}
+                  initialSection={settingsSection}
                   deleteAccount={deleteAccount}
                   workspace={settingsWorkspace}
                   renameWorkspace={renameWorkspaceFromSettings}
                   showWorkspace={boardSwitcher.browseWorkspace}
+                  upgradeWorkspace={upgradeWorkspace}
                   openBoard={exportOpenBoard}
                   analytics={usage.consent}
                   chooseAnalytics={usage.choose}
