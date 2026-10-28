@@ -172,13 +172,20 @@ const SECTIONS: LegalSection[] = [
     body: (
       <>
         <p>
-          CanvasFlow is free to use right now. Our <a href="/#pricing">pricing</a> shows paid plans
-          marked “coming soon”: you can’t buy them yet, and nothing on CanvasFlow costs money today.
+          CanvasFlow is free to use. Paid plans, shown on our <a href="/#pricing">pricing</a>, add
+          more on top. A plan belongs to a workspace, and only the workspace’s owner can buy one.
         </p>
         <p>
-          Before we charge for anything, we’ll update these terms with the details: prices, how
-          billing and renewals work, how to cancel, and refunds. We’ll never charge you for
-          something you haven’t chosen to buy.
+          Paid plans are sold by <a href="https://polar.sh">Polar</a>, our payment provider and
+          merchant of record. Polar takes the payment, handles any tax on it and sends your
+          receipts, and its own terms apply to the purchase as well as these.
+        </p>
+        <p>
+          A plan renews automatically each month or year until you cancel, and you can cancel at any
+          time in Settings → Billing. Team is charged for each member of the workspace. How billing,
+          cancelling and refunds work is set out in our{' '}
+          <a href="/refunds">Cancellation and Refund Policy</a>, which is part of these terms. We’ll
+          never charge you for something you haven’t chosen to buy.
         </p>
       </>
     ),

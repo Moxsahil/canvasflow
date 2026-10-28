@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 /** Move this whenever the text below changes: the page tells readers it did. */
-const LAST_UPDATED = '2026-10-21';
+const LAST_UPDATED = '2026-10-28';
 
 const privacyEmail = <a href={`mailto:${CONTACT.privacy}`}>{CONTACT.privacy}</a>;
 const supportEmail = <a href={`mailto:${CONTACT.support}`}>{CONTACT.support}</a>;
@@ -80,6 +80,14 @@ const SECTIONS: LegalSection[] = [
             description, the description is sent to Anthropic, whose AI writes the diagram, and the
             diagram is put on your board. We don’t keep the description. We keep only how many
             diagrams you’ve generated each month, to apply your plan’s limit.
+          </li>
+          <li>
+            <strong>If you buy a plan:</strong> you pay Polar, our payment provider, and your card
+            and billing details go to Polar and its payment processor, never to us. From Polar we
+            keep which plan your workspace has, how often it’s paid, how many seats it has, when it
+            renews or ends and whether a payment failed. When you open Settings → Billing, we show
+            your card’s brand, last four digits and expiry date and your invoices, read from Polar
+            each time rather than stored.
           </li>
           <li>
             <strong>If you join a board as a guest:</strong> the name you type, and which board you
@@ -184,6 +192,7 @@ const SECTIONS: LegalSection[] = [
               <li>Neon, which stores our database, in Singapore</li>
               <li>Cloudflare, which protects our network and stores uploaded images and photos</li>
               <li>Resend, which sends our emails</li>
+              <li>Polar, which sells our paid plans and takes payments, only if you buy one</li>
               <li>Zoho, which hosts the mailbox your emails to us arrive in</li>
               <li>
                 Anthropic, which turns a description into a diagram, only when you ask for one

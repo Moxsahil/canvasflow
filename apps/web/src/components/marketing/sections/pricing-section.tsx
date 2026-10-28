@@ -34,8 +34,8 @@ const storage = (plan: WorkspacePlan) =>
   `${PLAN_ALLOWANCES[plan].storageGb} GB storage${perMember(plan)}`;
 
 /**
- * Quoted in US dollars. None of these can be bought yet — the header's badge
- * says so — so the figures are what the plans are meant to cost, not a checkout.
+ * Quoted in US dollars. A paid card's button opens the editor's upgrade page,
+ * where Polar takes the payment.
  *
  * Names, limits and prices come from `@canvasflow/types`, the same place the
  * gateway enforces them from; only the words around them live here. Enterprise
@@ -125,9 +125,6 @@ export function PricingSection() {
           <div className="lg:col-span-7">
             <div className="flex flex-wrap items-center gap-4 mb-8">
               <SectionLabel dark>Pricing</SectionLabel>
-              <span className="inline-flex items-center px-3 py-1 border border-[#eca8d6]/40 text-[#eca8d6] text-xs font-mono uppercase tracking-widest">
-                Coming soon
-              </span>
             </div>
             <h2
               className={`text-6xl md:text-7xl lg:text-[128px] tracking-tight leading-[0.9] transition-all duration-1000 ${
