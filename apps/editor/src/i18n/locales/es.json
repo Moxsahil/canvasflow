@@ -936,8 +936,6 @@
   "settings.row.plan": "Plan",
   "settings.row.storage": "Almacenamiento",
   "settings.row.terms": "Condiciones del servicio",
-  "billing.freePlan": "Plan gratuito",
-  "billing.freePlanHint": "3 de 3 tableros usados, 1 colaborador por tablero",
   "billing.upgrade": "Mejorar plan",
   "billing.seatsHint": "Colaboradores con permiso de edición",
   "billing.seatsValue": "{{used}} de {{total}}",
@@ -1568,5 +1566,7 @@
   "diagrams.notEnough": "Un diagrama detallado usa {{cost}} de tus diagramas y te quedan {{left}} este mes.",
   "diagrams.useQuick": "Dibujarlo rápido",
   "diagrams.step.planning": "Planificando el diagrama",
-  "diagrams.step.planned": "Diagrama planificado"
+  "diagrams.step.planned": "Diagrama planificado",
+  "billing.planTitle": "Plan {{plan}}",
+  "billing.planHint": "{{diagrams}} diagramas con IA al mes, {{storage}} GB de almacenamiento"
 }

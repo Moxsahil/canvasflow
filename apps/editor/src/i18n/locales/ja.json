@@ -912,8 +912,6 @@
   "settings.row.plan": "プラン",
   "settings.row.storage": "ストレージ",
   "settings.row.terms": "利用規約",
-  "billing.freePlan": "無料プラン",
-  "billing.freePlanHint": "ボード 3 個中 3 個を使用、ボードごとに共同編集者 1 人",
   "billing.upgrade": "アップグレード",
   "billing.seatsHint": "編集権限のある共同編集者",
   "billing.seatsValue": "{{total}} 中 {{used}}",
@@ -1517,5 +1515,7 @@
   "diagrams.notEnough": "詳細な図は {{cost}} つ分を使います。今月の残りは {{left}} です。",
   "diagrams.useQuick": "クイックで描く",
   "diagrams.step.planning": "図を計画しています",
-  "diagrams.step.planned": "図を計画しました"
+  "diagrams.step.planned": "図を計画しました",
+  "billing.planTitle": "{{plan}} プラン",
+  "billing.planHint": "月に {{diagrams}} 件の AI 図、{{storage}} GB のストレージ"
 }

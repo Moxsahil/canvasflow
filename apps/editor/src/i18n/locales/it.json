@@ -936,8 +936,6 @@
   "settings.row.plan": "Piano",
   "settings.row.storage": "Spazio",
   "settings.row.terms": "Termini di servizio",
-  "billing.freePlan": "Piano gratuito",
-  "billing.freePlanHint": "3 lavagne su 3 usate, 1 collaboratore per lavagna",
   "billing.upgrade": "Passa a un piano superiore",
   "billing.seatsHint": "Collaboratori con permesso di modifica",
   "billing.seatsValue": "{{used}} di {{total}}",
@@ -1568,5 +1566,7 @@
   "diagrams.notEnough": "Un diagramma dettagliato usa {{cost}} dei tuoi diagrammi e questo mese ne restano {{left}}.",
   "diagrams.useQuick": "Disegnalo rapido",
   "diagrams.step.planning": "Pianificazione del diagramma",
-  "diagrams.step.planned": "Diagramma pianificato"
+  "diagrams.step.planned": "Diagramma pianificato",
+  "billing.planTitle": "Piano {{plan}}",
+  "billing.planHint": "{{diagrams}} diagrammi IA al mese, {{storage}} GB di spazio"
 }

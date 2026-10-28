@@ -2,7 +2,10 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Get,
   HttpCode,
+  Param,
+  ParseUUIDPipe,
   Post,
   Req,
   UseGuards,
@@ -13,7 +16,7 @@ import { AccountThrottlerGuard } from '../auth/account-throttler.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { JwtAuthGuard, type AuthenticatedUser } from '../auth/jwt.guard.js';
 import { BillingWebhookRejected } from './billing-provider.js';
-import { BillingService } from './billing.service.js';
+import { BillingService, type BillingWorkspace, type CheckoutStatus } from './billing.service.js';
 
 /** Where the provider posts its webhooks. main.ts keeps this body raw for the signature. */
 export const BILLING_WEBHOOK_PATH = '/billing/polar/webhook';
@@ -34,6 +37,28 @@ export class BillingController {
     @Body() body: unknown,
   ): Promise<{ data: { url: string } }> {
     return { data: await this.billing.startCheckout(user, body) };
+  }
+
+  /** Polled every couple of seconds by the page someone returns to after paying. */
+  @Get('checkouts/:id')
+  @UseGuards(JwtAuthGuard, AccountThrottlerGuard)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  async checkoutStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<{ data: CheckoutStatus }> {
+    return { data: await this.billing.checkoutStatus(user, id) };
+  }
+
+  /** The workspace as the upgrade page shows it: name, plan, role, members and subscription. */
+  @Get('workspaces/:workspaceId')
+  @UseGuards(JwtAuthGuard, AccountThrottlerGuard)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  async workspace(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('workspaceId', new ParseUUIDPipe()) workspaceId: string,
+  ): Promise<{ data: BillingWorkspace }> {
+    return { data: await this.billing.workspace(user, workspaceId) };
   }
 
   /**

@@ -936,8 +936,6 @@
   "settings.row.plan": "Forfait",
   "settings.row.storage": "Stockage",
   "settings.row.terms": "Conditions d’utilisation",
-  "billing.freePlan": "Forfait gratuit",
-  "billing.freePlanHint": "3 tableaux sur 3 utilisés, 1 collaborateur par tableau",
   "billing.upgrade": "Passer au forfait supérieur",
   "billing.seatsHint": "Collaborateurs avec droit de modification",
   "billing.seatsValue": "{{used}} sur {{total}}",
@@ -1568,5 +1566,7 @@
   "diagrams.notEnough": "Un diagramme détaillé utilise {{cost}} de vos diagrammes, et il vous en reste {{left}} ce mois-ci.",
   "diagrams.useQuick": "Le dessiner en rapide",
   "diagrams.step.planning": "Préparation du diagramme",
-  "diagrams.step.planned": "Diagramme préparé"
+  "diagrams.step.planned": "Diagramme préparé",
+  "billing.planTitle": "Plan {{plan}}",
+  "billing.planHint": "{{diagrams}} diagrammes IA par mois, {{storage}} Go de stockage"
 }

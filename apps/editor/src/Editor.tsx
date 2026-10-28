@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { can, DIAGRAM_LIMIT_REACHED } from '@canvasflow/types';
 import { useActorRef, useSelector } from '@xstate/react';
 import {
@@ -5991,9 +5992,22 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const signInForDiagrams = useCallback(() => {
     window.location.assign(new URL('/login?next=/open', env.VITE_WEB_URL).toString());
   }, []);
-  const showPlans = useCallback(() => {
-    window.open(new URL('/#pricing', env.VITE_WEB_URL).toString(), '_blank', 'noopener');
-  }, []);
+  // Upgrading the open board's workspace, from the AI panel's limit and the
+  // pricing page's links; Settings names the workspace it is showing.
+  const navigate = useNavigate();
+  const upgradeWorkspace = useCallback(
+    (workspaceId: string | null) => {
+      const target = new URLSearchParams();
+      if (workspaceId) target.set('workspace', workspaceId);
+      if (!local) target.set('from', boardId);
+      navigate(`/upgrade?${target.toString()}`);
+    },
+    [navigate, local, boardId],
+  );
+  const showPlans = useCallback(
+    () => upgradeWorkspace(boardSwitcher.workspaceId),
+    [upgradeWorkspace, boardSwitcher.workspaceId],
+  );
 
   /**
    * Geometry from the stats panel, written as it arrives: once for a number
@@ -7110,6 +7124,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   workspace={settingsWorkspace}
                   renameWorkspace={renameWorkspaceFromSettings}
                   showWorkspace={boardSwitcher.browseWorkspace}
+                  upgradeWorkspace={upgradeWorkspace}
                   openBoard={exportOpenBoard}
                   analytics={usage.consent}
                   chooseAnalytics={usage.choose}

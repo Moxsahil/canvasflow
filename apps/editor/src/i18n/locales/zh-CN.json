@@ -912,8 +912,6 @@
   "settings.row.plan": "套餐",
   "settings.row.storage": "存储空间",
   "settings.row.terms": "服务条款",
-  "billing.freePlan": "免费套餐",
-  "billing.freePlanHint": "已使用 3/3 个白板,每个白板 1 位协作者",
   "billing.upgrade": "升级",
   "billing.seatsHint": "拥有编辑权限的协作者",
   "billing.seatsValue": "{{used}}/{{total}}",
@@ -1517,5 +1515,7 @@
   "diagrams.notEnough": "详细图表会用掉 {{cost}} 个图表次数，本月还剩 {{left}} 个。",
   "diagrams.useQuick": "改用快速模式",
   "diagrams.step.planning": "正在规划图表",
-  "diagrams.step.planned": "已规划图表"
+  "diagrams.step.planned": "已规划图表",
+  "billing.planTitle": "{{plan}} 套餐",
+  "billing.planHint": "每月 {{diagrams}} 个 AI 图表，{{storage}} GB 存储空间"
 }

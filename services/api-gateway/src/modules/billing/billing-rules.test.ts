@@ -8,6 +8,7 @@ import {
 } from './billing-provider.js';
 import { advertisedPrice, pickProduct, snapshotOf, workspaceIdIn } from './billing-rules.js';
 import { PolarBillingProvider } from './polar-billing-provider.js';
+import { withCheckoutId } from './billing.service.js';
 
 const WORKSPACE = '3ef72266-0242-48aa-a2ad-741a5fd16bf7';
 
@@ -183,6 +184,17 @@ describe('PolarBillingProvider.readWebhook', () => {
     const body = JSON.stringify({ type: 'subscription.active', data: {} });
     await expect(unsigned.readWebhook(Buffer.from(body), signed(body))).rejects.toEqual(
       new BillingWebhookRejected('signature'),
+    );
+  });
+});
+
+describe('withCheckoutId', () => {
+  it("adds Polar's placeholder as a query parameter, before any hash", () => {
+    expect(withCheckoutId('http://localhost:3002/boards/b1')).toBe(
+      'http://localhost:3002/boards/b1?checkout_id={CHECKOUT_ID}',
+    );
+    expect(withCheckoutId('http://localhost:3002/boards/b1?x=1#y')).toBe(
+      'http://localhost:3002/boards/b1?x=1&checkout_id={CHECKOUT_ID}#y',
     );
   });
 });

@@ -6,12 +6,17 @@ import {
   Inject,
   Injectable,
   Logger,
+  NotFoundException,
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { z } from 'zod';
 import {
+  checkoutOf,
   getProfile,
+  payingSubscriptionOf,
+  workspaceNameAndPlan,
+  type WorkspaceRole,
   paidPlanOfWorkspace,
   recordBillingCheckout,
   saveSubscriptionSnapshot,
@@ -20,7 +25,14 @@ import {
   workspacePlan,
   workspaceRoleOf,
 } from '@canvasflow/db';
-import { BILLING_CYCLES, PURCHASABLE_PLANS } from '@canvasflow/types';
+import {
+  BILLING_CYCLES,
+  PURCHASABLE_PLANS,
+  isBillingCycle,
+  type BillingCycle,
+  type WorkspacePlan,
+} from '@canvasflow/types';
+import { allowedOrigins } from '../../common/allowed-origins.js';
 import { parseEnv } from '../../config/env.js';
 import { DatabaseService } from '../../infra/database/database.service.js';
 import type { AuthenticatedUser } from '../auth/jwt.guard.js';
@@ -37,7 +49,40 @@ const CheckoutBody = z.object({
   workspaceId: z.string().uuid(),
   plan: z.enum(PURCHASABLE_PLANS),
   cycle: z.enum(BILLING_CYCLES),
+  /** Where to come back to: a page of the editor or the web app, and nowhere else. */
+  returnTo: z.string().url().max(2000).optional(),
+  /** For a per-member plan: seats to buy, never fewer than the workspace's members. */
+  seats: z.number().int().min(1).max(1000).optional(),
 });
+
+export interface CheckoutStatus {
+  workspaceId: string;
+  /** The plan the checkout was for. */
+  plan: WorkspacePlan;
+  /** True once the workspace is on that plan, which is when the payment has landed. */
+  done: boolean;
+  /** Once done, the subscription Polar describes: how often, how many seats, and the next charge. */
+  subscription: PaidSubscription | null;
+}
+
+export interface PaidSubscription {
+  plan: WorkspacePlan;
+  cycle: BillingCycle;
+  seats: number | null;
+  renewsAt: string | null;
+  cancelAtPeriodEnd: boolean;
+}
+
+/** What the upgrade page needs to know about a workspace before anyone pays. */
+export interface BillingWorkspace {
+  id: string;
+  name: string;
+  plan: WorkspacePlan;
+  role: WorkspaceRole;
+  members: number;
+  /** The subscription paying for it, when there is one. */
+  subscription: PaidSubscription | null;
+}
 
 /** How long the catalogue is trusted before it is read again. */
 const CATALOGUE_TTL_MS = 5 * 60_000;
@@ -69,7 +114,7 @@ export class BillingService {
     if (!parsed.success) {
       throw new BadRequestException('Say which workspace, plan and billing period to buy.');
     }
-    const { workspaceId, plan, cycle } = parsed.data;
+    const { workspaceId, plan, cycle, returnTo, seats: asked } = parsed.data;
     const db = this.database.db;
 
     const role = await workspaceRoleOf(db, user.id, workspaceId);
@@ -113,11 +158,12 @@ export class BillingService {
       });
     }
 
-    const seats =
+    const members =
       pick.product.price.kind === 'seats'
         ? Math.max(1, (await workspaceMemberIds(db, workspaceId)).length)
         : undefined;
-    const app = this.env.EDITOR_URL ?? this.env.WEB_URL;
+    const seats = members ? Math.max(members, asked ?? members) : undefined;
+    const back = this.returnAddress(returnTo);
 
     let checkout: { id: string; url: string };
     try {
@@ -127,11 +173,11 @@ export class BillingService {
         userId: user.id,
         email: profile.email,
         ...(profile.name ? { name: profile.name } : {}),
-        ...(seats ? { seats } : {}),
+        ...(seats && members ? { seats, minSeats: members } : {}),
         // A company buying for its team usually needs its address on the invoice.
         requireBillingAddress: plan === 'team',
-        successUrl: `${app}/?checkout_id={CHECKOUT_ID}`,
-        returnUrl: `${this.env.WEB_URL}/#pricing`,
+        successUrl: withCheckoutId(back),
+        returnUrl: back,
       });
     } catch (error) {
       this.logger.error(`Checkout for workspace ${workspaceId} failed: ${String(error)}`);
@@ -144,6 +190,56 @@ export class BillingService {
 
     await recordBillingCheckout(db, { id: checkout.id, workspaceId, userId: user.id, plan, cycle });
     return { url: checkout.url };
+  }
+
+  /**
+   * How a checkout this person can see has gone: whether its workspace is on
+   * the plan yet. Asked by the page they come back to, until it is.
+   */
+  async checkoutStatus(user: AuthenticatedUser, checkoutId: string): Promise<CheckoutStatus> {
+    const db = this.database.db;
+    const checkout = await checkoutOf(db, checkoutId);
+    // A checkout for a workspace they are not in is answered as one that does
+    // not exist, so ids cannot be probed.
+    if (!checkout || !(await workspaceRoleOf(db, user.id, checkout.workspaceId))) {
+      throw new NotFoundException('No such checkout.');
+    }
+    const current = await workspacePlan(db, checkout.workspaceId);
+    const done = current === checkout.plan;
+    return {
+      workspaceId: checkout.workspaceId,
+      plan: checkout.plan,
+      done,
+      subscription: done ? await this.paidSubscription(checkout.workspaceId) : null,
+    };
+  }
+
+  /** The workspace as the upgrade page shows it, for anyone in it. */
+  async workspace(user: AuthenticatedUser, workspaceId: string): Promise<BillingWorkspace> {
+    const db = this.database.db;
+    const role = await workspaceRoleOf(db, user.id, workspaceId);
+    const row = role ? await workspaceNameAndPlan(db, workspaceId) : null;
+    if (!role || !row) throw new NotFoundException('No such workspace.');
+    return {
+      id: workspaceId,
+      name: row.name,
+      plan: row.plan,
+      role,
+      members: (await workspaceMemberIds(db, workspaceId)).length,
+      subscription: await this.paidSubscription(workspaceId),
+    };
+  }
+
+  private async paidSubscription(workspaceId: string): Promise<PaidSubscription | null> {
+    const row = await payingSubscriptionOf(this.database.db, workspaceId);
+    if (!row || !isBillingCycle(row.cycle)) return null;
+    return {
+      plan: row.plan,
+      cycle: row.cycle,
+      seats: row.seats,
+      renewsAt: row.currentPeriodEnd?.toISOString() ?? null,
+      cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+    };
   }
 
   /**
@@ -189,6 +285,19 @@ export class BillingService {
     }
   }
 
+  /**
+   * The page to send someone back to: the one they asked for when it is on
+   * one of our own origins, otherwise the pricing section.
+   */
+  private returnAddress(returnTo: string | undefined): string {
+    const fallback = `${this.env.WEB_URL}/#pricing`;
+    if (!returnTo) return fallback;
+    const url = new URL(returnTo);
+    if (!allowedOrigins(this.env).includes(url.origin)) return fallback;
+    url.searchParams.delete('checkout_id');
+    return url.toString();
+  }
+
   private requireProvider(): BillingProvider {
     if (!this.provider) {
       throw new ServiceUnavailableException({
@@ -209,4 +318,14 @@ export class BillingService {
     this.catalogue = { products, readAt: now };
     return products;
   }
+}
+
+/**
+ * The address with Polar's placeholder for the checkout's id added, which it
+ * fills in on the way back. Built as text: a URL object would escape the braces.
+ */
+export function withCheckoutId(address: string): string {
+  const [base, hash] = address.split('#', 2) as [string, string | undefined];
+  const joined = `${base}${base.includes('?') ? '&' : '?'}checkout_id={CHECKOUT_ID}`;
+  return hash === undefined ? joined : `${joined}#${hash}`;
 }

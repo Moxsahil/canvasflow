@@ -13,6 +13,7 @@ import {
 } from '@canvasflow/types';
 import { SectionLabel } from '@/components/marketing/section-label';
 import { useInView } from '@/components/marketing/use-in-view';
+import { WHITEBOARD_HREF } from '@/lib/whiteboard';
 
 type Billing = 'monthly' | 'yearly';
 
@@ -94,6 +95,15 @@ const YEARLY_SAVING = Math.min(
     Math.floor((1 - price.yearly / price.monthly) * 100),
   ),
 );
+
+/** Where a card's button goes: the editor for Free, its upgrade page for a paid plan. */
+function ctaHref(plan: WorkspacePlan, billing: Billing): string {
+  if (!PLAN_PRICES[plan]) return WHITEBOARD_HREF;
+  const url = new URL('/upgrade', WHITEBOARD_HREF);
+  url.searchParams.set('plan', plan);
+  url.searchParams.set('cycle', billing);
+  return url.toString();
+}
 
 const perMonth = (price: PlanPrice) => (price.per === 'member' ? '/member/mo' : '/mo');
 
@@ -192,8 +202,10 @@ export function PricingSection() {
                     ))}
                   </ul>
 
-                  {/* CTA */}
-                  <button
+                  {/* CTA: Free opens the editor; a paid plan opens its upgrade
+                      page on the period shown here. */}
+                  <a
+                    href={ctaHref(plan.id, billing)}
                     className={`w-full py-4 flex items-center justify-center gap-2 text-sm font-medium transition-all group ${
                       plan.highlight
                         ? 'bg-foreground text-background hover:bg-foreground/90'
@@ -202,7 +214,7 @@ export function PricingSection() {
                   >
                     GET STARTED
                     <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                  </button>
+                  </a>
                 </div>
               </div>
             ))}

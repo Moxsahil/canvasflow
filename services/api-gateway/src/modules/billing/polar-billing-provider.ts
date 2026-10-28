@@ -41,7 +41,9 @@ export class PolarBillingProvider implements BillingProvider {
       ...(request.name ? { customer_name: request.name } : {}),
       // Copied to the subscription, which is how its webhooks find the workspace.
       metadata: { workspace_id: request.workspaceId },
-      ...(request.seats ? { seats: request.seats, min_seats: request.seats } : {}),
+      ...(request.seats
+        ? { seats: request.seats, min_seats: request.minSeats ?? request.seats }
+        : {}),
       allow_discount_codes: false,
       allow_trial: false,
       require_billing_address: request.requireBillingAddress,

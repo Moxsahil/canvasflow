@@ -936,8 +936,6 @@
   "settings.row.plan": "Tarif",
   "settings.row.storage": "Speicher",
   "settings.row.terms": "Nutzungsbedingungen",
-  "billing.freePlan": "Kostenloser Tarif",
-  "billing.freePlanHint": "3 von 3 Boards genutzt, 1 Mitwirkende Person pro Board",
   "billing.upgrade": "Upgraden",
   "billing.seatsHint": "Mitwirkende mit Bearbeitungsrecht",
   "billing.seatsValue": "{{used}} von {{total}}",
@@ -1568,5 +1566,7 @@
   "diagrams.notEnough": "Ein detailliertes Diagramm verbraucht {{cost}} deiner Diagramme, diesen Monat sind noch {{left}} übrig.",
   "diagrams.useQuick": "Stattdessen schnell zeichnen",
   "diagrams.step.planning": "Diagramm wird geplant",
-  "diagrams.step.planned": "Diagramm geplant"
+  "diagrams.step.planned": "Diagramm geplant",
+  "billing.planTitle": "{{plan}}-Plan",
+  "billing.planHint": "{{diagrams}} KI-Diagramme pro Monat, {{storage}} GB Speicher"
 }

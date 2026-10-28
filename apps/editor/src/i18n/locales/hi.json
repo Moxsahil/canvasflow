@@ -936,8 +936,6 @@
   "settings.row.plan": "प्लान",
   "settings.row.storage": "स्टोरेज",
   "settings.row.terms": "सेवा की शर्तें",
-  "billing.freePlan": "मुफ़्त प्लान",
-  "billing.freePlanHint": "3 में से 3 बोर्ड इस्तेमाल हुए, हर बोर्ड पर 1 सहयोगी",
   "billing.upgrade": "अपग्रेड करें",
   "billing.seatsHint": "बदलाव की पहुँच वाले सहयोगी",
   "billing.seatsValue": "{{total}} में से {{used}}",
@@ -1568,5 +1566,7 @@
   "diagrams.notEnough": "विस्तृत डायग्राम में आपके {{cost}} डायग्राम लगते हैं, और इस महीने {{left}} बाकी हैं।",
   "diagrams.useQuick": "इसकी जगह तेज़ बनाएँ",
   "diagrams.step.planning": "डायग्राम की योजना बन रही है",
-  "diagrams.step.planned": "डायग्राम की योजना बनी"
+  "diagrams.step.planned": "डायग्राम की योजना बनी",
+  "billing.planTitle": "{{plan}} प्लान",
+  "billing.planHint": "हर महीने {{diagrams}} AI डायग्राम, {{storage}} GB स्टोरेज"
 }

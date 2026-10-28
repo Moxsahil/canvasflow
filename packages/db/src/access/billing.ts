@@ -1,7 +1,12 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { largerPlan, type BillingCycle, type WorkspacePlan } from '@canvasflow/types';
 import type { Database } from '../client.js';
-import { billingCheckouts, workspaceSubscriptions } from '../schema/billing.js';
+import {
+  billingCheckouts,
+  workspaceSubscriptions,
+  type WorkspaceSubscriptionRow,
+} from '../schema/billing.js';
+import { workspaces } from '../schema/workspaces.js';
 
 /**
  * Paid subscriptions, as copies of what the payment provider last said.
@@ -33,6 +38,18 @@ export async function recordBillingCheckout(
   },
 ): Promise<void> {
   await db.insert(billingCheckouts).values(input).onConflictDoNothing();
+}
+
+/** A checkout we opened, or null for one we never did. */
+export async function checkoutOf(
+  db: Database,
+  checkoutId: string,
+): Promise<{ workspaceId: string; plan: WorkspacePlan } | null> {
+  const [row] = await db
+    .select({ workspaceId: billingCheckouts.workspaceId, plan: billingCheckouts.plan })
+    .from(billingCheckouts)
+    .where(eq(billingCheckouts.id, checkoutId));
+  return row ?? null;
 }
 
 /** The workspace a checkout was opened for, or null for one we never opened. */
@@ -102,4 +119,35 @@ export async function paidPlanOfWorkspace(
     plan = plan ? largerPlan(plan, row.plan) : row.plan;
   }
   return plan;
+}
+
+/** The subscription paying for a workspace now, the most recently changed when there are several. */
+export async function payingSubscriptionOf(
+  db: Database,
+  workspaceId: string,
+): Promise<WorkspaceSubscriptionRow | null> {
+  const [row] = await db
+    .select()
+    .from(workspaceSubscriptions)
+    .where(
+      and(
+        eq(workspaceSubscriptions.workspaceId, workspaceId),
+        inArray(workspaceSubscriptions.status, [...PAYING_SUBSCRIPTION_STATUSES]),
+      ),
+    )
+    .orderBy(desc(workspaceSubscriptions.sourceModifiedAt))
+    .limit(1);
+  return row ?? null;
+}
+
+/** A workspace's name and plan, or null once it has been deleted. */
+export async function workspaceNameAndPlan(
+  db: Database,
+  workspaceId: string,
+): Promise<{ name: string; plan: WorkspacePlan } | null> {
+  const [row] = await db
+    .select({ name: workspaces.name, plan: workspaces.plan })
+    .from(workspaces)
+    .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)));
+  return row ?? null;
 }

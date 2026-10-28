@@ -71,6 +71,8 @@ interface SettingsDialogProps {
   renameWorkspace?: (workspaceId: string, name: string) => Promise<void>;
   /** Lists one of one's workspaces in the sidebar, which Settings then follows. */
   showWorkspace?: (workspaceId: string) => void;
+  /** Opens the plan picker for a workspace. */
+  upgradeWorkspace?: (workspaceId: string) => void;
   /** The board on screen, which Export all boards reads live. */
   openBoard?: OpenBoard | null;
   /** The account's usage analytics answer: null before it has given one. */
@@ -106,6 +108,7 @@ export function SettingsDialog({
   workspace = LOADING_WORKSPACE,
   renameWorkspace,
   showWorkspace,
+  upgradeWorkspace,
   openBoard = null,
   analytics = null,
   chooseAnalytics,
@@ -342,7 +345,7 @@ export function SettingsDialog({
       case 'notifications':
         return <NotificationsPane token={token} isGuest={isGuest} />;
       case 'billing':
-        return <BillingPane />;
+        return <BillingPane workspace={workspace} onUpgrade={upgradeWorkspace} />;
       case 'privacy':
         return (
           <PrivacyPane

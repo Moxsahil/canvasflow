@@ -29,8 +29,10 @@ export interface CheckoutRequest {
   userId: string;
   email: string;
   name?: string;
-  /** For a per-member price: the members the workspace has now, and the fewest it may buy. */
+  /** For a per-member price: the seats to start with. */
   seats?: number;
+  /** The fewest seats the buyer may choose: the workspace's members. */
+  minSeats?: number;
   requireBillingAddress: boolean;
   successUrl: string;
   returnUrl: string;
