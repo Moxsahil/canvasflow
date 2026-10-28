@@ -394,8 +394,12 @@ export class BillingService {
    *
    * Never throws: the membership change has already happened and must stand.
    * A failure is logged, and the next change works the count out afresh.
+   *
+   * `addOnly` only ever adds: for a subscription that has just changed, such as
+   * Pro moved to Team in Polar's portal with one seat for four members. Seats
+   * bought beyond the members at checkout are left for the owner to fill.
    */
-  async syncSeats(workspaceId: string): Promise<void> {
+  async syncSeats(workspaceId: string, { addOnly = false } = {}): Promise<void> {
     if (!this.provider) return;
     const db = this.database.db;
     try {
@@ -405,7 +409,7 @@ export class BillingService {
       const { seats, pendingSeats } = await this.provider.seatsOf(row.id);
       if (seats === null) return;
       const change = seatChange(members, seats, pendingSeats);
-      if (!change) return;
+      if (!change || (addOnly && change.kind !== 'add-now')) return;
       const subscription = await this.provider.changeSeats(row.id, change);
       await this.applySubscription(subscription, `seats.${change.kind}`);
       this.logger.log(`Workspace ${workspaceId}: ${change.kind} for ${members} members`);
@@ -501,10 +505,20 @@ export class BillingService {
     const provider = this.requireProvider();
     const event = await provider.readWebhook(body, headers);
     if (event.kind === 'ignored') return;
-    await this.applySubscription(event.subscription, event.type);
+    const workspaceId = await this.applySubscription(event.subscription, event.type);
+    // A Team plan with fewer seats than members, as a plan change in Polar's
+    // portal can leave it: topped up behind the answer, so Polar isn't kept
+    // waiting and a failure here never makes it send the event again.
+    if (workspaceId && event.subscription.plan === 'team') {
+      void this.syncSeats(workspaceId, { addOnly: true });
+    }
   }
 
-  private async applySubscription(subscription: ProviderSubscription, type: string): Promise<void> {
+  /** Saves what the provider said and moves the plan to match. Returns the workspace, if ours. */
+  private async applySubscription(
+    subscription: ProviderSubscription,
+    type: string,
+  ): Promise<string | null> {
     const db = this.database.db;
     const workspaceId =
       workspaceIdIn(subscription) ??
@@ -512,19 +526,19 @@ export class BillingService {
     if (!workspaceId) {
       // Retrying cannot find it either, so it is acknowledged and logged.
       this.logger.warn(`${type} for subscription ${subscription.id} names no workspace of ours`);
-      return;
+      return null;
     }
 
     const snapshot = snapshotOf(subscription, workspaceId);
     if (!snapshot.ok) {
       this.logger.error(`${type}: ${snapshot.problem}`);
-      return;
+      return null;
     }
     await saveSubscriptionSnapshot(db, snapshot.snapshot);
 
     // Enterprise is arranged by hand, and no subscription moves it.
     const current = await workspacePlan(db, workspaceId);
-    if (current === 'enterprise') return;
+    if (current === 'enterprise') return null;
     const paid = (await paidPlanOfWorkspace(db, workspaceId)) ?? 'free';
     if (paid !== current) {
       await this.plans.setPlan(
@@ -534,6 +548,7 @@ export class BillingService {
         `Polar subscription ${subscription.id} is ${subscription.status}`,
       );
     }
+    return workspaceId;
   }
 
   /**
