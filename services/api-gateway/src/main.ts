@@ -17,6 +17,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js';
 import { allowedOrigins } from './common/allowed-origins.js';
 import { originLock } from './common/origin-lock.js';
+import { BILLING_WEBHOOK_PATH } from './modules/billing/billing.controller.js';
 
 /**
  * Room for one Yjs update, which is the largest body this API takes.
@@ -64,6 +65,10 @@ async function bootstrap(): Promise<void> {
     );
   }
 
+  // The payment provider signs the exact bytes it sends, so its webhook is
+  // kept as a raw buffer; parsed and re-serialised JSON would no longer match.
+  // Registered first, and the JSON parser skips a body already read.
+  app.use(BILLING_WEBHOOK_PATH, express.raw({ type: '*/*', limit: '1mb' }));
   app.use(express.json({ limit: MAX_REQUEST_BODY }));
 
   /**

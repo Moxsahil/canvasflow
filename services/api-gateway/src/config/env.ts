@@ -137,6 +137,23 @@ const envSchema = z
       .startsWith('sk-ant-', 'ANTHROPIC_API_KEY must start with sk-ant-')
       .optional()
       .or(z.literal('').transform(() => undefined)),
+
+    // === Payments (Polar) ===
+    // Optional, like the diagrams key: without a token the checkout route says
+    // billing is not set up, and without a secret every webhook is refused.
+    // Sandbox and production tokens are separate; the environment picks which
+    // API they are sent to.
+    POLAR_ACCESS_TOKEN: z
+      .string()
+      .startsWith('polar_', 'POLAR_ACCESS_TOKEN must start with polar_')
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
+    POLAR_WEBHOOK_SECRET: z
+      .string()
+      .min(16)
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
+    POLAR_ENVIRONMENT: z.enum(['sandbox', 'production']).default('sandbox'),
   })
   .superRefine((env, ctx) => {
     // The verification link is the one URL we ask somebody to open from their

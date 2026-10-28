@@ -21,6 +21,7 @@ import { LinkPreviewsModule } from './modules/link-previews/link-previews.module
 import { BoardEmbedsModule } from './modules/board-embeds/board-embeds.module.js';
 import { PlansModule } from './modules/plans/plans.module.js';
 import { AiDiagramsModule } from './modules/ai-diagrams/ai-diagrams.module.js';
+import { BillingModule } from './modules/billing/billing.module.js';
 import { AppController } from './app.controller.js';
 import { ThrottlerModule } from '@nestjs/throttler';
 
@@ -61,6 +62,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     BoardEmbedsModule,
     PlansModule,
     AiDiagramsModule,
+    BillingModule,
   ],
   controllers: [AppController],
 })

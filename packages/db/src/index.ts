@@ -30,3 +30,4 @@ export * from './access/storage-usage.js';
 export * from './access/board-export.js';
 export * from './access/link-previews.js';
 export * from './access/board-embeds.js';
+export * from './access/billing.js';
