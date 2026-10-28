@@ -86,9 +86,10 @@ export function AppSidebar({
   onOpenBilling,
 }: AppSidebarProps) {
   return (
-    // No rule down the edge: the canvas runs right up to the sidebar, and a
-    // line between them reads as a seam in the window rather than as chrome.
-    <Sidebar collapsible="icon" className="group-data-[side=left]:border-r-0">
+    // Inset: the sidebar sits on the window's own ground, and the canvas is a
+    // rounded panel beside it (see the SidebarInset in Editor), so no rule is
+    // needed down the edge.
+    <Sidebar variant="inset" collapsible="icon" className="group-data-[side=left]:border-r-0">
       <SidebarHeader className="flex-row items-center gap-1 group-data-[collapsible=icon]:flex-col">
         {/* The rail starts at the button that opens it again: the workspace
             has nothing to show there that the open sidebar doesn't. */}
@@ -113,7 +114,15 @@ export function AppSidebar({
           <PreferencesMenu preferences={preferences} portalContainer={portalContainer} />
         </SidebarMenu>
         <SidebarMenu>
-          <NavUser user={user} actions={actions} portalContainer={portalContainer} />
+          <NavUser
+            user={user}
+            actions={actions}
+            portalContainer={portalContainer}
+            plan={
+              boardSwitcher.workspaces?.find((workspace) => workspace.id === boardSwitcher.listedId)
+                ?.plan ?? null
+            }
+          />
         </SidebarMenu>
       </SidebarFooter>
 
