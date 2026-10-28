@@ -4,6 +4,7 @@ import {
   createEllipse,
   createFrame,
   createLine,
+  createNote,
   createRectangle,
   createText,
   type Arrowhead,
@@ -11,6 +12,7 @@ import {
   type BaseStyleInput,
   type Edges,
   type Shape,
+  NOTE_COLORS,
 } from '@canvasflow/canvas-engine';
 import { FONT_FAMILIES } from '../properties/palette';
 import { ENGLISH, type TranslationKey } from '../i18n/i18n';
@@ -111,6 +113,24 @@ class Item {
 
   line(x: number, y: number, points: [number, number][], style: Style = {}): string {
     return this.add(createLine({ ...this.next(), x, y, points, ...this.style, ...style }));
+  }
+
+  /** A sticky note, its words fitted to its paper by the note itself. */
+  note({ x, y, w, h }: Box, words: string, paper: string): string {
+    return this.add(
+      createNote({
+        ...this.next(),
+        x,
+        y,
+        width: w,
+        height: h,
+        text: words,
+        fontFamily: this.font,
+        fontSize: 28,
+        fillColor: paper,
+        strokeColor: ON_FILL,
+      }),
+    );
   }
 
   frame({ x, y, w, h }: Box, name: string): string {
@@ -514,19 +534,15 @@ const notes = pack(
   [
     ...(
       [
-        ['library.pack.notes.yellowSticky', YELLOW],
-        ['library.pack.notes.pinkSticky', PINK],
-        ['library.pack.notes.greenSticky', GREEN],
-        ['library.pack.notes.blueSticky', SKY],
+        ['library.pack.notes.yellowSticky', NOTE_COLORS[0]],
+        ['library.pack.notes.pinkSticky', NOTE_COLORS[2]],
+        ['library.pack.notes.greenSticky', NOTE_COLORS[6]],
+        ['library.pack.notes.blueSticky', NOTE_COLORS[4]],
       ] as const
-    ).map(([name, colour]): [TranslationKey, (d: Item) => void] => [
+    ).map(([name, paper]): [TranslationKey, (d: Item) => void] => [
       name,
       (d) => {
-        d.rect(
-          { x: 0, y: 0, w: 200, h: 200 },
-          { fillColor: colour, fillStyle: 'solid', strokeColor: colour, roughness: 0 },
-        );
-        d.text(16, 16, 'Idea', { size: 24, color: ON_FILL });
+        d.note({ x: 0, y: 0, w: 200, h: 200 }, 'Idea', paper);
       },
     ]),
     [

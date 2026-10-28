@@ -33,7 +33,7 @@ import {
   Swatch,
 } from './inspector';
 import { RoundEdgeIcon, SharpEdgeIcon } from './icons';
-import { BACKGROUND_SWATCHES, BUCKET_SWATCHES, STROKE_SWATCHES } from './palette';
+import { BACKGROUND_SWATCHES, BUCKET_SWATCHES, NOTE_SWATCHES, STROKE_SWATCHES } from './palette';
 import type { StyleSurfaceProps } from './PropertiesPanel';
 import {
   ALIGN_OPTIONS,
@@ -153,7 +153,10 @@ export function StyleHalo({
   if (hidden) return null;
 
   const show = styleSections(shapeKinds, style, bucket);
-  const paintStroke = (colour: string) => strokeColorFor(colour, darkMode);
+  // A note's ink is its words, as text's is, and it takes the same type controls.
+  const inkIsText = show.textOnly || show.note;
+  // A note's ink is drawn as stored on either board, so it is shown that way.
+  const paintStroke = (colour: string) => (show.note ? colour : strokeColorFor(colour, darkMode));
 
   const toggle = (menu: HaloMenu) => (event: MouseEvent<HTMLButtonElement>) => {
     const trigger = event.currentTarget;
@@ -212,8 +215,8 @@ export function StyleHalo({
         {show.strokeColour && (
           <button
             type="button"
-            title={show.textOnly ? t('style.textColour') : t('style.strokeColour')}
-            aria-label={`${show.textOnly ? t('style.textColour') : t('style.strokeColour')}: ${style.strokeColor}`}
+            title={inkIsText ? t('style.textColour') : t('style.strokeColour')}
+            aria-label={`${inkIsText ? t('style.textColour') : t('style.strokeColour')}: ${style.strokeColor}`}
             className={menuChipClasses}
             {...chipState('stroke')}
           >
@@ -225,11 +228,11 @@ export function StyleHalo({
             <Chevron />
           </button>
         )}
-        {show.fill && (
+        {(show.fill || show.note) && (
           <button
             type="button"
-            title={t('style.fill')}
-            aria-label={`${t('style.fillColour')}: ${style.fillColor ?? t('style.noneLower')}`}
+            title={show.note ? t('style.paper') : t('style.fill')}
+            aria-label={`${show.note ? t('style.paperColour') : t('style.fillColour')}: ${style.fillColor ?? t('style.noneLower')}`}
             className={menuChipClasses}
             {...chipState('fill')}
           >
@@ -244,7 +247,7 @@ export function StyleHalo({
 
         <Separator />
 
-        {show.textOnly && (
+        {inkIsText && (
           <button
             type="button"
             title={t('style.text')}
@@ -369,8 +372,10 @@ export function StyleHalo({
           key={open.menu}
           title={
             open.menu === 'fill'
-              ? t('style.fillColour')
-              : show.textOnly
+              ? show.note
+                ? t('style.paperColour')
+                : t('style.fillColour')
+              : inkIsText
                 ? t('style.textColour')
                 : t('style.strokeColour')
           }
@@ -380,7 +385,9 @@ export function StyleHalo({
               ? STROKE_SWATCHES
               : show.bucket
                 ? BUCKET_SWATCHES
-                : BACKGROUND_SWATCHES
+                : show.note
+                  ? NOTE_SWATCHES
+                  : BACKGROUND_SWATCHES
           }
           paint={open.menu === 'stroke' ? paintStroke : undefined}
           position={menuPosition()}
@@ -403,8 +410,8 @@ export function StyleHalo({
               open.menu === 'stroke'
                 ? // Stroke has no transparent state, so a cleared value is ignored.
                   { strokeColor: next ?? style.strokeColor }
-                : // Nor does the bucket's pour.
-                  { fillColor: show.bucket ? (next ?? style.fillColor) : next },
+                : // Nor does the bucket's pour, or a note's paper.
+                  { fillColor: show.bucket || show.note ? (next ?? style.fillColor) : next },
               transient,
             )
           }

@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import { findTextMatches, matchRects, MAX_TEXT_MATCHES } from '../src/search/find-text';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  findTextMatches,
+  matchRects,
+  MAX_TEXT_MATCHES,
+  searchableText,
+} from '../src/search/find-text';
+import { createNote, noteLayout } from '../src/shapes/note';
 import { createText } from '../src/shapes/text';
 import { createRectangle } from '../src/shapes/rectangle';
 import type { TextShape } from '../src/shapes/shape';
@@ -117,5 +123,54 @@ describe('matchRects', () => {
 
   it('returns nothing for a zero-length match', () => {
     expect(matchRects(text({ text: 'hello' }), 0, 0)).toEqual([]);
+  });
+});
+
+describe('searching notes', () => {
+  // Measured on a stand-in canvas where every character is half as wide as
+  // the font is tall, so the lines a note wraps into are known here.
+  const realOffscreenCanvas = globalThis.OffscreenCanvas;
+  beforeAll(() => {
+    globalThis.OffscreenCanvas = class {
+      getContext() {
+        return {
+          font: '10px sans-serif',
+          measureText(this: { font: string }, words: string) {
+            return { width: words.length * parseFloat(this.font) * 0.5 };
+          },
+        };
+      }
+    } as never;
+  });
+  afterAll(() => {
+    globalThis.OffscreenCanvas = realOffscreenCanvas;
+  });
+
+  const words = 'plan the launch party and send every invitation before friday';
+  const note = createNote({ id: 'n', x: 100, y: 100, text: words, fontSize: 48 });
+
+  it('finds words on a note, by where they are in its words', () => {
+    const { matches } = findTextMatches([note], 'invitation');
+    expect(matches).toEqual([{ shapeId: 'n', index: words.indexOf('invitation'), length: 10 }]);
+  });
+
+  it('outlines a match on the line the note wrapped it onto', () => {
+    const layout = noteLayout(note);
+    expect(layout.lines.length).toBeGreaterThan(1);
+    const index = words.indexOf('friday');
+    const row = layout.lines.findIndex(
+      (line) => index >= line.start && index < line.start + line.text.length,
+    );
+    const [rect] = matchRects(searchableText(note)!, index, 6);
+    expect(rect!.y).toBeCloseTo(layout.textY + row * layout.lineHeight);
+    expect(rect!.height).toBeCloseTo(layout.lineHeight);
+  });
+
+  it('outlines a match that runs over a wrap on both lines', () => {
+    const layout = noteLayout(note);
+    const second = layout.lines[1]!;
+    // From the end of the first line into the start of the second.
+    const index = second.start - 3;
+    expect(matchRects(searchableText(note)!, index, 6)).toHaveLength(2);
   });
 });

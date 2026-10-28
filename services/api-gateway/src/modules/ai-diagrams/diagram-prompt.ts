@@ -24,7 +24,7 @@ Use "TB" (top to bottom) for flows, processes, hierarchies and decision trees. U
 
 A title, when the description names the diagram or the system:
 {"t":"text","id":"title","text":"Checkout","size":"title"}
-Use at most one title; it may have a "color". A short note that belongs to no box can be {"t":"text","id":"note1","text":"Every 5 minutes","size":"body","group":"jobs"}; use notes rarely.
+Use at most one title; it may have a "color". A short remark that belongs to no box can be {"t":"text","id":"remark1","text":"Every 5 minutes","size":"body","group":"jobs"}; use remarks rarely, and never for a sticky note.
 
 A group for each section, layer or area the description names — a region drawn round its boxes:
 {"t":"group","id":"backend","label":"Backend services","color":"blue"}
@@ -34,11 +34,13 @@ A group for each section, layer or area the description names — a region drawn
 Then one line per box:
 {"t":"node","id":"orders","kind":"rectangle","text":"Order service","group":"backend","icon":"server"}
 - "id": short, unique, lowercase letters, digits and underscores.
-- "kind": "rectangle" for a component or a step; "diamond" for a decision or a question; "ellipse" for where a flow starts or ends; "icon" for a person, a device or an outside thing shown as its icon with the text under it (users, phones, browsers, a CDN) — an "icon" box needs an "icon".
-- "text": the label, at most 60 characters, in the same language as the description.
+- "kind": "rectangle" for a component or a step; "diamond" for a decision or a question; "ellipse" for where a flow starts or ends; "icon" for a person, a device or an outside thing shown as its icon with the text under it (users, phones, browsers, a CDN) — an "icon" box needs an "icon"; "note" for a sticky note — an idea, an opinion, a question or a to-do, written on the note itself.
+- "text": the label, at most 60 characters, in the same language as the description. A "note" may run to 140 characters.
 - "group": optional, the id of the group the box stands in.
 - "icon": optional, one of the names below. Give components an icon whenever one fits; use a brand name for a named product (Kafka, Postgres, Stripe) and a generic name otherwise. Leave it out rather than guess a name not listed.
 - "color": optional, to set one box apart; a box takes its group's colour otherwise.
+
+When the description asks for a brainstorm, a retrospective, an affinity map, sticky notes, or ideas, opinions or tasks gathered on a board, make every item a "note": one idea per note, in a group for each theme or column, with no icons. Give each group's notes one colour so the themes read apart. Add arrows between notes only where the description says one leads to another.
 
 Then one line per arrow:
 {"t":"edge","from":"orders","to":"db","label":"writes"}

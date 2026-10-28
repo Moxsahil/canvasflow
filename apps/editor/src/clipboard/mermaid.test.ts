@@ -5,6 +5,7 @@ import {
   createEllipse,
   createFrame,
   createLine,
+  createNote,
   createRectangle,
   createText,
   type Arrowhead,
@@ -215,6 +216,26 @@ describe('mermaidFlowchart', () => {
         '  n2[" "]',
       ].join('\n'),
     );
+  });
+
+  it('makes a node of every note, labelled with its own words, tied or not', () => {
+    const shapes = [
+      createNote({ id: 'idea', x: 0, y: 0, text: 'Ship it\nfriday' }),
+      createNote({ id: 'risk', x: 300, y: 0, text: 'Late reviews' }),
+      createNote({ id: 'loose', x: 0, y: 300, text: 'Cake' }),
+      arrow('a1', 'idea', 'risk'),
+    ];
+
+    expect(mermaidFlowchart(shapes)).toBe(
+      [
+        'flowchart LR',
+        '  n1["Ship it<br>friday"]',
+        '  n2["Late reviews"]',
+        '  n3["Cake"]',
+        '  n1 --> n2',
+      ].join('\n'),
+    );
+    expect(hasFlowchart([createNote({ id: 'n', x: 0, y: 0, text: 'Alone' })])).toBe(true);
   });
 
   it('has nothing to say without a box or a tied arrow', () => {

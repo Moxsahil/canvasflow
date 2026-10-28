@@ -1,6 +1,7 @@
 import {
   isArrow,
   isFreehand,
+  isNote,
   isText,
   isTopic,
   readMapLayout,
@@ -27,9 +28,10 @@ export function itemStyleFromShape(shape: Shape, fallback: ItemStyle): ItemStyle
     roughness: shape.roughness,
     opacity: shape.opacity,
     edges: 'edges' in shape ? shape.edges : fallback.edges,
-    fontFamily: isText(shape) || isTopic(shape) ? shape.fontFamily : fallback.fontFamily,
-    fontSize: isText(shape) || isTopic(shape) ? shape.fontSize : fallback.fontSize,
-    textAlign: isText(shape) ? shape.textAlign : fallback.textAlign,
+    fontFamily:
+      isText(shape) || isTopic(shape) || isNote(shape) ? shape.fontFamily : fallback.fontFamily,
+    fontSize: isText(shape) || isTopic(shape) || isNote(shape) ? shape.fontSize : fallback.fontSize,
+    textAlign: isText(shape) || isNote(shape) ? shape.textAlign : fallback.textAlign,
     arrowType: isArrow(shape) ? shape.arrowType : fallback.arrowType,
     startArrowhead: isArrow(shape) ? shape.startArrowhead : fallback.startArrowhead,
     endArrowhead: isArrow(shape) ? shape.endArrowhead : fallback.endArrowhead,
@@ -39,5 +41,8 @@ export function itemStyleFromShape(shape: Shape, fallback: ItemStyle): ItemStyle
     mapLayout: isTopic(shape) ? readMapLayout(shape.mapLayout) : fallback.mapLayout,
     mapLines: isTopic(shape) ? readMapLines(shape.mapLines) : fallback.mapLines,
     topicShape: isTopic(shape) ? readTopicLook(shape.topicShape) : fallback.topicShape,
+    noteColor: isNote(shape) && shape.fillColor ? shape.fillColor : fallback.noteColor,
+    noteFontSize: isNote(shape) ? shape.fontSize : fallback.noteFontSize,
+    noteTextAlign: isNote(shape) ? shape.textAlign : fallback.noteTextAlign,
   };
 }

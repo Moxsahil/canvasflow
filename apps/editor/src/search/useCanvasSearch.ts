@@ -6,9 +6,9 @@ import {
   shapeBounds,
   type Camera,
   type Rect,
+  type SearchableText,
   type Shape,
   type TextMatch,
-  type TextShape,
 } from '@canvasflow/canvas-engine';
 
 const SEARCH_DEBOUNCE_MS = 120;
@@ -111,7 +111,7 @@ export function useCanvasSearch({
   // Every shape with words, as the text they are drawn as — a topic's
   // centred in its box — so a match is found and outlined the same way in both.
   const textShapes = useMemo(() => {
-    const map = new Map<string, TextShape>();
+    const map = new Map<string, SearchableText>();
     for (const shape of shapes) {
       const text = searchableText(shape);
       if (text) map.set(shape.id, text);

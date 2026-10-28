@@ -18,9 +18,10 @@ import {
 
 /**
  * The node shapes this module knows how to draw. An `icon` node is the icon
- * itself with its words beneath, and no box around it.
+ * itself with its words beneath, and no box around it. A `note` is a sticky
+ * note carrying its own words, for a thought rather than a step.
  */
-export const NODE_KINDS = ['rectangle', 'ellipse', 'diamond', 'icon'] as const;
+export const NODE_KINDS = ['rectangle', 'ellipse', 'diamond', 'icon', 'note'] as const;
 
 export type NodeKind = (typeof NODE_KINDS)[number];
 

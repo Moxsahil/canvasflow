@@ -18,6 +18,7 @@ import { bindingFor, outlineCrossing, resolveArrowTerminals } from '../shapes/ar
 import { createDiamond } from '../shapes/diamond.js';
 import { createEllipse } from '../shapes/ellipse.js';
 import { createImage } from '../shapes/image.js';
+import { createNote } from '../shapes/note.js';
 import { createRectangle } from '../shapes/rectangle.js';
 import { createText } from '../shapes/text.js';
 import type { ArrowShape, Shape } from '../shapes/shape.js';
@@ -37,7 +38,12 @@ import {
   textFontSize,
   type DiagramStyle,
 } from './measure.js';
-import { DEFAULT_DIAGRAM_COLOR, DIAGRAM_BOX_INK, DIAGRAM_PAINT } from './palette.js';
+import {
+  DEFAULT_DIAGRAM_COLOR,
+  DIAGRAM_BOX_INK,
+  DIAGRAM_NOTE_PAPER,
+  DIAGRAM_PAINT,
+} from './palette.js';
 
 /** The picture for an icon, already stored or about to be. */
 export interface DiagramIconImage {
@@ -117,6 +123,27 @@ function boxFor(node: LaidOutNode, id: string, pen: Pen): Shape {
     default:
       return createRectangle({ ...common, edges: pen.style.edges });
   }
+}
+
+/**
+ * A note for a node: its words on its paper, which fits them itself. Paper in
+ * the node's colour, yellow when it has none, and dark ink on it in either
+ * theme, as a note drawn by hand has.
+ */
+function noteShapeFor(node: LaidOutNode, id: string, pen: Pen): Shape {
+  return createNote({
+    id,
+    x: node.x,
+    y: node.y,
+    width: node.width,
+    height: node.height,
+    text: node.text,
+    fontFamily: pen.style.fontFamily,
+    fillColor: DIAGRAM_NOTE_PAPER[node.color ?? 'yellow'],
+    strokeColor: DIAGRAM_BOX_INK,
+    scale: pen.scale,
+    seed: seedFrom(node.id),
+  });
 }
 
 function iconFor(
@@ -414,6 +441,13 @@ export function diagramToShapes(
           key: `${node.id}:label`,
         }),
       );
+      continue;
+    }
+
+    if (node.kind === 'note') {
+      const note = noteShapeFor(node, genId(), pen);
+      bodies.push(note);
+      attachTo.set(node.id, note);
       continue;
     }
 

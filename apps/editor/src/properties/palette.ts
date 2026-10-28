@@ -15,6 +15,21 @@ export const BACKGROUND_SWATCHES = [
 ] as const;
 
 /**
+ * A sticky note's papers, in the engine's order. No transparent: a note is
+ * always paper, and its dark words need a pale one under them on either board.
+ */
+export const NOTE_SWATCHES = [
+  { value: '#ffec99', labelKey: 'color.yellow' },
+  { value: '#ffd8a8', labelKey: 'color.orange' },
+  { value: '#fcc2d7', labelKey: 'color.pink' },
+  { value: '#d0bfff', labelKey: 'color.purple' },
+  { value: '#a5d8ff', labelKey: 'color.blue' },
+  { value: '#96f2d7', labelKey: 'color.teal' },
+  { value: '#b2f2bb', labelKey: 'color.green' },
+  { value: '#e9ecef', labelKey: 'color.gray' },
+] as const;
+
+/**
  * The bucket's quick picks: the fill swatches with transparent swapped for
  * white, since a transparent pour would leave no mark.
  */

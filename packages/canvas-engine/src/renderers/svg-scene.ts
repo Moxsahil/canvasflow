@@ -24,6 +24,7 @@ import { visibleShapes } from '../shapes/visibility.js';
 import { strokeColorFor } from '../shapes/style.js';
 import { FRAME_BORDER_WIDTH } from './draw-frame.js';
 import { bookmarkToSvg } from './draw-bookmark.js';
+import { noteToSvg } from './draw-note.js';
 import { mindMapBranchesToSvg, mindMapFoldBadgesToSvg, topicToSvg } from './draw-topic.js';
 import { embedToSvg } from './draw-embed.js';
 import { frameChain } from '../frames/membership.js';
@@ -107,7 +108,10 @@ export function renderSceneToSvgString(
         generator,
         // The same swap the canvas makes, so a dark SVG and a dark PNG of one
         // board come out as the same picture.
-        { ...shape, strokeColor: strokeColorFor(shape.strokeColor, options.darkMode ?? false) },
+        // A note keeps its ink, which is on its paper rather than on the board.
+        shape.kind === 'note'
+          ? shape
+          : { ...shape, strokeColor: strokeColorFor(shape.strokeColor, options.darkMode ?? false) },
         options.imageDataUrls,
         options.darkMode ?? false,
       );
@@ -409,6 +413,9 @@ function shapeToSvg(
       break;
     case 'topic':
       content = topicToSvg(shape, darkMode);
+      break;
+    case 'note':
+      content = noteToSvg(shape, darkMode);
       break;
     default:
       assertNever(shape);

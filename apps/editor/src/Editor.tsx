@@ -39,6 +39,7 @@ import {
   isBookmark,
   isEmbed,
   isFrame,
+  isNote,
   isText,
   isTopic,
   hasMindMap,
@@ -51,12 +52,15 @@ import {
   topicGrowth,
   mindMapFoldBadgeAt,
   topicCentre,
+  noteBounds,
+  noteLayout,
   topicDropPatches,
   withTopicDropped,
   type TopicDrop,
   topicInk,
   withMindMapBranches,
   withMindMapRoots,
+  type NoteShape,
   type TopicShape,
   hiddenShapeIds,
   lockedShapeIds,
@@ -158,6 +162,7 @@ import { Toolbar } from './toolbar/Toolbar';
 import { HistoryPanel } from './toolbar/HistoryPanel';
 import { ToolLockButton } from './toolbar/ToolLockButton';
 import { GlassDock, GlassDockSeparator } from '@/components/ui/glass-dock';
+import { NoteEditor } from './text-editor/NoteEditor';
 import { TextEditor } from './text-editor/TextEditor';
 import {
   grownTopic,
@@ -170,6 +175,20 @@ import {
   type TopicGrowth,
 } from './mindmap/mind-map-ops';
 import { TopicHandles } from './mindmap/TopicHandles';
+import { NoteHandles } from './notes/NoteHandles';
+import { NoteLikeHearts } from './notes/NoteLikeHearts';
+import { useNoteLikes } from './notes/useNoteLikes';
+import {
+  cameraShowing,
+  freeNoteSpots,
+  noteAt,
+  noteBeside,
+  nudgeIntoSpot,
+  signedCopies,
+  withArrowsFollowing,
+  NOTE_SPOT_RADIUS,
+  type NoteSide,
+} from './notes/note-neighbours';
 import { usePeerTyping, withPeerTyping } from './collab/peer-typing';
 import { ZoomPanel } from './zoom-panel/ZoomPanel';
 import { ExitModeButton } from './modes/ExitModeButton';
@@ -809,6 +828,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
     [local, authToken],
   );
   const userId = user?.id ?? null;
+  // The name a note put down here is signed with. Nobody signs one on the
+  // local board, which has no one else to tell apart. A ref, because it is
+  // read where a shape is committed — a subscription, not a render.
+  const noteAuthorRef = useRef<string | undefined>(undefined);
+  noteAuthorRef.current = !local && user ? user.name : undefined;
   // An account has been here: the editor's own address checks for it first
   // next time, and opens its boards rather than the local board.
   const accountHere = !local && user !== null && !user.isGuest;
@@ -1100,6 +1124,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
 
   const comments = useComments(doc);
   const commenting = useCommentPlacement();
+  const noteLikes = useNoteLikes(doc);
   // Taken apart for the pointer handlers, which depend on these four and on
   // nothing else about it.
   const {
@@ -1312,9 +1337,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const editingArrow = editingTextShape && isArrow(editingTextShape) ? editingTextShape : null;
   // A topic keeps its words as a text shape does, in a box its map places.
   const editingTopic = editingTextShape && isTopic(editingTextShape) ? editingTextShape : null;
+  // A note keeps its words as well, in the room its paper gives them.
+  const editingNote = editingTextShape && isNote(editingTextShape) ? editingTextShape : null;
   const editingTextInitialValue =
     editingText?.text ??
     editingTopic?.text ??
+    editingNote?.text ??
     (editingArrow ? arrowLabelOf(editingArrow) : undefined);
   // Bump a key whenever a new text-editing session starts (a new textEditingAt
   // reference), so <TextEditor> remounts with blank state instead of reusing
@@ -1541,16 +1569,27 @@ export function Editor({ boardId, local = false }: EditorProps) {
       };
       return [...preview, carried];
     }
-    if (!editingTextShapeId) return shapes;
+    // A note being typed in grows as the words go in, here or on someone
+    // else's screen, and the arrows attached to it keep meeting its edge.
+    const typedNotes = new Set(
+      [...peerTyping.keys(), ...(editingTextShapeId ? [editingTextShapeId] : [])].filter((id) =>
+        boardShapes.some((shape) => shape.id === id && isNote(shape)),
+      ),
+    );
+    if (!editingTextShapeId) return withArrowsFollowing(shapes, typedNotes);
     // A topic stays on the board, holding what is being typed, and its map
     // makes room around it keystroke by keystroke.
     if (shapes.some((shape) => shape.id === editingTextShapeId && isTopic(shape))) {
       return withTopicBeingTyped(shapes, editingTextShapeId, liveText);
     }
-    return shapes.flatMap((shape) => {
+    const typed = shapes.flatMap((shape) => {
       if (shape.id !== editingTextShapeId) return [shape];
+      // A note stays too, holding what is being typed, so its words are
+      // fitted and its paper grows as they go in.
+      if (isNote(shape)) return [{ ...shape, text: liveText }];
       return isArrow(shape) ? [{ ...shape, label: liveText }] : [];
     });
+    return withArrowsFollowing(typed, typedNotes);
   }, [boardShapes, peerTyping, editingTextShapeId, liveText, topicDrag]);
 
   // An arrow with its label open shows no selection chrome. The outline traces
@@ -1598,6 +1637,74 @@ export function Editor({ boardId, local = false }: EditorProps) {
       });
     },
     [actorRef, doc],
+  );
+
+  /** Select a note and open its words for typing. */
+  const editNote = useCallback(
+    (noteId: string) => {
+      const note = doc.getShapes().find((shape) => shape.id === noteId);
+      if (!note || !isNote(note)) return;
+      actorRef.send({ type: 'SELECT_ALL', shapeIds: [noteId] });
+      actorRef.send({
+        type: 'EDIT_TEXT_SHAPE',
+        shapeId: noteId,
+        position: { x: note.x, y: note.y },
+        existingText: note.text,
+      });
+    },
+    [actorRef, doc],
+  );
+
+  /**
+   * Open the note on `side` of a note for typing: the one already standing
+   * there, or a blank one put there — the same size and style, signed by
+   * whoever put it down, and one undo step. The view follows along if it has
+   * to. Answers whether there was a note to open: a locked one in the way is
+   * left alone, and nothing is put on top of it.
+   */
+  const openNoteBeside = useCallback(
+    (noteId: string, side: NoteSide): boolean => {
+      if (readOnly) return false;
+      const current = doc.getShapes();
+      const from = current.find((shape) => shape.id === noteId);
+      if (!from || !isNote(from)) return false;
+      const beside = noteBeside(from, side, visibleShapes(current), genId(), noteAuthorRef.current);
+      let next: NoteShape;
+      if ('existing' in beside) {
+        if (lockedShapeIds(current).has(beside.existing.id)) return false;
+        next = beside.existing;
+      } else {
+        const frameId = frameForShape(
+          beside.created,
+          joinableFrames(current, lockedShapeIds(current)),
+        );
+        next = frameId ? { ...beside.created, frameId } : beside.created;
+        doc.breakUndoGroup();
+        doc.addShape(next);
+        doc.breakUndoGroup();
+      }
+      const view = actorRef.getSnapshot().context.camera;
+      const shown = cameraShowing(noteBounds(next), view, { width, height }, 16);
+      if (shown !== view) actorRef.send({ type: 'SET_CAMERA', camera: shown });
+      editNote(next.id);
+      return true;
+    },
+    [actorRef, doc, editNote, readOnly, width, height],
+  );
+
+  /** Tab or Ctrl/Cmd+Enter in a note's overlay: keep its words, go on to the next. */
+  const handleNoteNext = useCallback(
+    (text: string, side: NoteSide): boolean => {
+      const editingId = actorRef.getSnapshot().context.editingTextShapeId;
+      const note = doc.getShapes().find((shape) => shape.id === editingId);
+      if (!note || !isNote(note)) return false;
+      if (text !== note.text) {
+        doc.updateShape(note.id, { text });
+        settleBoundArrowsInDocument(doc, new Set([note.id]));
+      }
+      return openNoteBeside(note.id, side);
+    },
+    [actorRef, doc, openNoteBeside],
   );
 
   /**
@@ -1656,12 +1763,19 @@ export function Editor({ boardId, local = false }: EditorProps) {
    */
   const handleGrowSelectedTopic = useCallback(
     (growth: TopicGrowth): boolean => {
-      if (selectedIds.length !== 1 || viewMode) return false;
+      if (selectedIds.length !== 1 || viewMode || readOnly) return false;
       const only = shapes.find((shape) => shape.id === selectedIds[0]);
-      if (!only || !isTopic(only) || lockedIds.has(only.id)) return false;
+      if (!only || lockedIds.has(only.id)) return false;
+      // Enter on a note opens its words, as a double press does.
+      if (isNote(only)) {
+        if (growth !== 'sibling') return false;
+        editNote(only.id);
+        return true;
+      }
+      if (!isTopic(only)) return false;
       return growMindMap(only.id, growth);
     },
-    [selectedIds, shapes, lockedIds, viewMode, growMindMap],
+    [selectedIds, shapes, lockedIds, viewMode, readOnly, growMindMap, editNote],
   );
 
   /** Enter or Tab in a topic's overlay: keep what was typed, then grow from it. */
@@ -1937,6 +2051,35 @@ export function Editor({ boardId, local = false }: EditorProps) {
     shapes,
   ]);
 
+  // The one note selected, with nothing else going on: what the dots for the
+  // next note along are put around.
+  const selectedNote = useMemo(() => {
+    if (selectedIds.length !== 1 || !isIdle || readOnly || viewMode) return null;
+    if (activeTool !== 'select' || lockedIds.has(selectedIds[0]!)) return null;
+    const note = shownShapes.find((shape) => shape.id === selectedIds[0]);
+    return note && isNote(note) ? note : null;
+  }, [selectedIds, isIdle, readOnly, viewMode, activeTool, lockedIds, shownShapes]);
+
+  // A note's words are typed where they will be drawn: over the room its
+  // paper gives them, at the size it fits them to as they stand.
+  const typedNote = editingNote
+    ? (shapesForRender.find((shape) => shape.id === editingNote.id) as NoteShape | undefined)
+    : undefined;
+  const noteEditor = useMemo(() => {
+    if (!typedNote || !textEditingAt) return null;
+    const layout = noteLayout(typedNote);
+    return {
+      box: {
+        left: (typedNote.x + (layout.width - layout.textWidth) / 2 - camera.x) * camera.zoom,
+        top: (layout.textY - camera.y) * camera.zoom,
+        width: layout.textWidth * camera.zoom,
+      },
+      fontSize: layout.fontSize * camera.zoom,
+      lineHeight: layout.lineHeight * camera.zoom,
+      lineCount: layout.lines.length,
+    };
+  }, [typedNote, textEditingAt, camera]);
+
   const textEditorScreenPosition =
     textEditingAt && textEditorWorldPosition
       ? {
@@ -2167,11 +2310,24 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const pourColor = bucketFillColor(itemStyle.fillColor);
 
   const firstSelected = selectedShapes[0];
+  // Only notes being edited, selected or about to be put down. The panel
+  // shows a note's paper, size and alignment in the places every shape's
+  // fill, size and alignment go, and a choice made for the tool is
+  // remembered for notes alone — see `ItemStyle`.
+  const editingNotes =
+    propertyShapeKinds.length > 0 && propertyShapeKinds.every((kind) => kind === 'note');
   const propertyStyle: ItemStyle = firstSelected
     ? mapStyleFor(firstSelected, shapes, itemStyleFromShape(firstSelected, itemStyle))
     : editingBucket
       ? { ...itemStyle, fillColor: pourColor }
-      : itemStyle;
+      : editingNotes
+        ? {
+            ...itemStyle,
+            fillColor: itemStyle.noteColor,
+            fontSize: itemStyle.noteFontSize,
+            textAlign: itemStyle.noteTextAlign,
+          }
+        : itemStyle;
 
   // Nothing in the properties panel does anything for a viewer, and offering
   // controls that silently no-op is worse than not offering them. Focus mode
@@ -2243,8 +2399,23 @@ export function Editor({ boardId, local = false }: EditorProps) {
 
   const handleStyleChange = useCallback(
     (patch: Partial<ItemStyle>, transient = false) => {
-      // Always remember the choice, so the next shape drawn inherits it.
-      actorRef.send({ type: 'SET_ITEM_STYLE', style: patch });
+      // Always remember the choice, so the next shape drawn inherits it — a
+      // note's paper, size and alignment as the next note's, and not as the
+      // fill, size and alignment of everything else.
+      if (editingNotes) {
+        const { fillColor, fontSize, textAlign, ...shared } = patch;
+        actorRef.send({
+          type: 'SET_ITEM_STYLE',
+          style: {
+            ...shared,
+            ...(fillColor && { noteColor: fillColor }),
+            ...(fontSize !== undefined && { noteFontSize: fontSize }),
+            ...(textAlign && { noteTextAlign: textAlign }),
+          },
+        });
+      } else {
+        actorRef.send({ type: 'SET_ITEM_STYLE', style: patch });
+      }
       if (selectedIds.length === 0) return;
       // A map's layout and lines belong to the map, which keeps them on its
       // centre, and an outline only means something to a topic.
@@ -2266,14 +2437,24 @@ export function Editor({ boardId, local = false }: EditorProps) {
             });
           }
         }
+        // A note's words sized or set in another face can grow its paper, and
+        // the arrows attached to it go where its edge now is.
+        if (rest.fontSize !== undefined || rest.fontFamily !== undefined) {
+          const notes = selectedIds.filter((id) =>
+            current.some((shape) => shape.id === id && isNote(shape)),
+          );
+          if (notes.length > 0) settleBoundArrowsInDocument(doc, new Set(notes));
+        }
       });
 
       if (!transient) doc.breakUndoGroup();
     },
-    [actorRef, doc, selectedIds],
+    [actorRef, doc, selectedIds, editingNotes],
   );
 
   const dragOriginsRef = useRef<Record<string, Shape>>({});
+  /** The note a drag took hold of, and the free spots beside others it can settle into. */
+  const noteSpotsRef = useRef<{ note: NoteShape; spots: Point[] } | null>(null);
   /** Locked members of a frame being dragged, which go where it goes. */
   const carriedLockedRef = useRef<ReadonlySet<string>>(EMPTY_IDS);
   const resizeOriginRef = useRef<Shape | null>(null);
@@ -2423,7 +2604,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
    */
   useEffect(() => {
     const typed = editingTextShapeId ? shapes.find((s) => s.id === editingTextShapeId) : undefined;
-    if (!typed || !(isTopic(typed) || isText(typed) || isArrow(typed))) {
+    if (!typed || !(isTopic(typed) || isText(typed) || isNote(typed) || isArrow(typed))) {
       setTyping(null);
       return;
     }
@@ -2483,8 +2664,20 @@ export function Editor({ boardId, local = false }: EditorProps) {
       // Drawn inside a frame is drawn into it. Assigned before the shape
       // lands so it never exists unowned, which would flash unclipped.
       const onBoard = doc.getShapes();
-      const frameId = frameForShape(shape, joinableFrames(onBoard, lockedShapeIds(onBoard)));
-      const placed = frameId ? ({ ...shape, frameId } as Shape) : shape;
+      // A note pressed down just off a free spot beside another settles into
+      // it, lined up and the gap apart, as the next one in its row.
+      let settled = shape;
+      if (emitted.pressed && isNote(shape)) {
+        const spots = freeNoteSpots(visibleShapes(onBoard), shape, new Set());
+        const radius = NOTE_SPOT_RADIUS / actorRef.getSnapshot().context.camera.zoom;
+        const nudge = nudgeIntoSpot(shape, spots, radius);
+        if (nudge) settled = { ...shape, x: shape.x + nudge.dx, y: shape.y + nudge.dy };
+      }
+      const frameId = frameForShape(settled, joinableFrames(onBoard, lockedShapeIds(onBoard)));
+      const inFrame = frameId ? ({ ...settled, frameId } as Shape) : settled;
+      // A note is signed by whoever put it down, where there is anyone to sign.
+      const author = isNote(inFrame) ? noteAuthorRef.current : undefined;
+      const placed = author ? ({ ...inFrame, author } as Shape) : inFrame;
 
       // An arrow drawn onto a shape keeps hold of it. Decided here rather than
       // during the gesture because it is the released ends that matter, and
@@ -2497,6 +2690,16 @@ export function Editor({ boardId, local = false }: EditorProps) {
       // edge from the moment it is released rather than on the first drag.
       if (isArrow(bound) && (bound.startBinding || bound.endBinding)) {
         settleBoundArrowsInDocument(doc, new Set([bound.id]));
+      }
+
+      // A note is put down to be written on, so its words open at once.
+      if (isNote(bound)) {
+        actorRef.send({
+          type: 'EDIT_TEXT_SHAPE',
+          shapeId: bound.id,
+          position: { x: bound.x, y: bound.y },
+          existingText: '',
+        });
       }
     });
     const sub2 = actorRef.on('shapes.deleted', (emitted) => {
@@ -3049,6 +3252,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
       } else if (tool === 'select' && hitShapeId) {
         const moving = new Set(Object.keys(dragOriginsRef.current));
         measureSnapTargets(moving);
+        // A note taken hold of is offered the free spots beside the others,
+        // measured once, as everything else to snap to is.
+        const held = noteAt(Object.values(dragOriginsRef.current), point);
+        noteSpotsRef.current = held
+          ? { note: held, spots: freeNoteSpots(shownShapes, held, moving) }
+          : null;
         boundArrowsRef.current = affectedArrowIds(shapes, moving);
         gestureShapesRef.current = shapeMapFor(shapes, boundArrowsRef.current);
       } else if (DRAWS_FROM_POINTER.has(tool)) {
@@ -3312,6 +3521,20 @@ export function Editor({ boardId, local = false }: EditorProps) {
           showSnapGuides(result.guides);
         } else {
           showSnapGuides(EMPTY_GUIDES);
+          // With nothing else to line up with, a note held near a free spot
+          // beside another settles into it.
+          const held = noteSpotsRef.current;
+          const nudge = held
+            ? nudgeIntoSpot(
+                { x: held.note.x + dx, y: held.note.y + dy },
+                held.spots,
+                NOTE_SPOT_RADIUS / camera.zoom,
+              )
+            : null;
+          if (nudge) {
+            dx += nudge.dx;
+            dy += nudge.dy;
+          }
         }
 
         const redrawingArrows = boundArrowsRef.current.size > 0;
@@ -3672,6 +3895,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
 
       actorRef.send({ type: 'POINTER_UP', point });
       dragOriginsRef.current = {};
+      noteSpotsRef.current = null;
       carriedLockedRef.current = EMPTY_IDS;
       resizeOriginRef.current = null;
       vertexOriginRef.current = null;
@@ -3856,6 +4080,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
         return;
       }
 
+      if (hit && isNote(hit)) {
+        editNote(hit.id);
+        return;
+      }
+
       // An arrow is captioned rather than covered: the box opens in the break
       // in its line, centred on the same point the label will be drawn at,
       // whether or not it has one yet.
@@ -3893,6 +4122,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       readOnly,
       activeTool,
       editTopic,
+      editNote,
     ],
   );
 
@@ -4256,7 +4486,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
     // rather than offset over it — so pressing duplicate repeatedly lays
     // frames out in a row instead of stacking them where none can be seen.
     const ids = withFrameMembers(withMindMapBranches(selectedIds, current), current);
-    const newIds = doc.duplicateShapes(ids, duplicateOffsetFor(selectedIds, current), genId);
+    const newIds = doc.duplicateShapes(
+      ids,
+      duplicateOffsetFor(selectedIds, current),
+      genId,
+      noteAuthorRef.current,
+    );
 
     if (newIds.length > 0) {
       // Only the copied frames, not their contents: selecting everything
@@ -4815,7 +5050,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
     (entry: LibraryEntry, at?: Point) => {
       if (readOnly) return;
       const placed = shapesCentredOn(
-        withFreshIds(entry.shapes, genId),
+        signedCopies(withFreshIds(entry.shapes, genId), noteAuthorRef.current),
         at ?? viewportCentre(),
         doc.getShapes(),
       );
@@ -5050,6 +5285,35 @@ export function Editor({ boardId, local = false }: EditorProps) {
     () => shapes.some((shape) => isTopic(shape) && selectedIds.includes(shape.id)),
     [shapes, selectedIds],
   );
+  // Whoever runs the board's sharing hides likes from everyone and shows them
+  // again: from the board's menu, or from a note's.
+  const canHideLikes =
+    runsSharing &&
+    !local &&
+    (contextMenuTarget === 'canvas' ||
+      shapes.some((shape) => isNote(shape) && selectedIds.includes(shape.id)));
+  const { store: likeStore, likes } = noteLikes;
+  const toggleLikesHidden = useCallback(() => {
+    const hiding = !likes.hidden;
+    if (likeStore.setHidden(hiding)) {
+      showToast(t(hiding ? 'notes.likesHiddenToast' : 'notes.likesShownToast'));
+    }
+  }, [likeStore, likes.hidden, showToast, t]);
+  const toggleNoteLike = useCallback(
+    (noteId: string) => {
+      if (user) likeStore.toggle(noteId, { id: user.id, name: user.name });
+    },
+    [likeStore, user],
+  );
+  // The notes the hearts sit on: drawn as the canvas draws them, grown by
+  // whatever is being typed, less the one open for typing here.
+  const likeableNotes = useMemo(
+    () =>
+      visibleShapes(shapesForRender).filter(
+        (shape): shape is NoteShape => isNote(shape) && shape.id !== editingTextShapeId,
+      ),
+    [shapesForRender, editingTextShapeId],
+  );
   /**
    * Pick out every topic further out along the selected ones, as well as them
    * — what restyling a branch wants. Folded topics stay out, as they are out
@@ -5195,12 +5459,16 @@ export function Editor({ boardId, local = false }: EditorProps) {
           doc.getShapes(),
         );
       } else if (at) {
-        placedShapes = shapesCentredOn(content.shapes, at, doc.getShapes());
+        placedShapes = shapesCentredOn(
+          signedCopies(content.shapes, noteAuthorRef.current),
+          at,
+          doc.getShapes(),
+        );
       } else {
         // With nowhere to aim for, offset each pasted shape 20px in both axes
         // so they're visually distinguishable from the originals
         const OFFSET = 20;
-        placedShapes = content.shapes.map((s) => ({
+        placedShapes = signedCopies(content.shapes, noteAuthorRef.current).map((s) => ({
           ...s,
           x: s.x + OFFSET,
           y: s.y + OFFSET,
@@ -5785,6 +6053,17 @@ export function Editor({ boardId, local = false }: EditorProps) {
           }
           return;
         }
+        if (editing && isNote(editing)) {
+          // Kept however little is on it: an empty note is still a note,
+          // put down to be written on. Held selected, as text just typed is.
+          if (text !== editing.text) {
+            doc.updateShape(editingId, { text });
+            // Words that grew the paper move the arrows attached to it.
+            settleBoundArrowsInDocument(doc, new Set([editingId]));
+          }
+          actorRef.send({ type: 'COMMIT_TEXT', text, shapeId: editingId });
+          return;
+        }
         if (editing && isArrow(editing)) {
           // Trimmed, because a centred caption hangs off its own trailing
           // space — and emptied out it leaves the arrow, which was never the
@@ -5925,6 +6204,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
               readOnly={readOnly}
               canShareLinks={runsSharing}
               mindMap={selectionHasTopic}
+              canHideLikes={canHideLikes}
               moveTo={moveToBoards}
               open={contextMenuOpen}
               onOpenChange={handleContextMenuOpenChange}
@@ -5980,6 +6260,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 viewMode: toggleViewMode,
                 canvasStats: toggleCanvasStats,
                 showComments: toggleComments,
+                showLikes: toggleLikesHidden,
                 commandPalette: togglePalette,
                 stylePanelInspector: chooseInspector,
                 stylePanelHalo: chooseHalo,
@@ -5993,6 +6274,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 viewMode,
                 canvasStats: preferences.values.canvasStats,
                 showComments: preferences.values.showComments,
+                showLikes: !likes.hidden,
                 stylePanelInspector: !preferences.values.floatingStyleBar,
                 stylePanelHalo: preferences.values.floatingStyleBar,
               }}
@@ -6016,6 +6298,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   editingFrameIds={editingFrameIds}
                   editingArrowLabelId={editingArrow?.id}
                   editingTopicId={editingTopic?.id}
+                  editingNoteId={editingNote?.id}
                   newElement={newElement}
                   selectedIds={selectedIdsForRender}
                   marquee={marquee}
@@ -6135,6 +6418,26 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 }}
               />
             )}
+
+            {selectedNote && (
+              <NoteHandles
+                note={selectedNote}
+                camera={camera}
+                onAdd={(side) => openNoteBeside(selectedNote.id, side)}
+              />
+            )}
+
+            {/* A heart at the foot of every note, to like it with. Board
+                content, so still up with the chrome away. */}
+            <NoteLikeHearts
+              notes={likeableNotes}
+              camera={camera}
+              board={screen}
+              likes={likes}
+              userId={userId}
+              canLike={!readOnly && user !== null}
+              onToggle={toggleNoteLike}
+            />
 
             {/* A badge on the corner of every linked shape on screen, which
                 opens its link. Under the comment pins, and still up with the
@@ -6413,25 +6716,45 @@ export function Editor({ boardId, local = false }: EditorProps) {
               />
             )}
 
-            {textEditorScreenPosition && (
-              <TextEditor
+            {editingNote && noteEditor && (
+              <NoteEditor
                 key={textEditingKeyRef.current}
-                position={textEditorScreenPosition}
-                align={editingArrow || editingTopic ? 'center' : 'left'}
-                fontSize={textEditorFontSize}
-                fontFamily={textEditorFontFamily}
-                color={textEditorColor}
-                initialText={editingTextInitialValue}
-                onCommit={handleCommitText}
-                onCancel={handleCancelText}
+                {...noteEditor}
+                fontFamily={editingNote.fontFamily}
+                // As stored, not themed: the words sit on pale paper on
+                // either board, as the note draws them.
+                color={editingNote.strokeColor}
+                textAlign={editingNote.textAlign}
+                initialText={editingNote.text}
                 onChange={setLiveText}
-                onEnter={editingTopic ? handleTopicEnter : undefined}
-                onTab={editingTopic ? handleTopicTab : undefined}
-                // A map is named as it is grown, and Escape is how the
-                // growing stops: it keeps the last name typed.
-                commitOnEscape={Boolean(editingTopic)}
+                onCommit={handleCommitText}
+                onNext={handleNoteNext}
               />
             )}
+
+            {/* Not for a shape that has not reached the board yet: a note
+                just put down is opened in the same breath it is added. */}
+            {textEditorScreenPosition &&
+              !editingNote &&
+              (!editingTextShapeId || editingTextShape) && (
+                <TextEditor
+                  key={textEditingKeyRef.current}
+                  position={textEditorScreenPosition}
+                  align={editingArrow || editingTopic ? 'center' : 'left'}
+                  fontSize={textEditorFontSize}
+                  fontFamily={textEditorFontFamily}
+                  color={textEditorColor}
+                  initialText={editingTextInitialValue}
+                  onCommit={handleCommitText}
+                  onCancel={handleCancelText}
+                  onChange={setLiveText}
+                  onEnter={editingTopic ? handleTopicEnter : undefined}
+                  onTab={editingTopic ? handleTopicTab : undefined}
+                  // A map is named as it is grown, and Escape is how the
+                  // growing stops: it keeps the last name typed.
+                  commitOnEscape={Boolean(editingTopic)}
+                />
+              )}
 
             {!chromeHidden && (
               <ZoomPanel

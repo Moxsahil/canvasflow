@@ -10,7 +10,7 @@ import { layoutDiagram } from '../src/diagram/layout.js';
 import { layoutDiagramWithElk, type ElkLike } from '../src/diagram/layout-elk.js';
 import { diagramToShapes } from '../src/diagram/to-shapes.js';
 import type { DiagramIR } from '../src/diagram/ir.js';
-import type { ArrowShape, ImageShape, Shape, TextShape } from '../src/shapes/shape.js';
+import type { ArrowShape, ImageShape, NoteShape, Shape, TextShape } from '../src/shapes/shape.js';
 import { shapeBounds } from '../src/shapes/bounds.js';
 import { boundArrowPatches } from '../src/shapes/arrow-binding.js';
 
@@ -295,6 +295,39 @@ describe('buildDiagram', () => {
 
   it('returns nothing for no lines', () => {
     expect(buildDiagram([], counter())).toEqual({ shapes: [], errors: [] });
+  });
+
+  it('puts a note node down as a sticky note carrying its own words', () => {
+    const { shapes, errors } = buildDiagram(
+      [
+        JSON.stringify({ t: 'group', id: 'went', label: 'Went well', color: 'green' }),
+        JSON.stringify({
+          t: 'node',
+          id: 'a',
+          kind: 'note',
+          text: 'Shipped on time',
+          group: 'went',
+        }),
+        JSON.stringify({ t: 'node', id: 'b', kind: 'note', text: 'Ask for help sooner' }),
+        edge('a', 'b'),
+      ],
+      counter(),
+    );
+
+    expect(errors).toEqual([]);
+    const notes = shapes.filter((s): s is NoteShape => s.kind === 'note');
+    expect(notes.map((n) => n.text)).toEqual(['Shipped on time', 'Ask for help sooner']);
+    // Green paper from its group, the yellow of a note left uncoloured.
+    expect(notes.map((n) => n.fillColor)).toEqual(['#b2f2bb', '#ffec99']);
+    expect(notes.every((n) => n.width === 200 && n.height === 200)).toBe(true);
+    // No separate label laid over a note.
+    expect(shapes.filter((s) => s.kind === 'text').map((s) => (s as TextShape).text)).toEqual([
+      'Went well',
+    ]);
+    const arrow = shapes.find((s): s is ArrowShape => s.kind === 'arrow');
+    expect([arrow?.startBinding?.shapeId, arrow?.endBinding?.shapeId]).toEqual(
+      notes.map((n) => n.id),
+    );
   });
 });
 

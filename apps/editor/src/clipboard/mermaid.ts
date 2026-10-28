@@ -8,6 +8,7 @@ import {
   isEmbed,
   isFrame,
   isImage,
+  isNote,
   isRectangle,
   isText,
   resolveEmbed,
@@ -24,6 +25,15 @@ type Box = RectangleShape | EllipseShape | DiamondShape;
 
 function isBox(shape: Shape): shape is Box {
   return isRectangle(shape) || isEllipse(shape) || isDiamond(shape);
+}
+
+/**
+ * Whether a shape is a node of the chart whether or not an arrow is tied to
+ * it: a box, or a note, which is a thought on the board in its own right and
+ * carries its own words rather than writing laid over it.
+ */
+function isNode(shape: Shape): boolean {
+  return isBox(shape) || isNote(shape);
 }
 
 interface Edge {
@@ -96,7 +106,7 @@ function edgesIn(
  * laying it out.
  */
 export function hasFlowchart(shapes: readonly Shape[]): boolean {
-  if (shapes.some(isBox)) return true;
+  if (shapes.some(isNode)) return true;
   const byId = new Map(shapes.map((shape) => [shape.id, shape]));
   return edgesIn(shapes, byId, new Map()).length > 0;
 }
@@ -135,7 +145,7 @@ function nodeLine(id: string, shape: Shape, words: string): string {
     if (shape.kind === 'diamond') return `${id}{${label}}`;
     return shape.edges === 'round' ? `${id}(${label})` : `${id}[${label}]`;
   }
-  if (isText(shape)) return `${id}[${quoted(shape.text)}]`;
+  if (isText(shape) || isNote(shape)) return `${id}[${quoted(shape.text)}]`;
   if (isFrame(shape)) return `${id}[${quoted(frameLabel(shape))}]`;
   if (isImage(shape)) return `${id}[${quoted('Image')}]`;
   if (isEmbed(shape)) return `${id}[${quoted(resolveEmbed(shape.url)?.provider.name ?? 'Embed')}]`;
@@ -207,8 +217,8 @@ function byReadingOrder(a: Shape, b: Shape): number {
  * there is no flowchart among them.
  *
  * Nodes are the rectangles, ellipses and diamonds, each in Mermaid's nearest
- * outline and labelled with the writing standing inside it, and anything
- * else an arrow is tied to. Edges are the arrows tied at both ends: Mermaid
+ * outline and labelled with the writing standing inside it; the notes, with
+ * their own words; and anything else an arrow is tied to. Edges are the arrows tied at both ends: Mermaid
  * has no arrow that stops in mid-air, so one loose at either end is left
  * out, as are lines, drawings, images and writing that neither stands in a
  * box nor has an arrow tied to it. A frame holding any of the nodes is a
@@ -247,7 +257,7 @@ export function mermaidFlowchart(shapes: readonly Shape[]): string | null {
     return null;
   };
 
-  const nodes = new Set<Shape>(shapes.filter(isBox));
+  const nodes = new Set<Shape>(shapes.filter(isNode));
   for (const { from, to } of edges) {
     if (!isFrame(from)) nodes.add(from);
     if (!isFrame(to)) nodes.add(to);

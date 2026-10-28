@@ -1,15 +1,6 @@
 import { cn } from '@/lib/utils';
-import { t as translate, useT } from '../i18n';
+import { listed, useT } from '../i18n';
 import type { CommentReaction } from './comment-model';
-
-/** "Ada", "Ada and Grace", "Ada, Grace and Linus". */
-function listed(names: readonly string[]): string {
-  if (names.length <= 1) return names[0] ?? '';
-  return translate('common.listAnd', {
-    rest: names.slice(0, -1).join(', '),
-    last: names[names.length - 1]!,
-  });
-}
 
 /**
  * The emoji left on a comment: one chip an emoji, with how many gave it.

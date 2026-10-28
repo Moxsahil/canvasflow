@@ -31,6 +31,8 @@ interface CanvasStackProps {
   editingArrowLabelId?: string;
   /** The topic whose words are open in the text overlay. */
   editingTopicId?: string;
+  /** The note whose words are open in its overlay. */
+  editingNoteId?: string;
   newElement: Shape | null;
   selectedIds: readonly string[];
   marquee: { x: number; y: number; width: number; height: number } | null;
@@ -128,6 +130,7 @@ export function CanvasStack({
   editingFrameIds,
   editingArrowLabelId,
   editingTopicId,
+  editingNoteId,
   newElement,
   selectedIds,
   marquee,
@@ -187,6 +190,7 @@ export function CanvasStack({
     editingFrameIds,
     editingArrowLabelId,
     editingTopicId,
+    editingNoteId,
     images,
     imageRevision,
     darkMode,

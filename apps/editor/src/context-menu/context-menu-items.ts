@@ -92,6 +92,7 @@ export type ContextMenuItemId =
   | 'viewMode'
   | 'canvasStats'
   | 'showComments'
+  | 'showLikes'
   | 'commandPalette'
   // Style panel
   | 'stylePanelInspector'
@@ -248,6 +249,8 @@ export const CONTEXT_MENU_ITEMS: Readonly<Record<ContextMenuItemId, ContextMenuI
   viewMode: fromPreference('viewMode', 'preferences.viewMode'),
   canvasStats: fromPreference('canvasStats', 'preferences.canvasStats'),
   showComments: fromPreference('showComments', 'preferences.showComments'),
+  // Not a preference: the board's own, ticked off by its owner for everyone.
+  showLikes: { labelKey: 'notes.showLikes', toggle: true, edits: true },
   commandPalette: fromMenu('commandPalette'),
 
   // A viewer has no style controls for either to show.
@@ -349,6 +352,7 @@ export const SELECTION_MENU: readonly ContextMenuGroup[] = [
   ['addLink', 'copyLinkToSelection'],
   ['addToLibrary'],
   ['hide', 'lock'],
+  ['showLikes'],
   ['deleteSelection'],
 ];
 
@@ -358,7 +362,7 @@ export const CANVAS_MENU: readonly ContextMenuGroup[] = [
   [COPY_AS, 'exportImage'],
   ['selectAll', 'unlockAll', 'showAll'],
   ['showGrid', 'snapToObjects', 'snapToMidpoints', 'arrowBinding'],
-  ['focusMode', 'viewMode', STYLE_PANEL, 'canvasStats', 'showComments'],
+  ['focusMode', 'viewMode', STYLE_PANEL, 'canvasStats', 'showComments', 'showLikes'],
   ['commandPalette'],
 ];
 
@@ -385,7 +389,7 @@ const GRID_AND_SNAPPING: ContextSubmenu = {
 const VIEW: ContextSubmenu = {
   submenu: 'view',
   labelKey: 'contextMenu.submenu.view',
-  items: ['focusMode', 'viewMode', 'canvasStats', 'showComments'],
+  items: ['focusMode', 'viewMode', 'canvasStats', 'showComments', 'showLikes'],
   compact: true,
 };
 
@@ -403,6 +407,7 @@ export const SHORT_SELECTION_MENU: readonly ContextMenuGroup[] = [
   ['addLink', 'copyLinkToSelection'],
   ['addToLibrary'],
   ['hide', 'lock'],
+  ['showLikes'],
   ['deleteSelection'],
 ];
 
@@ -427,6 +432,8 @@ export type ContextMenuTarget = 'selection' | 'canvas';
 const SHARING_ROWS: ReadonlySet<ContextMenuItemId> = new Set(['copyLinkToSelection']);
 /** Rows about a mind map: only when a topic is among what was right-clicked. */
 const MIND_MAP_ROWS: ReadonlySet<ContextMenuItemId> = new Set(['selectBranch', 'expandWithAi']);
+/** Hiding likes: only for whoever runs the board, and on a selection only one holding a note. */
+const LIKE_ROWS: ReadonlySet<ContextMenuItemId> = new Set(['showLikes']);
 
 export function contextMenuFor(
   target: ContextMenuTarget,
@@ -434,12 +441,15 @@ export function contextMenuFor(
     readOnly,
     canShareLinks = true,
     mindMap = false,
+    canHideLikes = false,
     short = false,
   }: {
     readOnly: boolean;
     canShareLinks?: boolean;
     /** A topic is selected, which puts the mind map rows in. */
     mindMap?: boolean;
+    /** Puts in the row that hides and shows likes on notes. */
+    canHideLikes?: boolean;
     /** The folded form, for a screen without the height for the full one. */
     short?: boolean;
   },
@@ -455,7 +465,8 @@ export function contextMenuFor(
   const usable = (id: ContextMenuItemId) =>
     !(readOnly && CONTEXT_MENU_ITEMS[id].edits) &&
     (canShareLinks || !SHARING_ROWS.has(id)) &&
-    (mindMap || !MIND_MAP_ROWS.has(id));
+    (mindMap || !MIND_MAP_ROWS.has(id)) &&
+    (canHideLikes || !LIKE_ROWS.has(id));
 
   const groups: ContextMenuGroup[] = [];
   for (const group of layout) {

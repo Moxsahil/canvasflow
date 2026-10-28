@@ -144,6 +144,15 @@ export function t(key: WordKey, values?: TranslationValues): string {
   return translate(current.messages, current.locale, key, values);
 }
 
+/** "Ada", "Ada and Grace", "Ada, Grace and Linus". */
+export function listed(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return t('common.listAnd', {
+    rest: names.slice(0, -1).join(', '),
+    last: names[names.length - 1]!,
+  });
+}
+
 function languagePart(code: string): string {
   return code.split('-')[0]!.toLowerCase();
 }

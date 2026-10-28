@@ -127,6 +127,16 @@ export const MindMapIcon = createIcon(
   </>,
 );
 
+/** A square of paper with its bottom corner turned up, and two lines written on it. */
+export const NoteIcon = createIcon(
+  <>
+    <path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8l-6 6H6a2 2 0 0 1-2-2z" />
+    <path d="M20 14h-4a2 2 0 0 0-2 2v4" />
+    <path d="M8 9h8" />
+    <path d="M8 13h4" />
+  </>,
+);
+
 /** A loose stroke, with the corners it is about to be squared off into. */
 export const SketchIcon = createIcon(
   <>

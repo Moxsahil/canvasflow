@@ -1,6 +1,7 @@
 import { useEffect, useState, type RefObject } from 'react';
 import {
   isArrow,
+  isNote,
   isPeerFresh,
   isText,
   isTopic,
@@ -55,8 +56,8 @@ export function usePeerTyping(
 }
 
 /**
- * The board drawn with everyone else's words in progress: a text holding
- * what is being typed into it, an arrow its label, a topic its words — with
+ * The board drawn with everyone else's words in progress: a text or a note
+ * holding what is being typed into it, an arrow its label, a topic its words — with
  * its map making room around them, as it does for the person typing.
  *
  * `except` is the shape open here, whose words this client's own overlay
@@ -72,7 +73,7 @@ export function withPeerTyping(
   const next = shapes.map((shape) => {
     const text = typing.get(shape.id);
     if (text === undefined || shape.id === except) return shape;
-    if (isText(shape)) return text === shape.text ? shape : { ...shape, text };
+    if (isText(shape) || isNote(shape)) return text === shape.text ? shape : { ...shape, text };
     if (isArrow(shape)) return text === shape.label ? shape : { ...shape, label: text };
     if (isTopic(shape) && text !== shape.text) {
       topics = true;
