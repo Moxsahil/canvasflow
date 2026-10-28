@@ -7,6 +7,7 @@ import {
   PLAN_NAMES,
   PLAN_PRICES,
   SUPPORT_EMAIL,
+  formatPlanPrice,
   type PlanPrice,
   type WorkspacePlan,
 } from '@canvasflow/types';
@@ -37,15 +38,12 @@ const history = (plan: WorkspacePlan) => {
 };
 
 /**
- * Quoted in rupees. None of these can be bought yet — the header's badge says
- * so — so the figures are what the plans are meant to cost, not a checkout.
+ * Quoted in US dollars. None of these can be bought yet — the header's badge
+ * says so — so the figures are what the plans are meant to cost, not a checkout.
  *
  * Names, limits and prices come from `@canvasflow/types`, the same place the
  * gateway enforces them from; only the words around them live here. Enterprise
  * has no card: it is arranged by writing to us, from the line under the cards.
- *
- * Neither face this block is set in draws `₹`, so the symbol comes from the
- * system font; every current OS has one.
  */
 const PLANS: Plan[] = [
   {
@@ -98,9 +96,6 @@ const YEARLY_SAVING = Math.min(
 );
 
 const perMonth = (price: PlanPrice) => (price.per === 'member' ? '/member/mo' : '/mo');
-
-/** `en-IN` groups by lakh, which only shows once a figure passes 99,999. */
-const rupees = (amount: number) => `₹${amount.toLocaleString('en-IN')}`;
 
 /**
  * `cf-pricing` on the section is what makes the rest of this read correctly:
@@ -294,14 +289,16 @@ function PlanPriceBlock({ price, billing }: { price: PlanPrice | undefined; bill
   return (
     <div className="mb-8">
       <div className="flex items-baseline gap-2">
-        <span className="text-5xl lg:text-6xl">{price ? rupees(price[billing]) : 'Free'}</span>
+        <span className="text-5xl lg:text-6xl">
+          {price ? formatPlanPrice(price[billing]) : 'Free'}
+        </span>
         {price && <span className="text-muted-foreground text-sm">{perMonth(price)}</span>}
       </div>
       {/* Kept on the free plan too, empty, so the cards stay level. */}
       <p className="mt-3 min-h-4 text-xs text-muted-foreground">
         {price &&
           (billing === 'yearly'
-            ? `${rupees(price.yearly * 12)}${price.per === 'member' ? ' per member' : ''} billed yearly`
+            ? `${formatPlanPrice(price.yearly * 12)}${price.per === 'member' ? ' per member' : ''} billed yearly`
             : 'Billed monthly')}
       </p>
     </div>

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { PLAN_NAMES, PLAN_PRICES } from '@canvasflow/types';
+import { PLAN_NAMES, PLAN_PRICES, formatPlanPrice } from '@canvasflow/types';
 import { LegalDocument, type LegalSection } from '@/components/legal/legal-document';
 import { CONTACT, OPERATOR } from '@/lib/legal';
 
@@ -9,21 +9,18 @@ export const metadata: Metadata = {
 };
 
 /** Move this whenever the text below changes: the page tells readers it did. */
-const LAST_UPDATED = '2026-10-22';
-
-/** How long a workspace keeps its plan while a renewal payment is retried. */
-const GRACE_DAYS = 7;
+const LAST_UPDATED = '2026-10-28';
 
 const supportEmail = <a href={`mailto:${CONTACT.support}`}>{CONTACT.support}</a>;
 const legalEmail = <a href={`mailto:${CONTACT.legal}`}>{CONTACT.legal}</a>;
 
-const rupees = (amount: number) => `₹${amount.toLocaleString('en-IN')}`;
-
 /**
  * Paid plans aren't on sale yet, so this is the policy that will apply when
  * they are, and the intro says so. The prices come from plans.ts, like the
- * pricing section's. When checkout launches, drop the "not on sale yet" lines
- * and check each promise below against what the billing code does.
+ * pricing section's. Polar sells the plans as merchant of record, so receipts,
+ * card retries and the refund itself are Polar's; what is refunded is ours.
+ * When checkout launches, drop the "not on sale yet" lines and check each
+ * promise below against what the billing code does.
  */
 const SECTIONS: LegalSection[] = [
   {
@@ -41,16 +38,34 @@ const SECTIONS: LegalSection[] = [
             const per = price.per === 'member' ? ' for each member' : '';
             return (
               <li key={plan}>
-                <strong>{PLAN_NAMES[plan]}</strong>: {rupees(price.monthly)} a month{per}, or{' '}
-                {rupees(price.yearly)} a month{per} when paid for a year at a time (
-                {rupees(price.yearly * 12)} a year).
+                <strong>{PLAN_NAMES[plan]}</strong>: {formatPlanPrice(price.monthly)} a month{per},
+                or {formatPlanPrice(price.yearly)} a month{per} when paid for a year at a time (
+                {formatPlanPrice(price.yearly * 12)} a year{per}).
               </li>
             );
           })}
         </ul>
         <p>
-          Prices are in Indian rupees, and the price you see at checkout is the price you pay,
-          including any taxes.
+          Prices are in US dollars. Checkout shows the total before you pay, including any sales
+          tax, VAT or GST that applies where you live.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'who-you-pay',
+    title: 'Who you pay',
+    body: (
+      <>
+        <p>
+          Payments are handled by <a href="https://polar.sh">Polar</a>, our payment provider and
+          merchant of record. Polar sells the plan to you on our behalf: it takes the payment, works
+          out and pays any tax on it, and sends your receipts and invoices. Polar’s own terms apply
+          to the purchase as well as ours.
+        </p>
+        <p>
+          You pay by card. Your card details go to Polar and its payment processor, never to us. If
+          your bank charges a fee for paying in US dollars, that fee is your bank’s, not ours.
         </p>
       </>
     ),
@@ -66,17 +81,13 @@ const SECTIONS: LegalSection[] = [
         </p>
         <ul>
           <li>
-            If you pay with UPI Autopay or a card, the plan renews automatically at the end of each
-            month or year, on the same date, until you cancel. We’ll remind you before each renewal
-            charge.
+            The plan renews automatically at the end of each month or year, on the same date, until
+            you cancel. Each renewal is charged to the card you paid with, and Polar emails you a
+            receipt.
           </li>
           <li>
-            If you pay for a year in one payment without Autopay, the plan doesn’t renew by itself.
-            We’ll remind you before it ends, and you can pay again to keep it.
-          </li>
-          <li>
-            Team is charged for each member of the workspace. If you add members, the extra cost is
-            charged from your next renewal.
+            Team is charged for each member of the workspace. When members join or leave, the number
+            you pay for changes with them, and we’ll show you the new price before it’s charged.
           </li>
         </ul>
       </>
@@ -112,8 +123,8 @@ const SECTIONS: LegalSection[] = [
           </li>
           <li>
             <strong>Mistakes.</strong> If you were charged twice, charged after you cancelled, or
-            charged an amount you didn’t agree to, we’ll refund the wrong charge in full, whenever
-            you tell us.
+            charged an amount you didn’t agree to, we’ll refund the wrong charge in full, through
+            Polar, whenever you tell us.
           </li>
         </ul>
         <p>
@@ -129,9 +140,8 @@ const SECTIONS: LegalSection[] = [
     body: (
       <>
         <p>
-          A refund goes back to the way you paid: the same card, UPI account or bank account. We
-          start it within 2 working days of agreeing to it. Your bank then usually takes 5 to 7
-          working days to show it.
+          A refund goes back to the card you paid with, through Polar. We start it within 2 working
+          days of agreeing to it. Your bank then usually takes 5 to 10 working days to show it.
         </p>
       </>
     ),
@@ -142,10 +152,10 @@ const SECTIONS: LegalSection[] = [
     body: (
       <>
         <p>
-          If a renewal payment doesn’t go through, we’ll email you and try again over the next few
-          days. Your plan stays on for {GRACE_DAYS} days while we do. If it still hasn’t gone
-          through by then, the workspace moves to the Free plan. Nothing is deleted, and you can pay
-          again at any time to get the plan back.
+          If a renewal payment doesn’t go through, Polar emails you and tries your card again over
+          the following days. If it still hasn’t gone through after that, the workspace moves to the
+          Free plan. Nothing is deleted, and you can subscribe again at any time to get the plan
+          back.
         </p>
       </>
     ),
