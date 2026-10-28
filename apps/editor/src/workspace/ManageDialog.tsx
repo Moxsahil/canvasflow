@@ -19,6 +19,9 @@ import {
   InlineDropdownMenuSeparator,
   InlineDropdownMenuTrigger,
 } from '@/components/ui/inline-dropdown-menu';
+import { PLAN_NAMES, type WorkspacePlan } from '@canvasflow/types';
+import { cachedBilling, loadBilling } from '../billing/billing-cache';
+import { formatDay } from '../billing/UpgradeShell';
 import { rich, useT } from '../i18n';
 import { INPUT, SCROLLBAR, SLIDE } from '../settings/settings-ui';
 import {
@@ -31,6 +34,7 @@ import {
 import type { SurfaceTheme } from '../ui/surface-palette';
 import { ColorDot, formatUpdatedAt } from './board-presentation';
 import { DeleteWarningDialog } from './DeleteWarningDialog';
+import { PlanBlocksDeleteDialog, type PlanBlock } from './PlanBlocksDeleteDialog';
 import { ROLE_KEYS, YOU_ARE_KEYS } from './role-words';
 import { liveBoards, type BoardSwitcherState } from './useBoardSwitcher';
 import type { BoardSummary, WorkspaceSummary } from './workspace-api';
@@ -49,6 +53,8 @@ interface ManageDialogProps {
   state: BoardSwitcherState;
   /** The theme on screen — the dialog surface carries its own palette for each. */
   theme: SurfaceTheme;
+  /** Opens Settings at Billing on a workspace, for a delete that waits on its plan. */
+  onOpenBilling?: (workspaceId: string) => void;
 }
 
 /**
@@ -68,7 +74,7 @@ interface ManageDialogProps {
  * Nothing here decides what a person may do; it only declines to offer what
  * the server would refuse. The rules themselves live in the routes.
  */
-export function ManageDialog({ state, theme }: ManageDialogProps) {
+export function ManageDialog({ state, theme, onOpenBilling }: ManageDialogProps) {
   const t = useT();
   const target = state.manageTarget;
   const { loadWorkspaceBoards, endManage, beginManage } = state;
@@ -91,6 +97,10 @@ export function ManageDialog({ state, theme }: ManageDialogProps) {
   // in the list, and a delete that failed in the warning on top.
   const [listError, setListError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // A workspace whose plan still renews: cancelled first, then deleted.
+  const [planBlock, setPlanBlock] = useState<PlanBlock | null>(null);
+  // Its plan, when cancelled but still running: the warning says it ends too.
+  const [endingPlan, setEndingPlan] = useState<WorkspacePlan | null>(null);
 
   // Reaching the board pane from inside this dialog can name a workspace whose
   // boards were never fetched — only the ones the sidebar has listed have been.
@@ -106,6 +116,7 @@ export function ManageDialog({ state, theme }: ManageDialogProps) {
       setPending(null);
       setListError(null);
       setDeleteError(null);
+      setPlanBlock(null);
     }
   }, [target]);
 
@@ -149,7 +160,32 @@ export function ManageDialog({ state, theme }: ManageDialogProps) {
 
   const askToDelete = useCallback((next: PendingDelete) => {
     setDeleteError(null);
-    setPending(next);
+    setEndingPlan(null);
+    if (next.kind !== 'workspace' || next.workspace.plan === 'free') {
+      setPending(next);
+      return;
+    }
+    const { workspace } = next;
+    // Read from what Settings keeps, or asked now. If it can't be read the
+    // warning opens as usual, and the server refuses a plan still renewing.
+    const kept = cachedBilling(workspace.id);
+    void (kept ? Promise.resolve(kept) : loadBilling(workspace.id)).then(
+      ({ billing }) => {
+        const sub = billing.subscription;
+        if (sub && !sub.cancelAtPeriodEnd) {
+          setPlanBlock({
+            workspaceId: workspace.id,
+            workspaceName: workspace.name,
+            plan: billing.plan,
+            renewsOn: sub.renewsAt ? formatDay(new Date(sub.renewsAt)) : null,
+          });
+          return;
+        }
+        if (sub) setEndingPlan(billing.plan);
+        setPending(next);
+      },
+      () => setPending(next),
+    );
   }, []);
 
   const confirmDelete = useCallback(() => {
@@ -287,6 +323,19 @@ export function ManageDialog({ state, theme }: ManageDialogProps) {
         </WindowFooter>
       </SurfaceWindow>
 
+      <PlanBlocksDeleteDialog
+        block={planBlock}
+        theme={theme}
+        onClose={() => setPlanBlock(null)}
+        onOpenBilling={
+          onOpenBilling &&
+          ((workspaceId) => {
+            setPlanBlock(null);
+            endManage();
+            onOpenBilling(workspaceId);
+          })
+        }
+      />
       <DeleteWarningDialog
         open={pending !== null}
         onOpenChange={(open) => {
@@ -308,13 +357,18 @@ export function ManageDialog({ state, theme }: ManageDialogProps) {
           asking?.kind === 'workspace' ? t('manage.deleteWorkspace') : t('boards.deleteConfirm')
         }
         description={
-          asking?.kind === 'workspace'
-            ? rich(t('manage.deleteWorkspaceWarning'), {
+          asking?.kind === 'workspace' ? (
+            <>
+              {rich(t('manage.deleteWorkspaceWarning'), {
                 boards: (
                   <strong>{t('boards.count', { count: asking.workspace.boardCount })}</strong>
                 ),
-              })
-            : t('boards.deleteWarning')
+              })}
+              {endingPlan && ` ${t('manage.planEndsWith', { plan: PLAN_NAMES[endingPlan] })}`}
+            </>
+          ) : (
+            t('boards.deleteWarning')
+          )
         }
       />
     </>

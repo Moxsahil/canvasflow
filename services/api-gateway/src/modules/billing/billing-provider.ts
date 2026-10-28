@@ -76,6 +76,16 @@ export interface ProviderInvoice {
   status: string;
 }
 
+/**
+ * How a per-member subscription's seats are brought to the member count:
+ * more seats at once, charged for the rest of the period on the next invoice;
+ * fewer from the next period, never refunded; or a waiting change dropped.
+ */
+export type SeatChange =
+  | { kind: 'add-now'; seats: number }
+  | { kind: 'reduce-at-renewal'; seats: number }
+  | { kind: 'drop-pending' };
+
 export type BillingWebhook =
   | { kind: 'subscription'; type: string; subscription: ProviderSubscription }
   | { kind: 'ignored'; type: string };
@@ -106,6 +116,12 @@ export interface BillingProvider {
   invoiceUrl(orderId: string): Promise<string | null>;
   /** Takes back a cancellation at the end of the period. */
   resume(subscriptionId: string): Promise<ProviderSubscription>;
+  /** Stops it renewing: it runs to the end of the paid period, then ends. */
+  cancelAtPeriodEnd(subscriptionId: string): Promise<ProviderSubscription>;
+  /** The seats paid for now, and any change waiting for the next period. */
+  seatsOf(subscriptionId: string): Promise<{ seats: number | null; pendingSeats: number | null }>;
+  /** Carries out a seat change worked out by `seatChange`. */
+  changeSeats(subscriptionId: string, change: SeatChange): Promise<ProviderSubscription>;
   /** Checks the signature, then reads the event. Throws `BillingWebhookRejected`. */
   readWebhook(body: Buffer, headers: Record<string, string>): Promise<BillingWebhook>;
 }

@@ -205,6 +205,7 @@ function ReadyPane({
             people={ready}
             userId={userId}
             viewerRole={role}
+            plan={workspace.plan}
             // This window's own list re-reads at once; everyone else's hears it
             // from the sync-server.
             onChanged={reread}

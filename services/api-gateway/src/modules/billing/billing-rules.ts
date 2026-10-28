@@ -6,7 +6,7 @@ import {
   type BillingCycle,
   type PurchasablePlan,
 } from '@canvasflow/types';
-import type { CatalogueProduct, ProviderSubscription } from './billing-provider.js';
+import type { CatalogueProduct, ProviderSubscription, SeatChange } from './billing-provider.js';
 
 /**
  * The rules between our plans and the provider's catalogue, kept free of the
@@ -103,4 +103,23 @@ export function snapshotOf(
       sourceModifiedAt: subscription.modifiedAt,
     },
   };
+}
+
+/**
+ * What to ask the provider for so a per-member subscription pays for exactly
+ * its members: null when it already does. Never fewer than one seat.
+ */
+export function seatChange(
+  members: number,
+  seats: number,
+  pendingSeats: number | null,
+): SeatChange | null {
+  const wanted = Math.max(1, members);
+  if (wanted > seats) return { kind: 'add-now', seats: wanted };
+  if (wanted < seats) {
+    return pendingSeats === wanted ? null : { kind: 'reduce-at-renewal', seats: wanted };
+  }
+  // Back to what is paid for now: a smaller count waiting for the renewal
+  // would leave somebody unpaid for.
+  return pendingSeats !== null && pendingSeats !== seats ? { kind: 'drop-pending' } : null;
 }

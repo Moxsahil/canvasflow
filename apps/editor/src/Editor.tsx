@@ -1085,6 +1085,17 @@ export function Editor({ boardId, local = false }: EditorProps) {
         ? (settingsWorkspace.own?.id ?? null)
         : null,
   );
+  // Settings at Billing on one workspace, listed first so the tab shows it:
+  // where a delete waiting on a plan sends its owner to cancel.
+  const { browseWorkspace } = boardSwitcher;
+  const openBillingFor = useCallback(
+    (workspaceId: string) => {
+      browseWorkspace(workspaceId);
+      setSettingsSection('billing');
+      setSettingsOpen(true);
+    },
+    [browseWorkspace],
+  );
   const { renameWorkspace, dismissError: dismissSwitcherError } = boardSwitcher;
   const renameWorkspaceFromSettings = useCallback(
     async (workspaceId: string, name: string) => {
@@ -6401,6 +6412,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
         className="h-full min-h-0"
       >
         <AppSidebar
+          onOpenBilling={openBillingFor}
           boardSwitcher={boardSwitcher}
           user={chromeUser}
           theme={theme}

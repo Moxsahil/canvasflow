@@ -8,6 +8,7 @@ import {
   type ProviderInvoice,
   type ProviderSubscription,
   type SavedCard,
+  type SeatChange,
 } from './billing-provider.js';
 
 /** The catalogue is a handful of products; one page holds them all. */
@@ -143,6 +144,38 @@ export class PolarBillingProvider implements BillingProvider {
     const subscription = await this.polar.subscriptions.update(subscriptionId, {
       cancel_at_period_end: false,
     });
+    return toSubscription(subscription);
+  }
+
+  async cancelAtPeriodEnd(subscriptionId: string): Promise<ProviderSubscription> {
+    const subscription = await this.polar.subscriptions.update(subscriptionId, {
+      cancel_at_period_end: true,
+    });
+    return toSubscription(subscription);
+  }
+
+  async seatsOf(
+    subscriptionId: string,
+  ): Promise<{ seats: number | null; pendingSeats: number | null }> {
+    const subscription = await this.polar.subscriptions.get(subscriptionId);
+    return {
+      seats: subscription.seats ?? null,
+      pendingSeats: subscription.pending_update?.seats ?? null,
+    };
+  }
+
+  async changeSeats(subscriptionId: string, change: SeatChange): Promise<ProviderSubscription> {
+    const subscription = await this.polar.subscriptions.update(
+      subscriptionId,
+      change.kind === 'drop-pending'
+        ? { pending_update: null }
+        : {
+            seats: change.seats,
+            // Added seats land on the next invoice for the days left; fewer
+            // seats wait for the renewal, so nothing paid is handed back.
+            proration_behavior: change.kind === 'add-now' ? 'prorate' : 'next_period',
+          },
+    );
     return toSubscription(subscription);
   }
 

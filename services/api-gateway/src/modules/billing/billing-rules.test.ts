@@ -6,7 +6,13 @@ import {
   type CatalogueProduct,
   type ProviderSubscription,
 } from './billing-provider.js';
-import { advertisedPrice, pickProduct, snapshotOf, workspaceIdIn } from './billing-rules.js';
+import {
+  advertisedPrice,
+  pickProduct,
+  seatChange,
+  snapshotOf,
+  workspaceIdIn,
+} from './billing-rules.js';
 import { PolarBillingProvider } from './polar-billing-provider.js';
 import { withCheckoutId } from './billing.service.js';
 
@@ -196,5 +202,35 @@ describe('withCheckoutId', () => {
     expect(withCheckoutId('http://localhost:3002/boards/b1?x=1#y')).toBe(
       'http://localhost:3002/boards/b1?x=1&checkout_id={CHECKOUT_ID}#y',
     );
+  });
+});
+
+describe('seatChange', () => {
+  it('adds seats at once when someone joins', () => {
+    expect(seatChange(4, 3, null)).toEqual({ kind: 'add-now', seats: 4 });
+  });
+
+  it('takes a seat off at the renewal when someone leaves', () => {
+    expect(seatChange(2, 3, null)).toEqual({ kind: 'reduce-at-renewal', seats: 2 });
+  });
+
+  it('leaves alone a reduction already waiting for the renewal', () => {
+    expect(seatChange(2, 3, 2)).toBeNull();
+  });
+
+  it('drops a waiting reduction when the members are back to what is paid for', () => {
+    expect(seatChange(3, 3, 2)).toEqual({ kind: 'drop-pending' });
+  });
+
+  it('adds at once over a waiting reduction, which the addition replaces', () => {
+    expect(seatChange(4, 3, 2)).toEqual({ kind: 'add-now', seats: 4 });
+  });
+
+  it('changes nothing when seats and members agree', () => {
+    expect(seatChange(3, 3, null)).toBeNull();
+  });
+
+  it('never goes below one seat', () => {
+    expect(seatChange(0, 1, null)).toBeNull();
   });
 });

@@ -6,7 +6,7 @@ import {
   workspaceSubscriptions,
   type WorkspaceSubscriptionRow,
 } from '../schema/billing.js';
-import { workspaces } from '../schema/workspaces.js';
+import { memberships, workspaces } from '../schema/workspaces.js';
 
 /**
  * Paid subscriptions, as copies of what the payment provider last said.
@@ -159,4 +159,33 @@ export async function subscriptionIdsOf(db: Database, workspaceId: string): Prom
     .from(workspaceSubscriptions)
     .where(eq(workspaceSubscriptions.workspaceId, workspaceId));
   return rows.map((row) => row.id);
+}
+
+/**
+ * The subscriptions still paying for workspaces this person owns, with each
+ * workspace's name: what deleting their account has to stop renewing.
+ */
+export async function payingSubscriptionsOwnedBy(
+  db: Database,
+  userId: string,
+): Promise<Array<WorkspaceSubscriptionRow & { workspaceName: string }>> {
+  const rows = await db
+    .select({ subscription: workspaceSubscriptions, workspaceName: workspaces.name })
+    .from(workspaceSubscriptions)
+    .innerJoin(workspaces, eq(workspaces.id, workspaceSubscriptions.workspaceId))
+    .innerJoin(
+      memberships,
+      and(
+        eq(memberships.workspaceId, workspaces.id),
+        eq(memberships.userId, userId),
+        eq(memberships.role, 'owner'),
+      ),
+    )
+    .where(
+      and(
+        isNull(workspaces.deletedAt),
+        inArray(workspaceSubscriptions.status, [...PAYING_SUBSCRIPTION_STATUSES]),
+      ),
+    );
+  return rows.map((row) => ({ ...row.subscription, workspaceName: row.workspaceName }));
 }

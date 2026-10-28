@@ -20,7 +20,7 @@ const TIMEOUT_MS = 2_000;
 
 export type GatewayNotice =
   | { event: 'board-joined'; boardId: string; userId: string }
-  | { event: 'workspace-joined'; inviteId: string }
+  | { event: 'workspace-joined'; inviteId: string; workspaceId: string }
   | {
       event: 'board-access-changed';
       boardId: string;

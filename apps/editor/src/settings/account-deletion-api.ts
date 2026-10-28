@@ -24,6 +24,8 @@ export interface DeletionPreview {
   sharedBoards: { id: string; title: string; members: number }[];
   /** Workspaces that stop deletion until somebody else takes them over. */
   sharedWorkspaces: { id: string; name: string }[];
+  /** Paid plans on workspaces they own, which stop renewing with the account. */
+  paidPlans?: { workspaceName: string; plan: string; endsAt: string | null }[];
 }
 
 export class AccountDeletionError extends Error {

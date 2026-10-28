@@ -15,6 +15,7 @@ import {
   checkoutOf,
   getProfile,
   payingSubscriptionOf,
+  payingSubscriptionsOwnedBy,
   workspaceNameAndPlan,
   type WorkspaceRole,
   paidPlanOfWorkspace,
@@ -45,7 +46,7 @@ import {
   type ProviderSubscription,
   type SavedCard,
 } from './billing-provider.js';
-import { pickProduct, snapshotOf, workspaceIdIn } from './billing-rules.js';
+import { pickProduct, seatChange, snapshotOf, workspaceIdIn } from './billing-rules.js';
 
 const CheckoutBody = z.object({
   workspaceId: z.string().uuid(),
@@ -384,6 +385,93 @@ export class BillingService {
     const paid = await this.paidSubscription(workspaceId);
     if (!paid) throw new NotFoundException('No paid plan.');
     return paid;
+  }
+
+  /**
+   * Brings a Team subscription's seats to the workspace's member count, after
+   * someone joins, leaves or is removed. A joiner's seat is charged for the
+   * rest of the period; a leaver's comes off at the renewal.
+   *
+   * Never throws: the membership change has already happened and must stand.
+   * A failure is logged, and the next change works the count out afresh.
+   */
+  async syncSeats(workspaceId: string): Promise<void> {
+    if (!this.provider) return;
+    const db = this.database.db;
+    try {
+      const row = await payingSubscriptionOf(db, workspaceId);
+      if (!row || row.plan !== 'team') return;
+      const members = (await workspaceMemberIds(db, workspaceId)).length;
+      const { seats, pendingSeats } = await this.provider.seatsOf(row.id);
+      if (seats === null) return;
+      const change = seatChange(members, seats, pendingSeats);
+      if (!change) return;
+      const subscription = await this.provider.changeSeats(row.id, change);
+      await this.applySubscription(subscription, `seats.${change.kind}`);
+      this.logger.log(`Workspace ${workspaceId}: ${change.kind} for ${members} members`);
+    } catch (error) {
+      this.logger.error(`Seat sync for workspace ${workspaceId} failed: ${String(error)}`);
+    }
+  }
+
+  /**
+   * The paid plans of the workspaces someone owns, as their account deletion
+   * lists them: name, plan and when each one ends.
+   */
+  async plansEndingWithAccount(
+    userId: string,
+  ): Promise<Array<{ workspaceName: string; plan: WorkspacePlan; endsAt: string | null }>> {
+    const rows = await payingSubscriptionsOwnedBy(this.database.db, userId);
+    return rows.map((row) => ({
+      workspaceName: row.workspaceName,
+      plan: row.plan,
+      endsAt: row.currentPeriodEnd?.toISOString() ?? null,
+    }));
+  }
+
+  /**
+   * Stops every plan this person pays for from renewing, before their account
+   * is deleted. Each runs to the end of its period. Returns the ones it
+   * stopped, so a deletion that then fails can put them back.
+   *
+   * Throws when the provider can't be reached: an account must not be deleted
+   * while a plan it pays for would keep charging.
+   */
+  async cancelForAccountDeletion(userId: string): Promise<string[]> {
+    const rows = (await payingSubscriptionsOwnedBy(this.database.db, userId)).filter(
+      (row) => !row.cancelAtPeriodEnd,
+    );
+    if (rows.length === 0) return [];
+    const provider = this.requireProvider();
+    const stopped: string[] = [];
+    try {
+      for (const row of rows) {
+        await this.applySubscription(
+          await provider.cancelAtPeriodEnd(row.id),
+          'subscription.canceled',
+        );
+        stopped.push(row.id);
+      }
+    } catch (error) {
+      this.logger.error(`Cancelling plans of ${userId} failed: ${String(error)}`);
+      await this.resumeAfterFailedDeletion(stopped);
+      throw providerError(
+        'Your paid plan couldn’t be cancelled, so the account wasn’t deleted. Please try again.',
+      );
+    }
+    return stopped;
+  }
+
+  /** Puts back plans stopped for an account deletion that did not go through. */
+  async resumeAfterFailedDeletion(subscriptionIds: string[]): Promise<void> {
+    if (!this.provider) return;
+    for (const id of subscriptionIds) {
+      try {
+        await this.applySubscription(await this.provider.resume(id), 'subscription.uncanceled');
+      } catch (error) {
+        this.logger.error(`Resuming subscription ${id} failed: ${String(error)}`);
+      }
+    }
   }
 
   private async requireOwner(user: AuthenticatedUser, workspaceId: string): Promise<void> {

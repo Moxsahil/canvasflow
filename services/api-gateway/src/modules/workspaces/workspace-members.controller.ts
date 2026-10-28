@@ -14,6 +14,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { Throttle } from '@nestjs/throttler';
 import { eq } from 'drizzle-orm';
 import {
@@ -37,6 +38,7 @@ import { DatabaseService } from '../../infra/database/database.service.js';
 import { AccountThrottlerGuard } from '../auth/account-throttler.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { type AuthenticatedUser, JwtAuthGuard } from '../auth/jwt.guard.js';
+import { syncSeatsLater } from '../billing/seat-sync.js';
 import { EmailService } from '../email/email.service.js';
 import { describeMemberRefusal, type MemberAction, type MemberRefusal } from './member-rules.js';
 import { NotifyService } from '../notifications/notify.service.js';
@@ -72,6 +74,7 @@ export class WorkspaceMembersController {
     private readonly email: EmailService,
     private readonly events: WorkspaceEventsService,
     private readonly notify: NotifyService,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   /** Make someone a member or an admin. */
@@ -117,6 +120,8 @@ export class WorkspaceMembersController {
 
     this.events.changed(workspaceId, [userId]);
     this.events.boardAccessChanged(outcome.boardIds, userId);
+    // A Team plan stops paying for their seat at the renewal. Behind the answer.
+    syncSeatsLater(this.moduleRef, workspaceId);
     return { data: { boardsPassed: outcome.boardsPassed } };
   }
 
@@ -193,6 +198,7 @@ export class WorkspaceMembersController {
 
     this.events.changed(workspaceId, [user.id]);
     this.events.boardAccessChanged(outcome.boardIds, user.id);
+    syncSeatsLater(this.moduleRef, workspaceId);
     return { data: { boardsPassed: outcome.boardsPassed } };
   }
 

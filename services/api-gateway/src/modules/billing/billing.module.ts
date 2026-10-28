@@ -29,5 +29,6 @@ import { PolarBillingProvider } from './polar-billing-provider.js';
       },
     },
   ],
+  exports: [BillingService],
 })
 export class BillingModule {}
