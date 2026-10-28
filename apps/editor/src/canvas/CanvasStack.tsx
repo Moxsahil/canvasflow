@@ -27,8 +27,8 @@ interface CanvasStackProps {
   shapes: readonly Shape[];
   pendingErasureIds?: ReadonlySet<string>;
   editingFrameIds?: ReadonlySet<string>;
-  /** The arrow whose label is open for typing, so its line breaks for the caret. */
-  editingArrowLabelId?: string;
+  /** The arrow or shape whose words are open for typing: an arrow breaks for the caret. */
+  editingLabelId?: string;
   /** The topic whose words are open in the text overlay. */
   editingTopicId?: string;
   /** The note whose words are open in its overlay. */
@@ -128,7 +128,7 @@ export function CanvasStack({
   shapes,
   pendingErasureIds,
   editingFrameIds,
-  editingArrowLabelId,
+  editingLabelId,
   editingTopicId,
   editingNoteId,
   newElement,
@@ -188,7 +188,7 @@ export function CanvasStack({
     devicePixelRatio: dpr,
     pendingErasureIds,
     editingFrameIds,
-    editingArrowLabelId,
+    editingLabelId,
     editingTopicId,
     editingNoteId,
     images,

@@ -22,8 +22,8 @@ export interface StaticSceneOptions extends SceneShapeContext {
    * selection colour, so it is obvious which frame the open field belongs to.
    */
   readonly editingFrameIds?: ReadonlySet<string>;
-  /** The arrow whose label is open in the text overlay — see SceneShapeContext. */
-  readonly editingArrowLabelId?: string;
+  /** The arrow or shape whose words are open in the text overlay — see SceneShapeContext. */
+  readonly editingLabelId?: string;
   /** The topic whose words are open in the text overlay — see SceneShapeContext. */
   readonly editingTopicId?: string;
   /** The note whose words are open in the text overlay — see SceneShapeContext. */
@@ -59,7 +59,7 @@ export function renderStaticScene(
     camera,
     pendingErasureIds,
     editingFrameIds,
-    editingArrowLabelId,
+    editingLabelId,
     editingTopicId,
     editingNoteId,
     backgroundColor,
@@ -120,7 +120,7 @@ export function renderStaticScene(
       darkMode,
       zoom,
       editingFrameIds,
-      editingArrowLabelId,
+      editingLabelId,
       editingTopicId,
       editingNoteId,
     });

@@ -8,6 +8,10 @@ import {
 } from './shortcuts';
 import type { Tool } from './tool';
 
+/** What Enter presses when it has focus, and so is left to. */
+const PRESSABLE =
+  'button, a[href], summary, [role="button"], [role="link"], [role="menuitem"], [role="option"], [role="tab"]';
+
 interface UseKeyboardShortcutsOptions {
   onSelectTool: (tool: Tool) => void;
   onEscape: () => void;
@@ -17,6 +21,11 @@ interface UseKeyboardShortcutsOptions {
   onZoomOut: () => void;
   onResetView: () => void;
   onDelete: () => void;
+  /**
+   * Enter: open the selected shape's words for typing. Says whether it did, so
+   * the key is left alone when nothing selected has words to write.
+   */
+  onEditText?: () => boolean;
   onSelectAll: () => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -83,6 +92,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onZoomOut,
     onResetView,
     onDelete,
+    onEditText,
     onSelectAll,
     onUndo,
     onRedo,
@@ -460,6 +470,19 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
 
       if (shouldIgnoreShortcut(event)) return;
 
+      // Not on a focused control, where Enter is that control's to press.
+      if (
+        event.key === 'Enter' &&
+        !mod &&
+        !event.shiftKey &&
+        !event.altKey &&
+        !(event.target instanceof Element && event.target.closest(PRESSABLE)) &&
+        onEditText?.()
+      ) {
+        event.preventDefault();
+        return;
+      }
+
       // Tool lock: Q, the letter both the preferences menu and the shortcuts
       // dialog already print for it. Bare only — Cmd+Q is the platform's.
       if (!mod && !event.altKey && event.key.toLowerCase() === 'q') {
@@ -511,6 +534,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions): void {
     onZoomOut,
     onResetView,
     onDelete,
+    onEditText,
     onSelectAll,
     onUndo,
     onRedo,

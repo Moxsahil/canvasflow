@@ -17,7 +17,7 @@ interface UseStaticRenderOptions {
   pendingErasureIds?: ReadonlySet<string>;
   /** Frames whose name is open for editing: label suppressed, border highlighted. */
   editingFrameIds?: ReadonlySet<string>;
-  editingArrowLabelId?: string;
+  editingLabelId?: string;
   /** The topic whose words are open in the text overlay. */
   editingTopicId?: string;
   /** The note whose words are open in its overlay: its paper drawn, its words not. */
@@ -58,7 +58,7 @@ export function useStaticRender(
     devicePixelRatio,
     pendingErasureIds,
     editingFrameIds,
-    editingArrowLabelId,
+    editingLabelId,
     editingTopicId,
     editingNoteId,
     images,
@@ -79,7 +79,7 @@ export function useStaticRender(
       camera,
       pendingErasureIds,
       editingFrameIds,
-      editingArrowLabelId,
+      editingLabelId,
       editingTopicId,
       editingNoteId,
       images,
@@ -94,7 +94,7 @@ export function useStaticRender(
     devicePixelRatio,
     pendingErasureIds,
     editingFrameIds,
-    editingArrowLabelId,
+    editingLabelId,
     editingTopicId,
     editingNoteId,
     images,

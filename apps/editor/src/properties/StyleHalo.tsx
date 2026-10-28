@@ -110,6 +110,7 @@ export function StyleHalo({
   layerActions,
   darkMode,
   bucket = false,
+  hasText = false,
   anchor,
   board,
   hidden,
@@ -152,7 +153,7 @@ export function StyleHalo({
 
   if (hidden) return null;
 
-  const show = styleSections(shapeKinds, style, bucket);
+  const show = styleSections(shapeKinds, style, bucket, hasText);
   // A note's ink is its words, as text's is, and it takes the same type controls.
   const inkIsText = show.textOnly || show.note;
   // A note's ink is drawn as stored on either board, so it is shown that way.
@@ -247,7 +248,7 @@ export function StyleHalo({
 
         <Separator />
 
-        {inkIsText && (
+        {(inkIsText || show.shapeText) && (
           <button
             type="button"
             title={t('style.text')}
