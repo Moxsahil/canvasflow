@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import {
+  getProfile,
   paidPlanOfWorkspace,
   recordBillingCheckout,
   saveSubscriptionSnapshot,
@@ -77,6 +78,13 @@ export class BillingService {
     }
     const provider = this.requireProvider();
 
+    // From the account, not the sign-in token: the session cookie names the
+    // account but does not carry its address, and Polar sends receipts there.
+    const profile = await getProfile(db, user.id);
+    if (!profile?.email) {
+      throw new BadRequestException('Add an email address to your account before buying a plan.');
+    }
+
     if ((await workspacePlan(db, workspaceId)) === 'enterprise') {
       throw new ConflictException({
         message: 'This workspace’s plan is arranged with us. Email support to change it.',
@@ -117,8 +125,8 @@ export class BillingService {
         productId: pick.product.id,
         workspaceId,
         userId: user.id,
-        email: user.email,
-        ...(user.name ? { name: user.name } : {}),
+        email: profile.email,
+        ...(profile.name ? { name: profile.name } : {}),
         ...(seats ? { seats } : {}),
         // A company buying for its team usually needs its address on the invoice.
         requireBillingAddress: plan === 'team',
