@@ -76,19 +76,39 @@ export const PLAN_ALLOWANCES: Readonly<Record<WorkspacePlan, PlanAllowance>> = {
 };
 
 export interface PlanPrice {
-  /** Rupees a month when paid month by month. */
+  /** Dollars a month when paid month by month. */
   readonly monthly: number;
-  /** Rupees a month when paid a year at a time. */
+  /** Dollars a month when paid a year at a time. */
   readonly yearly: number;
   /** Pro is one person's; Team is charged for each member of the workspace. */
   readonly per: 'person' | 'member';
 }
 
-/** The plans with a listed price. Free costs nothing; Enterprise is agreed with us. */
+/**
+ * The plans with a listed price. Free costs nothing; Enterprise is agreed with us.
+ *
+ * They match the products in the payment provider's catalogue, where a yearly
+ * product is charged twelve times the `yearly` figure at once. Change one, change
+ * the other.
+ */
 export const PLAN_PRICES: Readonly<Partial<Record<WorkspacePlan, PlanPrice>>> = {
-  pro: { monthly: 499, yearly: 399, per: 'person' },
-  team: { monthly: 899, yearly: 699, per: 'member' },
+  pro: { monthly: 6, yearly: 5, per: 'person' },
+  team: { monthly: 11, yearly: 8, per: 'member' },
 };
+
+/** The currency every plan is priced and charged in. */
+export const PLAN_CURRENCY = 'USD';
+
+const PRICE_FORMAT = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: PLAN_CURRENCY,
+  minimumFractionDigits: 0,
+});
+
+/** A plan price as people read it: `$6`, `$96`. */
+export function formatPlanPrice(amount: number): string {
+  return PRICE_FORMAT.format(amount);
+}
 
 export function isWorkspacePlan(value: unknown): value is WorkspacePlan {
   return typeof value === 'string' && (WORKSPACE_PLANS as readonly string[]).includes(value);
