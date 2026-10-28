@@ -20,6 +20,7 @@ import { useDevicePixelRatio } from '../canvas/hooks/useDevicePixelRatio';
 import { useStaticRender } from '../canvas/hooks/useStaticRender';
 import { isMac } from '../help/platform';
 import { useT } from '../i18n';
+import { env } from '../lib/env';
 import type { Camera } from '../machine/tool-machine.types';
 import { CANVAS_BACKGROUND } from '../properties/palette';
 import { darkThemeMediaQuery, getSystemTheme, type ResolvedTheme } from '../theme/theme';
@@ -448,6 +449,22 @@ function Board({
         </span>
         <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
       </a>
+
+      {/* Free plans carry the badge; a paid workspace's embeds are its own. */}
+      {board.badge !== false && (
+        <a
+          href={env.VITE_WEB_URL}
+          target="_blank"
+          rel="noopener"
+          className={cn(
+            BAR,
+            'top-3 right-3 bottom-auto h-[30px] gap-1.5 pr-2.5 pl-1.5 text-[11px] whitespace-nowrap text-muted-foreground no-underline transition-colors hover:bg-(--button-hover-bg) hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          )}
+        >
+          <img src="/brand/apple-touch-icon.png" alt="" className="size-4 shrink-0 rounded-[4px]" />
+          {t('embedView.madeWith')}
+        </a>
+      )}
 
       {roomForZoom && (
         <div role="toolbar" aria-label={t('zoom.viewControls')} className={cn(BAR, 'right-3')}>

@@ -13,6 +13,7 @@ import {
   latestBoardSnapshotId,
   resolveBoardAccess,
 } from '@canvasflow/db';
+import { PLAN_ALLOWANCES } from '@canvasflow/types';
 import { DatabaseService } from '../../infra/database/database.service.js';
 import { StorageService } from '../../infra/storage/storage.service.js';
 import { imageObjectKey, type PresignedDownload } from '../images/images.service.js';
@@ -24,6 +25,8 @@ export interface EmbedView {
   boardId: string;
   title: string;
   shapes: SceneShape[];
+  /** Whether it carries the "Made with CanvasFlow" badge: Free plans do, paid ones don't. */
+  badge: boolean;
 }
 
 /** An embed id as it is handed out: 22 characters of URL-safe base64. */
@@ -97,7 +100,12 @@ export class BoardEmbedsService {
 
   async view(publicId: string): Promise<EmbedView> {
     const { board, scene } = await this.open(publicId);
-    return { boardId: board.boardId, title: board.title, shapes: scene.shapes };
+    return {
+      boardId: board.boardId,
+      title: board.title,
+      shapes: scene.shapes,
+      badge: PLAN_ALLOWANCES[board.plan].embedBadge,
+    };
   }
 
   /** A URL to read one of the board's images from — one the scene draws, and no other. */

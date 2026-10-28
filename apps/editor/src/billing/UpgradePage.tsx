@@ -307,7 +307,6 @@ function Choose({
                       ? t('upgradePage.proLimits', {
                           diagrams: allowance.diagramsPerMonth,
                           storage: allowance.storageGb,
-                          history: allowance.historyDays ?? 0,
                         })
                       : t('upgradePage.teamLimits', {
                           diagrams: allowance.diagramsPerMonth,

@@ -1566,7 +1566,7 @@
   "upgradePage.periodLegend": "Billing period",
   "upgradePage.proLine": "For your own work, without the Free limits.",
   "upgradePage.teamLine": "For people working side by side, charged per member.",
-  "upgradePage.proLimits": "{{diagrams}} AI diagrams a month · {{storage}} GB storage · {{history}}-day history",
+  "upgradePage.proLimits": "{{diagrams}} AI diagrams a month · {{storage}} GB storage",
   "upgradePage.teamLimits": "{{diagrams}} AI diagrams and {{storage}} GB per member · invites and roles",
   "upgradePage.perMonth": "per month",
   "upgradePage.perMemberMonth": "per member / month",
@@ -1658,5 +1658,7 @@
   "manage.planEndsWith": "Its cancelled {{plan}} plan ends with it, and the rest of the paid period isn’t refunded.",
   "members.seatNote": "Each person who joins adds a paid seat to the Team plan, charged for the rest of this billing period. When someone leaves, the seat comes off at the next renewal.",
   "deleteAccount.planEnds": "{{name}} is on {{plan}}. It stops renewing now and ends on {{date}}. If you restore your account before then, you can resubscribe in Settings → Billing.",
-  "deleteAccount.planEndsNoDate": "{{name}} is on {{plan}}. It stops renewing now and ends with its paid period."
+  "deleteAccount.planEndsNoDate": "{{name}} is on {{plan}}. It stops renewing now and ends with its paid period.",
+  "embedView.madeWith": "Made with CanvasFlow",
+  "storage.ofAllowance": "{{used}} of {{allowance}} GB"
 }

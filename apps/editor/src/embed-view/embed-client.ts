@@ -13,6 +13,8 @@ export interface EmbeddedBoard {
   title: string;
   /** Shapes as the board's document stores them, read back by `sceneShapes`. */
   shapes: unknown[];
+  /** Whether the "Made with CanvasFlow" badge shows: on Free plans. Absent reads as shown. */
+  badge?: boolean;
 }
 
 /** The embed id is gone: turned off, or the board deleted. */

@@ -33,11 +33,6 @@ const diagrams = (plan: WorkspacePlan) =>
 const storage = (plan: WorkspacePlan) =>
   `${PLAN_ALLOWANCES[plan].storageGb} GB storage${perMember(plan)}`;
 
-const history = (plan: WorkspacePlan) => {
-  const days = PLAN_ALLOWANCES[plan].historyDays;
-  return days === null ? 'Unlimited version history' : `${days}-day version history`;
-};
-
 /**
  * Quoted in US dollars. None of these can be bought yet — the header's badge
  * says so — so the figures are what the plans are meant to cost, not a checkout.
@@ -55,7 +50,6 @@ const PLANS: Plan[] = [
       'Live drawing, comments + share links',
       diagrams('free'),
       storage('free'),
-      history('free'),
       'Trash + restore',
     ],
   },
@@ -66,7 +60,6 @@ const PLANS: Plan[] = [
       'Everything in Free',
       diagrams('pro'),
       storage('pro'),
-      history('pro'),
       'Expiring share links',
       'Embeds without the badge',
     ],
@@ -78,7 +71,6 @@ const PLANS: Plan[] = [
       'Everything in Pro',
       diagrams('team'),
       storage('team'),
-      history('team'),
       'Workspace invites + roles',
       'Guests on your boards',
     ],
@@ -235,10 +227,6 @@ export function PricingSection() {
             <span className="flex items-center gap-2">
               <Check className="w-4 h-4 text-[#eca8d6]" />
               Full activity logs
-            </span>
-            <span className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-[#eca8d6]" />
-              Unlimited version history
             </span>
           </div>
           <a
