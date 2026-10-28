@@ -61,6 +61,8 @@ export async function startCheckout(input: {
 
 /** A subscription as Polar last described it to the gateway. */
 export interface PaidSubscription {
+  /** `active`, `trialing`, or `past_due` while Polar retries a failed payment. */
+  status: string;
   plan: WorkspacePlan;
   cycle: BillingCycle;
   seats: number | null;
@@ -104,5 +106,78 @@ export async function checkoutStatus(checkoutId: string): Promise<CheckoutStatus
   );
   if (!res.ok) throw await failure(res);
   const body = (await res.json()) as { data: CheckoutStatus };
+  return body.data;
+}
+
+/** A short-lived link into Polar's billing portal: card, invoices, cancelling. Owners only. */
+export async function openBillingPortal(workspaceId: string, returnTo: string): Promise<string> {
+  const res = await fetch(
+    `${env.VITE_API_URL}/billing/workspaces/${encodeURIComponent(workspaceId)}/portal`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ returnTo }),
+    },
+  );
+  if (!res.ok) throw await failure(res);
+  const body = (await res.json()) as { data: { url: string } };
+  return body.data.url;
+}
+
+/** The card Polar charges, as much of it as may be shown. */
+export interface SavedCard {
+  brand: string;
+  last4: string;
+  expMonth: number;
+  expYear: number;
+}
+
+export interface BillingInvoice {
+  id: string;
+  /** ISO time it was charged. */
+  date: string;
+  /** In cents, tax included. */
+  total: number;
+  currency: string;
+  /** `paid`, `refunded`, `partially_refunded`, `pending` or `void`. */
+  status: string;
+}
+
+export interface BillingHistory {
+  card: SavedCard | null;
+  invoices: BillingInvoice[];
+}
+
+/** The card on file and every invoice. Owners only. */
+export async function billingHistory(workspaceId: string): Promise<BillingHistory> {
+  const res = await fetch(
+    `${env.VITE_API_URL}/billing/workspaces/${encodeURIComponent(workspaceId)}/history`,
+    { credentials: 'include' },
+  );
+  if (!res.ok) throw await failure(res);
+  const body = (await res.json()) as { data: BillingHistory };
+  return body.data;
+}
+
+/** A short-lived link to one invoice's PDF. */
+export async function invoiceUrl(workspaceId: string, invoiceId: string): Promise<string> {
+  const res = await fetch(
+    `${env.VITE_API_URL}/billing/workspaces/${encodeURIComponent(workspaceId)}/invoices/${encodeURIComponent(invoiceId)}`,
+    { credentials: 'include' },
+  );
+  if (!res.ok) throw await failure(res);
+  const body = (await res.json()) as { data: { url: string } };
+  return body.data.url;
+}
+
+/** Takes back a cancellation, so the plan renews after all. */
+export async function resumePlan(workspaceId: string): Promise<PaidSubscription> {
+  const res = await fetch(
+    `${env.VITE_API_URL}/billing/workspaces/${encodeURIComponent(workspaceId)}/resume`,
+    { method: 'POST', credentials: 'include' },
+  );
+  if (!res.ok) throw await failure(res);
+  const body = (await res.json()) as { data: PaidSubscription };
   return body.data;
 }

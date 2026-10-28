@@ -151,3 +151,12 @@ export async function workspaceNameAndPlan(
     .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)));
   return row ?? null;
 }
+
+/** Every subscription a workspace has had, paying or not: whose orders are its invoices. */
+export async function subscriptionIdsOf(db: Database, workspaceId: string): Promise<string[]> {
+  const rows = await db
+    .select({ id: workspaceSubscriptions.id })
+    .from(workspaceSubscriptions)
+    .where(eq(workspaceSubscriptions.workspaceId, workspaceId));
+  return rows.map((row) => row.id);
+}

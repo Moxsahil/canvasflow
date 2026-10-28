@@ -313,6 +313,7 @@ import {
   SHARED_WITH_YOU,
   useBoardSwitcher,
 } from './workspace';
+import { useBillingReadAhead } from './billing/billing-cache';
 import { announceAccountChanged } from './sync/account-events';
 import {
   CursorLayer,
@@ -346,7 +347,9 @@ import {
   accountDeletedUrl,
   requestAccountDeletion,
   takeDeletionResume,
+  takeSettingsLink,
   type DeletionInput,
+  type SettingsSectionId,
   type WorkspaceSettingsSource,
 } from './settings';
 import { warmAccountSecurity } from './settings/account-security-api';
@@ -742,6 +745,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // Settings is opening at Delete account, because the person has just signed
   // in again in order to delete it.
   const [resumeDeletion, setResumeDeletion] = useState(false);
+  // The tab Settings opens at when a link names one, such as Polar's way back.
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionId | undefined>();
   /**
    * A request to delete the account is out, or has gone through.
    *
@@ -800,6 +805,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const hideSettings = useCallback(() => {
     setSettingsOpen(false);
     setResumeDeletion(false);
+    setSettingsSection(undefined);
   }, []);
   // Toggled rather than opened: the combo that summons it is the natural way
   // to dismiss it again, and pressing it twice should leave the board alone.
@@ -876,6 +882,16 @@ export function Editor({ boardId, local = false }: EditorProps) {
     const timer = setTimeout(() => warmAccountSecurity(authToken), 2500);
     return () => clearTimeout(timer);
   }, [accountAsked, authToken]);
+
+  // Back from Polar's portal, or any link to a Settings tab: open at that tab.
+  useEffect(() => {
+    if (!user || user.isGuest) return;
+    const section = takeSettingsLink();
+    if (section) {
+      setSettingsSection(section);
+      setSettingsOpen(true);
+    }
+  }, [user]);
 
   // Back from signing in again to delete the account: open straight at it.
   // The note is read once and is only honoured for the account that left it.
@@ -1062,6 +1078,13 @@ export function Editor({ boardId, local = false }: EditorProps) {
     const workspace = workspaces.find((candidate) => candidate.id === listedId);
     return workspace ? { status: 'ready', workspace } : { status: 'loading' };
   }, [user?.isGuest, boardSwitcher, boardId]);
+  useBillingReadAhead(
+    settingsWorkspace.status === 'ready'
+      ? settingsWorkspace.workspace.id
+      : settingsWorkspace.status === 'shared'
+        ? (settingsWorkspace.own?.id ?? null)
+        : null,
+  );
   const { renameWorkspace, dismissError: dismissSwitcherError } = boardSwitcher;
   const renameWorkspaceFromSettings = useCallback(
     async (workspaceId: string, name: string) => {
@@ -7120,6 +7143,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   userId={userId}
                   isGuest={user?.isGuest ?? false}
                   resumeDeletion={resumeDeletion}
+                  initialSection={settingsSection}
                   deleteAccount={deleteAccount}
                   workspace={settingsWorkspace}
                   renameWorkspace={renameWorkspaceFromSettings}

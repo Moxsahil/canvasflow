@@ -57,6 +57,25 @@ export interface ProviderSubscription {
   cycle: unknown;
 }
 
+/** The card a customer pays with. Only what may be shown: never the full number. */
+export interface SavedCard {
+  brand: string;
+  last4: string;
+  expMonth: number;
+  expYear: number;
+}
+
+/** One charge on a subscription, as the invoice list shows it. */
+export interface ProviderInvoice {
+  id: string;
+  createdAt: Date;
+  /** In cents, tax included. */
+  totalCents: number;
+  currency: string;
+  /** `paid`, `refunded`, `partially_refunded`, `pending` or `void`. */
+  status: string;
+}
+
 export type BillingWebhook =
   | { kind: 'subscription'; type: string; subscription: ProviderSubscription }
   | { kind: 'ignored'; type: string };
@@ -72,6 +91,21 @@ export interface BillingProvider {
   /** Every product that is still on sale. */
   products(): Promise<CatalogueProduct[]>;
   createCheckout(request: CheckoutRequest): Promise<{ id: string; url: string }>;
+  /**
+   * A short-lived link into the provider's own billing portal for a customer,
+   * where they change their card, download invoices and cancel.
+   */
+  portalUrl(customerId: string, returnUrl: string): Promise<string>;
+  /** The customer's default card, or null when none is saved. */
+  savedCard(customerId: string): Promise<SavedCard | null>;
+  /** Every charge on these subscriptions, newest first. */
+  invoices(subscriptionIds: string[]): Promise<ProviderInvoice[]>;
+  /** The subscription an order was for, or null for an order that is not ours. */
+  orderSubscription(orderId: string): Promise<string | null>;
+  /** A short-lived link to the order's invoice PDF, or null while there is none. */
+  invoiceUrl(orderId: string): Promise<string | null>;
+  /** Takes back a cancellation at the end of the period. */
+  resume(subscriptionId: string): Promise<ProviderSubscription>;
   /** Checks the signature, then reads the event. Throws `BillingWebhookRejected`. */
   readWebhook(body: Buffer, headers: Record<string, string>): Promise<BillingWebhook>;
 }

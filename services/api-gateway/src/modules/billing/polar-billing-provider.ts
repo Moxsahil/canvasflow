@@ -1,15 +1,24 @@
-import { createPolar, webhooks, type Polar, type models } from '@polar-sh/sdk/2026-10';
+import { createPolar, errors, webhooks, type Polar, type models } from '@polar-sh/sdk/2026-10';
 import {
   BillingWebhookRejected,
   type BillingProvider,
   type BillingWebhook,
   type CatalogueProduct,
   type CheckoutRequest,
+  type ProviderInvoice,
   type ProviderSubscription,
+  type SavedCard,
 } from './billing-provider.js';
 
 /** The catalogue is a handful of products; one page holds them all. */
 const PRODUCT_PAGE = 100;
+
+/** Eight years of monthly charges: more than the list will ever need to show. */
+const ORDER_PAGE = 100;
+
+/** How long a freshly asked-for invoice is waited for before saying to try again. */
+const INVOICE_POLLS = 4;
+const INVOICE_POLL_MS = 1000;
 
 /**
  * Billing through Polar, which sells the plans as merchant of record.
@@ -53,6 +62,90 @@ export class PolarBillingProvider implements BillingProvider {
     return { id: checkout.id, url: checkout.url };
   }
 
+  async portalUrl(customerId: string, returnUrl: string): Promise<string> {
+    const session = await this.polar.customerSessions.create({
+      customer_id: customerId,
+      return_url: returnUrl,
+    });
+    return session.customer_portal_url;
+  }
+
+  async savedCard(customerId: string): Promise<SavedCard | null> {
+    const page = await this.polar.customers.listPaymentMethods(customerId, { limit: 10 });
+    const cards = page.items.filter(isCard);
+    const card = cards.find((method) => method.is_default) ?? cards[0];
+    if (!card) return null;
+    const { brand, last4, exp_month, exp_year } = card.method_metadata;
+    return { brand, last4, expMonth: exp_month, expYear: exp_year };
+  }
+
+  async invoices(subscriptionIds: string[]): Promise<ProviderInvoice[]> {
+    if (subscriptionIds.length === 0) return [];
+    const page = await this.polar.orders.list({
+      subscription_id: subscriptionIds,
+      sorting: ['-created_at'],
+      limit: ORDER_PAGE,
+    });
+    return page.items
+      .filter((order) => order.status !== 'draft')
+      .map((order) => ({
+        id: order.id,
+        createdAt: new Date(order.created_at),
+        totalCents: order.total_amount,
+        currency: order.currency,
+        status: order.status,
+      }));
+  }
+
+  async orderSubscription(orderId: string): Promise<string | null> {
+    try {
+      return (await this.polar.orders.get(orderId)).subscription_id;
+    } catch (error) {
+      if (error instanceof errors.ResourceNotFound) return null;
+      throw error;
+    }
+  }
+
+  async invoiceUrl(orderId: string): Promise<string | null> {
+    const order = await this.polar.orders.get(orderId);
+    if (order.is_invoice_generated) return (await this.polar.orders.invoice(orderId)).url;
+    // Polar makes an invoice only when asked. Its receipt endpoint is not used:
+    // it answers with an empty body that the SDK cannot read.
+    try {
+      await this.polar.orders.generateInvoice(orderId);
+    } catch (error) {
+      // Accepted with an empty body: the invoice is on its way.
+      if (error instanceof SyntaxError) return this.waitForInvoice(orderId);
+      // Not eligible yet (unpaid, or missing billing details): there is no PDF.
+      if (
+        error instanceof errors.MissingInvoiceBillingDetails ||
+        error instanceof errors.OrderNotEligibleForInvoice
+      ) {
+        return null;
+      }
+      throw error;
+    }
+    return this.waitForInvoice(orderId);
+  }
+
+  /** Generated in the background, usually within a second or two. */
+  private async waitForInvoice(orderId: string): Promise<string | null> {
+    for (let attempt = 0; attempt < INVOICE_POLLS; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, INVOICE_POLL_MS));
+      if ((await this.polar.orders.get(orderId)).is_invoice_generated) {
+        return (await this.polar.orders.invoice(orderId)).url;
+      }
+    }
+    return null;
+  }
+
+  async resume(subscriptionId: string): Promise<ProviderSubscription> {
+    const subscription = await this.polar.subscriptions.update(subscriptionId, {
+      cancel_at_period_end: false,
+    });
+    return toSubscription(subscription);
+  }
+
   async readWebhook(body: Buffer, headers: Record<string, string>): Promise<BillingWebhook> {
     if (!this.webhookSecret) throw new BillingWebhookRejected('signature');
     let event: Awaited<ReturnType<typeof webhooks.validateEvent>>;
@@ -75,6 +168,12 @@ export class PolarBillingProvider implements BillingProvider {
     }
     return { kind: 'ignored', type: event.type };
   }
+}
+
+type PaymentMethod = Awaited<ReturnType<Polar['customers']['listPaymentMethods']>>['items'][number];
+
+function isCard(method: PaymentMethod): method is Extract<PaymentMethod, { type: 'card' }> {
+  return method.type === 'card';
 }
 
 function isSubscription(data: unknown): data is models.Subscription {

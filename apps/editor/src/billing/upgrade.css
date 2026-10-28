@@ -13,6 +13,8 @@
   --up-line: #e6e6ea;
   --up-danger: #b42318;
   --up-ok: #2e7d4f;
+  --up-warn-wash: #fff7e6;
+  --up-warn-line: #f0d9a8;
 
   /* The ticket's notches are cut in the shared background colour. */
   --color-background: var(--up-bg);
@@ -38,6 +40,8 @@ html[data-theme='dark'] .cf-upgrade {
   --up-line: #26262b;
   --up-danger: #f97066;
   --up-ok: #6cc08b;
+  --up-warn-wash: #241c0c;
+  --up-warn-line: #4d3a14;
 }
 
 .cf-upgrade *,

@@ -536,10 +536,12 @@ describe('SettingsDialog', () => {
     expect(pane).toContain('Create an account to choose what CanvasFlow emails you about.');
   });
 
-  it('fills the storage meter to the reading beside it', () => {
+  it('shows the plan the workspace is on, and no card or invoices before anything is paid', () => {
     const pane = renderPane('billing');
-    expect(pane).toContain('48 MB of 100 MB');
-    expect(pane).toContain('width:48%');
+    expect(pane).toContain('Free plan');
+    expect(pane).toContain('No card saved yet.');
+    expect(pane).toContain('No invoices yet.');
+    expect(pane).not.toContain('Adjust plan');
   });
 
   it('seeds the display name from the account, and its initials from the name', () => {

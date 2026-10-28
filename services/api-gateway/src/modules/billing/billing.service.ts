@@ -20,6 +20,7 @@ import {
   paidPlanOfWorkspace,
   recordBillingCheckout,
   saveSubscriptionSnapshot,
+  subscriptionIdsOf,
   workspaceMemberIds,
   workspaceOfCheckout,
   workspacePlan,
@@ -42,6 +43,7 @@ import {
   type BillingProvider,
   type CatalogueProduct,
   type ProviderSubscription,
+  type SavedCard,
 } from './billing-provider.js';
 import { pickProduct, snapshotOf, workspaceIdIn } from './billing-rules.js';
 
@@ -55,6 +57,11 @@ const CheckoutBody = z.object({
   seats: z.number().int().min(1).max(1000).optional(),
 });
 
+const PortalBody = z.object({
+  /** Where the portal's back link goes: a page of the editor or the web app. */
+  returnTo: z.string().url().max(2000).optional(),
+});
+
 export interface CheckoutStatus {
   workspaceId: string;
   /** The plan the checkout was for. */
@@ -66,6 +73,8 @@ export interface CheckoutStatus {
 }
 
 export interface PaidSubscription {
+  /** The provider's state: `active`, `trialing`, or `past_due` while a failed payment is retried. */
+  status: string;
   plan: WorkspacePlan;
   cycle: BillingCycle;
   seats: number | null;
@@ -82,6 +91,21 @@ export interface BillingWorkspace {
   members: number;
   /** The subscription paying for it, when there is one. */
   subscription: PaidSubscription | null;
+}
+
+/** The owner's view of what has been paid: the card on file and every charge. */
+export interface BillingHistory {
+  card: SavedCard | null;
+  invoices: BillingInvoice[];
+}
+
+export interface BillingInvoice {
+  id: string;
+  date: string;
+  /** In cents, tax included. */
+  total: number;
+  currency: string;
+  status: string;
 }
 
 /** How long the catalogue is trusted before it is read again. */
@@ -230,10 +254,149 @@ export class BillingService {
     };
   }
 
+  /**
+   * A link into Polar's billing portal for the subscription paying for this
+   * workspace. Only its owner may open one: the portal can cancel the plan.
+   */
+  async portal(
+    user: AuthenticatedUser,
+    workspaceId: string,
+    body: unknown,
+  ): Promise<{ url: string }> {
+    const parsed = PortalBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException('Give a page to come back to.');
+    await this.requireOwner(user, workspaceId);
+    const provider = this.requireProvider();
+    const row = await payingSubscriptionOf(this.database.db, workspaceId);
+    if (!row) {
+      throw new ConflictException({
+        message: 'This workspace has no paid plan to manage.',
+        error: 'Conflict',
+        code: 'no-subscription',
+      });
+    }
+    try {
+      return {
+        url: await provider.portalUrl(row.customerId, this.returnAddress(parsed.data.returnTo)),
+      };
+    } catch (error) {
+      this.logger.error(`Billing portal for workspace ${workspaceId} failed: ${String(error)}`);
+      throw new BadGatewayException({
+        message: 'The billing portal didn’t open. Please try again.',
+        error: 'Bad Gateway',
+        code: 'billing-provider-error',
+      });
+    }
+  }
+
+  /**
+   * The card and the invoices of every subscription this workspace has had.
+   * Owners only: it is the payer's card and the payer's charges.
+   */
+  async history(user: AuthenticatedUser, workspaceId: string): Promise<BillingHistory> {
+    const db = this.database.db;
+    await this.requireOwner(user, workspaceId);
+    const ids = await subscriptionIdsOf(db, workspaceId);
+    if (ids.length === 0 || !this.provider) return { card: null, invoices: [] };
+    const provider = this.provider;
+    const paying = await payingSubscriptionOf(db, workspaceId);
+    // Each call is named in the log, so a missing token scope says which one.
+    const named = <T>(what: string, call: Promise<T>): Promise<T> =>
+      call.catch((error: unknown) => {
+        throw new Error(`${what}: ${String(error)}`);
+      });
+    try {
+      const [card, invoices] = await Promise.all([
+        paying ? named('saved card', provider.savedCard(paying.customerId)) : null,
+        named('invoices', provider.invoices(ids)),
+      ]);
+      return {
+        card,
+        invoices: invoices.map((invoice) => ({
+          id: invoice.id,
+          date: invoice.createdAt.toISOString(),
+          total: invoice.totalCents,
+          currency: invoice.currency,
+          status: invoice.status,
+        })),
+      };
+    } catch (error) {
+      this.logger.error(`Billing history for workspace ${workspaceId} failed: ${String(error)}`);
+      throw providerError('Your invoices couldn’t be loaded. Please try again.');
+    }
+  }
+
+  /** A link to one invoice's PDF, for an order on one of this workspace's subscriptions. */
+  async invoice(
+    user: AuthenticatedUser,
+    workspaceId: string,
+    orderId: string,
+  ): Promise<{ url: string }> {
+    const db = this.database.db;
+    await this.requireOwner(user, workspaceId);
+    const provider = this.requireProvider();
+    const ids = await subscriptionIdsOf(db, workspaceId);
+    let url: string | null;
+    try {
+      const subscriptionId = await provider.orderSubscription(orderId);
+      // Somebody else's order is answered as one that does not exist.
+      if (!subscriptionId || !ids.includes(subscriptionId)) {
+        throw new NotFoundException('No such invoice.');
+      }
+      url = await provider.invoiceUrl(orderId);
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      this.logger.error(`Invoice ${orderId} failed: ${String(error)}`);
+      throw providerError('The invoice couldn’t be opened. Please try again.');
+    }
+    if (!url) {
+      throw new ConflictException({
+        message: 'This invoice isn’t ready yet. Try again in a minute.',
+        error: 'Conflict',
+        code: 'invoice-unavailable',
+      });
+    }
+    return { url };
+  }
+
+  /** Takes back a cancellation, so the plan renews at the end of the period after all. */
+  async resume(user: AuthenticatedUser, workspaceId: string): Promise<PaidSubscription> {
+    const db = this.database.db;
+    await this.requireOwner(user, workspaceId);
+    const provider = this.requireProvider();
+    const row = await payingSubscriptionOf(db, workspaceId);
+    if (!row?.cancelAtPeriodEnd) {
+      throw new ConflictException({
+        message: 'This plan isn’t cancelled.',
+        error: 'Conflict',
+        code: 'not-cancelled',
+      });
+    }
+    let subscription: ProviderSubscription;
+    try {
+      subscription = await provider.resume(row.id);
+    } catch (error) {
+      this.logger.error(`Resuming subscription ${row.id} failed: ${String(error)}`);
+      throw providerError('The plan couldn’t be resumed. Please try again.');
+    }
+    // Saved now rather than when the webhook lands, so the page shows it at once.
+    await this.applySubscription(subscription, 'subscription.uncanceled');
+    const paid = await this.paidSubscription(workspaceId);
+    if (!paid) throw new NotFoundException('No paid plan.');
+    return paid;
+  }
+
+  private async requireOwner(user: AuthenticatedUser, workspaceId: string): Promise<void> {
+    if ((await workspaceRoleOf(this.database.db, user.id, workspaceId)) !== 'owner') {
+      throw new ForbiddenException('Only the workspace’s owner can manage its billing.');
+    }
+  }
+
   private async paidSubscription(workspaceId: string): Promise<PaidSubscription | null> {
     const row = await payingSubscriptionOf(this.database.db, workspaceId);
     if (!row || !isBillingCycle(row.cycle)) return null;
     return {
+      status: row.status,
       plan: row.plan,
       cycle: row.cycle,
       seats: row.seats,
@@ -318,6 +481,10 @@ export class BillingService {
     this.catalogue = { products, readAt: now };
     return products;
   }
+}
+
+function providerError(message: string): BadGatewayException {
+  return new BadGatewayException({ message, error: 'Bad Gateway', code: 'billing-provider-error' });
 }
 
 /**

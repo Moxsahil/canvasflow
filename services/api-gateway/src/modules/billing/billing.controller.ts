@@ -16,7 +16,13 @@ import { AccountThrottlerGuard } from '../auth/account-throttler.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { JwtAuthGuard, type AuthenticatedUser } from '../auth/jwt.guard.js';
 import { BillingWebhookRejected } from './billing-provider.js';
-import { BillingService, type BillingWorkspace, type CheckoutStatus } from './billing.service.js';
+import {
+  BillingService,
+  type BillingHistory,
+  type BillingWorkspace,
+  type CheckoutStatus,
+  type PaidSubscription,
+} from './billing.service.js';
 
 /** Where the provider posts its webhooks. main.ts keeps this body raw for the signature. */
 export const BILLING_WEBHOOK_PATH = '/billing/polar/webhook';
@@ -59,6 +65,52 @@ export class BillingController {
     @Param('workspaceId', new ParseUUIDPipe()) workspaceId: string,
   ): Promise<{ data: BillingWorkspace }> {
     return { data: await this.billing.workspace(user, workspaceId) };
+  }
+
+  /** A link into Polar's billing portal: card, invoices and cancelling. Owners only. */
+  @Post('workspaces/:workspaceId/portal')
+  @UseGuards(JwtAuthGuard, AccountThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async portal(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('workspaceId', new ParseUUIDPipe()) workspaceId: string,
+    @Body() body: unknown,
+  ): Promise<{ data: { url: string } }> {
+    return { data: await this.billing.portal(user, workspaceId, body) };
+  }
+
+  /** The card on file and every invoice, for Settings → Billing. Owners only. */
+  @Get('workspaces/:workspaceId/history')
+  @UseGuards(JwtAuthGuard, AccountThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  async history(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('workspaceId', new ParseUUIDPipe()) workspaceId: string,
+  ): Promise<{ data: BillingHistory }> {
+    return { data: await this.billing.history(user, workspaceId) };
+  }
+
+  /** A short-lived link to one invoice's PDF. Owners only. */
+  @Get('workspaces/:workspaceId/invoices/:orderId')
+  @UseGuards(JwtAuthGuard, AccountThrottlerGuard)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  async invoice(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('workspaceId', new ParseUUIDPipe()) workspaceId: string,
+    @Param('orderId', new ParseUUIDPipe()) orderId: string,
+  ): Promise<{ data: { url: string } }> {
+    return { data: await this.billing.invoice(user, workspaceId, orderId) };
+  }
+
+  /** Takes back a cancellation at the end of the period. Owners only. */
+  @Post('workspaces/:workspaceId/resume')
+  @UseGuards(JwtAuthGuard, AccountThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async resume(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('workspaceId', new ParseUUIDPipe()) workspaceId: string,
+  ): Promise<{ data: PaidSubscription }> {
+    return { data: await this.billing.resume(user, workspaceId) };
   }
 
   /**
