@@ -20,9 +20,14 @@ interface TopicHandlesProps {
   isRoot: boolean;
   /** Which way its branches grow from it — see `topicGrowth`. */
   growth: 'right' | 'left' | 'down';
+  /**
+   * A centre whose branches go both ways, which grows from either side: a
+   * dot on each, each adding on its own side.
+   */
+  bothWays: boolean;
   /** Whether anything branches from it, which is what there is to fold. */
   hasBranches: boolean;
-  onGrow: (growth: TopicGrowth) => void;
+  onGrow: (growth: TopicGrowth, side?: 'left' | 'right') => void;
   onFold: () => void;
 }
 
@@ -47,6 +52,7 @@ export function TopicHandles({
   camera,
   isRoot,
   growth,
+  bothWays,
   hasBranches,
   onGrow,
   onFold,
@@ -77,6 +83,12 @@ export function TopicHandles({
       : OFFSET;
   const child = along(growAt);
   const fold = along(foldAt);
+  // Off a centre growing both ways, the left dot mirrors the right one, so
+  // the pair stand level either side of it whatever is folded.
+  const leftChild = (() => {
+    const edge = screen(topicAnchor(topic, 'left'));
+    return { x: edge.x - growAt, y: edge.y };
+  })();
   const topLeft = screen(topic);
   const sibling =
     growth === 'down'
@@ -94,10 +106,20 @@ export function TopicHandles({
         x={child.x}
         y={child.y}
         label={t('mindMap.addChild')}
-        onPress={() => onGrow('child')}
+        onPress={() => onGrow('child', bothWays ? 'right' : undefined)}
       >
         <ChildIcon className={cn('size-3.5', growth === 'left' && '-scale-x-100')} />
       </HandleDot>
+      {bothWays && (
+        <HandleDot
+          x={leftChild.x}
+          y={leftChild.y}
+          label={t('mindMap.addChild')}
+          onPress={() => onGrow('child', 'left')}
+        >
+          <ArrowRight className="size-3.5 -scale-x-100" />
+        </HandleDot>
+      )}
       {!isRoot && (
         <HandleDot
           x={sibling.x}

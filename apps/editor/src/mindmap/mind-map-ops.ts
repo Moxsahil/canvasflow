@@ -44,15 +44,19 @@ export function mindMapRootAt(point: Point, style: ItemStyle, scale: number, id:
   return { ...root, x: point.x - width / 2, y: point.y - height / 2 };
 }
 
-/** A new topic grown from `topicId` — under it, or beside it — ready to add. */
+/**
+ * A new topic grown from `topicId` — under it, or beside it — ready to add.
+ * `side` puts a new branch of a centre on that side rather than the emptier.
+ */
 export function grownTopic(
   shapes: readonly Shape[],
   topicId: string,
   growth: TopicGrowth,
   id: string,
+  side?: 'left' | 'right',
 ): TopicShape | null {
   return growth === 'child'
-    ? newChildTopic(shapes, topicId, id)
+    ? newChildTopic(shapes, topicId, id, side)
     : newSiblingTopic(shapes, topicId, id);
 }
 

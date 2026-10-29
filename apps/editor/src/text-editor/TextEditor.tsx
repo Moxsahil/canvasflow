@@ -73,7 +73,9 @@ export function TextEditor({
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.focus();
+    // The field may sit past the canvas's edge; focusing it mustn't scroll the
+    // panel it is drawn in.
+    el.focus({ preventScroll: true });
     // Cursor at the end of the existing text, not a select-all or position 0.
     const length = el.value.length;
     el.setSelectionRange(length, length);

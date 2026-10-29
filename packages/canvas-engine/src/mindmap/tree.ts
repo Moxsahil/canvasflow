@@ -144,12 +144,14 @@ function colourForNewBranch(siblings: readonly TopicShape[]): string {
  * It takes its parent's type and scale, and a colour of its own. Off the
  * centre it opens a branch, so it takes the colour its siblings use least and
  * the emptier side; further out it takes the colour after its parent's, so
- * it never comes out the same as the topic it grew from.
+ * it never comes out the same as the topic it grew from. A side asked for
+ * off the centre — the dot on that side was pressed — wins over the emptier.
  */
 export function newChildTopic(
   shapes: readonly Shape[],
   parentId: string,
   id: string,
+  side?: 'left' | 'right',
 ): TopicShape | null {
   const forest = mindMapForest(shapes);
   const parent = forest.topics.get(parentId);
@@ -163,7 +165,7 @@ export function newChildTopic(
     y: parent.y,
     text: '',
     parentId,
-    side: fromCentre ? sideForNewBranch(siblings) : parent.side,
+    side: fromCentre ? (side ?? sideForNewBranch(siblings)) : parent.side,
     order: last ? last.order + 1 : 0,
     strokeColor: fromCentre ? colourForNewBranch(siblings) : nextBranchColor(parent.strokeColor),
     fontSize: parent.fontSize,
