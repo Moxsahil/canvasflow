@@ -287,9 +287,14 @@ const Sidebar = React.forwardRef<
             ? 'left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]'
             : 'right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]',
           // Adjust the padding for floating and inset variants.
-          variant === 'floating' || variant === 'inset'
+          // Inset has no border of its own, so collapsed it is exactly as wide
+          // as the gap it leaves, and the icons sit centred between the window
+          // edge and the panel.
+          variant === 'floating'
             ? 'p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]'
-            : 'group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l',
+            : variant === 'inset'
+              ? 'p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]'
+              : 'group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l',
           className,
         )}
         {...props}
@@ -440,8 +445,6 @@ const SidebarRail = React.forwardRef<HTMLButtonElement, React.ComponentPropsWith
           // panel, and draws no line of its own; the panel's edge is the line.
           'group-data-[variant=inset]:w-2! group-data-[variant=inset]:translate-x-0! group-data-[variant=inset]:after:hidden',
           'group-data-[side=left]:group-data-[variant=inset]:right-0!',
-          // Collapsed, the panel keeps a margin of its own, so the gap is wider.
-          '[[data-variant=inset][data-state=collapsed]_&]:w-3.5! [[data-side=left][data-variant=inset][data-state=collapsed]_&]:-right-1.5!',
           'group-data-[side=right]:group-data-[variant=inset]:left-0!',
           className,
         )}
@@ -459,7 +462,7 @@ const SidebarInset = React.forwardRef<HTMLElement, React.ComponentPropsWithoutRe
         data-slot="sidebar-inset"
         className={cn(
           'relative flex w-full flex-1 flex-col bg-background',
-          'md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2',
+          'md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm',
           className,
         )}
         {...props}
