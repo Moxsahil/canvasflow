@@ -66,7 +66,7 @@ async function signUp(email: string, name: string) {
 async function signIn(browser: Browser, email: string): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
   await page.goto(`${WEB}/login`);
-  await page.getByPlaceholder('you@example.com').fill(email);
+  await page.getByLabel('Email', { exact: true }).fill(email);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
   await page.waitForURL(/localhost:3002\/boards\//, { timeout: 45_000 });
@@ -246,12 +246,14 @@ test('a stranger signs up from the invitation and lands in the workspace', async
   const page = await (await browser.newContext()).newPage();
 
   await page.goto(`${WEB}/join/${token}`);
-  await expect(page.getByRole('heading', { name: `Join ${workspaceName}.` })).toBeVisible();
+  await expect(page.getByRole('heading', { name: `Join ${workspaceName}` })).toBeVisible();
   await expect(page.getByText(`invited ${NEWCOMER} to join`)).toBeVisible();
 
   await page.getByRole('link', { name: 'Create an account' }).click();
   await page.waitForURL(/\/signup\?/);
-  await expect(page.getByPlaceholder('you@example.com')).toHaveValue(NEWCOMER);
+  await expect(page.getByLabel('Email', { exact: true })).toHaveValue(NEWCOMER);
+  // Email first, filled in from the invitation; name and password come next.
+  await page.getByRole('button', { name: 'Continue with Email' }).click();
   await page.getByPlaceholder('Your name').fill('Nia Newcomer');
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByLabel('Confirm password', { exact: true }).fill(PASSWORD);
@@ -273,7 +275,7 @@ test('a stranger signs up from the invitation and lands in the workspace', async
 
   // The same link again says they are in, and opens the workspace.
   await page.goto(`${WEB}/join/${token}`);
-  await expect(page.getByRole('heading', { name: `You’re in ${workspaceName}.` })).toBeVisible();
+  await expect(page.getByRole('heading', { name: `You’re in ${workspaceName}` })).toBeVisible();
 });
 
 test('the owner sees the new member arrive without reloading', async () => {
@@ -289,9 +291,7 @@ test('an invitation refuses the wrong account, and says when it was taken back',
 
   // The owner is signed in as somebody else entirely.
   await owner.goto(`${WEB}/join/${token}`);
-  await expect(
-    owner.getByRole('heading', { name: 'This invitation isn’t for you.' }),
-  ).toBeVisible();
+  await expect(owner.getByRole('heading', { name: 'This invitation isn’t for you' })).toBeVisible();
   await expect(owner.getByRole('button', { name: 'Switch account' })).toBeVisible();
 
   const revoked = await owner.request.delete(`${GATEWAY}/workspaces/${workspaceId}/invites/${id}`, {
@@ -302,11 +302,11 @@ test('an invitation refuses the wrong account, and says when it was taken back',
   const stranger = await (await browser.newContext()).newPage();
   await stranger.goto(`${WEB}/join/${token}`);
   await expect(
-    stranger.getByRole('heading', { name: 'This invitation was taken back.' }),
+    stranger.getByRole('heading', { name: 'This invitation was taken back' }),
   ).toBeVisible();
 
   await stranger.goto(`${WEB}/join/not-a-real-token`);
   await expect(
-    stranger.getByRole('heading', { name: 'This invitation isn’t valid.' }),
+    stranger.getByRole('heading', { name: 'This invitation isn’t valid' }),
   ).toBeVisible();
 });

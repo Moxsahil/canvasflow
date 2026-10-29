@@ -23,7 +23,7 @@ export default async function AccountDeletedPage({
   const { until } = await searchParams;
 
   return (
-    <AuthShell label="Account deletion" heading="Your account will be deleted.">
+    <AuthShell heading="Your account will be deleted.">
       <div className="space-y-4 text-sm leading-relaxed text-white/55">
         <p>
           We&apos;ll erase your account and everything in it {erasureTime(until)}. We&apos;ve

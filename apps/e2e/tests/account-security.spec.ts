@@ -66,7 +66,7 @@ async function signedInDevice(browser: Browser): Promise<Page> {
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto(`${WEB}/login`);
-  await page.getByPlaceholder('you@example.com').fill(EMAIL);
+  await page.getByLabel('Email', { exact: true }).fill(EMAIL);
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: /^sign in$/i }).click();
   await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });

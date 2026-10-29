@@ -1,25 +1,19 @@
-import { Navigation } from '@/components/marketing/navigation';
-// import { CapabilitiesMarquee } from '@/components/marketing/sections/capabilities-marquee';
-import { CtaSection } from '@/components/marketing/sections/cta-section';
-// import { DevExSection } from '@/components/marketing/sections/devex-section';
-import { HeroSection } from '@/components/marketing/sections/hero-section';
-import { LogoCloudSection } from '@/components/marketing/sections/logo-cloud-section';
-// import { IntegrationsSection } from '@/components/marketing/sections/integrations-section';
-// import { LiveBoardsSection } from '@/components/marketing/sections/live-boards-section';
-import { PlatformSection } from '@/components/marketing/sections/platform-section';
-import { PricingSection } from '@/components/marketing/sections/pricing-section';
-// import { SecuritySection } from '@/components/marketing/sections/security-section';
+import type { CSSProperties } from 'react';
+import { FeatureGrid } from '@/components/marketing/sections/feature-grid';
+import { HowItWorks } from '@/components/marketing/sections/how-it-works';
+import { PlanComparator } from '@/components/marketing/sections/plan-comparator';
+import { PricingCards } from '@/components/marketing/sections/pricing-cards';
+import { SignupCta } from '@/components/marketing/sections/signup-cta';
 import { SiteFooter } from '@/components/marketing/sections/site-footer';
-import { SyncSection } from '@/components/marketing/sections/sync-section';
-import { UseCasesSection } from '@/components/marketing/sections/use-cases-section';
-import { WorkflowSection } from '@/components/marketing/sections/workflow-section';
+import { StatsBento } from '@/components/marketing/sections/stats-bento';
+import HeroSection from '@/components/ui/hero-section';
 
-// The figures in SyncSection are counted from the database, so the page is
-// regenerated on a schedule rather than frozen at build: static to serve, but
-// never far out of date. The window is short on purpose. A render that cannot
-// reach the database drops the figures, and whatever a render produces is what
+// The figures in StatsBento are read from the services and the database, so
+// the page is regenerated on a schedule rather than frozen at build: static to
+// serve, but never far out of date. The window is short on purpose. A render
+// that cannot reach them shows dashes, and whatever a render produces is what
 // gets cached — so this doubles as the longest a moment's bad luck can keep
-// the section looking empty.
+// the figures missing.
 export const revalidate = 300;
 
 /**
@@ -64,34 +58,34 @@ const STRUCTURED_DATA = {
  */
 export default function HomePage() {
   return (
-    <div className="cf-landing bg-[#F5F4F0] text-[#111] min-h-screen font-sans antialiased">
+    <div className="cf-landing min-h-screen bg-[#101012] font-sans text-[#fafafa] antialiased">
       <script
         type="application/ld+json"
         // A constant written above, so there is nothing here to escape.
         dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }}
       />
-      <Navigation />
+      {/* The hero brings its own header. It reads Inter from `--font-inter`;
+          `--font-sans` is Geist on this page, so it is pointed at the Inter
+          kept for exactly this (`--font-inter-ui`), with the same letterforms
+          as the sections under it. */}
+      <HeroSection
+        className="dark"
+        style={
+          {
+            '--font-inter': 'var(--font-inter-ui)',
+            fontFeatureSettings: "'cv05', 'cv10', 'cv11', 'ss01'",
+          } as CSSProperties
+        }
+      />
+      {/* On the hero's own dark ground, so the two read as one opening. */}
+      <FeatureGrid id="features" className="scroll-mt-16 bg-[#101012] pt-8" />
+      <HowItWorks id="how-it-works" className="scroll-mt-16 bg-[#101012] pt-8" />
+      <StatsBento id="performance" className="scroll-mt-16 bg-[#101012] pt-8" />
+      <PricingCards id="pricing" className="scroll-mt-16 bg-[#101012] md:pb-12" />
+      <PlanComparator id="compare-plans" className="scroll-mt-16 bg-[#101012] md:pt-0" />
+      <SignupCta id="get-started" className="scroll-mt-16 bg-[#101012]" />
 
-      <HeroSection />
-      <PlatformSection />
-
-      {/* The page turns over here: everything from the use cases down is
-          painted on #020204, so each section inside asks its shared parts
-          (BentoCard, Tag) for their dark form. */}
-      <div className="bg-[#020204] text-[#F5F4F0]">
-        <UseCasesSection />
-        <LogoCloudSection />
-        <WorkflowSection />
-        <SyncSection />
-        {/* <IntegrationsSection /> */}
-        {/* <SecuritySection /> */}
-        {/* <DevExSection /> */}
-        {/* <CapabilitiesMarquee /> */}
-        {/* <LiveBoardsSection /> */}
-        <PricingSection />
-        <CtaSection />
-        <SiteFooter />
-      </div>
+      <SiteFooter className="bg-[#101012]" />
     </div>
   );
 }

@@ -82,7 +82,7 @@ export function WorkspaceTile({
           {initialsOf(name)}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-medium text-[#F5F4F0]">{name}</p>
+          <p className="truncate text-[15px] font-medium text-[#fafafa]">{name}</p>
           <p className="truncate text-xs text-white/45">{`Invited by ${invitedBy}`}</p>
         </div>
         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.04] px-2.5 py-1 text-xs text-white/75">

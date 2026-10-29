@@ -198,7 +198,7 @@ test('a pen draws, fingers move the board, and a resting hand leaves it alone', 
   });
   const page = await context.newPage();
   await page.goto(`${WEB}/login`);
-  await page.getByPlaceholder('you@example.com').fill(EMAIL);
+  await page.getByLabel('Email', { exact: true }).fill(EMAIL);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
   await page.waitForURL(/localhost:3002\/boards\//, { timeout: 45_000 });

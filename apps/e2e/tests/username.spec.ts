@@ -64,7 +64,7 @@ async function signUp(person: { email: string; name: string }) {
 async function signedIn(browser: Browser, email: string): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
   await page.goto(`${WEB}/login`);
-  await page.getByPlaceholder('you@example.com').fill(email);
+  await page.getByLabel('Email', { exact: true }).fill(email);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
   await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 import { AuthShell, authStyles } from '@/components/auth/auth-shell';
 import { NewPasswordField } from '@/components/auth/new-password-field';
 import { Component as PencilLoader } from '@/components/ui/loader-1';
@@ -114,9 +115,13 @@ export function ResetPasswordClient() {
   if (view.kind === 'form') {
     return (
       <AuthShell
-        label="Password reset"
         heading="Choose a new password."
         sub="You'll be signed out on every device, then you can sign in with the new one."
+        footer={
+          <Link href="/login" className={authStyles.link}>
+            Back to sign in
+          </Link>
+        }
       >
         <form
           onSubmit={(e) => {
@@ -126,7 +131,7 @@ export function ResetPasswordClient() {
           className="space-y-3"
         >
           <p className="text-sm text-white/55">
-            For <span className="text-[#F5F4F0]/85">{view.email}</span>
+            For <span className="text-[#fafafa]/85">{view.email}</span>
           </p>
           {/* Tells a password manager which saved entry this new password
               replaces. Hidden, because the address is shown just above. */}
@@ -228,13 +233,11 @@ export function ResetPasswordClient() {
   );
 }
 
-const cardButton =
-  'mt-6 inline-flex items-center rounded-lg bg-[#F5F4F0] px-4 py-2.5 text-sm font-medium text-[#020204] transition-opacity hover:opacity-90';
+const cardButton = cn(authStyles.submit, 'mt-6');
 
 function ResetShell({ heading, children }: { heading: string; children: React.ReactNode }) {
   return (
     <AuthShell
-      label="Password reset"
       heading={heading}
       footer={
         <Link href="/login" className={authStyles.link}>

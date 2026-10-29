@@ -3,17 +3,17 @@
 import { Suspense, useState, useSyncExternalStore } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { GoogleMark, GitHubMark } from '@/components/auth/auth-shell';
 import {
-  AuthShell,
-  AuthDivider,
-  authStyles,
-  GoogleMark,
-  GitHubMark,
-} from '@/components/auth/auth-shell';
-import { PasswordInput } from '@/components/auth/new-password-field';
+  SplitDivider,
+  SplitPasswordInput,
+  SplitShell,
+  splitStyles,
+} from '@/components/auth/split-shell';
 import { TermsAgreement } from '@/components/legal/terms-agreement';
 import { Component as PencilLoader } from '@/components/ui/loader-1';
 import { safeRedirect } from '@/lib/safe-redirect';
+import { cn } from '@/lib/utils';
 import { oauthStartUrl, signInWithPassword } from '@/features/auth/api/signin';
 import { rememberEmail, rememberedEmail, subscribeToNothing } from '@/features/auth/reset-handoff';
 
@@ -75,106 +75,114 @@ function LoginForm() {
   }
 
   return (
-    <AuthShell
-      label="Sign in"
-      heading="Welcome back."
-      sub="Pick up the board you left open."
+    <SplitShell
+      heading="Welcome back"
+      sub="Sign in to pick up the board you left open"
       footer={
         <>
           Don&apos;t have an account?{' '}
           {/* Carries `next`, so somebody sent here from an invitation who
               turns out to need an account still ends up back at it. */}
-          <Link href={withNext('/signup', next)} className={authStyles.link}>
+          <Link href={withNext('/signup', next)} className={splitStyles.link}>
             Sign up
           </Link>
         </>
       }
     >
-      {/* Side by side, named in full for screen readers; the marks and the
-          short labels are enough to scan. */}
-      <div className={authStyles.providerRow}>
-        <button
-          type="button"
-          aria-label="Continue with Google"
-          className={authStyles.provider}
-          onClick={() => {
-            window.location.href = oauthStartUrl('google', next);
-          }}
-        >
-          <GoogleMark />
-          Google
-        </button>
-        <button
-          type="button"
-          aria-label="Continue with GitHub"
-          className={authStyles.provider}
-          onClick={() => {
-            window.location.href = oauthStartUrl('github', next);
-          }}
-        >
-          <GitHubMark />
-          GitHub
-        </button>
-      </div>
-
-      <AuthDivider />
-
-      <form onSubmit={handleCredentialsSignIn} className="space-y-3">
-        <input
-          type="email"
-          placeholder="you@example.com"
-          value={email}
-          onChange={(e) => setTyped(e.target.value)}
-          autoComplete="username"
-          required
-          className={authStyles.field}
-        />
-        <PasswordInput
-          label="Password"
-          value={password}
-          onChange={setPassword}
-          autoComplete="current-password"
-        />
-
-        <div className="flex justify-end">
-          <Link
-            href="/forgot-password"
-            // Carried to the next page so it does not have to be typed twice.
-            onClick={() => rememberEmail(email)}
-            className="text-xs text-white/45 transition-colors hover:text-white/80"
+      <div className="space-y-5 short:space-y-3">
+        <div className="space-y-3 short:space-y-2">
+          <button
+            type="button"
+            className={splitStyles.provider}
+            onClick={() => {
+              window.location.href = oauthStartUrl('google', next);
+            }}
           >
-            Forgot password?
-          </Link>
+            <GoogleMark />
+            Continue with Google
+          </button>
+          <button
+            type="button"
+            className={splitStyles.provider}
+            onClick={() => {
+              window.location.href = oauthStartUrl('github', next);
+            }}
+          >
+            <GitHubMark />
+            Continue with GitHub
+          </button>
         </div>
 
-        {error ? (
-          <p role="alert" className="text-sm text-red-400">
-            {error}
-          </p>
-        ) : (
-          justReset && (
-            <p role="status" className="text-sm text-emerald-400">
-              Password updated. Sign in with your new password.
-            </p>
-          )
-        )}
+        <SplitDivider />
 
-        <button type="submit" disabled={loading} className={authStyles.submit}>
-          {loading ? (
-            <>
-              <PencilLoader className="h-7 w-7" />
-              <span className="sr-only">Signing in</span>
-            </>
+        <form onSubmit={handleCredentialsSignIn} className="space-y-4 short:space-y-3">
+          <div className="space-y-2.5 short:space-y-1.5">
+            <label htmlFor="login-email" className={splitStyles.label}>
+              Email
+            </label>
+            <input
+              id="login-email"
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setTyped(e.target.value)}
+              autoComplete="username"
+              required
+              className={splitStyles.field}
+            />
+          </div>
+          <div className="space-y-2.5 short:space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label htmlFor="login-password" className={splitStyles.label}>
+                Password
+              </label>
+              <Link
+                href="/forgot-password"
+                // Carried to the next page so it does not have to be typed twice.
+                onClick={() => rememberEmail(email)}
+                className={cn('text-xs', splitStyles.quietLink)}
+              >
+                Forgot password?
+              </Link>
+            </div>
+            <SplitPasswordInput
+              id="login-password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={setPassword}
+              autoComplete="current-password"
+            />
+          </div>
+
+          {error ? (
+            <p role="alert" className="text-sm text-red-400">
+              {error}
+            </p>
           ) : (
-            'Sign in'
+            justReset && (
+              <p role="status" className="text-sm text-emerald-400">
+                Password updated. Sign in with your new password.
+              </p>
+            )
           )}
-        </button>
-      </form>
+
+          <button type="submit" disabled={loading} className={splitStyles.submit}>
+            {loading ? (
+              <>
+                <PencilLoader className="h-7 w-7" />
+                <span className="sr-only">Signing in</span>
+              </>
+            ) : (
+              'Sign in'
+            )}
+          </button>
+        </form>
+      </div>
 
       {/* Here as well as on signup: the provider buttons above create an account
           for anybody who does not have one yet. */}
-      <TermsAgreement className={authStyles.agreement} linkClassName={authStyles.link} />
-    </AuthShell>
+      <TermsAgreement className={splitStyles.agreement} linkClassName={splitStyles.agreementLink} />
+    </SplitShell>
   );
 }
 

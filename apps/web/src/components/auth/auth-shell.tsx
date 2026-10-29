@@ -1,60 +1,28 @@
 import React from 'react';
-import Link from 'next/link';
+import { SplitDivider, SplitShell } from './split-shell';
+import { splitStyles } from './split-styles';
 
 /**
- * The frame every auth screen sits in, so sign in, sign up and verification
- * read as one flow rather than three pages that happen to be adjacent.
- *
- * It borrows the landing page's dark half outright — the same #020204 ground,
- * the same #F5F4F0 ink, the same hairline card — and `cf-auth` brings the faces
- * and palette the pricing and closing sections already use (see globals.css),
- * so someone arriving from the marketing page does not cross a visual seam on
- * the way to signing in.
+ * The frame for the pages reached from an email or a link — reset password,
+ * verify email, invitations, unsubscribe, account deleted: the sign-in pages'
+ * frame without their side panel, the form in the middle of the screen.
+ * A heading's closing full stop is dropped, as on the sign-in pages.
  */
 export function AuthShell({
-  label,
   heading,
   sub,
   children,
   footer,
 }: {
-  /** The small rule-and-name that opens the card, as on the landing sections. */
-  label: string;
   heading: string;
   sub?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) {
-  // Sized so the longest of these screens — signup, with its checklist open —
-  // fits a laptop at 125% scaling (about 1536×728) without scrolling. On wider
-  // screens the wordmark moves to the corner, where there is room to spare, so
-  // it stops costing the form vertical space; on a phone it stays on top. The
-  // `short:` spacing (globals.css) tightens things further on low windows.
   return (
-    <main className="cf-auth relative font-sans min-h-dvh bg-[#020204] text-[#F5F4F0] flex flex-col items-center justify-center px-6 py-4 sm:py-6 short:py-3">
-      <Link
-        href="/"
-        className="mb-4 text-xl tracking-tight text-[#F5F4F0]/90 transition-colors hover:text-[#F5F4F0] sm:mb-6 md:absolute md:left-8 md:top-6 md:mb-0"
-      >
-        CanvasFlow
-      </Link>
-
-      <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-white/[0.02] px-7 py-6 sm:px-8 sm:py-7 short:py-5">
-        <span className="cf-eyebrow font-mono inline-flex items-center gap-3 text-sm text-white/45">
-          <span className="h-px w-12 bg-white/30" />
-          {label}
-        </span>
-
-        <h1 className="mt-4 short:mt-3 text-[1.75rem] font-light leading-[1.1] tracking-tight">
-          {heading}
-        </h1>
-        {sub && <p className="mt-2 text-sm leading-relaxed text-white/45">{sub}</p>}
-
-        <div className="mt-6 short:mt-5">{children}</div>
-      </div>
-
-      {footer && <div className="mt-5 short:mt-3 text-sm text-white/40">{footer}</div>}
-    </main>
+    <SplitShell heading={heading.replace(/\.$/, '')} sub={sub} footer={footer} panel={false}>
+      {children}
+    </SplitShell>
   );
 }
 
@@ -73,17 +41,12 @@ export function AuthShell({
  * autofill state, so the focus border comes straight back.
  */
 export const authStyles = {
-  field:
-    'w-full rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2.5 text-sm text-[#F5F4F0] placeholder:text-white/25 transition-colors focus:border-white/35 focus:outline-none',
-  provider:
-    'flex w-full items-center justify-center gap-2.5 rounded-xl border border-white/15 px-4 py-2.5 text-sm text-white/70 transition-all duration-200 hover:border-white/30 hover:bg-white/[0.06] hover:text-white',
-  /** The two provider buttons, side by side, so they cost one row rather than two. */
-  providerRow: 'grid grid-cols-2 gap-3',
-  submit:
-    'flex h-11 w-full items-center justify-center rounded-xl bg-[#F5F4F0] px-4 text-sm font-medium text-[#020204] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50',
-  link: 'text-[#F5F4F0]/80 underline underline-offset-4 transition-colors hover:text-[#F5F4F0]',
-  /** The terms line under a form: small, but still legible on the dark card. */
-  agreement: 'mt-4 short:mt-3 text-center text-xs leading-relaxed text-white/50',
+  field: splitStyles.field,
+  provider: splitStyles.provider,
+  submit: splitStyles.submit,
+  link: splitStyles.link,
+  /** The terms line under a form. */
+  agreement: splitStyles.agreement,
 } as const;
 
 /**
@@ -136,13 +99,5 @@ export function GitHubMark({ className = 'h-4 w-4' }: { className?: string }) {
 
 /** The "or" rule between the providers and the credentials form. */
 export function AuthDivider() {
-  return (
-    <div className="my-4 short:my-3 flex items-center gap-4">
-      <span className="h-px flex-1 bg-white/[0.08]" />
-      <span className="cf-eyebrow font-mono text-[11px] uppercase tracking-widest text-white/30">
-        or
-      </span>
-      <span className="h-px flex-1 bg-white/[0.08]" />
-    </div>
-  );
+  return <SplitDivider />;
 }

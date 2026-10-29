@@ -194,8 +194,10 @@ test.describe('an account made through the signup form', () => {
     await page.route('**/open', (route) => route.abort());
 
     await page.goto(`${WEB}/signup`);
+    // Email first; name and password come on the step after it.
+    await page.getByLabel('Email', { exact: true }).fill(email);
+    await page.getByRole('button', { name: 'Continue with Email' }).click();
     await page.getByPlaceholder('Your name').fill('E2E Legal');
-    await page.getByPlaceholder('you@example.com').fill(email);
     await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByLabel('Confirm password', { exact: true }).fill(PASSWORD);
 
@@ -320,7 +322,7 @@ test.describe('an account with no agreement on record', () => {
   /** Into the editor through the real sign-in form, as its owner would come back. */
   async function signIn(page: Page) {
     await page.goto(`${WEB}/login`);
-    await page.getByPlaceholder('you@example.com').fill(email);
+    await page.getByLabel('Email', { exact: true }).fill(email);
     await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: /^sign in$/i }).click();
     await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });

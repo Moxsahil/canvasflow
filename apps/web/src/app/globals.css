@@ -71,11 +71,13 @@
    ---------------------------------------------------------------------------
    The home page brings its own type scale and hides the scrollbar; every other
    page keeps Inter and a normal one. Both are scoped to the `.cf-landing`
-   wrapper on the page root so the two never meet. Registering `--font-pixel`
-   in @theme is what makes Tailwind emit the `font-pixel` utility at all — the
-   value below is only the fallback for anything outside the home page. */
-@theme {
-  --font-pixel: ui-monospace, monospace;
+   wrapper on the page root so the two never meet. */
+
+/* Inter under a name the home page's own --font-sans can't shadow: resolved
+   here on <html>, where --font-sans is still Inter, and inherited from there
+   as the font itself. For the sections copied in with Inter as their type. */
+html {
+  --font-inter-ui: var(--font-sans);
 }
 
 /* The legal pages (`.cf-legal`) share the home page's type, since they wear its
@@ -85,55 +87,12 @@
 .cf-legal {
   --font-sans: var(--font-geist), system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --font-pixel: var(--font-courier-prime), ui-monospace, monospace;
 }
 
-/* ---------------------------------------------------------------------------
-   Site navigation
-   ---------------------------------------------------------------------------
-   Once the page scrolls the bar becomes a near-black pill with light type, and
-   the mobile menu opens as a near-black sheet. Rather than hard-code those
-   colours into the component, the palette is swapped here for the header's
-   subtree only, the same way `.dark` does it above — the `bg-background` /
-   `text-foreground` utilities inside resolve against whichever value is
-   nearest in the cascade. The rest of the page keeps the light palette it
-   renders in today.
-
-   Only the pill and the sheet are dark. Unscrolled there is neither, and the
-   bar sits on the cream hero video, so that state is written as ink literals
-   in the component rather than drawn from these tokens.
-
-   This block has to follow `.cf-landing`: both are single-class selectors, so
-   equal specificity makes source order the tiebreak for the shared font
-   variables. */
-.cf-nav,
-.cf-pricing,
-.cf-cta,
-.cf-auth {
-  --color-background: oklch(0.06 0.008 260);
-  --color-foreground: oklch(0.94 0.005 90);
-  --color-muted-foreground: oklch(0.55 0.015 90);
-  --color-accent: oklch(0.14 0.01 260);
-  --color-accent-foreground: oklch(0.94 0.005 90);
-  --color-border: oklch(0.18 0.008 260);
-
-  --font-sans: var(--font-instrument-sans), system-ui, sans-serif;
-}
-
-/* The pricing block sets its figures and small caps in a mono, and carries one
-   stroked word in its heading; the label that opens every section is set in the
-   same mono. Neither is registered page-wide — the sections below the labels
-   keep the mono they were built on. */
-.cf-pricing,
-.cf-cta,
-.cf-auth,
+/* The small rule-and-name labels (`cf-eyebrow`) are set in this mono; it isn't
+   registered page-wide. */
 .cf-eyebrow {
   --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
-}
-
-.cf-pricing .text-stroke {
-  -webkit-text-stroke: 1.5px currentColor;
-  -webkit-text-fill-color: transparent;
 }
 
 html:has(.cf-landing) {
@@ -158,26 +117,6 @@ html:has(.cf-landing) body {
 html:has(.cf-landing)::-webkit-scrollbar,
 html:has(.cf-landing) body::-webkit-scrollbar {
   display: none;
-}
-
-/* Logo marquee. The rest of the page's keyframes are declared inline next to
-   the components that use them. */
-@keyframes marqueeLeft {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-33.333%);
-  }
-}
-
-@keyframes marqueeRight {
-  from {
-    transform: translateX(-33.333%);
-  }
-  to {
-    transform: translateX(0);
-  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -354,35 +293,4 @@ html:has(.cf-landing) body::-webkit-scrollbar {
     stroke-dashoffset: 439.82;
     transform: translate(100px, 100px) rotate(112deg);
   }
-}
-
-/* ---------------------------------------------------------------------------
-   Autofill in the auth forms
-   ---------------------------------------------------------------------------
-   A filled field is painted by the browser, not by us: Chrome lays its own
-   near-white background and near-black text over whatever the field had, which
-   on this card turns the input inside out — the value goes unreadable and the
-   field stops matching the empty ones beside it.
-
-   There is no property that declines that, and `background-color` loses to it.
-   What does win is an inset shadow large enough to cover the field, and
-   `-webkit-text-fill-color`, which is the one colour declaration autofill
-   honours. The shadow has to be an opaque colour where the rest of the form is
-   translucent, so it is the measured composite of the page, the card and the
-   field — rgb(17,17,19) — which is the colour the field already resolves to.
-   The caret is set too; it is drawn from `color`, which autofill also takes. */
-.cf-auth input:-webkit-autofill,
-.cf-auth input:-webkit-autofill:hover,
-.cf-auth input:-webkit-autofill:focus,
-.cf-auth input:-webkit-autofill:active {
-  -webkit-text-fill-color: #f5f4f0;
-  -webkit-box-shadow: 0 0 0 1000px rgb(17 17 19) inset;
-  box-shadow: 0 0 0 1000px rgb(17 17 19) inset;
-  caret-color: #f5f4f0;
-  /* Held at the resting colour, focus included. Filling a field leaves it
-     focused, so the focus border fired on its own and the filled field stood
-     out from the empty ones as if it were the one with a problem. The browser
-     drops this state the moment the value is typed into, and the focus border
-     returns with it. */
-  border-color: rgb(255 255 255 / 0.15);
 }

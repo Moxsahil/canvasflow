@@ -66,7 +66,7 @@ async function signIn(browser: Browser, email: string): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
   await page.goto(`${WEB}/login`);
   await page.waitForLoadState('networkidle');
-  await page.getByPlaceholder('you@example.com').fill(email);
+  await page.getByLabel('Email', { exact: true }).fill(email);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
   await page.waitForURL(/localhost:3002\/boards\//, { timeout: 45_000 });
@@ -272,7 +272,7 @@ test('a removed guest is not let back in by the same browser, and the owner is o
   // Back in the same browser, the link says they were removed.
   await guest.goto(`${WEB}/invite/${token}`);
   await expect(
-    guest.getByRole('heading', { name: 'You were removed from this board.' }),
+    guest.getByRole('heading', { name: 'You were removed from this board' }),
   ).toBeVisible();
   await expect(guest.getByRole('button', { name: 'Join board' })).toHaveCount(0);
 
@@ -291,7 +291,7 @@ test('a removed guest is not let back in by the same browser, and the owner is o
 
   const stranger = await (await browser.newContext()).newPage();
   await stranger.goto(`${WEB}/invite/${token}`);
-  await expect(stranger.getByRole('heading', { name: 'This link was turned off.' })).toBeVisible();
+  await expect(stranger.getByRole('heading', { name: 'This link was turned off' })).toBeVisible();
 });
 
 test('only the owner and the workspace’s admins run sharing; others get no link', async ({

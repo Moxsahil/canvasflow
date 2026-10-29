@@ -29,7 +29,7 @@ export default async function UnsubscribePage({ searchParams }: UnsubscribePageP
 
   if (!u || !t || !isNotificationKind(k)) {
     return (
-      <AuthShell label="Email" heading="This link is incomplete.">
+      <AuthShell heading="This link is incomplete.">
         <div className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3.5">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/60">
             <MailX size={18} aria-hidden="true" />
@@ -49,7 +49,6 @@ export default async function UnsubscribePage({ searchParams }: UnsubscribePageP
   const topic = NOTIFICATION_EMAIL_TOPICS[k];
   return (
     <AuthShell
-      label="Email"
       heading={`Stop emails about ${topic}?`}
       sub="You can turn them back on any time in Settings → Notifications."
     >

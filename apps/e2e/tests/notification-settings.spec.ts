@@ -50,7 +50,7 @@ test.skip(process.env.NODE_ENV === 'production', 'refusing to run against produc
 async function signedIn(browser: Browser): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
   await page.goto(`${WEB}/login`);
-  await page.getByPlaceholder('you@example.com').fill(PERSON.email);
+  await page.getByLabel('Email', { exact: true }).fill(PERSON.email);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
   await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });

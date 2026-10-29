@@ -41,7 +41,7 @@ export function JoinForm({ token, allowGuests, user, signInHref }: JoinFormProps
             {initialsOf(shownName)}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm text-[#F5F4F0]">{shownName}</p>
+            <p className="truncate text-sm text-[#fafafa]">{shownName}</p>
             {user.name && user.email && (
               <p className="truncate text-xs text-white/45">{user.email}</p>
             )}
