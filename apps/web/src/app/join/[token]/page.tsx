@@ -46,7 +46,6 @@ export default async function JoinPage({ params }: JoinPageProps) {
     if (found.reason === 'accepted' && user && found.acceptedBy === user.id) {
       return (
         <AuthShell
-          label="Invitation"
           heading={`You’re in ${found.invite.workspaceName}.`}
           sub="You already accepted this invitation."
         >
@@ -78,10 +77,10 @@ export default async function JoinPage({ params }: JoinPageProps) {
   // way out to the right account without losing this page.
   if (user && user.email?.toLowerCase() !== invite.email) {
     return (
-      <AuthShell label="Invitation" heading="This invitation isn’t for you." sub={sub}>
+      <AuthShell heading="This invitation isn’t for you." sub={sub}>
         {tile}
         <p className="mt-5 text-sm leading-relaxed text-white/55">
-          It was sent to <span className="text-[#F5F4F0]">{invite.email}</span>, and only that
+          It was sent to <span className="text-[#fafafa]">{invite.email}</span>, and only that
           account can accept it. You’re signed in as:
         </p>
         <div className="mt-3">
@@ -107,7 +106,7 @@ export default async function JoinPage({ params }: JoinPageProps) {
 
   if (user) {
     return (
-      <AuthShell label="Invitation" heading={`Join ${invite.workspaceName}.`} sub={sub}>
+      <AuthShell heading={`Join ${invite.workspaceName}.`} sub={sub}>
         {tile}
         <div className="mt-6">
           <AcceptForm
@@ -122,7 +121,7 @@ export default async function JoinPage({ params }: JoinPageProps) {
 
   const signup = new URLSearchParams({ next: here, email: invite.email });
   return (
-    <AuthShell label="Invitation" heading={`Join ${invite.workspaceName}.`} sub={sub}>
+    <AuthShell heading={`Join ${invite.workspaceName}.`} sub={sub}>
       {tile}
       <div className="mt-6">
         <Link href={`/signup?${signup.toString()}`} className={authStyles.submit}>
@@ -174,7 +173,7 @@ const PROBLEMS: Record<InviteRejection, { heading: string; body: string; icon: L
 function InviteProblem({ reason }: { reason: InviteRejection }) {
   const { heading, body, icon: Icon } = PROBLEMS[reason];
   return (
-    <AuthShell label="Invitation" heading={heading}>
+    <AuthShell heading={heading}>
       <div className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3.5">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/60">
           <Icon size={18} aria-hidden="true" />

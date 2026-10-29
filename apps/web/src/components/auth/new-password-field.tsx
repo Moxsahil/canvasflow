@@ -64,7 +64,7 @@ export function PasswordInput({
         onClick={() => setShown((v) => !v)}
         aria-label={shown ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
         aria-pressed={shown}
-        className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-white/35 transition-colors hover:text-white/80 focus:outline-none focus-visible:text-[#F5F4F0]"
+        className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-white/35 transition-colors hover:text-white/80 focus:outline-none focus-visible:text-[#fafafa]"
       >
         {shown ? (
           <EyeOff className="size-4" aria-hidden="true" />

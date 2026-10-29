@@ -116,7 +116,7 @@ export function BoardTile({
           {initialsOf(title)}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-medium text-[#F5F4F0]">{title}</p>
+          <p className="truncate text-[15px] font-medium text-[#fafafa]">{title}</p>
           <p className="truncate text-xs text-white/45">
             {sharedBy ? `Shared by ${sharedBy}` : 'Shared board'}
           </p>

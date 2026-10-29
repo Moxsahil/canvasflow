@@ -75,11 +75,7 @@ export function VerifyEmailClient() {
         <p className="text-sm leading-relaxed text-white/55">
           Your address is confirmed. You can carry on where you left off.
         </p>
-        <Link
-          href="/open"
-          className="mt-6 inline-flex items-center rounded-lg bg-[#F5F4F0] px-4 py-2.5 text-sm
-                     font-medium text-[#020204] transition-opacity hover:opacity-90"
-        >
+        <Link href="/open" className={`${authStyles.submit} mt-6`}>
           Open CanvasFlow
         </Link>
       </VerifyShell>
@@ -124,7 +120,7 @@ function VerifyShell({
   footer?: React.ReactNode;
 }) {
   return (
-    <AuthShell label="Verification" heading={heading} footer={footer}>
+    <AuthShell heading={heading} footer={footer}>
       {children}
     </AuthShell>
   );

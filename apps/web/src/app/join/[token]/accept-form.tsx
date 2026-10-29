@@ -65,7 +65,7 @@ export function SignedInCard({ name, email }: { name: string; email: string | nu
         {initialsOf(name)}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm text-[#F5F4F0]">{name}</p>
+        <p className="truncate text-sm text-[#fafafa]">{name}</p>
         {email && <p className="truncate text-xs text-white/45">{email}</p>}
       </div>
       <span className="cf-eyebrow shrink-0 font-mono text-[10px] uppercase tracking-widest text-white/35">

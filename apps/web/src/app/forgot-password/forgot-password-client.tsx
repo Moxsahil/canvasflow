@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
-import { AuthShell, authStyles } from '@/components/auth/auth-shell';
+import { SplitShell, splitStyles } from '@/components/auth/split-shell';
 import { Component as PencilLoader } from '@/components/ui/loader-1';
 import { requestPasswordReset } from '@/features/auth/api/password-reset';
 import { rememberEmail, rememberedEmail, subscribeToNothing } from '@/features/auth/reset-handoff';
@@ -47,21 +47,20 @@ export function ForgotPasswordClient() {
 
   if (sentTo) {
     return (
-      <AuthShell
-        label="Password reset"
-        heading="Check your email."
+      <SplitShell
+        heading="Check your email"
         footer={
-          <Link href="/login" className={authStyles.link}>
+          <Link href="/login" className={splitStyles.link}>
             Back to sign in
           </Link>
         }
       >
-        <div aria-live="polite" className="space-y-4 text-sm leading-relaxed text-white/55">
+        <div aria-live="polite" className="space-y-4 text-sm leading-relaxed text-[#9f9fa9]">
           {/* Worded so it is true whether or not the address has an account —
               which this page does not know, and must not appear to. */}
           <p>
-            If an account exists for <span className="text-[#F5F4F0]/85">{sentTo}</span>, we&apos;ve
-            sent a link to reset its password. The link expires in 30 minutes.
+            If an account exists for <span className="break-words text-[#fafafa]">{sentTo}</span>,
+            we&apos;ve sent a link to reset its password. The link expires in 30 minutes.
           </p>
           <p>
             Didn&apos;t get it? Check your spam folder
@@ -79,7 +78,7 @@ export function ForgotPasswordClient() {
             type="button"
             disabled={loading || secondsLeft > 0}
             onClick={() => void send(sentTo)}
-            className={authStyles.submit}
+            className={splitStyles.submit}
           >
             {loading ? <PencilLoader className="h-7 w-7" /> : 'Send another link'}
           </button>
@@ -89,24 +88,23 @@ export function ForgotPasswordClient() {
               setSentTo(null);
               setError(null);
             }}
-            className="w-full text-sm text-white/45 transition-colors hover:text-white/80"
+            className={`w-full cursor-pointer text-sm ${splitStyles.quietLink}`}
           >
             Use a different email
           </button>
         </div>
-      </AuthShell>
+      </SplitShell>
     );
   }
 
   return (
-    <AuthShell
-      label="Password reset"
-      heading="Reset your password."
-      sub="Enter the email you use for CanvasFlow. We'll send you a link to choose a new password."
+    <SplitShell
+      heading="Forgot Password?"
+      sub="Enter your email and we'll send you a reset link"
       footer={
         <>
           Remembered it?{' '}
-          <Link href="/login" className={authStyles.link}>
+          <Link href="/login" className={splitStyles.link}>
             Sign in
           </Link>
         </>
@@ -117,20 +115,25 @@ export function ForgotPasswordClient() {
           e.preventDefault();
           void send(email);
         }}
-        className="space-y-3"
+        className="space-y-5 short:space-y-3"
       >
-        <input
-          type="email"
-          placeholder="you@example.com"
-          aria-label="Email"
-          value={email}
-          onChange={(e) => setTyped(e.target.value)}
-          autoComplete="email"
-          maxLength={320}
-          required
-          autoFocus
-          className={authStyles.field}
-        />
+        <div className="space-y-2.5 short:space-y-1.5">
+          <label htmlFor="forgot-email" className={splitStyles.label}>
+            Email
+          </label>
+          <input
+            id="forgot-email"
+            type="email"
+            placeholder="Enter your email"
+            value={email}
+            onChange={(e) => setTyped(e.target.value)}
+            autoComplete="email"
+            maxLength={320}
+            required
+            autoFocus
+            className={splitStyles.field}
+          />
+        </div>
 
         {error && (
           <p role="alert" className="text-sm text-red-400">
@@ -139,7 +142,7 @@ export function ForgotPasswordClient() {
           </p>
         )}
 
-        <button type="submit" disabled={loading || secondsLeft > 0} className={authStyles.submit}>
+        <button type="submit" disabled={loading || secondsLeft > 0} className={splitStyles.submit}>
           {loading ? (
             <>
               <PencilLoader className="h-7 w-7" />
@@ -150,7 +153,7 @@ export function ForgotPasswordClient() {
           )}
         </button>
       </form>
-    </AuthShell>
+    </SplitShell>
   );
 }
 

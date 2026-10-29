@@ -71,7 +71,7 @@ async function mintResetLink(): Promise<string> {
 
 async function signInThroughTheForm(page: Page, password: string) {
   await page.goto(`${WEB}/login`);
-  await page.getByPlaceholder('you@example.com').fill(EMAIL);
+  await page.getByLabel('Email', { exact: true }).fill(EMAIL);
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: /^sign in$/i }).click();
 }
@@ -111,7 +111,7 @@ test.afterAll(async () => {
 
 test('asking for a reset link from the login page', async ({ page }) => {
   await page.goto(`${WEB}/login`);
-  await page.getByPlaceholder('you@example.com').fill(EMAIL);
+  await page.getByLabel('Email', { exact: true }).fill(EMAIL);
   await page.getByRole('link', { name: 'Forgot password?' }).click();
 
   // The address typed on the login page comes along.
@@ -119,7 +119,7 @@ test('asking for a reset link from the login page', async ({ page }) => {
   await expect(page.getByLabel('Email')).toHaveValue(EMAIL);
 
   await page.getByRole('button', { name: 'Send reset link' }).click();
-  await expect(page.getByRole('heading', { name: 'Check your email.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible();
   // Worded so it is true whether or not the address has an account.
   await expect(page.getByText(`If an account exists for ${EMAIL}`)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send another link' })).toBeDisabled();
@@ -152,7 +152,7 @@ test('choosing a new password signs out every device, and the new one works', as
   await page.goto(await mintResetLink());
 
   // The form, for the right account, with the token already out of the URL.
-  await expect(page.getByRole('heading', { name: 'Choose a new password.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Choose a new password' })).toBeVisible();
   await expect(page.getByText(`For ${EMAIL}`)).toBeVisible();
   expect(page.url()).not.toContain('token');
 
@@ -165,7 +165,7 @@ test('choosing a new password signs out every device, and the new one works', as
   await expect(update).toBeEnabled();
   await update.click();
 
-  await expect(page.getByRole('heading', { name: 'Password updated.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Password updated' })).toBeVisible();
 
   // The other device's editor is told its session is over and goes to sign in.
   await otherDevice.waitForURL(/localhost:3000\/login/, { timeout: 20_000 });
@@ -174,7 +174,7 @@ test('choosing a new password signs out every device, and the new one works', as
   await page.getByRole('link', { name: 'Sign in', exact: true }).click();
   await page.waitForURL(/\/login\?reset=1/);
   await expect(page.getByText('Password updated. Sign in with your new password.')).toBeVisible();
-  await expect(page.getByPlaceholder('you@example.com')).toHaveValue(EMAIL);
+  await expect(page.getByLabel('Email', { exact: true })).toHaveValue(EMAIL);
   await page.getByLabel('Password', { exact: true }).fill(NEW_PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
   await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
@@ -199,9 +199,9 @@ test('a link works once', async ({ page }) => {
   await page.getByLabel('New password', { exact: true }).fill(THIRD_PASSWORD);
   await page.getByLabel('Confirm new password', { exact: true }).fill(THIRD_PASSWORD);
   await page.getByRole('button', { name: 'Update password' }).click();
-  await expect(page.getByRole('heading', { name: 'Password updated.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Password updated' })).toBeVisible();
 
   await page.goto(link);
-  await expect(page.getByRole('heading', { name: 'This link is no longer valid.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'This link is no longer valid' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Send a new link' })).toBeVisible();
 });

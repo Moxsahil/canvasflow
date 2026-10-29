@@ -63,7 +63,7 @@ async function signIn(browser: Browser, who: Who): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
   await page.goto(`${WEB}/login`);
   await page.waitForLoadState('networkidle');
-  await page.getByPlaceholder('you@example.com').fill(PEOPLE[who].email);
+  await page.getByLabel('Email', { exact: true }).fill(PEOPLE[who].email);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
   await page.waitForURL(/localhost:3002\/boards\//, { timeout: 45_000 });

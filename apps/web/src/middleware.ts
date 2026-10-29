@@ -97,10 +97,11 @@ export default async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // The public/ assets are the home page's own images, video and icons, served
-  // to people who are not signed in — that is who the page is for. Without them
+  // The public/ files are the home page's own pictures and icons, served to
+  // people who are not signed in — that is who the page is for. Without them
   // here the matcher redirects every one of them to /login and the page renders
   // with nothing in it. brand/ holds the logo and the link-preview image, which
-  // the crawlers that read them never sign in to fetch.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|images/|videos/|brand/).*)'],
+  // the crawlers that read them never sign in to fetch. assets/ holds the
+  // landing page's screenshots, map, portraits and logos.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|brand/|assets/).*)'],
 };

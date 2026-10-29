@@ -67,7 +67,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
   const visitor = user?.id ?? (await readGuestSession());
   if (visitor && (await wasRemovedFromBoard(db, link.boardId, visitor))) {
     return (
-      <AuthShell label="Invitation" heading="You were removed from this board.">
+      <AuthShell heading="You were removed from this board.">
         <BoardTile
           title={boardTitle}
           color={board?.color ?? 'gray'}
@@ -90,7 +90,6 @@ export default async function InvitePage({ params }: InvitePageProps) {
 
   return (
     <AuthShell
-      label="Invitation"
       heading="You’re invited."
       sub={
         sharedBy
@@ -151,7 +150,7 @@ const PROBLEMS: Record<ShareLinkRejection, { heading: string; body: string; icon
 function LinkProblem({ reason }: { reason: ShareLinkRejection }) {
   const { heading, body, icon: Icon } = PROBLEMS[reason];
   return (
-    <AuthShell label="Invitation" heading={heading}>
+    <AuthShell heading={heading}>
       <div className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3.5">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/60">
           <Icon size={18} aria-hidden="true" />

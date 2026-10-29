@@ -72,7 +72,7 @@ async function signUp(email: string, name: string): Promise<string> {
 async function signedIn(browser: Browser, email: string): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
   await page.goto(`${WEB}/login`);
-  await page.getByPlaceholder('you@example.com').fill(email);
+  await page.getByLabel('Email', { exact: true }).fill(email);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
   await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
@@ -175,7 +175,7 @@ test('a password account types its address, is refused a wrong password, then de
   await remove.click();
 
   await page.waitForURL(/localhost:3000\/account-deleted\?until=/, { timeout: 30_000 });
-  await expect(page.getByRole('heading', { name: 'Your account will be deleted.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your account will be deleted' })).toBeVisible();
   await expect(
     page.getByText(/everything in it after \d{1,2} \w+ \d{4} at \d{2}:\d{2} UTC/),
   ).toBeVisible();
@@ -245,7 +245,7 @@ test('the confirmation page opens signed out, and ignores a date nobody could be
   page,
 }) => {
   await page.goto(`${WEB}/account-deleted?until=2099-01-01T00:00:00.000Z`);
-  await expect(page.getByRole('heading', { name: 'Your account will be deleted.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your account will be deleted' })).toBeVisible();
   await expect(page.getByText('everything in it in 7 days')).toBeVisible();
   await expect(page.getByRole('link', { name: 'support@canvasflowapp.com' })).toHaveAttribute(
     'href',

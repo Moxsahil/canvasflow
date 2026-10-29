@@ -54,7 +54,7 @@ async function writeOnBoard(page: Page, words: string) {
 /** Sign in through the web app's form, landing on the account's last board. */
 async function signIn(page: Page) {
   await page.goto(`${WEB}/login`);
-  await page.getByPlaceholder('you@example.com').fill(EMAIL);
+  await page.getByLabel('Email', { exact: true }).fill(EMAIL);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
   await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
@@ -100,7 +100,7 @@ test('tells search engines what the editor is, and where to find it', async ({ p
 
   // The home page links to it, so a crawler can get there.
   await page.goto(`${WEB}/`);
-  await expect(page.getByRole('link', { name: 'Open canvas' }).first()).toHaveAttribute(
+  await expect(page.getByRole('link', { name: 'Start drawing' }).first()).toHaveAttribute(
     'href',
     `${EDITOR}/`,
   );
@@ -167,7 +167,7 @@ test.describe('signed in', () => {
     // A full navigation to the web app: wait for its form to be ready to type in.
     await page.waitForURL(/localhost:3000\/login/);
     await page.waitForLoadState('networkidle');
-    await page.getByPlaceholder('you@example.com').fill(EMAIL);
+    await page.getByLabel('Email', { exact: true }).fill(EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: /^sign in$/i }).click();
     await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
