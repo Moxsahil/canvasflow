@@ -77,7 +77,9 @@ export function NoteEditor({
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.focus();
+    // The field may sit past the canvas's edge; focusing it mustn't scroll the
+    // panel it is drawn in.
+    el.focus({ preventScroll: true });
     const length = el.value.length;
     el.setSelectionRange(length, length);
   }, []);

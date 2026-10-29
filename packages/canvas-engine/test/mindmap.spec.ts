@@ -175,6 +175,12 @@ describe('new topics', () => {
     expect(second.strokeColor).toBe(BRANCH_COLORS[1]);
   });
 
+  it('opens a new branch off the centre on the side asked for', () => {
+    const shapes: Shape[] = [topic('root', null), topic('a', 'root', { side: 'right' })];
+    expect(newChildTopic(shapes, 'root', 'c', 'right')!.side).toBe('right');
+    expect(newChildTopic(shapes, 'a', 'a1', 'left')!.side).toBe('right');
+  });
+
   it('gives a topic grown further out a colour other than the one it grew from', () => {
     const shapes = [
       topic('root', null),

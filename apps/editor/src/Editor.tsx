@@ -51,6 +51,7 @@ import {
   mindMapDropAt,
   mindMapForest,
   topicGrowth,
+  mindMapLayoutOf,
   mindMapFoldBadgeAt,
   topicCentre,
   noteBounds,
@@ -1788,10 +1789,10 @@ export function Editor({ boardId, local = false }: EditorProps) {
    * Answers whether there was a topic to grow from.
    */
   const growMindMap = useCallback(
-    (topicId: string, growth: TopicGrowth): boolean => {
+    (topicId: string, growth: TopicGrowth, side?: 'left' | 'right'): boolean => {
       if (readOnly) return false;
       const current = doc.getShapes();
-      const grown = grownTopic(current, topicId, growth, genId());
+      const grown = grownTopic(current, topicId, growth, genId(), side);
       if (!grown) return false;
       doc.breakUndoGroup();
       // A topic added under a folded one opens it, or it would be added out
@@ -2106,10 +2107,14 @@ export function Editor({ boardId, local = false }: EditorProps) {
     if (activeTool !== 'select' || lockedIds.has(selectedIds[0]!)) return null;
     const topic = shownShapes.find((shape) => shape.id === selectedIds[0]);
     if (!topic || !isTopic(topic)) return null;
+    const forest = mindMapForest(shapes);
+    const isRoot = withMindMapRoots([topic.id], shapes)[0] === topic.id;
     return {
       topic,
-      isRoot: withMindMapRoots([topic.id], shapes)[0] === topic.id,
-      growth: topicGrowth(topic, mindMapForest(shapes)),
+      isRoot,
+      // A centre whose branches go both ways grows from either side.
+      bothWays: isRoot && mindMapLayoutOf(topic, forest) === 'both',
+      growth: topicGrowth(topic, forest),
       hasBranches: hasBranches(shapes, topic.id),
     };
   }, [
@@ -6454,8 +6459,10 @@ export function Editor({ boardId, local = false }: EditorProps) {
 
         {/* The canvas and everything floating over it. Positioned, so the
             chrome inside anchors to the space left of the sidebar rather than
-            to the window — and measured, so the canvas resizes with it. */}
-        <SidebarInset className="relative min-w-0 overflow-hidden md:peer-data-[variant=inset]:border md:peer-data-[variant=inset]:border-sidebar-border">
+            to the window — and measured, so the canvas resizes with it. Clipped
+            rather than hidden: a hidden box still scrolls, and focusing a field
+            drawn past its edge (a new topic off-screen) slid the whole canvas up. */}
+        <SidebarInset className="relative min-w-0 overflow-clip md:peer-data-[variant=inset]:border md:peer-data-[variant=inset]:border-sidebar-border">
           <div ref={containerRef} className="cf-board absolute inset-0">
             {/* Around the canvas alone, so a right-click on the chrome floating
                 over it still gets the browser's own menu, or none. Rows go live
@@ -6674,8 +6681,9 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 camera={camera}
                 isRoot={selectedTopic.isRoot}
                 growth={selectedTopic.growth}
+                bothWays={selectedTopic.bothWays}
                 hasBranches={selectedTopic.hasBranches}
-                onGrow={(growth) => growMindMap(selectedTopic.topic.id, growth)}
+                onGrow={(growth, side) => growMindMap(selectedTopic.topic.id, growth, side)}
                 onFold={() => {
                   doc.breakUndoGroup();
                   doc.updateShape(selectedTopic.topic.id, { collapsed: true });

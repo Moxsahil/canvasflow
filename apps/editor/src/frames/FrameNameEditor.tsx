@@ -85,7 +85,9 @@ export function FrameNameEditor({
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.focus();
+    // The field may sit past the canvas's edge; focusing it mustn't scroll the
+    // panel it is drawn in.
+    el.focus({ preventScroll: true });
     // Selected rather than cursor-at-end: renaming a frame almost always
     // replaces the name outright, and the common case is replacing the
     // placeholder a frame has never been given a real name over.
