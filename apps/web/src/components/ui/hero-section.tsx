@@ -1,24 +1,27 @@
 'use client';
 
-import { useEffect, useId, useState, type ComponentProps, type CSSProperties } from 'react';
+import { useEffect, useId, useRef, useState, type ComponentProps, type CSSProperties } from 'react';
 import {
+  Bell,
   BookOpen,
+  Building2,
   ChevronDown,
+  Code,
   Download,
   Frame,
+  Languages,
   Library,
+  Link2,
+  Lock,
   Mail,
   Menu,
   MessageSquare,
   Network,
   PenTool,
-  Presentation,
   Shapes,
-  Sparkles,
-  SquareKanban,
   StickyNote,
+  TextCursorInput,
   Users,
-  Workflow,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -56,22 +59,23 @@ const STYLES = `
 [data-slot=hero-section] .header-actions { justify-self: end; }
 [data-slot=hero-section] .menu-backdrop { position: fixed; inset: 71px 0 0; z-index: 20; backdrop-filter: blur(7px); background: #fafafa30; animation: hero-section-veil-in .2s ease; }
 [data-slot=hero-section] .mega-menu { max-width: 976px; margin: auto; padding: 20px 0 38px; border-top: 1px dotted #d4d4d8; animation: hero-section-menu-in .22s ease both; }
-[data-slot=hero-section] .mega-menu h2 { color: #71717a; font-size: 12px; font-weight: 500; text-transform: uppercase; margin: 0 0 12px; }
+[data-slot=hero-section] .mega-menu h2 { color: #71717a; font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; margin: 0 0 8px; }
 [data-slot=hero-section] .product-grid { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 24px; }
 [data-slot=hero-section] .product-grid > div + div { border-left: 1px solid var(--border); padding-left: 16px; }
-[data-slot=hero-section] .menu-links { display: grid; gap: 12px; }
+[data-slot=hero-section] .menu-links { display: grid; gap: 2px; margin-inline: -8px; }
 [data-slot=hero-section] .product-grid > div:nth-child(2) .menu-links, [data-slot=hero-section] .solutions-grid .menu-links { grid-template-columns: 1fr 1fr; }
-[data-slot=hero-section] .menu-links a { display: flex; gap: 10px; align-items: center; border-radius: 8px; padding: 6px 0; }
+[data-slot=hero-section] .menu-links a { display: flex; gap: 10px; align-items: flex-start; border-radius: 8px; padding: 8px; }
 [data-slot=hero-section] .menu-links a:hover { background: #eeeeef; }
-[data-slot=hero-section] .menu-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 38px; height: 38px; border: 1px solid #e5e5e5; border-radius: 12px; box-shadow: 0 1px 1px #00000015; }
-[data-slot=hero-section] .menu-links strong { display: block; font-size: 14px; font-weight: 500; }
-[data-slot=hero-section] .menu-links small { display: block; font-size: 12px; color: #71717a; margin-top: 2px; }
-[data-slot=hero-section] .changelog > a { font-size: 14px; font-weight: 500; }
+[data-slot=hero-section] .menu-icon { display: flex; flex-shrink: 0; margin-top: 1px; color: #71717a; transition: color .15s; }
+[data-slot=hero-section] .menu-links a:hover .menu-icon { color: currentColor; }
+[data-slot=hero-section] .menu-links strong { display: block; font-size: 13px; line-height: 18px; font-weight: 500; }
+[data-slot=hero-section] .menu-links small { display: block; font-size: 12px; line-height: 16px; color: #71717a; margin-top: 1px; }
+[data-slot=hero-section] .changelog > a { font-size: 13px; font-weight: 500; }
 [data-slot=hero-section] .changelog p { font-size: 12px; line-height: 1.6; color: #71717a; margin-top: 8px; }
 [data-slot=hero-section] .solutions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 [data-slot=hero-section] .content-links { padding-left: 16px; border-left: 1px solid var(--border); display: flex; flex-direction: column; gap: 14px; }
 [data-slot=hero-section] .content-links h2 { margin-bottom: 4px; }
-[data-slot=hero-section] .content-links a { display: flex; gap: 12px; font-size: 14px; }
+[data-slot=hero-section] .content-links a { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 [data-slot=hero-section] .hero-copy { max-width: 1024px; padding: 158px 24px 79px; margin: auto; }
 [data-slot=hero-section] .hero-copy h1 { font-size: 60px; line-height: 1; letter-spacing: -1.5px; font-weight: 600; max-width: 850px; margin: 0; }
 [data-slot=hero-section] .hero-copy p { max-width: 600px; margin: 20px 0 24px; font-size: 20px; line-height: 28px; color: #5e5e65; }
@@ -84,19 +88,24 @@ const STYLES = `
 [data-slot=hero-section] .tab-rule { border-block: 1px solid #d4d4d880; }
 [data-slot=hero-section] .feature-tabs { max-width: 680px; margin: auto; display: grid; grid-template-columns: repeat(3, 1fr); }
 [data-slot=hero-section] .tab-cell { padding: 11px 16px; display: flex; justify-content: center; border-left: 1px solid #d4d4d880; }
+[data-slot=hero-section] .tab-progress { position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: rgb(19 93 252 / 70%); transform: scaleX(0); transform-origin: left; pointer-events: none; }
+@media(prefers-reduced-motion: no-preference) {
+  [data-slot=hero-section] .tab-progress { animation: hero-section-tab-progress 6s linear forwards; }
+}
+[data-slot=hero-section] .feature-tabs[data-paused=true] .tab-progress { animation-play-state: paused; }
 [data-slot=hero-section] .tab-cell:last-child { border-right: 1px solid #d4d4d880; }
-[data-slot=hero-section] .tab-cell button { display: flex; align-items: center; gap: 9px; white-space: nowrap; padding: 10px 16px; border: 1px solid #dedee2; border-radius: 99px; font-size: 14px; color: #626269; background: #fafafa35; transition: background .25s, color .25s, box-shadow .25s; }
+[data-slot=hero-section] .tab-cell button { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; gap: 9px; white-space: nowrap; padding: 10px 16px; border: 1px solid #dedee2; border-radius: 99px; font-size: 14px; color: #626269; background: #fafafa35; transition: background .25s, color .25s, box-shadow .25s; }
 [data-slot=hero-section] .tab-cell button[aria-selected=true] { background: white; color: #09090b; box-shadow: 0 3px 6px #0000000d; }
 [data-slot=hero-section] .tab-cell button:hover { color: #09090b; background: #ffffff80; }
-[data-slot=hero-section] .dashboard-frame { position: relative; margin: -8px auto 0; width: calc(100% - 48px); max-width: 1074px; aspect-ratio: 1.57; border: 1px solid #d4d4d8; border-radius: 20px; padding: 12px; background: #ffffffa6; box-shadow: 0 0 0 4px #ffffff70 inset, 0 10px 45px #0000000a; overflow: hidden; }
-[data-slot=hero-section] .dashboard-image { position: absolute; top: 12px; left: 12px; width: calc(100% - 24px); height: auto; border-radius: 10px; opacity: 0; filter: blur(5px); transform: translateY(8px); transition: opacity .4s ease, filter .4s ease, transform .4s ease; }
+[data-slot=hero-section] .dashboard-frame { position: relative; margin: -8px auto 0; width: calc(100% - 48px); max-width: 1074px; display: grid; border: 1px solid #d4d4d8; border-radius: 20px; padding: 12px; background: #ffffffa6; box-shadow: 0 0 0 4px #ffffff70 inset, 0 10px 45px #0000000a; overflow: hidden; }
+[data-slot=hero-section] .dashboard-image { grid-area: 1 / 1; display: block; width: 100%; height: auto; border-radius: 10px; opacity: 0; filter: blur(5px); transform: translateY(8px); transition: opacity .4s ease, filter .4s ease, transform .4s ease; }
 [data-slot=hero-section] .dashboard-image.is-active { opacity: 1; filter: blur(0); transform: translateY(0); }
-[data-slot=hero-section] .showcase-fade { position: absolute; inset: 45% 0 -1px; pointer-events: none; background: linear-gradient(transparent, var(--background) 90%); }
 [data-slot=hero-section] .trusted { max-width: 1024px; padding: 76px 24px 72px; margin: auto; }
 [data-slot=hero-section] .trusted > p { text-align: center; color: #626269; font-size: 18px; line-height: 28px; }
 [data-slot=hero-section] .trusted > p span { color: #18181b; }
 @keyframes hero-section-menu-in{from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); }}
 @keyframes hero-section-veil-in{from { opacity: 0; } to { opacity: 1; }}
+@keyframes hero-section-tab-progress{to { transform: scaleX(1); }}
 @media(max-width: 767px) {
   [data-slot=hero-section] .header-inner { display: flex; height: 64px; padding: 0 24px; gap: 16px; }
   [data-slot=hero-section] .header-actions { gap: 8px; }
@@ -117,8 +126,8 @@ const STYLES = `
   [data-slot=hero-section] .tab-cell { padding: 12px 4px; }
   [data-slot=hero-section] .tab-cell button { padding: 9px 10px; font-size: 11px; gap: 5px; }
   [data-slot=hero-section] .tab-cell button svg { width: 13px; }
-  [data-slot=hero-section] .dashboard-frame { width: calc(100% - 24px); padding: 5px; border-radius: 12px; aspect-ratio: 1.35; }
-  [data-slot=hero-section] .dashboard-image { top: 6px; left: 6px; width: calc(100% - 12px); border-radius: 6px; }
+  [data-slot=hero-section] .dashboard-frame { width: calc(100% - 24px); padding: 5px; border-radius: 12px; }
+  [data-slot=hero-section] .dashboard-image { border-radius: 6px; }
   [data-slot=hero-section] .trusted { padding-top: 36px; }
   [data-slot=hero-section] .trusted > p { font-size: 15px; line-height: 24px; }
 }
@@ -132,8 +141,9 @@ const STYLES = `
 [data-slot=hero-section]:is(.dark, .dark *) .action:hover { filter: brightness(1.15); }
 [data-slot=hero-section]:is(.dark, .dark *) .action.primary { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); box-shadow: 0 2px 8px rgb(19 93 252 / 30%); }
 [data-slot=hero-section]:is(.dark, .dark *) .menu-backdrop { background: #10101270; }
-[data-slot=hero-section]:is(.dark, .dark *) .mega-menu, [data-slot=hero-section]:is(.dark, .dark *) .menu-icon, [data-slot=hero-section]:is(.dark, .dark *) .tab-rule, [data-slot=hero-section]:is(.dark, .dark *) .tab-cell, [data-slot=hero-section]:is(.dark, .dark *) .tab-cell:last-child { border-color: var(--border); }
-[data-slot=hero-section]:is(.dark, .dark *) .menu-icon { background: var(--card); }
+[data-slot=hero-section]:is(.dark, .dark *) .mega-menu, [data-slot=hero-section]:is(.dark, .dark *) .tab-rule, [data-slot=hero-section]:is(.dark, .dark *) .tab-cell, [data-slot=hero-section]:is(.dark, .dark *) .tab-cell:last-child { border-color: var(--border); }
+[data-slot=hero-section]:is(.dark, .dark *) .menu-icon { color: var(--muted-foreground); }
+[data-slot=hero-section]:is(.dark, .dark *) .menu-links a:hover .menu-icon { color: var(--foreground); }
 [data-slot=hero-section]:is(.dark, .dark *) .main-nav.mobile-open { background: var(--background); }
 [data-slot=hero-section]:is(.dark, .dark *) .scenic-background { opacity: .28; filter: brightness(.65) saturate(.7); }
 [data-slot=hero-section]:is(.dark, .dark *) .tab-cell button { color: var(--muted-foreground); border-color: var(--border); background: #18181c80; }
@@ -166,7 +176,7 @@ const features = [
   {
     name: 'AI diagrams',
     description: 'Describe it in a sentence, get a diagram',
-    icon: Sparkles,
+    icon: TextCursorInput,
     href: '/#features',
   },
   {
@@ -222,27 +232,39 @@ const moreFeatures = [
 ];
 const solutions = [
   {
-    name: 'Design review',
-    description: 'Critique without a meeting',
-    icon: Shapes,
+    name: 'Share links',
+    description: 'Invite people to view or edit',
+    icon: Link2,
     href: '/#features',
   },
   {
-    name: 'Sprint planning',
-    description: 'Plans the whole team can see',
-    icon: SquareKanban,
+    name: 'Workspaces',
+    description: 'One home per team, with roles',
+    icon: Building2,
     href: '/#features',
   },
   {
-    name: 'Architecture',
-    description: 'Diagram systems at speed',
-    icon: Workflow,
+    name: 'Embeds',
+    description: 'Put a live board in docs and sites',
+    icon: Code,
     href: '/#features',
   },
   {
-    name: 'Workshops',
-    description: 'Run the room, wherever it is',
-    icon: Presentation,
+    name: 'Lock and hide',
+    description: 'Lock shapes or hide them',
+    icon: Lock,
+    href: '/#features',
+  },
+  {
+    name: 'Notifications',
+    description: 'Hear about mentions and replies',
+    icon: Bell,
+    href: '/#features',
+  },
+  {
+    name: 'Your language',
+    description: 'The editor in your language',
+    icon: Languages,
     href: '/#features',
   },
 ];
@@ -250,7 +272,7 @@ const solutions = [
 const tabs = [
   { label: 'Whiteboard', image: `${ASSETS}/whiteboard.png`, icon: Shapes, dark: true },
   { label: 'Mind maps', image: `${ASSETS}/mind-maps.png`, icon: Network, dark: true },
-  { label: 'AI diagrams', image: `${ASSETS}/ai-diagrams.png`, icon: Sparkles, dark: true },
+  { label: 'AI diagrams', image: `${ASSETS}/ai-diagrams.png`, icon: TextCursorInput, dark: true },
 ];
 
 const groups = [
@@ -291,7 +313,7 @@ function FeatureLinks({ items }: { items: typeof features }) {
       {items.map((item) => (
         <a href={item.href} key={item.name}>
           <span className="menu-icon">
-            <item.icon size={17} />
+            <item.icon size={16} strokeWidth={1.75} />
           </span>
           <span>
             <strong>{item.name}</strong>
@@ -413,21 +435,21 @@ function HeroHeader() {
             ) : (
               <div className="solutions-grid">
                 <div>
-                  <h2>Use Cases</h2>
+                  <h2>Also Built In</h2>
                   <FeatureLinks items={solutions} />
                 </div>
                 <div className="content-links">
                   <h2>Content</h2>
                   <a href="/#how-it-works">
-                    <BookOpen size={17} />
+                    <BookOpen size={16} strokeWidth={1.75} />
                     How it works
                   </a>
                   <a href="/#pricing">
-                    <Shapes size={17} />
+                    <Shapes size={16} strokeWidth={1.75} />
                     Pricing
                   </a>
                   <a href="/contact">
-                    <Mail size={17} />
+                    <Mail size={16} strokeWidth={1.75} />
                     Contact
                   </a>
                 </div>
@@ -540,10 +562,29 @@ export function SiteHeader() {
 
 export default function HeroSection({ className, ...props }: ComponentProps<'div'>) {
   const [active, setActive] = useState(0);
+  const showcase = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState(false);
+  const [offscreen, setOffscreen] = useState(false);
+  const [tabHidden, setTabHidden] = useState(false);
   const id = useId();
   const tabId = (index: number) => `${id}-tab-${index}`;
   const panelId = `${id}-panel`;
   const titleId = `${id}-title`;
+
+  // The strip over the open tab only fills while someone could be watching it:
+  // not with the showcase scrolled away or the browser tab in the background.
+  useEffect(() => {
+    const element = showcase.current;
+    if (!element) return;
+    const observer = new IntersectionObserver(([entry]) => setOffscreen(!entry!.isIntersecting));
+    observer.observe(element);
+    const sync = () => setTabHidden(document.hidden);
+    document.addEventListener('visibilitychange', sync);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('visibilitychange', sync);
+    };
+  }, []);
 
   return (
     <div data-slot="hero-section" className={cn(className)} {...props}>
@@ -570,10 +611,15 @@ export default function HeroSection({ className, ...props }: ComponentProps<'div
               </a>
             </div>
           </div>
-          <div className="showcase">
+          <div className="showcase" ref={showcase}>
             <img className="scenic-background" src={`${ASSETS}/canvas-background.svg`} alt="" />
             <div className="tab-rule">
-              <div className="feature-tabs" role="tablist" aria-label="Product preview">
+              <div
+                className="feature-tabs"
+                role="tablist"
+                aria-label="Product preview"
+                data-paused={hovered || offscreen || tabHidden}
+              >
                 {tabs.map((tab, index) => (
                   <div className="tab-cell" key={tab.label}>
                     <button
@@ -602,6 +648,17 @@ export default function HeroSection({ className, ...props }: ComponentProps<'div
                         }
                       }}
                     >
+                      {/* Fills the pill over six seconds, then hands over to the
+                          next tab. A new one is mounted for each tab, so a click
+                          starts it afresh; with reduced motion it never runs, and
+                          the tabs stay where they are put. */}
+                      {index === active && (
+                        <span
+                          className="tab-progress"
+                          aria-hidden="true"
+                          onAnimationEnd={() => setActive((index + 1) % tabs.length)}
+                        />
+                      )}
                       <tab.icon size={16} strokeWidth={1.6} />
                       {tab.label}
                     </button>
@@ -611,6 +668,8 @@ export default function HeroSection({ className, ...props }: ComponentProps<'div
             </div>
             <div
               className="dashboard-frame"
+              onMouseEnter={() => setHovered(true)}
+              onMouseLeave={() => setHovered(false)}
               id={panelId}
               role="tabpanel"
               aria-labelledby={tabId(active)}
@@ -621,13 +680,15 @@ export default function HeroSection({ className, ...props }: ComponentProps<'div
                   key={tab.image}
                   className={`dashboard-image ${index === active ? 'is-active' : ''}`}
                   src={tab.image}
+                  // The screenshots are 16:9; the frame takes its height from them.
+                  width={1920}
+                  height={1080}
                   data-dark={'dark' in tab ? '' : undefined}
                   alt={`CanvasFlow ${tab.label.toLowerCase()}`}
                   aria-hidden={index !== active}
                 />
               ))}
             </div>
-            <div className="showcase-fade" />
           </div>
         </section>
         <CompanyRail />
