@@ -315,6 +315,8 @@ import {
   useBoardSwitcher,
 } from './workspace';
 import { useBillingReadAhead } from './billing/billing-cache';
+import type { UpgradeVia } from './billing/upgrade-back';
+import { takeAiPanelLink } from './diagrams/panel-link';
 import { announceAccountChanged } from './sync/account-events';
 import {
   CursorLayer,
@@ -6017,6 +6019,13 @@ export function Editor({ boardId, local = false }: EditorProps) {
       setDiagramsOpen((open) => !open);
     }
   }, [local, diagramsOpen, diagramsMinimized]);
+  // Back from the upgrade page it sent them to: the AI panel opens again.
+  useEffect(() => {
+    if (!local && takeAiPanelLink()) {
+      setDiagramsMinimized(false);
+      setDiagramsOpen(true);
+    }
+  }, [local]);
   const closeDiagrams = useCallback(() => {
     setDiagramsOpen(false);
     setDiagramsMinimized(false);
@@ -6034,18 +6043,27 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // Upgrading the open board's workspace, from the AI panel's limit and the
   // pricing page's links; Settings names the workspace it is showing.
   const navigate = useNavigate();
+  // The page's back link returns to this board with whatever sent them there
+  // (Settings at Billing, or the AI panel) open again.
   const upgradeWorkspace = useCallback(
-    (workspaceId: string | null) => {
+    (workspaceId: string | null, via: UpgradeVia) => {
       const target = new URLSearchParams();
       if (workspaceId) target.set('workspace', workspaceId);
-      if (!local) target.set('from', boardId);
+      if (!local) {
+        target.set('from', boardId);
+        target.set('via', via);
+      }
       navigate(`/upgrade?${target.toString()}`);
     },
     [navigate, local, boardId],
   );
   const showPlans = useCallback(
-    () => upgradeWorkspace(boardSwitcher.workspaceId),
+    () => upgradeWorkspace(boardSwitcher.workspaceId, 'ai'),
     [upgradeWorkspace, boardSwitcher.workspaceId],
+  );
+  const upgradeFromSettings = useCallback(
+    (workspaceId: string) => upgradeWorkspace(workspaceId, 'settings'),
+    [upgradeWorkspace],
   );
 
   /**
@@ -7168,7 +7186,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   workspace={settingsWorkspace}
                   renameWorkspace={renameWorkspaceFromSettings}
                   showWorkspace={boardSwitcher.browseWorkspace}
-                  upgradeWorkspace={upgradeWorkspace}
+                  upgradeWorkspace={upgradeFromSettings}
                   openBoard={exportOpenBoard}
                   analytics={usage.consent}
                   chooseAnalytics={usage.choose}

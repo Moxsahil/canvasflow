@@ -45,6 +45,8 @@ export async function startCheckout(input: {
   plan: PurchasablePlan;
   cycle: BillingCycle;
   returnTo: string;
+  /** Where Polar's back button goes: this page, with the choices in its address. */
+  backTo: string;
   /** For Team: seats to buy, never fewer than the members. */
   seats?: number;
 }): Promise<string> {

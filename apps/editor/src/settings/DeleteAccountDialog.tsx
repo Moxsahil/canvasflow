@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ACCOUNT_DELETION_GRACE_DAYS, PLAN_NAMES, SUPPORT_EMAIL } from '@canvasflow/types';
-import { formatDay } from '../billing/UpgradeShell';
+import { formatDay } from '../billing/format';
 import { rich, t as translate, useT } from '../i18n';
 import { PasswordField } from './AccountDialogs';
 import {

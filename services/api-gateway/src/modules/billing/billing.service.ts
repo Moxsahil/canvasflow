@@ -54,6 +54,12 @@ const CheckoutBody = z.object({
   cycle: z.enum(BILLING_CYCLES),
   /** Where to come back to: a page of the editor or the web app, and nowhere else. */
   returnTo: z.string().url().max(2000).optional(),
+  /**
+   * Where Polar's back button goes when someone leaves without paying: the
+   * page they chose the plan on. Without it, the pricing section, never the
+   * page that waits for a payment.
+   */
+  backTo: z.string().url().max(2000).optional(),
   /** For a per-member plan: seats to buy, never fewer than the workspace's members. */
   seats: z.number().int().min(1).max(1000).optional(),
 });
@@ -113,6 +119,13 @@ export interface BillingInvoice {
 const CATALOGUE_TTL_MS = 5 * 60_000;
 
 /**
+ * The least time between two direct reads of one workspace's subscriptions:
+ * the page waiting for a payment asks every two seconds, and Polar needn't be
+ * asked that often.
+ */
+const RECONCILE_GAP_MS = 6_000;
+
+/**
  * Buying a plan, and keeping a workspace's plan in step with what is paid for.
  *
  * The provider is the record of truth. A checkout only opens the provider's
@@ -126,6 +139,8 @@ export class BillingService {
   private readonly logger = new Logger(BillingService.name);
   private readonly env = parseEnv();
   private catalogue: { products: CatalogueProduct[]; readAt: number } | null = null;
+  /** When each workspace's subscriptions were last read straight from the provider. */
+  private readonly reconciledAt = new Map<string, number>();
 
   constructor(
     private readonly database: DatabaseService,
@@ -139,7 +154,7 @@ export class BillingService {
     if (!parsed.success) {
       throw new BadRequestException('Say which workspace, plan and billing period to buy.');
     }
-    const { workspaceId, plan, cycle, returnTo, seats: asked } = parsed.data;
+    const { workspaceId, plan, cycle, returnTo, backTo, seats: asked } = parsed.data;
     const db = this.database.db;
 
     const role = await workspaceRoleOf(db, user.id, workspaceId);
@@ -188,7 +203,7 @@ export class BillingService {
         ? Math.max(1, (await workspaceMemberIds(db, workspaceId)).length)
         : undefined;
     const seats = members ? Math.max(members, asked ?? members) : undefined;
-    const back = this.returnAddress(returnTo);
+    const done = this.returnAddress(returnTo);
 
     let checkout: { id: string; url: string };
     try {
@@ -201,8 +216,8 @@ export class BillingService {
         ...(seats && members ? { seats, minSeats: members } : {}),
         // A company buying for its team usually needs its address on the invoice.
         requireBillingAddress: plan === 'team',
-        successUrl: withCheckoutId(back),
-        returnUrl: back,
+        successUrl: withCheckoutId(done),
+        returnUrl: this.returnAddress(backTo),
       });
     } catch (error) {
       this.logger.error(`Checkout for workspace ${workspaceId} failed: ${String(error)}`);
@@ -229,7 +244,12 @@ export class BillingService {
     if (!checkout || !(await workspaceRoleOf(db, user.id, checkout.workspaceId))) {
       throw new NotFoundException('No such checkout.');
     }
-    const current = await workspacePlan(db, checkout.workspaceId);
+    let current = await workspacePlan(db, checkout.workspaceId);
+    // Not on the plan yet: the webhook may be late or lost, so Polar is asked
+    // directly, and a payment it has taken switches the plan on now.
+    if (current !== checkout.plan && (await this.reconcile(checkout.workspaceId))) {
+      current = await workspacePlan(db, checkout.workspaceId);
+    }
     const done = current === checkout.plan;
     return {
       workspaceId: checkout.workspaceId,
@@ -243,8 +263,13 @@ export class BillingService {
   async workspace(user: AuthenticatedUser, workspaceId: string): Promise<BillingWorkspace> {
     const db = this.database.db;
     const role = await workspaceRoleOf(db, user.id, workspaceId);
-    const row = role ? await workspaceNameAndPlan(db, workspaceId) : null;
+    let row = role ? await workspaceNameAndPlan(db, workspaceId) : null;
     if (!role || !row) throw new NotFoundException('No such workspace.');
+    // Free here, but perhaps not at Polar: a paid plan whose webhook never
+    // came would otherwise be offered for sale again, which Polar refuses.
+    if (row.plan === 'free' && (await this.reconcile(workspaceId))) {
+      row = (await workspaceNameAndPlan(db, workspaceId)) ?? row;
+    }
     return {
       id: workspaceId,
       name: row.name,
@@ -511,6 +536,30 @@ export class BillingService {
     // waiting and a failure here never makes it send the event again.
     if (workspaceId && event.subscription.plan === 'team') {
       void this.syncSeats(workspaceId, { addOnly: true });
+    }
+  }
+
+  /**
+   * Reads the workspace's subscriptions straight from the provider and applies
+   * them as their webhooks would have been, making up for any that were lost.
+   * Applying one already applied changes nothing. At most once per
+   * RECONCILE_GAP_MS for a workspace; a provider that doesn't answer is
+   * logged and left for the webhook. True when something was read.
+   */
+  private async reconcile(workspaceId: string): Promise<boolean> {
+    if (!this.provider) return false;
+    const last = this.reconciledAt.get(workspaceId) ?? 0;
+    if (Date.now() - last < RECONCILE_GAP_MS) return false;
+    this.reconciledAt.set(workspaceId, Date.now());
+    try {
+      const subscriptions = await this.provider.workspaceSubscriptions(workspaceId);
+      for (const subscription of subscriptions) {
+        await this.applySubscription(subscription, 'reconcile');
+      }
+      return subscriptions.length > 0;
+    } catch (error) {
+      this.logger.warn(`Reading workspace ${workspaceId}'s subscriptions failed: ${String(error)}`);
+      return false;
     }
   }
 

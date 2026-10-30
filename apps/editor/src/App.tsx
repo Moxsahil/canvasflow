@@ -1,8 +1,6 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Editor } from './Editor';
-import { UpgradeCompletePage } from './billing/UpgradeCompletePage';
-import { UpgradePage } from './billing/UpgradePage';
 import { useT } from './i18n';
 import {
   LOCAL_BOARD_ID,
@@ -14,14 +12,38 @@ import {
 import { useAppTheme } from './theme';
 import { BoardLoading } from './ui/BoardLoading';
 
+// The upgrade pages load on their own, so opening a board never downloads
+// the checkout.
+const UpgradePage = lazy(() =>
+  import('./billing/UpgradePage').then((m) => ({ default: m.UpgradePage })),
+);
+const UpgradeCompletePage = lazy(() =>
+  import('./billing/UpgradeCompletePage').then((m) => ({ default: m.UpgradeCompletePage })),
+);
+
 export function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomeRoute />} />
         <Route path="/boards/:boardId" element={<EditorRoute />} />
-        <Route path="/upgrade" element={<UpgradePage />} />
-        <Route path="/upgrade/complete" element={<UpgradeCompletePage />} />
+        <Route
+          path="/upgrade"
+          element={
+            // The checkout's own ground while its code arrives, not a white flash.
+            <Suspense fallback={<div className="fixed inset-0 bg-[#101012]" />}>
+              <UpgradePage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/upgrade/complete"
+          element={
+            <Suspense fallback={null}>
+              <UpgradeCompletePage />
+            </Suspense>
+          }
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
