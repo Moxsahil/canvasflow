@@ -17,7 +17,6 @@ export function pasteNotice(here: boolean): Notice {
   const notice: Notice = {
     title: here ? t('paste.pressHere', { key }) : t('paste.press', { key }),
     body: here ? t('paste.bodyHere', { key }) : t('paste.body', { key }),
-    tone: 'warn',
   };
   // Worded when shown, in the language on screen, so it is known by this
   // rather than by being one of two fixed objects.

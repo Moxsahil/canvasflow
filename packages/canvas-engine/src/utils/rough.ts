@@ -378,6 +378,17 @@ export function traceArrowheadMark(
   if (mark.kind === 'closed') ctx.closePath();
 }
 
+/**
+ * The cap a straight-edged outline needs. Rough draws each edge as its own line,
+ * so flat ends leave a notch at every corner, plain on a thick stroke or close
+ * up. Square ends meet exactly at a right angle; a diamond's slanted ones need
+ * round. A dash keeps its flat ends, or its gaps would close up.
+ */
+export function outlineCap(shape: RectangleShape | DiamondShape): CanvasLineCap | null {
+  if (shape.edges === 'round' || shape.strokeStyle !== 'solid') return null;
+  return shape.kind === 'rectangle' ? 'square' : 'round';
+}
+
 // --- The draw call ---
 
 export function drawShape(rc: RoughCanvas, drawable: Drawable): void {

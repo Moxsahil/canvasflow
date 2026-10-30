@@ -6,15 +6,17 @@ import { Check, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   MenuBadge,
+  MenuGlide,
   MenuRowEnd,
   MenuRowIcon,
   MenuToggleBox,
+  useMenuPress,
   menuLabelClasses,
   menuPanelClasses,
   menuRowClasses,
+  menuChevronClasses,
+  MENU_SUB_OFFSET,
   menuSeparatorClasses,
-  menuSubTriggerClasses,
-  useMenuPress,
 } from './menu-look';
 
 /**
@@ -40,7 +42,10 @@ function leaveTriggerUnfocused(event: Event) {
 }
 
 /** The shared panel, capped to the room the popper reports and scrolled past it. */
-const panelClasses = cn(menuPanelClasses, 'max-h-(--radix-dropdown-menu-content-available-height)');
+const panelClasses = cn(
+  menuPanelClasses,
+  'relative max-h-(--radix-dropdown-menu-content-available-height)',
+);
 
 /** A row that opens a list of its own beside the menu, marked by its arrow. */
 const InlineDropdownMenuSubTrigger = React.forwardRef<
@@ -50,11 +55,11 @@ const InlineDropdownMenuSubTrigger = React.forwardRef<
   return (
     <DropdownMenuPrimitive.SubTrigger
       ref={ref}
-      className={cn(menuRowClasses, menuSubTriggerClasses, className)}
+      className={cn(menuRowClasses, className)}
       {...props}
     >
       <span className="min-w-0 truncate">{children}</span>
-      <MenuRowEnd icon={<ChevronRight />} />
+      <MenuRowEnd icon={<ChevronRight className={menuChevronClasses} />} />
     </DropdownMenuPrimitive.SubTrigger>
   );
 });
@@ -73,9 +78,11 @@ const InlineDropdownMenuSubContent = React.forwardRef<
     <DropdownMenuPrimitive.Portal container={container ?? undefined}>
       <DropdownMenuPrimitive.SubContent
         ref={ref}
+        sideOffset={MENU_SUB_OFFSET}
         className={cn(panelClasses, className)}
         {...props}
       >
+        <MenuGlide />
         <MotionConfig reducedMotion="user">{children}</MotionConfig>
       </DropdownMenuPrimitive.SubContent>
     </DropdownMenuPrimitive.Portal>
@@ -103,6 +110,7 @@ const InlineDropdownMenuContent = React.forwardRef<
         onCloseAutoFocus={onCloseAutoFocus}
         {...props}
       >
+        <MenuGlide />
         <MotionConfig reducedMotion="user">{children}</MotionConfig>
       </DropdownMenuPrimitive.Content>
     </DropdownMenuPrimitive.Portal>

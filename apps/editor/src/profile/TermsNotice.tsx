@@ -1,10 +1,9 @@
 import { useId, useState } from 'react';
-import { ExternalLink, ScrollText } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { TERMS_VERSION } from '@canvasflow/types';
 import { formatTermsVersion, termsUrl } from '@/lib/legal-links';
 import {
   SurfaceWindow,
-  WindowBadge,
   WindowBody,
   WindowButton,
   WindowFooter,
@@ -95,11 +94,6 @@ export function TermsNotice({ profile, onAccept, theme }: TermsNoticeProps) {
         titleId={titleId}
         title={changed ? t('terms.changedTitle') : t('terms.publishedTitle')}
         description={t('terms.lastUpdated', { date: formatTermsVersion(TERMS_VERSION) })}
-        lead={
-          <WindowBadge tone="soft">
-            <ScrollText aria-hidden="true" />
-          </WindowBadge>
-        }
       />
 
       <WindowBody>

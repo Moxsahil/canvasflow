@@ -1,10 +1,9 @@
 import { useId } from 'react';
-import { LogIn, ShieldOff, UserPlus } from 'lucide-react';
+import { LogIn, UserPlus } from 'lucide-react';
 import { env } from '@/lib/env';
 import { useT } from '../i18n';
 import {
   SurfaceWindow,
-  WindowBadge,
   WindowBody,
   WindowButton,
   WindowFooter,
@@ -81,11 +80,6 @@ export function AccessRevokedDialog({ open, boardName, isGuest, theme }: AccessR
         // would be wrong two-thirds of the time.
         title={t('revoked.title')}
         description={name ? name : t('board.thisBoard')}
-        lead={
-          <WindowBadge tone="danger">
-            <ShieldOff aria-hidden="true" />
-          </WindowBadge>
-        }
       />
 
       <WindowBody>

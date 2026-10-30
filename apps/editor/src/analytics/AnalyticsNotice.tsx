@@ -54,7 +54,7 @@ export function AnalyticsNotice({
   };
 
   return (
-    <div className="pointer-events-none absolute bottom-4 right-4 z-50 flex w-full max-w-sm flex-col gap-3 text-foreground">
+    <div className="pointer-events-none absolute right-4 bottom-4 z-50 flex w-full max-w-sm max-md:bottom-16 max-md:left-4 max-md:w-auto flex-col gap-3 text-foreground">
       <div
         role="dialog"
         aria-labelledby="cf-analytics-notice-title"

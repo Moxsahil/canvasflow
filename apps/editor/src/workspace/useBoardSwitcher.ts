@@ -220,26 +220,66 @@ export function pinnedOf(list: readonly BoardSummary[]): BoardSummary[] {
 }
 
 /**
- * What the sidebar last knew, kept for as long as the tab is open.
+ * What the sidebar last knew, kept in this browser between visits.
  *
  * Opening another board remounts the editor, and this hook with it, while the
  * new board's token is still being minted. Starting from what was already on
  * screen — and re-reading it quietly behind — is what keeps the sidebar still
- * while only the board changes. Only settled lists are kept: a loading or
- * failed one says nothing worth showing again.
+ * while only the board changes, and a reload starts the same way. Only settled
+ * lists are kept: a loading or failed one says nothing worth showing again.
  */
-const remembered: {
+const REMEMBERED_KEY = 'cf.sidebar';
+
+interface StoredLists {
+  userId: string | null;
   workspaces: WorkspaceSummary[] | null;
-  available: boolean;
   boards: Record<string, WorkspaceBoards>;
   shared: SharedBoard[] | null;
-} = { workspaces: null, available: true, boards: {}, shared: null };
+}
+
+function readStoredLists(): StoredLists {
+  const empty = { userId: null, workspaces: null, boards: {}, shared: null };
+  try {
+    const raw = window.localStorage.getItem(REMEMBERED_KEY);
+    return raw ? { ...empty, ...(JSON.parse(raw) as Partial<StoredLists>) } : empty;
+  } catch {
+    return empty;
+  }
+}
+
+const remembered: StoredLists & { available: boolean } = {
+  ...readStoredLists(),
+  available: true,
+};
+
+function storeLists() {
+  try {
+    const { userId, workspaces, boards, shared } = remembered;
+    window.localStorage.setItem(
+      REMEMBERED_KEY,
+      JSON.stringify({ userId, workspaces, boards, shared }),
+    );
+  } catch {
+    // Private browsing can refuse storage; the next reload just reads afresh.
+  }
+}
+
+/** For leaving the account: board names should not outlive the session here. */
+export function forgetSidebarLists() {
+  Object.assign(remembered, { userId: null, workspaces: null, boards: {}, shared: null });
+  try {
+    window.localStorage.removeItem(REMEMBERED_KEY);
+  } catch {
+    // Nothing to do.
+  }
+}
 
 /** Read the shared boards, keeping them for the next board too. Never throws. */
 function readShared(apply: (boards: SharedBoard[]) => void): void {
   listSharedBoards().then(
     (boards) => {
       remembered.shared = boards;
+      storeLists();
       apply(boards);
     },
     // A failed read leaves what was there; the next change or focus retries.
@@ -249,6 +289,7 @@ function readShared(apply: (boards: SharedBoard[]) => void): void {
 
 function rememberBoards(id: string, list: BoardSummary[]) {
   remembered.boards = { ...remembered.boards, [id]: { status: 'ready', boards: list } };
+  storeLists();
 }
 
 /** The workspace whose list holds this board, as far as the lists go. */
@@ -342,12 +383,27 @@ export function useBoardSwitcher({
   // is kept for the next board too.
   useEffect(() => {
     remembered.workspaces = workspaces;
+    storeLists();
   }, [workspaces]);
   useEffect(() => {
     remembered.boards = Object.fromEntries(
       Object.entries(boards).filter(([, entry]) => entry.status === 'ready'),
     );
+    storeLists();
   }, [boards]);
+
+  // Someone else's lists, left by a session that ended outside this editor.
+  useEffect(() => {
+    if (!userId) return;
+    if (remembered.userId && remembered.userId !== userId) {
+      forgetSidebarLists();
+      setWorkspaces(null);
+      setBoards({});
+      setSharedBoards(null);
+    }
+    remembered.userId = userId;
+    storeLists();
+  }, [userId]);
 
   const loadBoards = useCallback((id: string) => {
     if (requestedRef.current.has(id)) return;
@@ -394,6 +450,11 @@ export function useBoardSwitcher({
         if (cancelled) return;
         // 401 is the ordinary answer for a guest, not a fault worth reporting.
         if (err instanceof WorkspaceApiError && err.status === 401) {
+          // Nobody is signed in, so nothing kept here is theirs to read.
+          forgetSidebarLists();
+          setWorkspaces(null);
+          setBoards({});
+          setSharedBoards(null);
           remembered.available = false;
           setAvailable(false);
           return;

@@ -1,4 +1,4 @@
-import { useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useMemo, useRef } from 'react';
 import { X } from 'lucide-react';
 import type { Shape } from '@canvasflow/canvas-engine';
 import { cn } from '@/lib/utils';
@@ -13,7 +13,6 @@ import {
   type StatsPatch,
   type StatsProperty,
 } from './stats-ops';
-import { stripBottom } from './stats-placement';
 import './StatsPanel.css';
 
 interface StatsPanelProps {
@@ -22,8 +21,6 @@ interface StatsPanelProps {
   selectedShapes: readonly Shape[];
   /** Shows the numbers and lets none of them be changed. */
   readOnly: boolean;
-  /** The width of the board the strip stands on, which decides the row it takes. */
-  boardWidth: number;
   /** Geometry to write, mid-edit: a drag sends one of these for every step. */
   onEdit: (patches: readonly StatsPatch[]) => void;
   /** The edit is over — typed and entered, or the drag let go. */
@@ -93,7 +90,6 @@ export function StatsPanel({
   shapes,
   selectedShapes,
   readOnly,
-  boardWidth,
   onEdit,
   onEditEnd,
   onClose,
@@ -105,37 +101,15 @@ export function StatsPanel({
   const measured = useDeferredValue(shapes);
   const size = useMemo(() => boardSize(measured), [measured]);
 
-  // The dock is found rather than handed in: it is a sibling on the same
-  // board, and its width changes with who is looking — a viewer's has fewer
-  // tools in it.
-  const rootRef = useRef<HTMLElement>(null);
-  const [widths, setWidths] = useState({ dock: 0, strip: 0 });
-  useLayoutEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    const dock = root.parentElement?.querySelector<HTMLElement>('.cf-bottom-dock') ?? null;
-
-    const measure = () => {
-      const next = { dock: dock?.offsetWidth ?? 0, strip: root.offsetWidth };
-      setWidths((last) => (last.dock === next.dock && last.strip === next.strip ? last : next));
-    };
-    const observer = new ResizeObserver(measure);
-    observer.observe(root);
-    if (dock) observer.observe(dock);
-    measure();
-    return () => observer.disconnect();
-  }, []);
-
   const only = selectedShapes.length === 1 ? selectedShapes[0]! : null;
   const count = shapes.length;
 
   return (
     <aside
-      ref={rootRef}
       aria-label={t('preferences.canvasStats')}
       className={cn(
-        'cf-stats-strip absolute left-4 z-(--zIndex-layerUI) flex max-w-[calc(100%-2rem)] items-center gap-1 overflow-x-auto',
-        'rounded-card border border-(--dock-border-color) bg-(--dock-bg-color) px-1.5 py-1',
+        'cf-stats-strip absolute bottom-[62px] left-4 z-(--zIndex-layerUI) flex max-w-[max(18rem,calc(50%-14rem))] items-center max-md:bottom-[106px] max-md:max-w-[calc(100%-2rem)] gap-1 overflow-x-auto',
+        'rounded-[12px] border border-(--dock-border-color) bg-(--dock-bg-color) px-1.5 py-1',
         'text-xs whitespace-nowrap backdrop-blur-xl backdrop-saturate-150',
         // The dock's tokens paint the surface and nothing written on it: its
         // own buttons bring their colour with them. Numbers set straight on
@@ -143,13 +117,12 @@ export function StatsPanel({
         // dark, on a bar that in the dark theme is dark as well.
         'text-neutral-950 dark:text-neutral-50',
       )}
-      style={{ bottom: stripBottom(boardWidth, widths.dock, widths.strip) }}
       data-testid="stats-panel"
     >
       <div
         role="group"
         aria-label={t('contextMenu.canvas')}
-        className="flex h-7 shrink-0 items-center gap-2.5 rounded-md bg-neutral-950/5 px-2.5 tabular-nums dark:bg-neutral-50/5"
+        className="flex h-7 shrink-0 items-center gap-2.5 px-1.5 tabular-nums"
       >
         <span>
           <output className="font-medium" aria-label={t('stats.shapes')}>
@@ -196,7 +169,6 @@ export function StatsPanel({
         </>
       )}
 
-      <div role="separator" aria-orientation="vertical" className={divider} />
       <button
         type="button"
         aria-label={t('stats.close')}

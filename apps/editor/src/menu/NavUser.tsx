@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import { PLAN_NAMES, type WorkspacePlan } from '@canvasflow/types';
-import { Check, ChevronsUpDown, UserRound } from 'lucide-react';
+import { Check, ChevronsUpDown, Monitor, Moon, Sun, UserRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { menuDangerRowClasses } from '@/components/ui/menu-look';
 import {
@@ -11,9 +11,10 @@ import {
 import {
   InlineDropdownMenu,
   InlineDropdownMenuBadge,
+  InlineDropdownMenuChoiceItem,
+  InlineDropdownMenuRadioGroup,
   InlineDropdownMenuContent,
   InlineDropdownMenuItem,
-  InlineDropdownMenuLabel,
   InlineDropdownMenuSeparator,
   InlineDropdownMenuSub,
   InlineDropdownMenuSubContent,
@@ -21,9 +22,12 @@ import {
   InlineDropdownMenuTrigger,
 } from '@/components/ui/inline-dropdown-menu';
 import { SidebarMenuItem } from '@/components/ui/sidebar';
-import { ariaKeyShortcut } from '../help/platform';
+import { ariaKeyShortcut, formatShortcut } from '../help/platform';
 import { env } from '../lib/env';
-import { isTestLocale, listedLanguages, useI18n, useT } from '../i18n';
+import { isTestLocale, listedLanguages, useI18n, useT, type TranslationKey } from '../i18n';
+import { PreferencesMenu } from '../preferences/PreferencesMenu';
+import type { PreferencesState } from '../preferences/usePreferences';
+import type { ThemePreference } from '../theme';
 import {
   liveAction,
   LEARN_MORE_GROUPS,
@@ -32,6 +36,16 @@ import {
   type MenuActions,
   type MenuItemId,
 } from './menu-items';
+
+const THEME_OPTIONS = [
+  { value: 'system', labelKey: 'theme.system', icon: Monitor },
+  { value: 'light', labelKey: 'theme.light', icon: Sun },
+  { value: 'dark', labelKey: 'theme.dark', icon: Moon },
+] as const satisfies ReadonlyArray<{
+  value: ThemePreference;
+  labelKey: TranslationKey;
+  icon: unknown;
+}>;
 
 export interface SidebarUser {
   name: string;
@@ -43,6 +57,9 @@ export interface SidebarUser {
 }
 
 interface NavUserProps {
+  theme: ThemePreference;
+  onThemeChange: (theme: ThemePreference) => void;
+  preferences: PreferencesState;
   /** Null before the token decodes, and for anyone the token doesn't name. */
   user: SidebarUser | null;
   actions?: MenuActions;
@@ -59,7 +76,15 @@ interface NavUserProps {
  * On the board kept in this browser there is no account in it. The row says
  * so, and offers one — or, to someone already signed in, their own boards.
  */
-export function NavUser({ user, actions, portalContainer, plan = null }: NavUserProps) {
+export function NavUser({
+  user,
+  actions,
+  theme,
+  onThemeChange,
+  preferences,
+  portalContainer,
+  plan = null,
+}: NavUserProps) {
   const t = useT();
   const toBoards = typeof actions?.yourBoards === 'function';
   const accountless = !user && (toBoards || typeof actions?.signIn === 'function');
@@ -86,8 +111,8 @@ export function NavUser({ user, actions, portalContainer, plan = null }: NavUser
         >
           <Identity
             name={name}
-            plan={accountless ? null : plan}
-            detail={detail}
+            plan={null}
+            detail={accountless ? detail : null}
             avatarUrl={user?.avatarUrl ?? null}
             // No name to take letters from: "Not signed in" is not one.
             icon={accountless ? <UserRound className="size-4" aria-hidden="true" /> : undefined}
@@ -110,13 +135,16 @@ export function NavUser({ user, actions, portalContainer, plan = null }: NavUser
           container={portalContainer}
           className="w-(--radix-dropdown-menu-trigger-width) max-w-none min-w-56"
         >
-          {/* The address alone, and no rule under it. The trigger directly
-              below already shows the avatar and the name, so repeating them
-              here says nothing — the address is the one part of the identity
-              the rail does not have room for. It reads as a caption over the
-              items rather than as a row of its own, which is why it is quiet
-              and unseparated. */}
-          <InlineDropdownMenuLabel>{email ?? name}</InlineDropdownMenuLabel>
+          <div className="flex w-full items-center gap-2 px-2 py-1.5">
+            <InitialBadge label={name} src={user?.avatarUrl ?? null} person />
+            <div className="grid min-w-0 leading-tight">
+              <span className="truncate text-xs font-medium">{name}</span>
+              <span className="truncate text-[11px] text-neutral-500 dark:text-neutral-400">
+                {plan ? t('billing.planTitle', { plan: PLAN_NAMES[plan] }) : (email ?? '')}
+              </span>
+            </div>
+          </div>
+          <InlineDropdownMenuSeparator />
           {!accountless ? (
             <AccountRow id="settings" actions={actions} />
           ) : toBoards ? (
@@ -128,8 +156,10 @@ export function NavUser({ user, actions, portalContainer, plan = null }: NavUser
             </>
           )}
 
-          {/* Both open beside the menu, out over the canvas: up the rail there
+          {/* These open beside the menu, out over the canvas: up the rail there
               is only the menu itself, and below it nothing at all. */}
+          <PreferencesMenu preferences={preferences} portalContainer={portalContainer} />
+          <ThemeSub value={theme} onChange={onThemeChange} portalContainer={portalContainer} />
           <LanguageSub portalContainer={portalContainer} />
 
           <InlineDropdownMenuSub>
@@ -160,6 +190,46 @@ export function NavUser({ user, actions, portalContainer, plan = null }: NavUser
   );
 }
 
+/** The theme: three choices, of which one is always in effect. */
+function ThemeSub({
+  value,
+  onChange,
+  portalContainer,
+}: {
+  value: ThemePreference;
+  onChange: (next: ThemePreference) => void;
+  portalContainer: HTMLElement | null;
+}) {
+  const t = useT();
+  return (
+    <InlineDropdownMenuSub>
+      <InlineDropdownMenuSubTrigger
+        data-testid="menu-item-theme"
+        title={t('theme.toggleHint', { shortcut: formatShortcut('alt+shift+d') })}
+      >
+        {t('theme.title')}
+      </InlineDropdownMenuSubTrigger>
+      <InlineDropdownMenuSubContent container={portalContainer} collisionPadding={8}>
+        <InlineDropdownMenuRadioGroup
+          value={value}
+          onValueChange={(next) => onChange(next as ThemePreference)}
+        >
+          {THEME_OPTIONS.map(({ value: option, labelKey, icon: Icon }) => (
+            <InlineDropdownMenuChoiceItem
+              key={option}
+              value={option}
+              icon={<Icon aria-hidden="true" />}
+              data-testid={`menu-theme-${option}`}
+            >
+              {t(labelKey)}
+            </InlineDropdownMenuChoiceItem>
+          ))}
+        </InlineDropdownMenuRadioGroup>
+      </InlineDropdownMenuSubContent>
+    </InlineDropdownMenuSub>
+  );
+}
+
 /**
  * Every language the app is meant to come in. Those with words to show can be
  * switched to; the rest read "Soon" until they are translated.
@@ -170,6 +240,9 @@ function LanguageSub({ portalContainer }: { portalContainer: HTMLElement | null 
     <InlineDropdownMenuSub>
       <InlineDropdownMenuSubTrigger data-testid="menu-item-language">
         {t('menu.language')}
+        <span className="ml-auto pl-3 text-[11px] text-neutral-500 dark:text-neutral-400">
+          {listedLanguages().find((language) => language.code === locale)?.label}
+        </span>
       </InlineDropdownMenuSubTrigger>
       <InlineDropdownMenuSubContent container={portalContainer} collisionPadding={8}>
         {listedLanguages().map((language) => {

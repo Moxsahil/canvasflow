@@ -185,9 +185,7 @@ export function RenameBoardDialog({
       </WindowBody>
 
       <WindowFooter status={error} danger>
-        <WindowButton variant="ghost" onClick={() => onOpenChange(false)}>
-          {t('common.cancel')}
-        </WindowButton>
+        <WindowButton onClick={() => onOpenChange(false)}>{t('common.cancel')}</WindowButton>
         <WindowButton variant="primary" type="submit" disabled={!canSave || busy}>
           {busy ? t('common.saving') : t('common.save')}
         </WindowButton>

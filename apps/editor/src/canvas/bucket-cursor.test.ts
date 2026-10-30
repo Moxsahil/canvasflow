@@ -13,8 +13,8 @@ describe('bucket cursors', () => {
   });
 
   it('inks each cursor for the board it is over', () => {
-    expect(decode(bucketCursorValue('#a5d8ff', true))).toContain("stroke='#e3e3e8'");
-    expect(decode(eyedropperCursorValue(false))).toContain("stroke='#1b1b1f'");
+    expect(decode(bucketCursorValue('#a5d8ff', true))).toContain("stroke='#fafafa'");
+    expect(decode(eyedropperCursorValue(false))).toContain("stroke='#09090b'");
     expect(eyedropperCursorValue(true)).toMatch(/\) 2 22, crosshair$/);
   });
 });

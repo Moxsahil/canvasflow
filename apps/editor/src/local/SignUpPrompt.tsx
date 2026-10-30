@@ -1,10 +1,8 @@
 import { useId } from 'react';
-import { FolderInput, LogIn, MessageCircle, UserPlus, Users } from 'lucide-react';
-import { DiagramMark } from '../diagrams/DiagramMark';
+import { FolderInput, LogIn, UserPlus } from 'lucide-react';
 import { useT } from '../i18n';
 import {
   SurfaceWindow,
-  WindowBadge,
   WindowBody,
   WindowButton,
   WindowFooter,
@@ -64,17 +62,6 @@ export function SignUpPrompt({ reason, signedIn, theme, onClose }: SignUpPromptP
               ? 'local.prompt.diagramTitle'
               : 'local.prompt.commentTitle',
         )}
-        lead={
-          <WindowBadge tone="soft">
-            {shown === 'share' ? (
-              <Users aria-hidden="true" />
-            ) : shown === 'diagram' ? (
-              <DiagramMark />
-            ) : (
-              <MessageCircle aria-hidden="true" />
-            )}
-          </WindowBadge>
-        }
         onClose={onClose}
       />
 
@@ -95,7 +82,7 @@ export function SignUpPrompt({ reason, signedIn, theme, onClose }: SignUpPromptP
           </WindowButton>
         ) : (
           <>
-            <WindowButton variant="ghost" onClick={() => leaveForAccount('signIn', { share })}>
+            <WindowButton onClick={() => leaveForAccount('signIn', { share })}>
               <LogIn aria-hidden="true" />
               {t('menu.signIn')}
             </WindowButton>

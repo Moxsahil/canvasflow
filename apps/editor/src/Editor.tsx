@@ -163,12 +163,11 @@ import { BucketEyedropper } from './tools/BucketEyedropper';
 import { isTypingTarget } from './tools/shortcuts';
 import { useCanvasResize } from './canvas/hooks/useCanvasResize';
 import { useEdgeScroll } from './canvas/hooks/useEdgeScroll';
-import { AppSidebar, readSidebarState, readSidebarWidth } from './menu';
+import { AppSidebar, readSidebarState } from './menu';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Toolbar } from './toolbar/Toolbar';
-import { HistoryPanel } from './toolbar/HistoryPanel';
 import { ToolLockButton } from './toolbar/ToolLockButton';
-import { GlassDock, GlassDockSeparator } from '@/components/ui/glass-dock';
+import { GlassDock } from '@/components/ui/glass-dock';
 import { NoteEditor } from './text-editor/NoteEditor';
 import { TextEditor } from './text-editor/TextEditor';
 import {
@@ -312,6 +311,7 @@ import {
   announceWorkspaceChanged,
   liveBoards,
   SHARED_WITH_YOU,
+  forgetSidebarLists,
   useBoardSwitcher,
 } from './workspace';
 import { useBillingReadAhead } from './billing/billing-cache';
@@ -343,7 +343,7 @@ import {
 } from './file';
 import { ExportImageDialog } from './export';
 import { FindBar, useCanvasSearch } from './search';
-import { AccessRevokedDialog, ShareDialog } from './share';
+import { AccessRevokedDialog, ShareDialog, useShareLive } from './share';
 import { useBoardOverview } from './share/useBoardOverview';
 import {
   SettingsDialog,
@@ -376,10 +376,10 @@ import {
 
 import { ConfirmDialog } from './ui';
 import { rich, t as translate, useT } from './i18n';
+import { CornerMark } from './ui/CornerMark';
 import { NoticeDialog, type Notice } from './ui/NoticeDialog';
 import { BoardLoading } from './ui/BoardLoading';
 import { Toast, useToast } from './ui/Toast';
-import { CornerMark } from './ui/CornerMark';
 
 /** How far left of centre a thread's pin is put when the board has to be brought to it: about half the thread beside it. */
 const THREAD_LEAD = 160;
@@ -390,14 +390,12 @@ const genId = () => `shape-${Date.now().toString(36)}-${Math.random().toString(3
 const shapesNotFound = (): Notice => ({
   title: translate('notices.shapesNotFound'),
   body: translate('notices.shapesNotFoundBody'),
-  tone: 'warn',
 });
 
 /** A link to a comment thread that has since been deleted, opened from an email. */
 const commentNotFound = (): Notice => ({
   title: translate('notices.commentNotFound'),
   body: translate('notices.commentNotFoundBody'),
-  tone: 'warn',
 });
 
 /** `?comment=<thread id>` — the thread a link, such as a mention email's, opens. */
@@ -727,7 +725,6 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // Read once: the sidebar owns the value from here on, and re-reading its
   // cookie mid-session would fight whatever the user has just toggled.
   const [sidebarDefaultOpen] = useState(readSidebarState);
-  const [sidebarDefaultWidth] = useState(readSidebarWidth);
 
   const {
     authToken,
@@ -826,11 +823,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const { show: showToast } = toast;
   const dismissNotice = useCallback(() => setNotice(null), []);
   const showOpenNotice = useCallback(
-    (body: string) => setNotice({ title: translate('notices.openBoard'), body, tone: 'warn' }),
+    (body: string) => setNotice({ title: translate('notices.openBoard'), body }),
     [],
   );
   const showSaveNotice = useCallback(
-    (body: string) => setNotice({ title: translate('notices.saveBoard'), body, tone: 'warn' }),
+    (body: string) => setNotice({ title: translate('notices.saveBoard'), body }),
     [],
   );
 
@@ -1002,6 +999,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
   );
   const boardTitle =
     boardSwitcher.title === boardId && overview ? overview.title : boardSwitcher.title;
+  // The sidebar names the board by the same rule, so a guest reads its name too.
+  const sidebarSwitcher = useMemo(
+    () => ({ ...boardSwitcher, title: boardTitle }),
+    [boardSwitcher, boardTitle],
+  );
   // The tab names the board, as any document app's does. The local board keeps
   // the page's own title, which is also what search results show for it; an
   // account's board is "CanvasFlow" alone until its name has loaded.
@@ -1288,6 +1290,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
     }
     // The editor's address opens the local board again from now on, at once.
     forgetAccountHere();
+    forgetSidebarLists();
     signOutTo(env.VITE_WEB_URL);
   }, [syncStatus, purgeCache]);
 
@@ -1547,7 +1550,9 @@ export function Editor({ boardId, local = false }: EditorProps) {
     channel,
     self: rosterSelf,
     selfActivity: activity,
+    boardId: local ? null : boardId,
   });
+  const [shareLive, setShareLive] = useShareLive(boardId);
   const peerTyping = usePeerTyping(peersRef, subscribe);
 
   // Peers' trails are rebuilt from the cursor stream on their presence record,
@@ -1874,7 +1879,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const handleTopicTab = useMemo(() => handleTopicKey('child'), [handleTopicKey]);
 
   const showImageNotice = useCallback(
-    (body: string) => setNotice({ title: translate('tools.image'), body, tone: 'warn' }),
+    (body: string) => setNotice({ title: translate('tools.image'), body }),
     [],
   );
 
@@ -4338,7 +4343,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
       actorRef.send({ type: 'SELECT_TOOL', tool });
       // The bucket lets the selection go: the panel then sets what it pours,
       // where a selection kept would have it restyling that shape instead.
-      if (tool === 'bucket') actorRef.send({ type: 'DESELECT' });
+      // The hand only moves the view, so nothing stays picked up behind it.
+      if (tool === 'bucket' || tool === 'hand') actorRef.send({ type: 'DESELECT' });
     },
     [actorRef, handlePickImage, readOnly, viewMode, preferences, local, cancelEmbedPlacement],
   );
@@ -4803,7 +4809,6 @@ export function Editor({ boardId, local = false }: EditorProps) {
       setNotice({
         title: t('local.carry.failedTitle'),
         body: t('local.carry.failedBody'),
-        tone: 'warn',
       }),
   });
 
@@ -4960,14 +4965,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
       setNotice({
         title: translate('notices.linkCopied'),
         body: translate('notices.linkCopiedBody'),
-        tone: 'ok',
         link: { url, copied: true },
       });
     } catch {
       setNotice({
         title: translate('notices.linkCopyFailed'),
         body: translate('notices.linkCopyFailedAddressBar'),
-        tone: 'warn',
         link: { url, copied: false },
       });
     }
@@ -4991,7 +4994,6 @@ export function Editor({ boardId, local = false }: EditorProps) {
       setNotice({
         title: translate('notices.linkCopyFailed'),
         body: translate('notices.linkCopyFailedBelow'),
-        tone: 'warn',
         link: { url, copied: false },
       });
     }
@@ -6429,14 +6431,10 @@ export function Editor({ boardId, local = false }: EditorProps) {
         } as React.CSSProperties
       }
     >
-      <SidebarProvider
-        defaultOpen={sidebarDefaultOpen}
-        defaultWidth={sidebarDefaultWidth}
-        className="h-full min-h-0"
-      >
+      <SidebarProvider defaultOpen={sidebarDefaultOpen} className="h-full min-h-0">
         <AppSidebar
           onOpenBilling={openBillingFor}
-          boardSwitcher={boardSwitcher}
+          boardSwitcher={sidebarSwitcher}
           user={chromeUser}
           theme={theme}
           onThemeChange={setTheme}
@@ -6848,6 +6846,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
                     onFollow={follow.follow}
                     onStopFollowing={follow.stop}
                     onShare={showShare}
+                    // Until the account is known, the last answer stands.
+                    sessionLive={!local && shareLive && (user === null || runsSharing)}
                     readOnly={readOnly}
                     archived={
                       !local && user?.archived
@@ -6904,17 +6904,6 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   />
                 )}
                 <GlassDock aria-label={t('toolbar.editingTools')}>
-                  {!readOnly && (
-                    <>
-                      <HistoryPanel
-                        canUndo={canUndo}
-                        canRedo={canRedo}
-                        onUndo={handleUndo}
-                        onRedo={handleRedo}
-                      />
-                      <GlassDockSeparator />
-                    </>
-                  )}
                   <Toolbar
                     activeTool={activeTool}
                     onToolChange={handleToolChange}
@@ -6978,14 +6967,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 and view mode. A viewer may read them. */}
             {/* The same corner holds the product's mark whenever the strip
                 isn't there. */}
-            {!preferences.values.canvasStats && !chromeHidden && <CornerMark canvasWidth={width} />}
             {preferences.values.canvasStats && !chromeHidden && (
               <StatsPanel
                 shapes={shownShapes}
                 selectedShapes={selectedShapes}
                 // A locked selection can be read here, not changed.
                 readOnly={readOnly || selectionLocked}
-                boardWidth={width}
                 onEdit={handleStatsEdit}
                 onEditEnd={handleStatsEditEnd}
                 onClose={toggleCanvasStats}
@@ -7051,14 +7038,18 @@ export function Editor({ boardId, local = false }: EditorProps) {
               <ZoomPanel
                 zoom={camera.zoom}
                 syncStatus={syncStatus}
-                canZoomToFit={shownShapes.length > 0}
-                canvasWidth={width}
                 onZoomIn={handleZoomIn}
                 onZoomOut={handleZoomOut}
                 onResetZoom={handleZoomTo100}
-                onZoomToFit={handleZoomToFit}
+                history={
+                  readOnly
+                    ? undefined
+                    : { canUndo, canRedo, onUndo: handleUndo, onRedo: handleRedo }
+                }
               />
             )}
+
+            {!chromeHidden && <CornerMark canvasWidth={width} />}
 
             {/* Just above the zoom panel, or in its corner while it is away. */}
             <Toast toast={toast.toast} />
@@ -7079,6 +7070,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
               ownerName={overview?.ownerName ?? null}
               ownerId={overview?.ownerId ?? null}
               roster={roster}
+              onLiveChange={setShareLive}
             />
 
             <SignUpPrompt
@@ -7156,7 +7148,6 @@ export function Editor({ boardId, local = false }: EditorProps) {
               }}
               name={chromeUser?.name ?? 'Account'}
               email={chromeUser?.email ?? null}
-              avatarUrl={user?.isGuest ? null : chromeUser?.avatarUrl}
               isGuest={user?.isGuest ?? false}
               synced={syncStatus === 'connected'}
               busy={signingOut}

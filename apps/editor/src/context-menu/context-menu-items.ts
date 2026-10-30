@@ -317,7 +317,7 @@ const EDIT: ContextSubmenu = {
  * are data, not rows of this table. Being an edit, New board also decides who
  * sees the submenu: a viewer loses it, and the board list along with it.
  */
-const MOVE_TO: ContextSubmenu = {
+export const MOVE_TO: ContextSubmenu = {
   submenu: 'moveTo',
   labelKey: 'contextMenu.submenu.moveTo',
   items: ['moveToNewBoard'],
@@ -339,15 +339,13 @@ const STYLE_PANEL: ContextSubmenu = {
  * work today, and reaching them is most of what this menu is for so far.
  * Delete is last and on its own, being the one row that discards work.
  */
+// Edit only shows when one of its rows can act on what is selected (see CanvasContextMenu).
 export const SELECTION_MENU: readonly ContextMenuGroup[] = [
   ['selectBranch', 'expandWithAi'],
-  ['cut', 'copy', 'paste', 'pasteHere', 'pasteAsMindMap', 'duplicate'],
-  [COPY_AS, 'exportImage'],
-  [EDIT, MOVE_TO],
-  ['bringToFront', 'bringForward', 'sendBackward', 'sendToBack'],
-  ['flipHorizontal', 'flipVertical'],
-  ['addLink', 'copyLinkToSelection'],
-  ['addToLibrary'],
+  ['cut', 'copy', 'paste', 'duplicate'],
+  [COPY_AS, EDIT],
+  ['bringToFront', 'sendToBack', 'flipHorizontal', 'flipVertical'],
+  ['addLink', 'copyLinkToSelection', 'addToLibrary'],
   ['hide', 'lock'],
   ['showLikes'],
   ['deleteSelection'],
@@ -362,20 +360,6 @@ export const CANVAS_MENU: readonly ContextMenuGroup[] = [
   ['focusMode', 'viewMode', STYLE_PANEL, 'canvasStats', 'showComments', 'showLikes'],
   ['commandPalette'],
 ];
-
-/** The order rows and the flips: how a selection sits among the rest. */
-const ARRANGE: ContextSubmenu = {
-  submenu: 'arrange',
-  labelKey: 'contextMenu.submenu.arrange',
-  items: [
-    'bringToFront',
-    'bringForward',
-    'sendBackward',
-    'sendToBack',
-    'flipHorizontal',
-    'flipVertical',
-  ],
-};
 
 const GRID_AND_SNAPPING: ContextSubmenu = {
   submenu: 'gridAndSnapping',
@@ -396,17 +380,7 @@ const VIEW: ContextSubmenu = {
  * longer runs of rows folded into submenus. Every row is still there; the
  * test holds both forms to that.
  */
-export const SHORT_SELECTION_MENU: readonly ContextMenuGroup[] = [
-  ['selectBranch', 'expandWithAi'],
-  ['cut', 'copy', 'paste', 'pasteHere', 'pasteAsMindMap', 'duplicate'],
-  [COPY_AS, 'exportImage'],
-  [EDIT, MOVE_TO, ARRANGE],
-  ['addLink', 'copyLinkToSelection'],
-  ['addToLibrary'],
-  ['hide', 'lock'],
-  ['showLikes'],
-  ['deleteSelection'],
-];
+export const SHORT_SELECTION_MENU: readonly ContextMenuGroup[] = SELECTION_MENU;
 
 export const SHORT_CANVAS_MENU: readonly ContextMenuGroup[] = [
   ['paste', 'pasteHere', 'pasteAsMindMap'],

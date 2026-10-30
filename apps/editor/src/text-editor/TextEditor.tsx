@@ -168,6 +168,8 @@ export function TextEditor({
           }
         }}
         style={{
+          // As the canvas draws it, without the chrome's alternate letterforms.
+          fontFeatureSettings: 'normal',
           position: 'absolute',
           left,
           top,

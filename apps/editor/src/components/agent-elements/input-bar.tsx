@@ -321,129 +321,138 @@ export const InputBar = memo(function InputBar({
           )}
         >
           {infoBarPosition === 'top' && infoBarNode}
-          <div
-            className={cn(
-              'relative cursor-text rounded-an-input-border-radius bg-an-input-background shadow-2xs ring-1 ring-foreground/10',
-              isDragOver && 'ring-2 ring-an-primary-color',
-            )}
-            onClick={handleContainerClick}
-          >
-            {/* Context items (attached images/files) */}
+          <div data-composer className="relative">
+            {/* The website's prompt box, with the same colour under its lower edge. */}
+            <div className="pointer-events-none absolute inset-0 blur-lg" aria-hidden="true">
+              <div className="absolute inset-x-6 top-14 bottom-0 -translate-y-3 bg-linear-to-r/increasing from-pink-400 to-purple-400" />
+            </div>
             <div
               className={cn(
-                'grid transition-[grid-template-rows] duration-200 ease-out grid-rows-[0fr]',
-                showContextItems && 'grid-rows-[1fr]',
+                'relative cursor-text rounded-2xl bg-an-input-background shadow-md ring-1 shadow-black/5 ring-an-border-color transition-shadow focus-within:ring-[color-mix(in_srgb,var(--an-foreground)_20%,transparent)]',
+                isDragOver && 'ring-2 ring-an-primary-color',
               )}
+              onClick={handleContainerClick}
             >
-              <div className="overflow-hidden">
-                {showContextItems && (
-                  <div className="flex flex-wrap items-center gap-[6px] px-an-context-padding pt-an-context-padding pb-0.5">
-                    {attachedImages.map((img) => (
-                      <FileAttachment
-                        key={img.id}
-                        id={img.id}
-                        filename={img.filename}
-                        size={img.size}
-                        isImage
-                        url={img.url}
-                        display={imageDisplayMode}
-                        enableImagePreview={enableImagePreview}
-                        onRemove={onRemoveImage ? () => onRemoveImage(img.id) : undefined}
-                        removeLabel={removeAttachmentLabel}
-                      />
-                    ))}
-                    {attachedFiles.map((file) => (
-                      <FileAttachment
-                        key={file.id}
-                        id={file.id}
-                        filename={file.filename}
-                        size={file.size}
-                        onRemove={onRemoveFile ? () => onRemoveFile(file.id) : undefined}
-                        removeLabel={removeAttachmentLabel}
-                      />
-                    ))}
+              {/* Context items (attached images/files) */}
+              <div
+                className={cn(
+                  'grid transition-[grid-template-rows] duration-200 ease-out grid-rows-[0fr]',
+                  showContextItems && 'grid-rows-[1fr]',
+                )}
+              >
+                <div className="overflow-hidden">
+                  {showContextItems && (
+                    <div className="flex flex-wrap items-center gap-[6px] px-an-context-padding pt-an-context-padding pb-0.5">
+                      {attachedImages.map((img) => (
+                        <FileAttachment
+                          key={img.id}
+                          id={img.id}
+                          filename={img.filename}
+                          size={img.size}
+                          isImage
+                          url={img.url}
+                          display={imageDisplayMode}
+                          enableImagePreview={enableImagePreview}
+                          onRemove={onRemoveImage ? () => onRemoveImage(img.id) : undefined}
+                          removeLabel={removeAttachmentLabel}
+                        />
+                      ))}
+                      {attachedFiles.map((file) => (
+                        <FileAttachment
+                          key={file.id}
+                          id={file.id}
+                          filename={file.filename}
+                          size={file.size}
+                          onRemove={onRemoveFile ? () => onRemoveFile(file.id) : undefined}
+                          removeLabel={removeAttachmentLabel}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Typing animation image */}
+              {isTyping && typingAnimation?.image && showImage && (
+                <div className="flex gap-2 flex-wrap px-3 pt-3">
+                  <div className="relative overflow-hidden shrink-0 w-16 h-16 rounded-md">
+                    <img
+                      src={typingAnimation.image}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
                   </div>
-                )}
-              </div>
-            </div>
-
-            {/* Typing animation image */}
-            {isTyping && typingAnimation?.image && showImage && (
-              <div className="flex gap-2 flex-wrap px-3 pt-3">
-                <div className="relative overflow-hidden shrink-0 w-16 h-16 rounded-md">
-                  <img src={typingAnimation.image} alt="" className="w-full h-full object-cover" />
                 </div>
-              </div>
-            )}
-
-            {/* Text input or typing animation text */}
-            <div className="pt-3 pb-0 pr-3 pl-3.5 min-h-[44px]">
-              {isTyping ? (
-                <div className="w-full text-[14px] leading-[1.6] text-an-foreground-muted">
-                  <span>{displayedText}</span>
-                  <span className="inline-block w-[2px] h-[1em] ml-px align-text-bottom bg-an-foreground animate-an-blink" />
-                </div>
-              ) : (
-                <>
-                  <textarea
-                    ref={textareaRef}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onPaste={onPaste}
-                    placeholder={effectivePlaceholder}
-                    aria-label={ariaLabel}
-                    aria-describedby={ariaDescribedBy}
-                    disabled={disabled}
-                    rows={1}
-                    className={cn(
-                      'peer w-full resize-none bg-transparent border-0 outline-none text-[14px] leading-[1.6] text-an-foreground placeholder:text-an-input-placeholder-color',
-                      'overflow-hidden',
-                      disabled && 'opacity-50 cursor-not-allowed',
-                    )}
-                  />
-                  <div className="pointer-events-none absolute inset-0 rounded-an-input-border-radius outline-2 outline-an-input-focus-outline opacity-0 transition-opacity duration-75 peer-focus-visible:opacity-100 peer-focus:opacity-100 z-20 ease-in-out" />
-                </>
               )}
-            </div>
 
-            {/* Toolbar */}
-            <div className="flex items-center justify-between gap-3 px-2 pt-1 pb-2">
-              <div className="flex items-center gap-1 min-w-0">
-                {!attachRight && showAttach && onAttach && (
-                  <AttachmentButton onClick={onAttach} label={attachLabel} />
+              {/* Text input or typing animation text */}
+              <div className="min-h-[44px] px-4 pt-5 pb-0">
+                {isTyping ? (
+                  <div className="w-full text-[14px] leading-[1.6] text-an-foreground-muted">
+                    <span>{displayedText}</span>
+                    <span className="inline-block w-[2px] h-[1em] ml-px align-text-bottom bg-an-foreground animate-an-blink" />
+                  </div>
+                ) : (
+                  <>
+                    <textarea
+                      ref={textareaRef}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      onPaste={onPaste}
+                      placeholder={effectivePlaceholder}
+                      aria-label={ariaLabel}
+                      aria-describedby={ariaDescribedBy}
+                      disabled={disabled}
+                      rows={1}
+                      className={cn(
+                        'w-full resize-none border-0 bg-transparent text-sm leading-[1.6] text-an-foreground caret-[var(--surface-link,currentColor)] outline-none placeholder:text-an-input-placeholder-color',
+                        'overflow-hidden',
+                        disabled && 'opacity-50 cursor-not-allowed',
+                      )}
+                    />
+                  </>
                 )}
-                {leftActions}
               </div>
-              <div className="flex items-center gap-1">
-                {rightActions}
-                {attachRight && showAttach && onAttach && (
-                  <AttachmentButton onClick={onAttach} label={attachLabel} />
-                )}
-                {/* Send / Stop button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isStreaming) {
-                      onStop();
-                    } else if (hasInput) {
-                      handleSubmit();
-                    }
-                  }}
-                  disabled={!isStreaming && (!hasInput || disabled || !canSend)}
-                  aria-label={isStreaming ? stopLabel : sendLabel}
-                  className="cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-an-primary-color disabled:cursor-default"
-                >
-                  <SendButton
-                    state={
-                      isStreaming
-                        ? 'streaming'
-                        : hasInput && !disabled && canSend
-                          ? 'typing'
-                          : 'idle'
-                    }
-                  />
-                </button>
+
+              {/* Toolbar */}
+              <div className="flex items-center justify-between gap-3 px-3 pt-3 pb-3">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  {!attachRight && showAttach && onAttach && (
+                    <AttachmentButton onClick={onAttach} label={attachLabel} />
+                  )}
+                  {leftActions}
+                </div>
+                <div className="flex items-center gap-1">
+                  {rightActions}
+                  {attachRight && showAttach && onAttach && (
+                    <AttachmentButton onClick={onAttach} label={attachLabel} />
+                  )}
+                  {/* Send / Stop button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isStreaming) {
+                        onStop();
+                      } else if (hasInput) {
+                        handleSubmit();
+                      }
+                    }}
+                    disabled={!isStreaming && (!hasInput || disabled || !canSend)}
+                    aria-label={isStreaming ? stopLabel : sendLabel}
+                    className="cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-an-primary-color disabled:cursor-default"
+                  >
+                    <SendButton
+                      state={
+                        isStreaming
+                          ? 'streaming'
+                          : hasInput && !disabled && canSend
+                            ? 'typing'
+                            : 'idle'
+                      }
+                    />
+                  </button>
+                </div>
               </div>
             </div>
           </div>

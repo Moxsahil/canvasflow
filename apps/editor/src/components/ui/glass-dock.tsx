@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -87,6 +88,13 @@ export function GlassDock({ children, 'aria-label': ariaLabel, className }: Glas
     setTarget(null);
     setDirection(0);
   }, []);
+
+  // Leaving the window fires no mouse leave, and coming back hands focus to the
+  // tool that had it, so either would leave the tooltip up with nobody there.
+  useEffect(() => {
+    window.addEventListener('blur', clear);
+    return () => window.removeEventListener('blur', clear);
+  }, [clear]);
 
   const context = useMemo<GlassDockContextValue>(
     () => ({ hoveredKey: target?.key ?? null, onEnter }),
@@ -181,8 +189,11 @@ export function GlassDockItem({ id, label, children }: GlassDockItemProps) {
       ref={ref}
       onMouseEnter={show}
       // Keyboard users get the same tooltip; you cannot hover with arrow keys,
-      // and the tools are navigated with them.
-      onFocus={show}
+      // and the tools are navigated with them. Only them: a click focuses the
+      // tool too, and so does the browser on returning to this window.
+      onFocus={() => {
+        if (document.documentElement.dataset.input === 'keyboard') show();
+      }}
       animate={{ scale: hovered ? 1.1 : 1, y: hovered ? -3 : 0 }}
       whileTap={{ scale: 0.95 }}
       transition={ITEM_SPRING}

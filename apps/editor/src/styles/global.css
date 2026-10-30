@@ -1,4 +1,5 @@
 @import '@canvasflow/ui/styles.css';
+@import '@fontsource-variable/inter/wght.css';
 @import './theme.css';
 @import './cursors.css';
 @import '../components/agent-elements/agent-ui.css';
@@ -70,7 +71,8 @@ body,
   padding: 0;
   overflow: hidden;
   font-family: var(--font-sans);
-  background: #fafaf9;
+  font-feature-settings: 'cv05', 'cv10', 'cv11', 'ss01';
+  background: #f7f7f8;
   color: var(--color-fg-primary);
 }
 
@@ -80,12 +82,17 @@ body,
 html[data-theme='dark'],
 html[data-theme='dark'] body,
 html[data-theme='dark'] #root {
-  background: #121212;
+  background: #101012;
   color-scheme: dark;
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* The website's Inter, bundled with the app. */
+:root {
+  --font-sans: 'Inter Variable', Inter, system-ui, -apple-system, sans-serif;
 }
 
 /* The bottom-centre dock. Positioning only — the glass surface, the hover
@@ -139,14 +146,14 @@ html[data-theme='dark'] #root {
   position: absolute;
   inset: 0;
   margin: auto;
-  width: min(1280px, calc(100% - 6rem));
-  height: min(900px, calc(100% - 5rem));
+  width: min(1560px, calc(100% - 6rem));
+  height: min(980px, calc(100% - 4rem));
   z-index: calc(var(--zIndex-layerUI) + 1);
 
   /* The input bar reads its own --an-* tokens; inside the panel they follow
      the panel's palette, light or dark, and the bar spans the panel. */
   --an-max-width: none;
-  --an-input-background: var(--surface-input);
+  --an-input-background: var(--surface-panel);
   --an-foreground: var(--surface-fg);
   --an-foreground-muted: var(--surface-fg-muted);
   --an-foreground-subtle: var(--surface-fg-faint);
@@ -193,7 +200,7 @@ html[data-theme='dark'] #root {
 /* The panel's chats sit beside the conversation while there is room; on a
    narrower panel they open over it from the header's button. */
 .cf-diagram-sidebar {
-  width: 288px;
+  width: 248px;
   flex-shrink: 0;
 }
 
@@ -201,7 +208,15 @@ html[data-theme='dark'] #root {
   display: none;
 }
 
-@media (max-width: 1023px) {
+.cf-diagram-sidebar[data-collapsed] {
+  display: none;
+}
+
+.cf-diagram-panel[data-chats-collapsed] .cf-diagram-sidebar-toggle {
+  display: inline-flex;
+}
+
+@media (max-width: 1279px) {
   .cf-diagram-sidebar {
     position: absolute;
     inset-block: 0;
@@ -218,6 +233,98 @@ html[data-theme='dark'] #root {
 
   .cf-diagram-sidebar-toggle {
     display: inline-flex;
+  }
+}
+
+/* The panel's body is the board's own grid: the chats float on it as the
+   editor's sidebar floats on the board, with the diagram and the box beside. */
+.cf-diagram-body {
+  background-color: var(--surface-input);
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--surface-fg) 3%, transparent) 1px, transparent 1px),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--surface-fg) 3%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 32px 32px;
+}
+
+/* A sent message takes as much of the panel as its words need, so it grows and
+   shrinks as the panel is dragged, right up to the panel's edges. */
+.cf-diagram-chat [data-role='user'] {
+  grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+}
+
+/* The conversation's outline, which drags to resize it. Wider than the line it
+   lights up, so it is easy to catch. */
+.cf-diagram-chat-resize {
+  position: absolute;
+  inset-block: 0;
+  left: -4px;
+  z-index: 2;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.cf-diagram-chat-resize::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: 3px;
+  width: 2px;
+  background: var(--surface-link);
+  opacity: 0;
+  transition: opacity 150ms;
+}
+
+.cf-diagram-chat-resize:hover::after,
+.cf-diagram-chat-resize:focus-visible::after,
+.cf-diagram-chat-resize:active::after {
+  opacity: 1;
+}
+
+/* Too narrow for three panes: the stage, the conversation, then the box. */
+@media (max-width: 1023px) {
+  .cf-diagram-work {
+    flex-direction: column;
+  }
+
+  .cf-diagram-work .cf-diagram-stage {
+    display: contents;
+  }
+
+  .cf-diagram-work .cf-diagram-canvas {
+    flex: 0 0 38%;
+    order: 1;
+    background: var(--surface-input);
+    border-bottom: 1px solid var(--surface-line);
+  }
+
+  .cf-diagram-chat-resize {
+    display: none;
+  }
+
+  .cf-diagram-work .cf-diagram-chat {
+    flex: 1 1 0;
+    order: 2;
+    width: auto !important;
+    border-left: 0;
+  }
+
+  .cf-diagram-work .cf-diagram-chat[data-collapsed] {
+    flex: 0 0 auto;
+  }
+
+  .cf-diagram-work:has(.cf-diagram-chat[data-collapsed]) .cf-diagram-canvas {
+    flex: 1 1 0;
+  }
+
+  .cf-diagram-work .cf-diagram-composer {
+    order: 3;
+    padding-top: 8px;
   }
 }
 
@@ -332,28 +439,28 @@ html[data-theme='dark'] #root {
    because it is also painted over surfaces other than the sidebar. Primary and
    ring keep their own colours: they are emphasis, not surface. */
 :root {
-  --sidebar: oklch(98.5% 0 none); /* neutral-50 */
-  --sidebar-foreground: oklch(37.1% 0 none); /* neutral-700 */
-  --sidebar-primary: hsl(240 5.9% 10%);
-  --sidebar-primary-foreground: hsl(0 0% 98%);
-  --sidebar-accent: #e2e2e2; /* neutral-950 at 10% over neutral-50 */
-  --sidebar-accent-foreground: oklch(20.5% 0 none); /* neutral-900 */
-  --sidebar-border: oklch(87% 0 none); /* neutral-300 */
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  --sidebar: #ffffff;
+  --sidebar-foreground: #3f3f46;
+  --sidebar-primary: #135dfc;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #efeff1;
+  --sidebar-accent-foreground: #09090b;
+  --sidebar-border: #e4e4e7;
+  --sidebar-ring: #4d84fd;
 }
 
 /* By attribute as well as by class: this app themes with `data-theme` on the
    editor root and <html>, not with a `.dark` class. */
 .dark,
 [data-theme='dark'] {
-  --sidebar: oklch(26.9% 0 none); /* neutral-800 */
-  --sidebar-foreground: oklch(97% 0 none); /* neutral-100 */
-  --sidebar-primary: hsl(224.3 76.3% 48%);
-  --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: #3b3b3b; /* neutral-50 at 10% over neutral-800 */
-  --sidebar-accent-foreground: oklch(97% 0 none); /* neutral-100 */
-  --sidebar-border: oklch(37.1% 0 none); /* neutral-700 */
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  --sidebar: #111113;
+  --sidebar-foreground: #e4e4e7;
+  --sidebar-primary: #135dfc;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #202022;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: #29292b;
+  --sidebar-ring: #4d84fd;
 }
 
 @theme inline {
@@ -386,3 +493,22 @@ html[data-theme='dark'] #root {
 @custom-variant data-open (&:where([data-state="open"], [data-open]:not([data-open="false"])));
 
 @custom-variant data-closed (&:where([data-state="closed"], [data-closed]:not([data-closed="false"])));
+
+/* The AI panel's opener sits in the row of top-right buttons, so it takes their corners. */
+[data-testid='diagrams-button'] {
+  border-radius: 10px;
+}
+
+/* Focus rings are for keyboard users: see ui/input-modality.ts. Fields keep
+   theirs, since a caret needs the cue whatever put it there. */
+html:not([data-input='keyboard']) :focus-visible:not(input, textarea, select, [contenteditable]) {
+  outline: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+}
+
+html:not([data-input='keyboard']) .cf-tool-button__input:focus-visible + .cf-tool-button__icon,
+html:not([data-input='keyboard']) .cf-tool-overflow__trigger:focus-visible,
+html:not([data-input='keyboard']) .cf-tool-overflow__item:focus-visible {
+  box-shadow: none !important;
+}

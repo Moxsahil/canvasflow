@@ -157,7 +157,7 @@ describe('the notices asking for the paste keystroke', () => {
   it('are told apart from every other notice, and from none', () => {
     expect(isPasteNotice(PASTE_NOTICE)).toBe(true);
     expect(isPasteNotice(PASTE_HERE_NOTICE)).toBe(true);
-    expect(isPasteNotice({ title: 'Image', body: 'Too large.', tone: 'warn' })).toBe(false);
+    expect(isPasteNotice({ title: 'Image', body: 'Too large.' })).toBe(false);
     expect(isPasteNotice(null)).toBe(false);
   });
 

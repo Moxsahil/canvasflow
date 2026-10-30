@@ -12,8 +12,8 @@ import { BUCKET_ICON_PATHS, EYEDROPPER_ICON_PATHS } from '../assets/icons';
 
 /** Halo and ink for each board, as cursors.css pairs them. */
 const INK = {
-  light: { halo: '#ffffff', ink: '#1b1b1f' },
-  dark: { halo: '#121212', ink: '#e3e3e8' },
+  light: { halo: '#ffffff', ink: '#09090b' },
+  dark: { halo: '#101012', ink: '#fafafa' },
 } as const;
 
 /**

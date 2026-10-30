@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { useAvatarUrls } from '../profile/useAvatar';
 import { t as translate } from '../i18n';
-import { surfaceThemeVars, type SurfaceTheme } from '../ui/surface-palette';
+import { windowThemeVars, type SurfaceTheme } from '../ui/surface-palette';
 import { BACKDROP, WINDOW } from '../settings/settings-ui';
 import {
   createShareLink,
@@ -41,7 +41,7 @@ import type { EditorRole } from '../auth/token';
  * first and falls back to the platform's own UI face rather than shipping a
  * webfont for the dialogs.
  */
-const FONT_STACK = 'Inter, "Segoe UI", system-ui, -apple-system, sans-serif';
+const FONT_STACK = '"Inter Variable", Inter, system-ui, -apple-system, sans-serif';
 
 /** How long someone who joined while the window was open is marked as new. */
 const JOINED_FOR_MS = 8_000;
@@ -91,6 +91,8 @@ interface ShareDialogProps {
   ownerId?: string | null;
   /** Who is on the board right now, for the smaller window's list. */
   roster?: readonly RosterEntry[];
+  /** Told whenever the board's session is found, started or stopped. */
+  onLiveChange?: (live: boolean) => void;
 }
 
 /**
@@ -128,6 +130,7 @@ export function ShareDialog({
   ownerName = null,
   ownerId = null,
   roster = [],
+  onLiveChange,
 }: ShareDialogProps) {
   // Runs this board's sharing: its owner, or whoever runs its workspace.
   const isOwner = viewerRole === 'owner' || managesWorkspace;
@@ -179,6 +182,7 @@ export function ShareDialog({
         ]);
         if (asOf !== changes.current) return;
         setLinks(nextLinks);
+        onLiveChange?.(nextLinks.length > 0);
         setMembers(nextMembers);
 
         const ids = new Set(nextMembers.map((member) => member.userId));
@@ -206,7 +210,7 @@ export function ShareDialog({
         setError(err instanceof Error ? err.message : translate('share.loadFailed'));
       }
     },
-    [boardId],
+    [boardId, onLiveChange],
   );
 
   /**
@@ -347,6 +351,7 @@ export function ShareDialog({
         },
       ]);
       setUrl(link.url);
+      onLiveChange?.(true);
       void refresh({ quiet: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : translate('share.startFailed'));
@@ -367,6 +372,7 @@ export function ShareDialog({
       changes.current += 1;
       setLinks([]);
       setUrl(null);
+      onLiveChange?.(false);
       void refresh({ quiet: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : translate('share.stopFailed'));
@@ -578,7 +584,7 @@ export function ShareDialog({
   );
 
   const name = boardName ?? boardId;
-  const surface = useMemo(() => ({ ...surfaceThemeVars(theme), fontFamily: FONT_STACK }), [theme]);
+  const surface = useMemo(() => ({ ...windowThemeVars(theme), fontFamily: FONT_STACK }), [theme]);
 
   const shell = (
     <MotionConfig reducedMotion="user">
@@ -614,11 +620,12 @@ export function ShareDialog({
               tabIndex={-1}
               data-testid="share-dialog"
               data-theme-variant={theme}
-              className="flex max-h-full w-[520px] max-w-full flex-col overflow-hidden rounded-[16px] border border-[var(--surface-border)] bg-[var(--surface-panel)] shadow-[var(--surface-shadow)] outline-none"
+              className="flex max-h-full w-[460px] max-w-full flex-col overflow-hidden rounded-[16px] border border-[var(--surface-border)] bg-[var(--surface-panel)] shadow-[var(--surface-shadow)] outline-none"
             >
               {isOwner ? (
                 <ShareSessionPanel
                   boardName={name}
+                  hereCount={roster?.length ?? 0}
                   people={people}
                   session={live}
                   url={url}

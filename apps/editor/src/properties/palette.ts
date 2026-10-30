@@ -78,7 +78,7 @@ export type CanvasTheme = 'light' | 'dark';
  * where that inversion produced a colour nobody would pick, so the two are
  * stated independently and neither constrains the other.
  */
-export const CANVAS_BACKGROUND = { light: '#fafaf9', dark: '#181818' } as const;
+export const CANVAS_BACKGROUND = { light: '#f7f7f8', dark: '#101012' } as const;
 
 /** The colour to actually paint, for the theme on screen. */
 export function canvasBackgroundFor(theme: CanvasTheme): string {

@@ -74,7 +74,10 @@ function decodeClaims(token: string): EditorTokenClaims | null {
     const payload = token.split('.')[1];
     if (!payload) return null;
     const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(atob(base64)) as EditorTokenClaims;
+    // atob hands back one character per byte, so anything past ASCII in a name
+    // (é, an emoji) has to be read as UTF-8 or it comes out garbled.
+    const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes)) as EditorTokenClaims;
   } catch {
     return null;
   }

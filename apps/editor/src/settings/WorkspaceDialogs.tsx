@@ -179,7 +179,7 @@ function RoleSwitch({
     <div
       role="radiogroup"
       aria-label={t('members.inviteAs')}
-      className="flex h-[32px] shrink-0 items-center rounded-[7px] border border-[var(--surface-border)] bg-[var(--surface-input)] p-[2px]"
+      className="flex h-[36px] shrink-0 items-center rounded-[8px] border border-[var(--surface-border)] bg-[var(--surface-input)] p-[2px]"
     >
       {(['member', 'admin'] as const).map((role) => (
         <button
@@ -275,10 +275,7 @@ function InviteForm({
 
   return (
     <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-[8px]">
-      <label
-        htmlFor="invite-email"
-        className="text-[11.5px] font-medium text-[var(--surface-fg-muted)]"
-      >
+      <label htmlFor="invite-email" className="sr-only">
         {t('members.inviteByEmail')}
       </label>
       <div className="flex items-center gap-[8px]">
@@ -288,7 +285,7 @@ function InviteForm({
           inputMode="email"
           autoComplete="off"
           spellCheck={false}
-          placeholder="name@company.com"
+          placeholder={t('members.inviteByEmail')}
           value={email}
           disabled={busy}
           onChange={(event) => {
@@ -296,7 +293,7 @@ function InviteForm({
             setError(null);
           }}
           data-testid="invite-email"
-          className={cn(INPUT, 'min-w-0 flex-1')}
+          className={cn(INPUT, 'h-[36px] min-w-0 flex-1')}
         />
         <RoleSwitch value={role} onChange={setRole} disabled={busy} />
         <SettingsButton
@@ -304,7 +301,7 @@ function InviteForm({
           variant="primary"
           disabled={busy || !email.trim()}
           data-testid="invite-send"
-          className="h-[32px]"
+          className="h-[36px] px-[16px] text-[13px]"
         >
           {busy ? t('common.sending') : t('members.invite')}
         </SettingsButton>
@@ -818,10 +815,7 @@ export function MembersDialog({
                         onRemove={() => setPending({ kind: 'remove', member })}
                       />
                     ) : (
-                      <span className={PILL}>
-                        {member.role === 'owner' && (
-                          <Crown className="size-[12px]" aria-hidden="true" />
-                        )}
+                      <span className="shrink-0 text-[11px] text-[var(--surface-fg-muted)]">
                         {t(ROLE_LABELS[member.role])}
                       </span>
                     )

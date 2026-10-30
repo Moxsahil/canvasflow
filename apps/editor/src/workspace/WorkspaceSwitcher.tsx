@@ -1,13 +1,15 @@
 import { useCallback, useState } from 'react';
 import { Check, ChevronsUpDown, Plus, Settings2, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useBoardName } from './useBoardName';
 import {
   identityDetailClasses,
   identityRowClasses,
   InitialBadge,
 } from '@/components/ui/initial-badge';
 import { MenuBadge, MenuRowEnd, menuButtonRowClasses } from '@/components/ui/menu-look';
-import { SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
+import { SidebarMenuItem } from '@/components/ui/sidebar';
 import { Workspaces, WorkspaceContent, WorkspaceTrigger } from '@/components/ui/workspaces';
 import { t as translate, useT } from '../i18n';
 import { SHARED_WITH_YOU, type BoardSwitcherState } from './useBoardSwitcher';
@@ -63,13 +65,16 @@ function SharedBadge({ className }: { className?: string }) {
  * board's name as a plain header instead of a menu that could only be empty.
  * So does the board kept in this browser, which says that is where it is.
  */
+/** The sidebar's width, in px, which the workspace menu takes its size from. */
+const SIDEBAR_WIDTH_PX = 256;
+
 export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const { width: sidebarWidth } = useSidebar();
   const [namingWorkspace, setNamingWorkspace] = useState(false);
 
   const { workspaces, dismissError, beginManage, browseWorkspace } = state;
+  const name = useBoardName(state.title, state.boardId);
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -95,16 +100,14 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
   ];
   const listed = entries?.find((entry) => entry.id === state.listedId);
 
-  if (!state.available) {
+  if (!state.available && name !== 'pending') {
+    const label = name === 'unnamed' ? t('board.thisBoard') : state.title;
     return (
       <SidebarMenuItem>
         {/* Not interactive, so it takes the row's shape without its affordances. */}
-        <div className={cn(identityRowClasses, 'hover:bg-transparent')} title={state.title}>
-          <InitialBadge label={state.title} className="rounded-full" />
-          <Lines
-            primary={state.title}
-            secondary={state.local ? t('local.savedHere') : t('workspace.board')}
-          />
+        <div className={cn(identityRowClasses, 'hover:bg-transparent')} title={label}>
+          <InitialBadge label={label} className="rounded-full" />
+          <Lines primary={label} secondary={state.local ? t('local.savedHere') : undefined} />
         </div>
       </SidebarMenuItem>
     );
@@ -112,12 +115,16 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
 
   // Still loading, or the token hasn't said which workspace yet: the row keeps
   // its place so the list below doesn't jump when the name arrives.
-  if (!entries || !listed) {
+  if (!state.available || !entries || !listed) {
     return (
       <SidebarMenuItem>
         <div className={cn(identityRowClasses, 'hover:bg-transparent')} aria-busy="true">
-          <span aria-hidden="true" className="size-8 shrink-0 rounded-full bg-sidebar-accent" />
-          <Lines primary={t('workspace.title')} secondary={t('common.loading')} />
+          <Skeleton aria-hidden="true" className="size-8 shrink-0 rounded-full" />
+          <span className={cn('grid min-w-0 flex-1 gap-[6px]', identityDetailClasses)}>
+            <Skeleton className="h-[13px] w-24" />
+            <Skeleton className="h-[11px] w-16" />
+          </span>
+          <span className="sr-only">{t('common.loading')}</span>
         </div>
       </SidebarMenuItem>
     );
@@ -146,7 +153,7 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
               ) : (
                 <InitialBadge label={listed.name} src={listed.logoUrl} className="rounded-full" />
               )}
-              <Lines primary={listed.name} secondary={boardCount(listed.boardCount)} />
+              <Lines primary={listed.name} />
               <ChevronsUpDown className={cn('ml-auto size-4 shrink-0', identityDetailClasses)} />
             </>
           )}
@@ -162,7 +169,7 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
           align="start"
           sideOffset={4}
           className="max-w-none"
-          style={{ width: `calc(${sidebarWidth}px - 1rem)` }}
+          style={{ width: `calc(${SIDEBAR_WIDTH_PX}px - 2rem)` }}
           container={portalContainer}
           renderWorkspace={(workspace, selected) => {
             const full = entries.find((it) => it.id === workspace.id);
@@ -236,13 +243,13 @@ export function WorkspaceSwitcher({ state, portalContainer }: WorkspaceSwitcherP
 }
 
 /** The two lines of an identity row, which the collapsed rail hides. */
-function Lines({ primary, secondary }: { primary: string; secondary: string }) {
+function Lines({ primary, secondary }: { primary: string; secondary?: string }) {
   return (
     <span
       className={cn('grid min-w-0 flex-1 text-left text-sm leading-tight', identityDetailClasses)}
     >
       <span className="truncate font-medium">{primary}</span>
-      <span className="truncate text-xs opacity-70">{secondary}</span>
+      {secondary && <span className="truncate text-xs opacity-70">{secondary}</span>}
     </span>
   );
 }

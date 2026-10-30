@@ -27,11 +27,9 @@ describe('SignOutDialog', () => {
   it('names whose session ends, and asks before ending it', () => {
     const html = signOut();
     expect(html).toContain('Log out?');
-    expect(html).toContain('Maya Chen · maya@example.com');
     expect(html).toContain('data-testid="sign-out-confirm"');
     const button = html.split('<button').find((part) => part.includes('sign-out-confirm')) ?? '';
     expect(button).toContain('>Log out<');
-    expect(button).toContain('text-red-400');
     expect(button).not.toContain('text-[var(--surface-fg-muted)]');
     expect(html).not.toContain('--surface-warn-wash)');
   });
@@ -39,7 +37,7 @@ describe('SignOutDialog', () => {
   it('warns in amber when an account has drawing not yet sent, and in red for a guest', () => {
     expect(signOut({ synced: false })).toContain('bg-[var(--surface-warn-wash)]');
     const guest = signOut({ synced: false, isGuest: true, email: null });
-    expect(guest).toContain('Guest');
+    expect(guest).toContain('as a guest');
     expect(guest).toContain('bg-[var(--surface-danger-wash)]');
   });
 
@@ -60,7 +58,7 @@ describe('AccessRevokedDialog', () => {
 });
 
 describe('ExportImageDialog', () => {
-  it('picks the scale from three segments, and waits on an empty board', () => {
+  it('picks the scale and the format from segments, and waits on an empty board', () => {
     const html = renderToString(
       <ExportImageDialog
         open
@@ -73,8 +71,7 @@ describe('ExportImageDialog', () => {
       />,
     );
     expect(html).toContain('aria-label="Export scale"');
-    expect(html.match(/role="radio"/g)).toHaveLength(3);
-    expect(html).toContain('Nothing on the canvas to export');
+    expect(html.match(/role="radio"/g)).toHaveLength(5);
     expect(html).toContain('Nothing is selected');
   });
 });

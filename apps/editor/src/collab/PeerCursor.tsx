@@ -19,7 +19,7 @@ interface PeerCursorProps {
  */
 function tagBackground(color: string, theme: PresenceTheme): string {
   return theme === 'dark'
-    ? `color-mix(in srgb, ${color} 22%, #121212)`
+    ? `color-mix(in srgb, ${color} 22%, #101012)`
     : `color-mix(in srgb, ${color} 12%, #ffffff)`;
 }
 

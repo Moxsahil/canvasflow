@@ -91,7 +91,7 @@ export function CommentsMenu({
           aria-label={label}
           title={t('comments.title')}
           // The search button's build, which it stands beside.
-          className="relative flex size-9 items-center justify-center rounded-full border border-(--default-border-color) bg-(--island-bg-color) text-(--icon-fill-color) transition-colors hover:bg-(--button-hover-bg) focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none data-[state=open]:bg-(--button-hover-bg)"
+          className="relative flex size-9 items-center justify-center rounded-[10px] border border-(--default-border-color) bg-(--island-bg-color) text-(--icon-fill-color) transition-colors hover:bg-(--button-hover-bg) focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none data-[state=open]:bg-(--button-hover-bg)"
           data-testid="comments-button"
         >
           <MessageSquare className="size-4" aria-hidden="true" />

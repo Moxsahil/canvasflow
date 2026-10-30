@@ -11,12 +11,9 @@ function render(props: Partial<Parameters<typeof ZoomPanel>[0]> = {}) {
       <ZoomPanel
         zoom={1}
         syncStatus="connected"
-        canvasWidth={1400}
-        canZoomToFit
         onZoomIn={noop}
         onZoomOut={noop}
         onResetZoom={noop}
-        onZoomToFit={noop}
         {...props}
       />
     </TooltipProvider>,
@@ -54,7 +51,9 @@ describe('ZoomPanel smoke', () => {
   });
 
   it('orients separators vertically inside a horizontal toolbar', () => {
-    expect(render()).toContain('data-orientation="vertical"');
+    expect(
+      render({ history: { canUndo: true, canRedo: true, onUndo: () => {}, onRedo: () => {} } }),
+    ).toContain('data-orientation="vertical"');
   });
 
   it('disables zoom out at the minimum and zoom in at the maximum', () => {
@@ -62,30 +61,5 @@ describe('ZoomPanel smoke', () => {
     expect(buttonTag(render({ zoom: 5 }), 'Zoom in')).toContain('disabled=""');
     expect(buttonTag(render({ zoom: 1 }), 'Zoom out')).not.toContain('disabled=""');
     expect(buttonTag(render({ zoom: 1 }), 'Zoom in')).not.toContain('disabled=""');
-  });
-
-  it('disables fit on an empty board but leaves the readout pressable', () => {
-    const empty = render({ canZoomToFit: false });
-    expect(buttonTag(empty, 'Zoom to fit all shapes')).toContain('disabled=""');
-    expect(buttonTag(empty, 'Reset zoom to 100%, currently 100%')).not.toContain('disabled=""');
-  });
-
-  it('sheds everything but the readout on a canvas too narrow for the row', () => {
-    const tight = render({ canvasWidth: 900 });
-    expect(buttonTag(tight, 'Reset zoom to 100%, currently 100%')).not.toBe('');
-    expect(tight).not.toContain('Zoom to fit all shapes');
-    expect(tight).not.toContain('aria-label="Zoom in"');
-    expect(tight).not.toContain('aria-label="Zoom out"');
-  });
-
-  it('keeps the whole row while the canvas has room for it', () => {
-    const roomy = render({ canvasWidth: 1200 });
-    expect(buttonTag(roomy, 'Zoom to fit all shapes')).not.toBe('');
-    expect(buttonTag(roomy, 'Zoom in')).not.toBe('');
-    expect(buttonTag(roomy, 'Zoom out')).not.toBe('');
-  });
-
-  it('leaves the narrowest canvases to the dock alone', () => {
-    expect(render({ canvasWidth: 800 })).toBe('');
   });
 });

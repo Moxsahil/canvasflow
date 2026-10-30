@@ -12,11 +12,11 @@ interface CornerMarkProps {
 }
 
 /**
- * The product's logo and name in the bottom-left corner of the board, level
+ * The product's logo and name in the bottom-right corner of the board, level
  * with the dock and the zoom panel. Only a signature: it can't be clicked, and
  * pointer events pass through it to the board underneath.
  *
- * Leaves with the zoom panel on boards too narrow to keep it clear of the dock.
+ * Leaves on boards too narrow to keep it clear of the dock.
  */
 export function CornerMark({ canvasWidth }: CornerMarkProps) {
   if (getBreakpoint(canvasWidth) < BREAKPOINT.TABLET) return null;
@@ -24,7 +24,7 @@ export function CornerMark({ canvasWidth }: CornerMarkProps) {
   return (
     <div
       data-testid="corner-mark"
-      className="pointer-events-none absolute bottom-4 left-4 z-(--zIndex-layerUI) flex h-[38px] items-center gap-2 px-2 text-xs font-semibold text-muted-foreground select-none"
+      className="pointer-events-none absolute right-4 bottom-4 z-(--zIndex-layerUI) flex h-[38px] items-center gap-2 px-2 text-xs font-semibold text-muted-foreground select-none"
     >
       <svg viewBox="0 0 120 120" className="size-5 shrink-0" aria-hidden="true">
         <path d={LOGO_PATH} fill="currentColor" fillRule="evenodd" />

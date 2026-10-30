@@ -4,6 +4,7 @@ export { RenameBoardDialog } from './RenameBoardDialog';
 export {
   liveBoards,
   useBoardSwitcher,
+  forgetSidebarLists,
   SHARED_WITH_YOU,
   type BoardSwitcherState,
   type ManageTarget,

@@ -6,14 +6,12 @@ import {
   type ImageSource,
   type Shape,
 } from '@canvasflow/canvas-engine';
-import { Copy, FileCode2, ImageDown } from 'lucide-react';
+import { Copy, ImageDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { canvasBackgroundFor } from '../properties/palette';
-import { initialsOf } from '@/lib/initials';
-import { INPUT, Toggle } from '../settings/settings-ui';
+import { Toggle } from '../settings/settings-ui';
 import {
   SurfaceWindow,
-  WindowBadge,
   WindowBody,
   WindowButton,
   WindowFooter,
@@ -31,7 +29,7 @@ import {
 } from '../file/export-image';
 import { saveFile } from '../file/save-file';
 import { track } from '../analytics/analytics';
-import { formatLocale, useT } from '../i18n';
+import { useT } from '../i18n';
 import { serializeBoardFile } from '../file/board-file';
 import { embedSceneInPng, embedSceneInSvg } from '../file/scene-metadata';
 
@@ -53,6 +51,8 @@ interface ExportImageDialogProps {
   resolveImageDataUrls?: (shapes: readonly Shape[]) => Promise<ReadonlyMap<string, string>>;
 }
 
+const FORMATS = ['png', 'svg'] as const;
+
 export function ExportImageDialog({
   open,
   onClose,
@@ -65,7 +65,6 @@ export function ExportImageDialog({
   resolveImageDataUrls,
 }: ExportImageDialogProps) {
   const t = useT();
-  const fieldId = useId();
   const hasSelection = selectedShapes.length > 0;
 
   const [name, setName] = useState(boardName);
@@ -73,6 +72,7 @@ export function ExportImageDialog({
   const [withBackground, setWithBackground] = useState(true);
   const [dark, setDark] = useState(darkTheme);
   const [scale, setScale] = useState<number>(1);
+  const [format, setFormat] = useState<(typeof FORMATS)[number]>('png');
   const [embedScene, setEmbedScene] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -237,31 +237,13 @@ export function ExportImageDialog({
       labelledBy={titleId}
       data-testid="export-image-dialog"
     >
-      <WindowHeader
-        titleId={titleId}
-        title={boardName}
-        description={
-          <span className="flex items-center gap-[5px]">
-            <ImageDown className="size-[12px]" aria-hidden="true" />
-            {empty
-              ? t('export.nothing')
-              : dimensions
-                ? t('export.dimensions', {
-                    width: dimensions.width.toLocaleString(formatLocale()),
-                    height: dimensions.height.toLocaleString(formatLocale()),
-                  })
-                : t('export.title')}
-          </span>
-        }
-        lead={<WindowBadge tone="accent">{initialsOf(boardName)}</WindowBadge>}
-        onClose={onClose}
-      />
+      <WindowHeader titleId={titleId} title={t('export.title')} onClose={onClose} />
 
       {/* Two columns rather than one long scroll: the preview wants height and
           the settings want width. */}
       <WindowBody className="grid-cols-[minmax(0,1fr)_330px] gap-[22px]">
         <div
-          className="flex min-h-[330px] items-center justify-center rounded-[12px] border border-[var(--surface-border)] bg-[repeating-conic-gradient(var(--surface-wash)_0%_25%,transparent_0%_50%)] bg-size-[14px_14px] p-[16px]"
+          className="flex min-h-[330px] items-center justify-center rounded-[12px] border border-[var(--surface-border)] bg-[radial-gradient(var(--surface-border)_1px,transparent_1px)] bg-size-[22px_22px] p-[16px]"
           aria-live="polite"
         >
           {preview ? (
@@ -278,24 +260,18 @@ export function ExportImageDialog({
         </div>
 
         <div className="grid min-w-0 content-start gap-[4px]">
-          <h3 className="text-[12px] font-semibold">{t('export.file')}</h3>
           <div className="flex flex-col">
-            <SettingLine title={<label htmlFor={`${fieldId}-name`}>{t('common.name')}</label>}>
-              <input
-                id={`${fieldId}-name`}
-                type="text"
-                value={name}
-                spellCheck={false}
-                onChange={(event) => setName(event.target.value)}
-                className={cn(INPUT, 'w-[184px] shrink-0')}
+            <SettingLine title={t('export.scale')}>
+              <Segments
+                label={t('export.scaleLabel')}
+                options={EXPORT_SCALES}
+                value={scale as (typeof EXPORT_SCALES)[number]}
+                onChange={setScale}
+                show={(choice) => `${choice}×`}
               />
-            </SettingLine>
-            <SettingLine title={t('export.scale')} hint={t('export.scaleHint')}>
-              <ScaleControl value={scale} onChange={setScale} />
             </SettingLine>
           </div>
 
-          <h3 className="mt-[10px] text-[12px] font-semibold">{t('export.include')}</h3>
           <div className="flex flex-col">
             <SettingLine
               title={t('export.onlySelection')}
@@ -327,20 +303,25 @@ export function ExportImageDialog({
       </WindowBody>
 
       <WindowFooter status={error} danger>
-        <WindowButton variant="ghost" onClick={onClose}>
-          {t('common.cancel')}
-        </WindowButton>
+        <Segments
+          label={t('export.file')}
+          options={FORMATS}
+          value={format}
+          onChange={setFormat}
+          show={(choice) => choice.toUpperCase()}
+          className="order-first"
+        />
         <WindowButton onClick={copyPng} disabled={empty || busy}>
           <Copy aria-hidden="true" />
           {t('export.copy')}
         </WindowButton>
-        <WindowButton onClick={exportSvg} disabled={empty || busy}>
-          <FileCode2 aria-hidden="true" />
-          SVG
-        </WindowButton>
-        <WindowButton variant="primary" onClick={exportPng} disabled={empty || busy}>
+        <WindowButton
+          variant="primary"
+          onClick={format === 'svg' ? exportSvg : exportPng}
+          disabled={empty || busy}
+        >
           <ImageDown aria-hidden="true" />
-          PNG
+          {t('common.save')}
         </WindowButton>
       </WindowFooter>
     </SurfaceWindow>
@@ -372,35 +353,49 @@ function SettingLine({
 }
 
 /**
- * The scale as three segments rather than a menu: the choice is on show, and
- * one click away. The arrow keys move between them, as in any radio group.
+ * A short choice as segments rather than a menu: it is on show, and one click
+ * away. The arrow keys move between them, as in any radio group.
  */
-function ScaleControl({ value, onChange }: { value: number; onChange: (next: number) => void }) {
-  const t = useT();
+function Segments<T extends string | number>({
+  label,
+  options,
+  value,
+  onChange,
+  show,
+  className,
+}: {
+  label: string;
+  options: readonly T[];
+  value: T;
+  onChange: (next: T) => void;
+  show: (choice: T) => string;
+  className?: string;
+}) {
   return (
     <div
       role="radiogroup"
-      aria-label={t('export.scaleLabel')}
-      className="inline-flex shrink-0 rounded-[8px] bg-[var(--surface-wash)] p-[2px]"
+      aria-label={label}
+      className={cn(
+        'inline-flex shrink-0 rounded-[8px] bg-[var(--surface-wash)] p-[2px]',
+        className,
+      )}
       onKeyDown={(event) => {
         if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
         event.preventDefault();
-        const index = EXPORT_SCALES.indexOf(value as (typeof EXPORT_SCALES)[number]);
-        const next =
-          EXPORT_SCALES[
-            Math.min(
-              EXPORT_SCALES.length - 1,
-              Math.max(0, index + (event.key === 'ArrowRight' ? 1 : -1)),
-            )
-          ];
+        const index = options.indexOf(value);
+        const nextIndex = Math.min(
+          options.length - 1,
+          Math.max(0, index + (event.key === 'ArrowRight' ? 1 : -1)),
+        );
+        const next = options[nextIndex];
         if (next === undefined) return;
         onChange(next);
         (
-          event.currentTarget.querySelector(`[data-scale="${next}"]`) as HTMLElement | null
+          event.currentTarget.querySelector(`[data-segment="${nextIndex}"]`) as HTMLElement | null
         )?.focus();
       }}
     >
-      {EXPORT_SCALES.map((choice) => {
+      {options.map((choice, index) => {
         const selected = choice === value;
         return (
           <button
@@ -409,7 +404,7 @@ function ScaleControl({ value, onChange }: { value: number; onChange: (next: num
             role="radio"
             aria-checked={selected}
             tabIndex={selected ? 0 : -1}
-            data-scale={choice}
+            data-segment={index}
             onClick={() => onChange(choice)}
             className={cn(
               'h-[26px] min-w-[38px] rounded-[6px] px-[9px] text-[12px] font-medium tabular-nums transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]',
@@ -418,7 +413,7 @@ function ScaleControl({ value, onChange }: { value: number; onChange: (next: num
                 : 'text-[var(--surface-fg-muted)] hover:text-[var(--surface-fg)]',
             )}
           >
-            {choice}×
+            {show(choice)}
           </button>
         );
       })}

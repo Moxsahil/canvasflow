@@ -42,6 +42,7 @@ import {
   generateFreehandFillDrawable,
   generateLineDrawable,
   generateRectangleDrawable,
+  outlineCap,
   strokeDashArray,
 } from '../utils/rough.js';
 import { exportRegion, type ExportSceneOptions } from '../export/export-scene.js';
@@ -190,9 +191,14 @@ function escapeXml(value: string): string {
 }
 
 /** Rough emits fill paths and stroke paths; each needs the other switched off. */
-function drawableToSvg(generator: RoughGenerator, drawable: Drawable): string {
+function drawableToSvg(
+  generator: RoughGenerator,
+  drawable: Drawable,
+  cap: CanvasLineCap | null = null,
+): string {
   const dash = drawable.options.strokeLineDash;
   const dashAttr = dash && dash.length > 0 ? ` stroke-dasharray="${dash.map(num).join(' ')}"` : '';
+  const capAttr = cap ? ` stroke-linecap="${cap}"` : '';
 
   return generator
     .toPaths(drawable)
@@ -202,7 +208,7 @@ function drawableToSvg(generator: RoughGenerator, drawable: Drawable): string {
       const stroke = path.stroke && path.stroke !== 'none' ? escapeXml(path.stroke) : 'none';
       const width = path.strokeWidth ? ` stroke-width="${num(path.strokeWidth)}"` : '';
       // Dashes belong to outlines only — a hatch fill is already discrete.
-      return `<path d="${path.d}" fill="${fill}" stroke="${stroke}"${width}${
+      return `<path d="${path.d}" fill="${fill}" stroke="${stroke}"${width}${capAttr}${
         isFill ? '' : dashAttr
       }/>`;
     })
@@ -347,7 +353,11 @@ function shapeToSvg(
 
   switch (shape.kind) {
     case 'rectangle':
-      content = drawableToSvg(generator, generateRectangleDrawable(source, shape));
+      content = drawableToSvg(
+        generator,
+        generateRectangleDrawable(source, shape),
+        outlineCap(shape),
+      );
       content += shapeTextToSvg(shape);
       break;
     case 'ellipse':
@@ -355,7 +365,7 @@ function shapeToSvg(
       content += shapeTextToSvg(shape);
       break;
     case 'diamond':
-      content = drawableToSvg(generator, generateDiamondDrawable(source, shape));
+      content = drawableToSvg(generator, generateDiamondDrawable(source, shape), outlineCap(shape));
       content += shapeTextToSvg(shape);
       break;
     case 'line':

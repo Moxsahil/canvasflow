@@ -10,40 +10,7 @@ import {
 } from 'react';
 import { AnimatePresence, motion, type Variants } from 'framer-motion';
 import { createPortal } from 'react-dom';
-import {
-  AtSign,
-  BarChart3,
-  Building2,
-  CalendarDays,
-  Check,
-  Crown,
-  CreditCard,
-  Database,
-  Download,
-  ExternalLink,
-  Eye,
-  FileText,
-  Globe,
-  HardDrive,
-  KeyRound,
-  Link2,
-  LogOut,
-  Mail,
-  MessageSquare,
-  Monitor,
-  MousePointer2,
-  Receipt,
-  Share,
-  ShieldCheck,
-  Sparkles,
-  Trash2,
-  Type,
-  UserPlus,
-  Users,
-  X,
-  Zap,
-  type LucideIcon,
-} from 'lucide-react';
+import { Check, ExternalLink, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '../i18n';
 import {
@@ -85,7 +52,7 @@ export const SLIDE: Variants = {
  * `group/row` lets its icon answer the highlight too.
  */
 const ROW =
-  'group/row flex items-center gap-[12px] rounded-[10px] px-[10px] py-[9px] transition-[background-color] duration-[600ms] hover:bg-[var(--surface-wash)] hover:duration-150 data-[flash]:bg-[var(--surface-flash)] data-[flash]:duration-0';
+  'group/row flex items-center gap-[24px] border-t border-[var(--surface-line)] px-[10px] py-[12px] transition-[background-color] duration-[600ms] first:border-t-0 data-[flash]:bg-[var(--surface-flash)] data-[flash]:duration-0';
 
 const TITLE = 'text-[12.5px] font-medium text-[var(--surface-fg)]';
 const HINT = 'text-[11.5px] text-[var(--surface-fg-muted)]';
@@ -94,84 +61,28 @@ const HINT = 'text-[11.5px] text-[var(--surface-fg-muted)]';
  * Every row's icon, by the id search already knows it by, so a page names a
  * row once and the icon follows.
  */
-const ROW_ICONS: Record<string, LucideIcon> = {
-  'display-name': Type,
-  username: AtSign,
-  'cursor-colour': MousePointer2,
-  email: Mail,
-  password: KeyRound,
-  'connected-accounts': Link2,
-  'two-factor': ShieldCheck,
-  sessions: Monitor,
-  'sign-out-everywhere': LogOut,
-  'workspace-name': Building2,
-  role: Crown,
-  'ownership-offer': Crown,
-  members: Users,
-  'board-access': Globe,
-  'leave-workspace': LogOut,
-  'access-changes': Share,
-  'comment-mentions': MessageSquare,
-  'invite-accepted': UserPlus,
-  'weekly-digest': CalendarDays,
-  'product-updates': Sparkles,
-  plan: Zap,
-  seats: Users,
-  storage: Database,
-  'payment-method': CreditCard,
-  invoices: Receipt,
-  export: Download,
-  'storage-used': HardDrive,
-  analytics: BarChart3,
-  terms: FileText,
-  'privacy-policy': Eye,
-  'delete-account': Trash2,
-};
 
-/** The rows whose icon and name are in the danger colour, and whose highlight is red. */
+/** The rows whose name is in the danger colour. */
 const DANGER_ROWS = new Set(['leave-workspace', 'delete-account']);
 
-function rowClasses(setting: string): string {
-  return cn(ROW, DANGER_ROWS.has(setting) && 'hover:bg-[var(--surface-danger-wash)]');
-}
-
-/** The icon at the start of a row, in a soft circle that lifts under the pointer. */
-function RowIcon({ setting }: { setting: string }) {
-  const Icon = ROW_ICONS[setting];
-  if (!Icon) return null;
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        'flex size-[32px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-wash)] transition-colors group-hover/row:bg-[var(--surface-panel)]',
-        DANGER_ROWS.has(setting)
-          ? 'text-[var(--surface-danger)]'
-          : 'text-[var(--surface-fg-muted)]',
-      )}
-    >
-      <Icon className="size-[16px]" strokeWidth={1.75} />
-    </span>
-  );
-}
-
 /**
- * A row's control column. Its buttons are pills — outlined on the panel,
- * the primary in the accent — and its select and fields round off to match.
+ * A row's control column. Its buttons are outlined on the panel, the primary
+ * in the accent, with fields and selects at the same corner.
  */
 const CONTROLS = cn(
   'flex shrink-0 items-center gap-[8px]',
-  '[&_[data-variant]]:rounded-full [&_[data-variant]]:px-[12px]',
+  '[&_[data-variant]]:rounded-[8px] [&_[data-variant]]:px-[12px]',
   '[&_[data-variant=secondary]]:bg-[var(--surface-panel)] [&_[data-variant=secondary]:hover]:border-[var(--surface-fg-faint)] [&_[data-variant=secondary]:hover]:bg-[var(--surface-panel)]',
-  '[&_[data-variant=danger]]:bg-transparent [&_[data-variant=danger]:hover]:bg-[var(--surface-danger-wash)]',
+  '[&_[data-variant=danger]]:bg-transparent [&_[data-variant=danger]]:text-[var(--surface-danger)] [&_[data-variant=danger]]:ring-1 [&_[data-variant=danger]]:ring-[var(--surface-danger-border)] [&_[data-variant=danger]:hover]:bg-[var(--surface-danger-wash)]',
 );
 
 /** The cross and tick inside a pill field that has been changed. */
 export const INLINE_ACTION =
-  'flex h-[22px] w-[26px] items-center justify-center rounded-full text-[var(--surface-fg-muted)] transition-colors hover:bg-[var(--surface-wash)] hover:text-[var(--surface-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] disabled:opacity-50';
+  'flex h-[22px] w-[26px] items-center justify-center rounded-[6px] text-[var(--surface-fg-muted)] transition-colors hover:bg-[var(--surface-wash)] hover:text-[var(--surface-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] disabled:opacity-50';
 
 /** A text field in a row: a pill at the end of it. */
 export const ROW_INPUT =
-  'h-[30px] w-[220px] rounded-full border border-[var(--surface-border)] bg-[var(--surface-input)] px-[12px] text-[12.5px] text-[var(--surface-fg)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--surface-fg-faint)] focus:border-[var(--surface-accent)] focus:shadow-[0_0_0_3px_var(--surface-accent-wash)] disabled:opacity-60';
+  'h-[30px] w-[220px] rounded-[8px] border border-[var(--surface-border)] bg-[var(--surface-input)] px-[12px] text-[12.5px] text-[var(--surface-fg)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--surface-fg-faint)] focus:border-[var(--surface-accent)] focus:shadow-[0_0_0_3px_var(--surface-accent-wash)] disabled:opacity-60';
 
 /**
  * A thin scrollbar with a rounded thumb in a quiet tone, on no track at all —
@@ -300,18 +211,12 @@ export function Band({
       <section aria-label={title} className="flex shrink-0 flex-col">
         <div
           className={cn(
-            'mx-[10px] mt-[16px] mb-[4px] flex items-center gap-[10px] text-[11.5px] font-semibold',
-            danger ? 'text-[var(--surface-danger)]' : 'text-[var(--surface-fg-faint)]',
+            'mx-[10px] mt-[6px] flex min-h-[14px] items-center gap-[10px] text-[11px] font-medium',
+            danger ? 'text-[var(--surface-danger)]' : 'text-[var(--surface-fg-muted)]',
           )}
         >
-          <h3>{title}</h3>
-          <span
-            aria-hidden="true"
-            className={cn(
-              'h-px flex-1',
-              danger ? 'bg-[var(--surface-danger-border)]' : 'bg-[var(--surface-line)]',
-            )}
-          />
+          <h3 className="sr-only">{title}</h3>
+          <span aria-hidden="true" className="flex-1" />
           <p
             role="status"
             aria-live="polite"
@@ -359,8 +264,8 @@ export function SettingRow({
   children?: ReactNode;
 }) {
   return (
-    <div data-setting={setting} className={rowClasses(setting)}>
-      {leading ?? <RowIcon setting={setting} />}
+    <div data-setting={setting} className={ROW}>
+      {leading}
       <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
         <div className="flex items-center gap-[8px]">
           <p className={cn(TITLE, DANGER_ROWS.has(setting) && 'text-[var(--surface-danger)]')}>
@@ -399,8 +304,7 @@ export function StackedField({
   children: ReactNode;
 }) {
   return (
-    <div data-setting={setting} className={rowClasses(setting)}>
-      <RowIcon setting={setting} />
+    <div data-setting={setting} className={ROW}>
       <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
         <div className="flex items-center gap-[8px]">
           {htmlFor ? (
@@ -473,6 +377,7 @@ export function InlineTextField({
   const [draft, setDraft] = useState(value);
   const [focused, setFocused] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   const touched = useRef(false);
 
   useEffect(() => {
@@ -480,6 +385,7 @@ export function InlineTextField({
   }, [value]);
 
   const dirty = draft !== value;
+  const closed = !editing && !dirty && !error && value !== '';
 
   const revert = () => {
     touched.current = false;
@@ -500,10 +406,23 @@ export function InlineTextField({
     if (!kept) return;
     touched.current = false;
     setDraft(next);
+    setEditing(false);
     if (announce) band?.saved();
   };
 
   useEscape(focused && dirty && !busy ? revert : null);
+
+  // At rest a row reads as its value and an Edit button; the field comes out
+  // when asked for, and goes away again when left unchanged.
+  if (closed) {
+    return (
+      <StackedField setting={setting} label={label} badge={badge} hint={value}>
+        {!disabled && (
+          <SettingsButton onClick={() => setEditing(true)}>{t('common.edit')}</SettingsButton>
+        )}
+      </StackedField>
+    );
+  }
 
   return (
     <StackedField
@@ -532,8 +451,12 @@ export function InlineTextField({
           autoComplete="off"
           spellCheck={false}
           aria-invalid={error ? true : undefined}
+          autoFocus={editing}
           onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onBlur={() => {
+            setFocused(false);
+            if (!dirty) setEditing(false);
+          }}
           onChange={(event) => {
             touched.current = true;
             setDraft(event.target.value);
@@ -569,7 +492,7 @@ export function InlineTextField({
               title={t('common.save')}
               disabled={busy}
               onClick={() => void save()}
-              className={cn(INLINE_ACTION, 'text-[var(--surface-accent)]')}
+              className={cn(INLINE_ACTION, 'text-[var(--surface-link)]')}
             >
               <Check className="size-[14px]" aria-hidden="true" />
             </button>
@@ -586,7 +509,7 @@ export function InlineTextField({
 type ButtonVariant = 'secondary' | 'primary' | 'danger' | 'ghost';
 
 const BUTTON =
-  'inline-flex h-[28px] shrink-0 items-center justify-center gap-[6px] whitespace-nowrap rounded-[7px] px-[11px] text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50';
+  'inline-flex h-[28px] shrink-0 items-center justify-center gap-[6px] whitespace-nowrap rounded-[8px] px-[11px] text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50';
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   secondary:
@@ -595,8 +518,7 @@ const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
     'border border-[var(--surface-accent)] bg-[var(--surface-accent)] text-[var(--surface-on-accent)] hover:bg-[var(--surface-accent-hover)] focus-visible:ring-[var(--surface-fg)]',
   // A wash of the danger colour rather than a fill: the solid fill is kept for
   // the one thing the page wants you to do, and that is never destruction.
-  danger:
-    'border border-[var(--surface-danger-border)] bg-[var(--surface-danger-wash)] text-[var(--surface-danger)] hover:border-[var(--surface-danger)] focus-visible:ring-[var(--surface-danger)]',
+  danger: 'bg-[#dc2626] text-white hover:bg-[#ef4444] focus-visible:ring-[var(--surface-danger)]',
   ghost:
     'text-[var(--surface-fg-muted)] hover:bg-[var(--surface-wash)] hover:text-[var(--surface-fg)] focus-visible:ring-[var(--surface-accent)]',
 };

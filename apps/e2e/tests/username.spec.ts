@@ -94,6 +94,8 @@ async function openUsername(page: Page) {
   await page.getByTestId('menu-item-settings').click();
   const pane = page.getByTestId('settings-dialog');
   const row = pane.locator('[data-setting="username"]');
+  const edit = row.getByRole('button', { name: 'Edit', exact: true });
+  if (await edit.isVisible()) await edit.click();
   return { pane, row, field: row.getByLabel('Username', { exact: true }) };
 }
 

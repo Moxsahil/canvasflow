@@ -100,6 +100,13 @@ describe('refreshAuthToken', () => {
 describe('decodeJwtUser', () => {
   const claims = { id: 'u1', name: 'Ada', role: 'owner' };
 
+  it('reads a name with an emoji or an accent as it was written', () => {
+    const payload = Buffer.from(JSON.stringify({ ...claims, name: 'Mahak💗 José' })).toString(
+      'base64url',
+    );
+    expect(decodeJwtUser(`x.${payload}.y`)?.name).toBe('Mahak💗 José');
+  });
+
   it('lets an owner or editor write', () => {
     expect(decodeJwtUser(tokenFor(claims))).toMatchObject({ readOnly: false, archived: false });
     expect(decodeJwtUser(tokenFor({ ...claims, role: 'editor' }))?.readOnly).toBe(false);

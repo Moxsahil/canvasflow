@@ -58,6 +58,7 @@
    stylesheet the bundler emits last. Only the rows are styled here. */
 
 .cf-tool-overflow__item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.625rem;
@@ -72,10 +73,6 @@
   text-align: left;
   cursor: pointer;
   transition: background-color 100ms ease;
-}
-
-.cf-tool-overflow__item:hover {
-  background-color: var(--button-hover-bg);
 }
 
 .cf-tool-overflow__item:focus-visible {

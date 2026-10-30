@@ -121,6 +121,8 @@ export function NoteEditor({
         }
       }}
       style={{
+        // As the canvas draws it, without the chrome's alternate letterforms.
+        fontFeatureSettings: 'normal',
         position: 'absolute',
         left: box.left,
         top: box.top,

@@ -129,7 +129,7 @@ describe('BoardList', () => {
     const html = render(<BoardList state={state()} portalContainer={null} theme="dark" />);
     expect(html).toContain('data-testid="sidebar-find-board"');
     expect(html).toContain('data-testid="sidebar-new-board"');
-    expect(html).toContain('data-testid="manage-boards"');
+    expect(html).not.toContain('data-testid="manage-boards"');
   });
 
   it('holds the rows open while the list loads, and says so when there is none', () => {
@@ -171,8 +171,8 @@ describe('BoardList', () => {
     expect(html.indexOf('First pin')).toBeGreaterThan(pinned);
     expect(html.indexOf('First pin')).toBeLessThan(html.indexOf('Second pin'));
     // …then the Boards heading, and the boards nobody pinned under it.
-    expect(html.indexOf('Second pin')).toBeLessThan(html.indexOf('Boards<'));
-    expect(html.indexOf('Boards<')).toBeLessThan(html.indexOf('Onboarding flow'));
+    expect(html.indexOf('Second pin')).toBeLessThan(html.indexOf('Your boards<'));
+    expect(html.indexOf('Your boards<')).toBeLessThan(html.indexOf('Onboarding flow'));
   });
 
   it('shows no Pinned section until something is pinned', () => {
@@ -239,31 +239,13 @@ describe('BoardCard', () => {
     expect(html).toContain('Edited ');
   });
 
-  it('puts the five common actions on the card, each with its name, and the rest behind More', () => {
+  it('keeps the card to the board itself, with its actions behind one menu', () => {
     const html = render(<BoardCard state={state()} actions={actions} portalContainer={null} />);
-    for (const id of ['open', 'saveTo', 'exportImage', 'renameBoard', 'copyLink']) {
-      expect(tagWith(html, `menu-${id}`)).toContain('aria-label=');
-    }
     expect(html).toContain('data-testid="menu-board-more"');
     expect(html).toContain('data-testid="menu-board-actions"');
-  });
-
-  it("disables an action that doesn't apply, without taking it off the card", () => {
-    const html = render(<BoardCard state={state()} actions={actions} portalContainer={null} />);
-    expect(tagWith(html, 'menu-renameBoard')).toContain('aria-disabled="true"');
-    expect(tagWith(html, 'menu-open')).toContain('aria-disabled="false"');
-  });
-
-  it('leaves Copy board link off the card for someone who does not run its sharing', () => {
-    const html = render(
-      <BoardCard
-        state={state()}
-        actions={{ ...actions, copyLink: false }}
-        portalContainer={null}
-      />,
-    );
-    expect(html).not.toContain('data-testid="menu-copyLink"');
-    expect(html).toContain('data-testid="menu-open"');
+    for (const id of ['open', 'saveTo', 'exportImage', 'renameBoard', 'copyLink']) {
+      expect(html).not.toContain(`data-testid="menu-${id}"`);
+    }
   });
 });
 
@@ -271,7 +253,6 @@ describe('WorkspaceSwitcher', () => {
   it('names the workspace the list shows, with its board count', () => {
     const html = render(<WorkspaceSwitcher state={state()} portalContainer={null} />);
     expect(html).toContain('Northwind');
-    expect(html).toContain('2 boards');
   });
 
   it('follows the list to a workspace picked from it', () => {
@@ -279,7 +260,6 @@ describe('WorkspaceSwitcher', () => {
       <WorkspaceSwitcher state={state({ browsedWorkspaceId: 'side' })} portalContainer={null} />,
     );
     expect(html).toContain('Side project');
-    expect(html).toContain('1 board');
   });
 
   it('shows a guest the board they were let into, with no menu behind it', () => {

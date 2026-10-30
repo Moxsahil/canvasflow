@@ -4,6 +4,7 @@ import { isUsername } from '@canvasflow/types';
 import {
   cleanCommentBody,
   isCommentEmpty,
+  repairGarbledName,
   type Comment,
   type CommentAnchor,
   type CommentAuthor,
@@ -365,7 +366,8 @@ function readMentions(value: unknown): CommentAuthor[] {
     const { id, name, username } = entry as Record<string, unknown>;
     if (typeof id !== 'string' || typeof name !== 'string' || name === '') return [];
     // Written by another browser, so held to the rules like a peer's presence.
-    return [isUsername(username) ? { id, name, username } : { id, name }];
+    const repaired = repairGarbledName(name);
+    return [isUsername(username) ? { id, name: repaired, username } : { id, name: repaired }];
   });
 }
 
@@ -383,7 +385,7 @@ function readReactions(comment: Y.Map<unknown>): CommentReaction[] {
       unknown
     >;
     const list = given.get(emoji) ?? [];
-    list.push({ id, name: text(name) ?? '', at: finite(at) ?? 0 });
+    list.push({ id, name: repairGarbledName(text(name) ?? ''), at: finite(at) ?? 0 });
     given.set(emoji, list);
   });
 
@@ -399,6 +401,18 @@ function readReactions(comment: Y.Map<unknown>): CommentReaction[] {
     .map(({ emoji, by }) => ({ emoji, by }));
 }
 
+/** A body spells its mentions as they were then, so a repaired name has to follow. */
+function repairMentionsIn(body: string, mentions: unknown): string {
+  if (!Array.isArray(mentions)) return body;
+  let repaired = body;
+  for (const entry of mentions as { name?: unknown }[]) {
+    const name = typeof entry?.name === 'string' ? entry.name : '';
+    const fixed = repairGarbledName(name);
+    if (fixed !== name) repaired = repaired.split(`@${name}`).join(`@${fixed}`);
+  }
+  return repaired;
+}
+
 function readComment(value: unknown): Comment | null {
   if (!(value instanceof Y.Map)) return null;
   const id = text(value.get('id'));
@@ -411,11 +425,11 @@ function readComment(value: unknown): Comment | null {
   return {
     id,
     authorId,
-    authorName: text(value.get('authorName')) ?? '',
+    authorName: repairGarbledName(text(value.get('authorName')) ?? ''),
     authorUsername: isUsername(authorUsername) ? authorUsername : null,
     createdAt,
     editedAt: finite(value.get('editedAt')),
-    body,
+    body: repairMentionsIn(body, value.get('mentions')),
     mentions: readMentions(value.get('mentions')),
     reactions: readReactions(value),
   };
@@ -453,7 +467,11 @@ function readThread(id: string, value: unknown): CommentThread | null {
     },
     resolved:
       resolvedAt !== null && resolvedBy
-        ? { at: resolvedAt, by: resolvedBy, byName: text(value.get('resolvedByName')) ?? '' }
+        ? {
+            at: resolvedAt,
+            by: resolvedBy,
+            byName: repairGarbledName(text(value.get('resolvedByName')) ?? ''),
+          }
         : null,
     comments,
   };

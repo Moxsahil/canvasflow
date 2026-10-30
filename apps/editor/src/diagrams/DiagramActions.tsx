@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { CheckIcon, CopyIcon, PencilIcon, RefreshCwIcon } from 'lucide-react';
 import { MessageActions, type Reaction } from '@/components/assistant-ui/elements/message-actions';
 import {
@@ -133,6 +133,7 @@ export function AnswerActions({
   onRegenerate,
   regenerateDisabled,
   onCopy,
+  trailing,
 }: {
   at: number;
   reaction: Reaction;
@@ -140,11 +141,13 @@ export function AnswerActions({
   onRegenerate: () => void;
   regenerateDisabled: boolean;
   onCopy: () => Promise<void>;
+  /** At the far end of the row: what can be done with the diagram itself. */
+  trailing?: ReactNode;
 }) {
   const t = useT();
   const [copy, runCopy] = useCopy(onCopy);
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex flex-wrap items-center gap-1">
       <MessageActions
         copied={copy === 'copied'}
         reaction={reaction}
@@ -163,6 +166,7 @@ export function AnswerActions({
       />
       <When at={at} />
       <CopyFailed state={copy} />
+      {trailing && <div className="ml-auto flex items-center gap-1">{trailing}</div>}
     </div>
   );
 }

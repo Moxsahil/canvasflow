@@ -16,7 +16,7 @@ import { PrivacyPane } from './PrivacyPane';
 import type { OpenBoard } from './export-boards';
 import { ProfilePane } from './ProfilePane';
 import { WorkspacePane, type WorkspaceSettingsSource } from './WorkspacePane';
-import { surfaceThemeVars, type SurfaceTheme } from '../ui/surface-palette';
+import { windowThemeVars, type SurfaceTheme } from '../ui/surface-palette';
 import { useT } from '../i18n';
 import type { AvatarState, ProfileState } from '../profile';
 import {
@@ -37,7 +37,7 @@ import { warmNotificationSettings } from './notifications-api';
  * first and falls back to the platform's own UI face rather than shipping a
  * webfont for one window.
  */
-const FONT_STACK = 'Inter, "Segoe UI", system-ui, -apple-system, sans-serif';
+const FONT_STACK = '"Inter Variable", Inter, system-ui, -apple-system, sans-serif';
 
 const LOADING_WORKSPACE: WorkspaceSettingsSource = { status: 'loading' };
 
@@ -146,7 +146,7 @@ export function SettingsDialog({
   const results = useMemo(() => searchSettings(query, { isGuest }), [query, isGuest]);
   const searching = query.trim().length > 0 && resultsOpen;
 
-  const surface = useMemo(() => ({ ...surfaceThemeVars(theme), fontFamily: FONT_STACK }), [theme]);
+  const surface = useMemo(() => ({ ...windowThemeVars(theme), fontFamily: FONT_STACK }), [theme]);
 
   const frame = useMemo(
     () => ({
@@ -255,13 +255,6 @@ export function SettingsDialog({
   }, []);
   const focusSearchRef = useRef(focusSearch);
   focusSearchRef.current = focusSearch;
-
-  const signedInEmail = account.profile?.email ?? user?.email;
-  const signedInAs = isGuest
-    ? t('settings.joinedAsGuest')
-    : signedInEmail
-      ? t('settings.signedInAs', { email: signedInEmail })
-      : null;
 
   const clearSearch = useCallback(() => setQuery(''), []);
   useEffect(() => {
@@ -413,11 +406,6 @@ export function SettingsDialog({
                 <h2 className="truncate text-[17px] font-semibold tracking-[-0.01em]">
                   {t('menu.settings')}
                 </h2>
-                {signedInAs && (
-                  <p className="mt-[2px] truncate text-[12px] text-[var(--surface-fg-muted)]">
-                    {signedInAs}
-                  </p>
-                )}
               </div>
 
               <div
@@ -531,10 +519,10 @@ export function SettingsDialog({
                       onClick={() => go(id)}
                       onKeyDown={handleTabKey}
                       className={cn(
-                        'relative rounded-t-[9px] border border-b-0 px-[11px] text-[12.5px] font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] focus-visible:ring-inset',
+                        'relative mb-[6px] h-[30px] rounded-[8px] px-[11px] text-[12.5px] font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] focus-visible:ring-inset',
                         selected
-                          ? 'h-[36px] border-[var(--surface-border)] bg-[var(--surface-panel)] text-[var(--surface-fg)] after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-[var(--surface-panel)]'
-                          : 'h-[34px] border-transparent text-[var(--surface-fg-muted)] hover:bg-[color-mix(in_srgb,var(--surface-panel)_55%,transparent)] hover:text-[var(--surface-fg)]',
+                          ? 'bg-[var(--surface-nav-active)] text-[var(--surface-fg)]'
+                          : 'text-[var(--surface-fg-muted)] hover:bg-[var(--surface-nav-hover)] hover:text-[var(--surface-fg)]',
                       )}
                     >
                       {t(labelKey)}

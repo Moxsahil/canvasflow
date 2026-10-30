@@ -13,13 +13,14 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
+import { Component as PencilLoader } from '@/components/ui/loader-1';
 import { cn } from '@/lib/utils';
 import { useT } from '../i18n';
 import { BACKDROP, CloseButton, SettingsButton, WINDOW } from '../settings/settings-ui';
-import { surfaceThemeVars, type SurfaceTheme } from './surface-palette';
+import { windowThemeVars, type SurfaceTheme } from './surface-palette';
 
 /** Named first, then the platform's own face, as the other dialogs have it. */
-const FONT_STACK = 'Inter, "Segoe UI", system-ui, -apple-system, sans-serif';
+const FONT_STACK = '"Inter Variable", Inter, system-ui, -apple-system, sans-serif';
 
 // ---------------------------------------------------------------------------
 // The windows that are open, newest last
@@ -205,7 +206,7 @@ export function SurfaceWindow({
     };
   }, [open]);
 
-  const surface = useMemo(() => ({ ...surfaceThemeVars(theme), fontFamily: FONT_STACK }), [theme]);
+  const surface = useMemo(() => ({ ...windowThemeVars(theme), fontFamily: FONT_STACK }), [theme]);
 
   const shell = (
     <MotionConfig reducedMotion="user">
@@ -272,31 +273,6 @@ export function SurfaceWindow({
 
 // ---------------------------------------------------------------------------
 // The parts of a window
-
-type Tone = 'ok' | 'warn' | 'danger' | 'accent' | 'soft';
-
-const BADGE_TONES: Record<Tone, string> = {
-  ok: 'bg-[var(--surface-ok-wash)] text-[var(--surface-ok)]',
-  warn: 'bg-[var(--surface-warn-wash)] text-[var(--surface-warn)]',
-  danger: 'bg-[var(--surface-danger-wash)] text-[var(--surface-danger)]',
-  accent: 'bg-[var(--surface-accent)] text-[var(--surface-on-accent)]',
-  soft: 'bg-[var(--surface-accent-wash)] text-[var(--surface-accent)]',
-};
-
-/** The 36px circle at the head of a window: what it is about, or how it went. */
-export function WindowBadge({ tone, children }: { tone: Tone; children: ReactNode }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        'flex size-[36px] shrink-0 items-center justify-center rounded-full text-[12px] font-semibold [&_svg]:size-[16px]',
-        BADGE_TONES[tone],
-      )}
-    >
-      {children}
-    </span>
-  );
-}
 
 /**
  * The title, the line under it and the ×. The line is where a notice says what
@@ -382,17 +358,37 @@ export function WindowFooter({
 /** A window's button: the Settings one, a size up, as a dialog's actions are. */
 interface WindowButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'secondary' | 'primary' | 'danger' | 'ghost';
+  /** Swaps the label for the pencil while the action runs, and disables the button. */
+  busy?: boolean;
+  /** What a screen reader hears in place of the pencil. */
+  busyLabel?: string;
 }
 
 export const WindowButton = forwardRef<HTMLButtonElement, WindowButtonProps>(function WindowButton(
-  { className, ...props },
+  { className, busy = false, busyLabel, disabled, children, ...props },
   ref,
 ) {
   return (
     <SettingsButton
       ref={ref}
-      className={cn('h-[32px] px-[14px] text-[12.5px] [&_svg]:size-[14px]', className)}
+      disabled={disabled || busy}
+      aria-busy={busy || undefined}
+      className={cn(
+        'relative h-[36px] rounded-[8px] px-[16px] text-[13px] [&_svg]:size-[14px]',
+        busy && 'disabled:opacity-100',
+        className,
+      )}
       {...props}
-    />
+    >
+      {/* Held in place under the pencil, so the button keeps its width. */}
+      <span className={cn('contents', busy && 'invisible')}>{children}</span>
+      {busy && (
+        <>
+          {/* White all over: the pencil's own blue would vanish on a filled button. */}
+          <PencilLoader className="absolute top-1/2 left-1/2 !size-[26px] -translate-x-1/2 -translate-y-1/2 brightness-0 invert" />
+          {busyLabel && <span className="sr-only">{busyLabel}</span>}
+        </>
+      )}
+    </SettingsButton>
   );
 });
