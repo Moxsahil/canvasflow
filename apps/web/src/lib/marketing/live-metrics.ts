@@ -1,5 +1,3 @@
-import { sql } from 'drizzle-orm';
-import { createClient, users } from '@canvasflow/db';
 import { env } from '@/lib/env';
 
 export interface LiveMetrics {
@@ -15,25 +13,6 @@ export interface LiveMetrics {
   syncMedianMs: number | null;
   /** Seconds the API has been running since its last restart, which is its last deploy. */
   apiUptimeSeconds: number | null;
-}
-
-const db = createClient(env.DATABASE_URL);
-
-/**
- * Accounts made in the last 7 days. For the call to action's
- * line under its form; null if the database can't say.
- */
-export async function getRecentSignups(): Promise<number | null> {
-  try {
-    const rows = await db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(users)
-      .where(sql`${users.createdAt} > now() - interval '7 days'`);
-    return rows[0]?.n ?? null;
-  } catch (err) {
-    console.error('[live-metrics] could not count recent signups', err);
-    return null;
-  }
 }
 
 /** How many times the sync server is asked, for a median that isn't one lucky reply. */

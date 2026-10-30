@@ -1,18 +1,13 @@
-import { getRecentSignups } from '@/lib/marketing/live-metrics';
 import { cn } from '@/lib/utils';
 import { SECTION_TYPE } from './section-type';
 
 /**
  * The page's last ask: a heading, one line, and an email box that starts a
- * sign-up with the address already filled in. Under it, how many people
- * signed up this week, counted from the database, and left out when there is
- * nothing to count.
+ * sign-up with the address already filled in.
  *
  * On the landing page.
  */
-export async function SignupCta({ id, className }: { id?: string; className?: string }) {
-  const signups = await getRecentSignups();
-
+export function SignupCta({ id, className }: { id?: string; className?: string }) {
   return (
     <section
       id={id}
@@ -23,8 +18,8 @@ export async function SignupCta({ id, className }: { id?: string; className?: st
       )}
     >
       <div className="mx-auto max-w-5xl px-6">
-        <div className="mx-auto max-w-lg text-center">
-          <h2 className="text-3xl font-semibold tracking-tight text-balance md:text-4xl">
+        <div className="mx-auto max-w-lg text-center" data-reveal="children">
+          <h2 data-split className="text-3xl font-semibold tracking-tight text-balance md:text-4xl">
             Sketch, Share and Decide
           </h2>
           <p className="mt-4 text-balance text-[#9f9fa9]">
@@ -52,12 +47,6 @@ export async function SignupCta({ id, className }: { id?: string; className?: st
               </button>
             </div>
           </form>
-          {signups ? (
-            <p className="text-sm text-[#9f9fa9]">
-              <span className="font-mono font-semibold text-[#fafafa]">{signups}</span>{' '}
-              {signups === 1 ? 'Person Joined This Week' : 'People Joined This Week'}
-            </p>
-          ) : null}
         </div>
       </div>
     </section>
