@@ -78,7 +78,7 @@ export async function SiteFooter({ className }: { className?: string }) {
         className,
       )}
     >
-      <div className="mx-auto max-w-5xl space-y-16 px-6">
+      <div data-reveal="children" className="mx-auto max-w-5xl space-y-16 px-6">
         <div className="flex flex-wrap justify-between gap-6">
           <div className="max-w-xs space-y-6">
             <a aria-label="CanvasFlow home" className="flex size-fit items-center gap-1.5" href="/">

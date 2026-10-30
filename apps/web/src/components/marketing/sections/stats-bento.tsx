@@ -16,7 +16,7 @@ const PACKS = [
 const card = 'rounded-none bg-[#111113] text-[#fafafa] shadow ring ring-white/7 shadow-black/6.5';
 
 /**
- * The stats and the product as one bento. The wide card is live sync on a
+ * A heading, then the stats and the product as one bento. The wide card is live sync on a
  * world map — people in seven cities, the sync server in Singapore, an edit
  * flying between them. Beside
  * it, the API's latency timed in the visitor's browser and the uptime
@@ -36,13 +36,31 @@ export async function StatsBento({ id, className }: { id?: string; className?: s
       )}
     >
       <div className="mx-auto w-full max-w-5xl px-6 xl:px-0">
+        {/* Worded and laid out like How it works above, so the sections read alike. */}
+        <div className="max-w-xl text-[#fafafa]" data-reveal="children">
+          <p className="text-sm font-medium text-[#4d84fd]">Performance</p>
+          <h2
+            data-split
+            className="mt-3 text-3xl font-semibold tracking-tight text-balance @4xl:text-4xl"
+          >
+            Fast for everyone, wherever they are
+          </h2>
+          <p className="mt-4 text-[15px] leading-relaxed text-[#9f9fa9]">
+            Live sync across the world, latency timed in your own browser, and services that stay
+            up.
+          </p>
+        </div>
+
         {/* The same ruled frame, corner crosses and all, as How it works above. */}
-        <div className="relative border border-white/10 p-3">
+        <div className="relative mt-14 border border-white/10 p-3">
           <Corner className="top-0 left-0 -translate-[calc(50%-0.5px)]" />
           <Corner className="top-0 right-0 translate-x-[calc(50%-0.5px)] -translate-y-[calc(50%-0.5px)]" />
           <Corner className="right-0 bottom-0 translate-x-[calc(50%-0.5px)] translate-y-[calc(50%-0.5px)]" />
           <Corner className="bottom-0 left-0 -translate-x-[calc(50%-0.5px)] translate-y-[calc(50%-0.5px)]" />
-          <div className="grid gap-3 @2xl:grid-cols-2 @2xl:grid-rows-2 @4xl:grid-cols-3">
+          <div
+            data-reveal="children"
+            className="grid gap-3 @2xl:grid-cols-2 @2xl:grid-rows-2 @4xl:grid-cols-3"
+          >
             <div className="grid grid-rows-[auto_1fr] gap-3 @xl:col-span-2 @2xl:row-span-2">
               <div className={cn(card, 'grid grid-rows-[auto_1fr] gap-8 overflow-hidden p-8 pb-0')}>
                 <Header

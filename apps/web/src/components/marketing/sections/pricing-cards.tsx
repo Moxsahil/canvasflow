@@ -99,8 +99,11 @@ export function PricingCards({ id, className }: { id?: string; className?: strin
       )}
     >
       <div className="mx-auto max-w-5xl px-6">
-        <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-balance md:text-4xl lg:text-5xl lg:tracking-tight">
+        <div className="mx-auto max-w-2xl text-center" data-reveal="children">
+          <h2
+            data-split
+            className="text-3xl font-bold tracking-tight text-balance md:text-4xl lg:text-5xl lg:tracking-tight"
+          >
             Pricing that grows with your team
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-lg text-balance text-[#9f9fa9]">
@@ -143,7 +146,7 @@ export function PricingCards({ id, className }: { id?: string; className?: strin
 
         <div className="@container">
           <div className="mx-auto max-w-sm rounded-xl border border-white/10 @4xl:max-w-full">
-            <div className="grid *:p-8 @4xl:grid-cols-3">
+            <div data-reveal="children" className="grid *:p-8 @4xl:grid-cols-3">
               {PLANS.map((plan) => {
                 const price = PLAN_PRICES[plan.id];
                 const raised = plan.id === 'pro';

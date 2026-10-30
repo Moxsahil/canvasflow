@@ -126,7 +126,10 @@ export function PlanComparator({ id, className }: { id?: string; className?: str
             {shownPlan.cta}
           </a>
         </div>
-        <div className="grid grid-cols-2 border-white/10 max-md:border-t md:grid-cols-4">
+        <div
+          data-reveal="children"
+          className="grid grid-cols-2 border-white/10 max-md:border-t md:grid-cols-4"
+        >
           <div>
             <div className="flex h-14 items-center px-6 md:h-18">
               <div className="font-medium">Benefits</div>

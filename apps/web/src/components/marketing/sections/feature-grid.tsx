@@ -5,8 +5,8 @@ import { AiComposer } from './ai-composer';
 import { PeerList } from './peer-list';
 
 /**
- * Two large features over four small ones, in a ruled grid with a cross at
- * each corner: who is on a board right now on the left, the AI panel on the
+ * A heading, then two large features over four small ones, in a ruled grid
+ * with a cross at each corner: who is on a board right now on the left, the AI panel on the
  * right, and below them the smaller things a team reaches for every day.
  * Painted for the dark page the hero sits on, with its own colours rather
  * than the app's tokens, which are the light app's.
@@ -24,12 +24,29 @@ export function FeatureGrid({ id, className }: { id?: string; className?: string
       )}
     >
       <div className="mx-auto w-full max-w-5xl px-6 xl:px-0">
-        <div className="relative">
+        <div className="max-w-xl" data-reveal="children">
+          <p className="text-sm font-medium text-[#4d84fd]">Features</p>
+          <h2
+            data-split
+            className="mt-3 text-3xl font-semibold tracking-tight text-balance @4xl:text-4xl"
+          >
+            Everything your team needs on one board
+          </h2>
+          <p className="mt-4 text-[15px] leading-relaxed text-[#9f9fa9]">
+            Draw together live, let AI turn words into diagrams, and keep the conversation on the
+            canvas.
+          </p>
+        </div>
+
+        <div className="relative mt-14">
           <Corner className="-translate-[calc(50%-0.5px)]" />
           <Corner className="right-0 translate-x-[calc(50%-0.5px)] -translate-y-[calc(50%-0.5px)]" />
           <Corner className="right-0 bottom-0 translate-x-[calc(50%-0.5px)] translate-y-[calc(50%-0.5px)]" />
           <Corner className="bottom-0 -translate-x-[calc(50%-0.5px)] translate-y-[calc(50%-0.5px)]" />
-          <div className="relative grid grid-cols-2 divide-x divide-y divide-white/10 overflow-hidden border border-white/10 *:p-4 @max-4xl:*:first:border-r-0 *:nth-1:border-b! *:nth-2:border-r-0 @max-4xl:*:nth-4:border-r-0 @max-4xl:*:nth-5:border-b-0 @4xl:grid-cols-4 @4xl:*:p-8 @4xl:*:not-nth-2:border-b-0">
+          <div
+            data-reveal="children"
+            className="relative grid grid-cols-2 divide-x divide-y divide-white/10 overflow-hidden border border-white/10 *:p-4 @max-4xl:*:first:border-r-0 *:nth-1:border-b! *:nth-2:border-r-0 @max-4xl:*:nth-4:border-r-0 @max-4xl:*:nth-5:border-b-0 @4xl:grid-cols-4 @4xl:*:p-8 @4xl:*:not-nth-2:border-b-0"
+          >
             <div className="col-span-full row-span-2 grid grid-rows-subgrid gap-8 p-8! @4xl:col-span-2">
               <div className="mx-auto w-full max-w-84 self-center">
                 <PeerList />

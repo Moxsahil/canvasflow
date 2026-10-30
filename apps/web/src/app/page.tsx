@@ -6,6 +6,7 @@ import { PricingCards } from '@/components/marketing/sections/pricing-cards';
 import { SignupCta } from '@/components/marketing/sections/signup-cta';
 import { SiteFooter } from '@/components/marketing/sections/site-footer';
 import { StatsBento } from '@/components/marketing/sections/stats-bento';
+import { LandingMotion } from '@/components/marketing/landing-motion';
 import HeroSection from '@/components/ui/hero-section';
 
 // The figures in StatsBento are read from the services and the database, so
@@ -53,12 +54,13 @@ const STRUCTURED_DATA = {
 };
 
 /**
- * The `cf-landing` class is what scopes this page's type scale and hidden
- * scrollbar in globals.css — without it the page inherits the app's Inter.
+ * The `cf-landing` class is what scopes this page's type scale, hidden
+ * scrollbar and scroll motion in globals.css — without it the page inherits
+ * the app's Inter.
  */
 export default function HomePage() {
   return (
-    <div className="cf-landing min-h-screen bg-[#101012] font-sans text-[#fafafa] antialiased">
+    <LandingMotion className="cf-landing min-h-screen bg-[#101012] font-sans text-[#fafafa] antialiased">
       <script
         type="application/ld+json"
         // A constant written above, so there is nothing here to escape.
@@ -86,6 +88,6 @@ export default function HomePage() {
       <SignupCta id="get-started" className="scroll-mt-16 bg-[#101012]" />
 
       <SiteFooter className="bg-[#101012]" />
-    </div>
+    </LandingMotion>
   );
 }

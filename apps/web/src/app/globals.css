@@ -120,6 +120,44 @@ html:has(.cf-landing) body::-webkit-scrollbar {
 }
 
 /* ---------------------------------------------------------------------------
+   Landing scroll motion
+   ---------------------------------------------------------------------------
+   The starting state for what LandingMotion plays in: hidden before the first
+   paint, so nothing shows and then vanishes. Only when scripts can run and the
+   visitor hasn't asked for less movement, so without either the page is still.
+
+   If the script never takes over, the failsafe animation shows everything
+   after four seconds. Once it does (`data-motion="on"`) the failsafe is
+   cancelled and its own inline styles win over the rule here. Visibility
+   rather than opacity, so an element meant to be faint keeps its own. */
+@media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+  .cf-landing [data-reveal='children'] > :not([data-split]),
+  .cf-landing [data-reveal='self'],
+  .cf-landing [data-split] {
+    visibility: hidden;
+    animation: cf-reveal-failsafe 0s 4s forwards;
+  }
+
+  .cf-landing[data-motion='on'] [data-reveal='children'] > :not([data-split]),
+  .cf-landing[data-motion='on'] [data-reveal='self'],
+  .cf-landing[data-motion='on'] [data-split] {
+    animation: none;
+  }
+}
+
+@keyframes cf-reveal-failsafe {
+  to {
+    visibility: visible;
+  }
+}
+
+/* A word's mask clips at the line box, which would shave descenders. */
+.cf-word-mask {
+  padding-block: 0.1em;
+  margin-block: -0.1em;
+}
+
+/* ---------------------------------------------------------------------------
    Pencil loader
    ---------------------------------------------------------------------------
    The keyframes below came with the component; the rules binding them to its

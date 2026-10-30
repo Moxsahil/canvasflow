@@ -24,9 +24,12 @@ export function HowItWorks({ id, className }: { id?: string; className?: string 
       )}
     >
       <div className="mx-auto w-full max-w-5xl px-6 xl:px-0">
-        <div className="max-w-xl">
+        <div className="max-w-xl" data-reveal="children">
           <p className="text-sm font-medium text-[#4d84fd]">How it works</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance @4xl:text-4xl">
+          <h2
+            data-split
+            className="mt-3 text-3xl font-semibold tracking-tight text-balance @4xl:text-4xl"
+          >
             From a blank canvas to a plan everyone agrees on
           </h2>
           <p className="mt-4 text-[15px] leading-relaxed text-[#9f9fa9]">
@@ -39,7 +42,10 @@ export function HowItWorks({ id, className }: { id?: string; className?: string 
           <Corner className="right-0 translate-x-[calc(50%-0.5px)] -translate-y-[calc(50%-0.5px)]" />
           <Corner className="right-0 bottom-0 translate-x-[calc(50%-0.5px)] translate-y-[calc(50%-0.5px)]" />
           <Corner className="bottom-0 -translate-x-[calc(50%-0.5px)] translate-y-[calc(50%-0.5px)]" />
-          <ol className="grid grid-cols-[minmax(0,1fr)] divide-y divide-white/10 border border-white/10 @4xl:grid-cols-3 @4xl:divide-x @4xl:divide-y-0">
+          <ol
+            data-reveal="children"
+            className="grid grid-cols-[minmax(0,1fr)] divide-y divide-white/10 border border-white/10 @4xl:grid-cols-3 @4xl:divide-x @4xl:divide-y-0"
+          >
             <Step
               number="01"
               title="Sketch it out"
