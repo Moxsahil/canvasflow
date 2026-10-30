@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { cn } from '@/lib/utils';
 import { formatShortcutKeys } from './platform';
 
@@ -27,9 +28,14 @@ export function KeyCaps({
   return (
     <span className={cn('inline-flex shrink-0 items-center gap-[3px]', className)}>
       {formatShortcutKeys(keys).map((key, index) => (
-        <kbd key={index} className={cn(CAP, SIZES[size])}>
-          {key}
-        </kbd>
+        <Fragment key={index}>
+          {index > 0 && (
+            <span aria-hidden="true" className="text-[10.5px] text-[var(--surface-fg-faint)]">
+              +
+            </span>
+          )}
+          <kbd className={cn(CAP, SIZES[size])}>{key}</kbd>
+        </Fragment>
       ))}
     </span>
   );

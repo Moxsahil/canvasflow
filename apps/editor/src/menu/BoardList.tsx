@@ -1,3 +1,4 @@
+import { BoardGlide, glideRowClasses } from './BoardGlide';
 import {
   useCallback,
   useEffect,
@@ -21,10 +22,10 @@ import {
   Plus,
   RotateCw,
   Search,
-  Settings2,
   Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
 import { menuDangerRowClasses } from '@/components/ui/menu-look';
 import {
   InlineDropdownMenu,
@@ -49,7 +50,7 @@ import {
 import type { SurfaceTheme } from '../ui/surface-palette';
 import { BOARD_COLORS } from '../workspace/board-colors';
 import { useT } from '../i18n';
-import { ColorDot, formatUpdatedAt } from '../workspace/board-presentation';
+import { ColorDot } from '../workspace/board-presentation';
 import { DeleteWarningDialog } from '../workspace/DeleteWarningDialog';
 import { SHARED_WITH_YOU } from '../workspace';
 import { pinnedOf } from '../workspace/useBoardSwitcher';
@@ -239,31 +240,31 @@ export function BoardList({ state, portalContainer, theme }: BoardListProps) {
         )}
 
         <div className="flex items-center gap-0.5 pr-1 group-data-[collapsible=icon]:hidden">
-          <SidebarGroupLabel className="flex-1">{t('boards.title')}</SidebarGroupLabel>
-          <button
-            type="button"
-            className={labelActionClasses}
-            aria-label={t('boards.manage')}
-            title={t('boards.manage')}
-            data-testid="manage-boards"
-            onClick={() => state.beginManage({ kind: 'boards', workspaceId })}
-          >
-            <Settings2 aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className={labelActionClasses}
-            aria-label={t('boards.new')}
-            title={t('boards.new')}
-            data-testid="sidebar-new-board"
-            disabled={state.busy}
-            onClick={() => state.createBoard(workspaceId)}
-          >
-            <Plus aria-hidden="true" />
-          </button>
+          {entry === undefined || entry.status === 'loading' ? (
+            // Until the list answers this may turn out to be "Shared with you".
+            <div className="flex h-8 flex-1 items-center px-2">
+              <Skeleton className="h-[11px] w-20" />
+            </div>
+          ) : (
+            <>
+              <SidebarGroupLabel className="flex-1">{t('menu.yourBoards')}</SidebarGroupLabel>
+              <button
+                type="button"
+                className={labelActionClasses}
+                aria-label={t('boards.new')}
+                title={t('boards.new')}
+                data-testid="sidebar-new-board"
+                disabled={state.busy}
+                onClick={() => state.createBoard(workspaceId)}
+              >
+                <Plus aria-hidden="true" />
+              </button>
+            </>
+          )}
         </div>
 
-        <SidebarMenu className="max-h-[min(40vh,22rem)] overflow-y-auto [scrollbar-width:thin] group-data-[collapsible=icon]:max-h-none group-data-[collapsible=icon]:[scrollbar-width:none]">
+        <SidebarMenu className="relative max-h-[min(40vh,22rem)] overflow-y-auto [scrollbar-width:thin] group-data-[collapsible=icon]:max-h-none group-data-[collapsible=icon]:[scrollbar-width:none]">
+          <BoardGlide />
           {(entry === undefined || entry.status === 'loading') &&
             [0, 1, 2].map((key) => (
               <SidebarMenuItem key={key}>
@@ -525,8 +526,9 @@ function PinnedList({
       ref={listRef}
       aria-label={t('boards.pinned')}
       data-testid="sidebar-pinned-boards"
-      className="max-h-[min(30vh,16rem)] overflow-y-auto [scrollbar-width:thin] group-data-[collapsible=icon]:max-h-none group-data-[collapsible=icon]:[scrollbar-width:none]"
+      className="relative max-h-[min(30vh,16rem)] overflow-y-auto [scrollbar-width:thin] group-data-[collapsible=icon]:max-h-none group-data-[collapsible=icon]:[scrollbar-width:none]"
     >
+      <BoardGlide />
       {order.map((id) => {
         const board = byId.get(id)!;
         const held = drag?.id === id;
@@ -628,8 +630,9 @@ function SharedList({
 
         <SidebarMenu
           data-testid="sidebar-shared-boards"
-          className="max-h-[min(40vh,22rem)] overflow-y-auto [scrollbar-width:thin] group-data-[collapsible=icon]:max-h-none group-data-[collapsible=icon]:[scrollbar-width:none]"
+          className="relative max-h-[min(40vh,22rem)] overflow-y-auto [scrollbar-width:thin] group-data-[collapsible=icon]:max-h-none group-data-[collapsible=icon]:[scrollbar-width:none]"
         >
+          <BoardGlide />
           {boards === null &&
             [0, 1].map((key) => (
               <SidebarMenuItem key={key}>
@@ -683,7 +686,7 @@ function SharedRow({
         })}
         onClick={onOpen}
         data-testid={`sidebar-shared-board-${board.id}`}
-        className="h-auto py-1.5"
+        className={cn('h-auto py-1.5', glideRowClasses)}
       >
         <span className="grid size-4 shrink-0 place-items-center self-start pt-1">
           <ColorDot color={board.color} />
@@ -796,6 +799,7 @@ function BoardRow({
         // than the row keeping a gap for a button that isn't there.
         className={cn(
           'group-has-data-[sidebar=menu-action]/menu-item:pr-2',
+          glideRowClasses,
           archived && 'text-sidebar-foreground/60',
         )}
       >
@@ -804,11 +808,6 @@ function BoardRow({
           <ColorDot color={board.color} />
         </span>
         <span className="min-w-0 flex-1 truncate">{board.title}</span>
-        {/* Hidden while its menu is open too: focus has gone into the menu by
-            then, and the button stays up over where the date would show. */}
-        <span className="shrink-0 text-xs text-sidebar-foreground/50 tabular-nums transition-opacity group-focus-within/menu-item:opacity-0 group-hover/menu-item:opacity-0 group-has-data-[state=open]/menu-item:opacity-0">
-          {formatUpdatedAt(board.updatedAt)}
-        </span>
       </SidebarMenuButton>
       <BoardRowMenu
         board={board}

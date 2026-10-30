@@ -142,7 +142,7 @@ export function EmbedView({ embedId }: { embedId: string }) {
       {load.status === 'ready' ? (
         <Board embedId={embedId} board={load.board} shapes={load.shapes} theme={theme} />
       ) : load.status === 'loading' ? (
-        <div role="status" className="flex h-full items-center justify-center text-[#a3a3a3]">
+        <div role="status" className="flex h-full items-center justify-center text-[#9f9fa9]">
           <Loader className="size-20" />
         </div>
       ) : (

@@ -1,11 +1,21 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { GlassDockGroup, GlassDockItem } from '@/components/ui/glass-dock';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useT } from '../i18n';
 import { TOOLS, VIEW_ONLY_TOOLS, type Tool } from '../tools/tool';
 import { ToolButton } from './ToolButton';
 import { ToolOverflow } from './ToolOverflow';
 
 const TOOL_GROUP = 'cf-active-tool';
+
+const PHONE_ROW_TOOLS: ReadonlySet<Tool> = new Set<Tool>([
+  'select',
+  'rectangle',
+  'arrow',
+  'freehand',
+  'text',
+  'eraser',
+]);
 
 interface ToolbarProps {
   activeTool: Tool;
@@ -32,8 +42,16 @@ export function Toolbar({
     [readOnly],
   );
 
-  const rowTools = useMemo(() => tools.filter((meta) => !meta.overflow), [tools]);
-  const overflowTools = useMemo(() => tools.filter((meta) => meta.overflow), [tools]);
+  // A phone's width holds the everyday tools; the rest wait in the list, so the
+  // row is never cut off at the screen's edges.
+  const isPhone = useIsMobile();
+  const inRow = useCallback(
+    (meta: (typeof TOOLS)[number]) =>
+      isPhone && !readOnly ? PHONE_ROW_TOOLS.has(meta.id) : !meta.overflow,
+    [isPhone, readOnly],
+  );
+  const rowTools = useMemo(() => tools.filter(inRow), [tools, inRow]);
+  const overflowTools = useMemo(() => tools.filter((meta) => !inRow(meta)), [tools, inRow]);
 
   return (
     <GlassDockGroup role="radiogroup" aria-label={t('toolbar.drawingTools')}>

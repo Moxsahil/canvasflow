@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 import { Ellipsis, Files } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
 import { menuDangerRowClasses } from '@/components/ui/menu-look';
 import {
   InlineDropdownMenu,
@@ -18,15 +19,15 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { ariaKeyShortcut, formatShortcut } from '../help/platform';
+import { ariaKeyShortcut } from '../help/platform';
 import { useT } from '../i18n';
-import { ColorDot, formatUpdatedAt } from '../workspace/board-presentation';
+import { formatUpdatedAt } from '../workspace/board-presentation';
+import { useBoardName } from '../workspace/useBoardName';
 import { isSecondPress } from './double-press';
 import type { BoardSwitcherState } from '../workspace';
 import {
   liveAction,
-  BOARD_CARD_ITEMS,
-  BOARD_MORE_GROUPS,
+  BOARD_MENU_GROUPS,
   MENU_ITEMS,
   type MenuActions,
   type MenuItemId,
@@ -59,67 +60,65 @@ export function BoardCard({ state, actions, portalContainer }: BoardCardProps) {
     (state.openBoardIsShared
       ? state.sharedBoards?.find((it) => it.id === state.boardId)
       : undefined);
+  const name = useBoardName(state.title, state.boardId);
+  const loading = name === 'pending';
 
   return (
     <>
       <SidebarGroup className="group-data-[collapsible=icon]:hidden">
         <section
           aria-label={t('board.thisBoard')}
-          className="flex flex-col gap-2 rounded-lg border border-sidebar-border p-2"
+          className="flex items-center gap-2 rounded-[10px] bg-sidebar-accent/50 p-2.5"
         >
-          <div className="flex min-w-0 items-center gap-2 px-1">
-            {/* Only once the list has said what it is: a gray dot for a
-                purple board is worse than no dot at all. */}
-            {board && <ColorDot color={board.color} />}
-            <div className="grid min-w-0 leading-tight">
-              {/* A double press on the name renames the board, as the pencil does. */}
-              <span
-                className="truncate text-sm font-medium"
-                data-testid="board-card-title"
-                onClick={(event) => {
-                  if (state.canRename && isSecondPress('board-card', event)) state.beginRename();
-                }}
-              >
-                {state.title}
-              </span>
-              <span className="truncate text-xs text-sidebar-foreground/60">
-                {board
-                  ? t('board.edited', { when: formatUpdatedAt(board.updatedAt) })
-                  : t('board.thisBoard')}
-              </span>
-            </div>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            {loading ? (
+              <div className="grid gap-[7px] py-[2px]" aria-busy="true">
+                <Skeleton className="h-[13px] w-32" />
+                <Skeleton className="h-[11px] w-20" />
+                <span className="sr-only">{t('common.loading')}</span>
+              </div>
+            ) : (
+              <div className="grid min-w-0 leading-tight">
+                {/* A double press on the name renames the board, as the pencil does. */}
+                <span
+                  className="truncate text-sm font-medium"
+                  data-testid="board-card-title"
+                  onClick={(event) => {
+                    if (state.canRename && isSecondPress('board-card', event)) state.beginRename();
+                  }}
+                >
+                  {name === 'unnamed' ? t('board.thisBoard') : state.title}
+                </span>
+                {name === 'named' && (
+                  <span className="truncate text-xs text-sidebar-foreground/60">
+                    {board
+                      ? t('board.edited', { when: formatUpdatedAt(board.updatedAt) })
+                      : t('board.thisBoard')}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
-          <div
-            role="group"
-            aria-label={t('board.actions')}
-            className="flex items-center justify-between"
-          >
-            {BOARD_CARD_ITEMS.map((id) =>
-              actions?.[id] === false ? null : (
-                <CardAction key={id} id={id} onSelect={liveAction(actions?.[id])} />
-              ),
-            )}
-            <BoardActionsMenu
-              groups={BOARD_MORE_GROUPS}
-              actions={actions}
-              portalContainer={portalContainer}
-              trigger={
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <InlineDropdownMenuTrigger
-                      aria-label={t('board.moreActions')}
-                      data-testid="menu-board-more"
-                      className={cardButtonClasses}
-                    >
-                      <Ellipsis aria-hidden="true" />
-                    </InlineDropdownMenuTrigger>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">{t('common.more')}</TooltipContent>
-                </Tooltip>
-              }
-            />
-          </div>
+          <BoardActionsMenu
+            groups={BOARD_MENU_GROUPS}
+            actions={actions}
+            portalContainer={portalContainer}
+            trigger={
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <InlineDropdownMenuTrigger
+                    aria-label={t('board.moreActions')}
+                    data-testid="menu-board-more"
+                    className={cardButtonClasses}
+                  >
+                    <Ellipsis aria-hidden="true" />
+                  </InlineDropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{t('common.more')}</TooltipContent>
+              </Tooltip>
+            }
+          />
         </section>
       </SidebarGroup>
 
@@ -128,7 +127,7 @@ export function BoardCard({ state, actions, portalContainer }: BoardCardProps) {
           <SidebarMenuItem>
             <BoardActionsMenu
               caption={state.title}
-              groups={[BOARD_CARD_ITEMS, ...BOARD_MORE_GROUPS]}
+              groups={BOARD_MENU_GROUPS}
               actions={actions}
               portalContainer={portalContainer}
               trigger={
@@ -144,45 +143,6 @@ export function BoardCard({ state, actions, portalContainer }: BoardCardProps) {
         </SidebarMenu>
       </SidebarGroup>
     </>
-  );
-}
-
-/**
- * One of the card's icons. Its name is the button's label and its tooltip, with
- * the shortcut when it has one. Disabled with `aria-disabled` rather than
- * `disabled`, so the tooltip can still say why it is — a disabled button
- * swallows the pointer events a tooltip opens on.
- */
-function CardAction({ id, onSelect }: { id: MenuItemId; onSelect?: (() => void) | null }) {
-  const t = useT();
-  const { labelKey, icon: Icon, shortcut } = MENU_ITEMS[id];
-  const label = t(labelKey);
-  const hint = onSelect && shortcut ? formatShortcut(shortcut) : null;
-  // Only an unbuilt feature is "coming soon" — see MenuActions.
-  const tip =
-    onSelect === undefined
-      ? t('common.comingSoon', { label })
-      : hint
-        ? `${label} · ${hint}`
-        : label;
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={label}
-          aria-disabled={!onSelect}
-          aria-keyshortcuts={onSelect && shortcut ? ariaKeyShortcut(shortcut) : undefined}
-          data-testid={`menu-${id}`}
-          className={cardButtonClasses}
-          onClick={() => onSelect?.()}
-        >
-          <Icon aria-hidden="true" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">{tip}</TooltipContent>
-    </Tooltip>
   );
 }
 

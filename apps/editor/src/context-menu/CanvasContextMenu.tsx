@@ -15,8 +15,8 @@ import {
   ContextMenuToggleItem,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-import { menuDangerRowClasses } from '@/components/ui/menu-look';
-import { ariaKeyShortcut } from '../help/platform';
+import { MenuShortcut, menuDangerRowClasses } from '@/components/ui/menu-look';
+import { ariaKeyShortcut, formatShortcutKeys } from '../help/platform';
 import { useT } from '../i18n';
 import { BoardTitle } from '../workspace/board-presentation';
 import type { WorkspaceBoards } from '../workspace/useBoardSwitcher';
@@ -28,6 +28,7 @@ import {
   type ContextMenuItemId,
   type ContextMenuTarget,
   type ContextSubmenu,
+  type ContextMenuEntry,
 } from './context-menu-items';
 
 /**
@@ -126,6 +127,10 @@ export function CanvasContextMenu({
     [target, readOnly, canShareLinks, mindMap, canHideLikes, short],
   );
 
+  // Edit stays out of the way until something in it applies to the selection.
+  const canAct = (entry: ContextMenuEntry) =>
+    typeof entry === 'string' || entry.submenu !== 'edit' || entry.items.some((id) => actions[id]);
+
   return (
     <ContextMenu open={open} onOpenChange={onOpenChange}>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
@@ -136,30 +141,33 @@ export function CanvasContextMenu({
         onCloseAutoFocus={onCloseAutoFocus}
         aria-label={target === 'selection' ? t('contextMenu.selection') : t('contextMenu.canvas')}
         data-testid={`context-menu-${target}`}
+        className="w-[244px] max-w-none min-w-0"
       >
         {groups.map((group, index) => (
           <Fragment key={index}>
             {index > 0 && <ContextMenuSeparator />}
-            {group.map((entry) =>
-              typeof entry === 'string' ? (
-                <Row
-                  key={entry}
-                  id={entry}
-                  actions={actions}
-                  checks={checks}
-                  label={labels?.[entry]}
-                />
-              ) : (
-                <Submenu
-                  key={entry.submenu}
-                  submenu={entry}
-                  actions={actions}
-                  checks={checks}
-                  moveTo={moveTo}
-                  container={container}
-                />
-              ),
-            )}
+            {group
+              .filter(canAct)
+              .map((entry) =>
+                typeof entry === 'string' ? (
+                  <Row
+                    key={entry}
+                    id={entry}
+                    actions={actions}
+                    checks={checks}
+                    label={labels?.[entry]}
+                  />
+                ) : (
+                  <Submenu
+                    key={entry.submenu}
+                    submenu={entry}
+                    actions={actions}
+                    checks={checks}
+                    moveTo={moveTo}
+                    container={container}
+                  />
+                ),
+              )}
           </Fragment>
         ))}
       </ContextMenuContent>
@@ -189,7 +197,12 @@ function Row({ id, actions, checks, label: labelOverride }: RowProps) {
   const action = actions[id];
   // Only an unbuilt row says "Soon". A built one that does not apply to what
   // is selected is disabled and says nothing, so it never reads as missing.
-  const badge = action === undefined ? <Soon /> : null;
+  const badge =
+    action === undefined ? (
+      <Soon />
+    ) : shortcut && !choice ? (
+      <MenuShortcut>{formatShortcutKeys(shortcut).join('+')}</MenuShortcut>
+    ) : null;
   const keyshortcuts = action && shortcut ? ariaKeyShortcut(shortcut) : undefined;
 
   // Picked through the radio group around it, which runs the action.
@@ -227,7 +240,6 @@ function Row({ id, actions, checks, label: labelOverride }: RowProps) {
       disabled={!action}
       onSelect={action ?? undefined}
       className={destructive ? menuDangerRowClasses : undefined}
-      icon={Icon && <Icon />}
       badge={badge}
       aria-keyshortcuts={keyshortcuts}
       data-testid={`context-menu-${id}`}
@@ -267,7 +279,7 @@ function Submenu({
         container={container}
         collisionPadding={8}
         loop
-        className={submenu.compact ? 'min-w-36' : undefined}
+        className="w-[168px] max-w-none min-w-0"
       >
         {picksOne ? (
           <ContextMenuRadioGroup

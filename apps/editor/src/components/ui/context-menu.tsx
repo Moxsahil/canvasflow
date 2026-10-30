@@ -6,15 +6,17 @@ import { Check, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   MenuBadge,
+  MenuGlide,
   MenuRowEnd,
   MenuRowIcon,
-  MenuToggleBox,
   menuLabelClasses,
   menuPanelClasses,
   menuRowClasses,
-  menuSeparatorClasses,
-  menuSubTriggerClasses,
+  menuChevronClasses,
+  MENU_SUB_OFFSET,
+  MenuToggleBox,
   useMenuPress,
+  menuSeparatorClasses,
 } from './menu-look';
 
 const ContextMenu = ContextMenuPrimitive.Root;
@@ -22,7 +24,10 @@ const ContextMenuTrigger = ContextMenuPrimitive.Trigger;
 const ContextMenuSub = ContextMenuPrimitive.Sub;
 
 /** The shared panel, capped to the room the popper reports and scrolled past it. */
-const panelClasses = cn(menuPanelClasses, 'max-h-(--radix-context-menu-content-available-height)');
+const panelClasses = cn(
+  menuPanelClasses,
+  'relative max-h-(--radix-context-menu-content-available-height)',
+);
 
 /**
  * Radix treats a release it never saw pressed as a click, whatever the button.
@@ -52,6 +57,7 @@ const ContextMenuContent = React.forwardRef<
         onContextMenu={(event) => event.preventDefault()}
         {...props}
       >
+        <MenuGlide />
         <MotionConfig reducedMotion="user">{children}</MotionConfig>
       </ContextMenuPrimitive.Content>
     </ContextMenuPrimitive.Portal>
@@ -192,13 +198,9 @@ const ContextMenuSubTrigger = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.SubTrigger>
 >(function ContextMenuSubTrigger({ className, children, ...props }, ref) {
   return (
-    <ContextMenuPrimitive.SubTrigger
-      ref={ref}
-      className={cn(menuRowClasses, menuSubTriggerClasses, className)}
-      {...props}
-    >
+    <ContextMenuPrimitive.SubTrigger ref={ref} className={cn(menuRowClasses, className)} {...props}>
       <span className="min-w-0 truncate">{children}</span>
-      <MenuRowEnd icon={<ChevronRight />} />
+      <MenuRowEnd icon={<ChevronRight className={menuChevronClasses} />} />
     </ContextMenuPrimitive.SubTrigger>
   );
 });
@@ -219,10 +221,12 @@ const ContextMenuSubContent = React.forwardRef<
     <ContextMenuPrimitive.Portal container={container ?? undefined}>
       <ContextMenuPrimitive.SubContent
         ref={ref}
+        sideOffset={MENU_SUB_OFFSET}
         className={cn(panelClasses, className)}
         onContextMenu={(event) => event.preventDefault()}
         {...props}
       >
+        <MenuGlide />
         <MotionConfig reducedMotion="user">{children}</MotionConfig>
       </ContextMenuPrimitive.SubContent>
     </ContextMenuPrimitive.Portal>

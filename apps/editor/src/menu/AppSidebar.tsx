@@ -1,14 +1,9 @@
-import { cn } from '@/lib/utils';
-import { menuDangerButtonClasses } from '@/components/ui/menu-look';
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarRail,
   SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
@@ -20,20 +15,13 @@ import {
   WorkspaceSwitcher,
   type BoardSwitcherState,
 } from '../workspace';
-import { PreferencesMenu, type PreferencesState } from '../preferences';
+import { type PreferencesState } from '../preferences';
 import type { ThemePreference } from '../theme';
 import type { SurfaceTheme } from '../ui/surface-palette';
 import { BoardCard } from './BoardCard';
 import { BoardList, RailSeparator } from './BoardList';
-import { ThemeToggle } from './ThemeToggle';
 import { NavUser, type SidebarUser } from './NavUser';
-import {
-  liveAction,
-  MENU_ITEMS,
-  SIDEBAR_ITEMS,
-  type MenuActions,
-  type MenuItemId,
-} from './menu-items';
+import { type MenuActions } from './menu-items';
 
 interface AppSidebarProps {
   /** The board on screen, and the workspaces and boards it can be swapped for. */
@@ -66,13 +54,13 @@ interface AppSidebarProps {
 /**
  * The editor's sidebar, laid out as a library of the workspace's boards: the
  * workspace at the top, its boards one click apart in the middle with the open
- * board's card under them, and help, appearance and the account at the foot.
+ * board's card under them, and the account at the foot, whose menu holds help,
+ * the theme and the preferences.
  *
  * Everything in it is drawn from the sidebar's own palette — no chrome tokens,
  * no hand-rolled rows — so it reads as one surface with the popups it opens.
- * Collapses to an icon rail and back by the button beside the workspace, the
- * rail on its edge or ⌘B; dragging that rail resizes it. Both the state and
- * the width persist in the cookies the sidebar writes for itself.
+ * Collapses to an icon rail and back by the button beside the workspace or ⌘B;
+ * the state persists in the cookie the sidebar writes for itself.
  */
 export function AppSidebar({
   boardSwitcher,
@@ -86,10 +74,9 @@ export function AppSidebar({
   onOpenBilling,
 }: AppSidebarProps) {
   return (
-    // Inset: the sidebar sits on the window's own ground, and the canvas is a
-    // rounded panel beside it (see the SidebarInset in Editor), so no rule is
-    // needed down the edge.
-    <Sidebar variant="inset" collapsible="icon" className="group-data-[side=left]:border-r-0">
+    // Floating: a panel of its own on the board's ground, so the board runs
+    // right up to it with no rule down the edge.
+    <Sidebar variant="floating" collapsible="icon" className="group-data-[side=left]:border-r-0">
       <SidebarHeader className="flex-row items-center gap-1 group-data-[collapsible=icon]:flex-col">
         {/* The rail starts at the button that opens it again: the workspace
             has nothing to show there that the open sidebar doesn't. */}
@@ -107,16 +94,12 @@ export function AppSidebar({
 
       <SidebarFooter>
         <SidebarMenu>
-          {SIDEBAR_ITEMS.map((id) => (
-            <MenuRow key={id} id={id} onSelect={liveAction(actions?.[id])} />
-          ))}
-          <ThemeToggle value={theme} onChange={onThemeChange} />
-          <PreferencesMenu preferences={preferences} portalContainer={portalContainer} />
-        </SidebarMenu>
-        <SidebarMenu>
           <NavUser
             user={user}
             actions={actions}
+            theme={theme}
+            onThemeChange={onThemeChange}
+            preferences={preferences}
             portalContainer={portalContainer}
             plan={
               boardSwitcher.workspaces?.find((workspace) => workspace.id === boardSwitcher.listedId)
@@ -125,8 +108,6 @@ export function AppSidebar({
           />
         </SidebarMenu>
       </SidebarFooter>
-
-      <SidebarRail />
 
       {/* Mounted here rather than inside the list or the card, because both
           open it — and a menu that closes as the dialog opens would take a
@@ -163,46 +144,5 @@ function CollapseButton() {
       data-testid="sidebar-collapse"
       className="shrink-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
     />
-  );
-}
-
-interface RowProps {
-  id: MenuItemId;
-  /**
-   * A function makes the row live. `null` means the feature exists but does
-   * not apply right now, and absent means it isn't built — see `MenuActions`.
-   * Both disable the row; only the last one says "Soon".
-   */
-  onSelect?: (() => void) | null;
-}
-
-/** What the right-hand column of a row shows: its shortcut, or why it can't be used. */
-function rowHint(onSelect: RowProps['onSelect'], soon: string, shortcut?: string) {
-  const hint = shortcut ? formatShortcut(shortcut) : null;
-  return { hint, badge: onSelect === undefined ? soon : hint };
-}
-
-/** A row that stands on its own, with its icon in the collapsed column. */
-function MenuRow({ id, onSelect }: RowProps) {
-  const t = useT();
-  const { labelKey, icon: Icon, shortcut, destructive } = MENU_ITEMS[id];
-  const label = t(labelKey);
-  const { hint, badge } = rowHint(onSelect, t('common.soon'), shortcut);
-
-  return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        onClick={onSelect ?? undefined}
-        disabled={!onSelect}
-        tooltip={onSelect === undefined ? t('common.comingSoon', { label }) : label}
-        aria-keyshortcuts={hint ?? undefined}
-        data-testid={`menu-${id}`}
-        className={cn(destructive && menuDangerButtonClasses)}
-      >
-        <Icon aria-hidden="true" />
-        <span>{label}</span>
-        <span className="ml-auto shrink-0 text-xs opacity-50">{badge}</span>
-      </SidebarMenuButton>
-    </SidebarMenuItem>
   );
 }

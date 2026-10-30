@@ -99,7 +99,7 @@ const HANDLE_SIZE = 8; // screen pixels
  * match it — the frame rename box rings itself in this, and a second copy of
  * the value would drift the moment either was tuned.
  */
-export const SELECTION_COLOR = '#6366f1';
+export const SELECTION_COLOR = '#4d84fd';
 const HANDLE_FILL = '#ffffff';
 
 const SEARCH_MATCH_FILL = 'rgba(255, 226, 0, 0.4)';

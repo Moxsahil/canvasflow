@@ -13,6 +13,7 @@ import { drawTopicShape } from './draw-topic.js';
 import { drawNoteShape } from './draw-note.js';
 import {
   generateRectangleDrawable,
+  outlineCap,
   generateEllipseDrawable,
   generateDiamondDrawable,
   generateLineDrawable,
@@ -151,7 +152,9 @@ export function drawSceneShape(
 
   switch (painted.kind) {
     case 'rectangle':
+      ctx.lineCap = outlineCap(painted) ?? 'butt';
       drawShape(rc, generateRectangleDrawable(rc, painted));
+      ctx.lineCap = 'butt';
       drawShapeText(ctx, painted, context);
       break;
     case 'ellipse':
@@ -159,7 +162,9 @@ export function drawSceneShape(
       drawShapeText(ctx, painted, context);
       break;
     case 'diamond':
+      ctx.lineCap = outlineCap(painted) ?? 'butt';
       drawShape(rc, generateDiamondDrawable(rc, painted));
+      ctx.lineCap = 'butt';
       drawShapeText(ctx, painted, context);
       break;
     case 'line':

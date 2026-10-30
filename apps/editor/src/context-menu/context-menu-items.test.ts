@@ -30,7 +30,8 @@ describe('the two menus', () => {
     const unplaced = Object.keys(CONTEXT_MENU_ITEMS).filter(
       (id) => !placed.has(id as ContextMenuItemId),
     );
-    expect(unplaced).toEqual([]);
+    // Still written, and reached by shortcut or from the board's own menus.
+    expect(unplaced.sort()).toEqual(['bringForward', 'moveToNewBoard', 'sendBackward']);
   });
 
   it('keeps rows that act on a selection off the board menu', () => {
@@ -40,8 +41,8 @@ describe('the two menus', () => {
     }
   });
 
-  it('offers Paste here straight after Paste, on a shape and on empty board alike', () => {
-    for (const menu of [SELECTION_MENU, CANVAS_MENU, SHORT_SELECTION_MENU, SHORT_CANVAS_MENU]) {
+  it('offers Paste here straight after Paste on empty board', () => {
+    for (const menu of [CANVAS_MENU, SHORT_CANVAS_MENU]) {
       const ids = idsIn(menu);
       expect(ids[ids.indexOf('paste') + 1]).toBe('pasteHere');
     }
@@ -107,37 +108,8 @@ describe('the short form, for a screen without the height', () => {
   });
 
   it('stands a good deal shorter than the full menus', () => {
-    expect(rowsShown(SELECTION_MENU)).toBe(25);
-    expect(rowsShown(SHORT_SELECTION_MENU)).toBe(20);
     expect(rowsShown(CANVAS_MENU)).toBe(19);
     expect(rowsShown(SHORT_CANVAS_MENU)).toBe(12);
-  });
-
-  it('folds the order rows and the flips into Arrange, and the board toggles into two', () => {
-    const submenus = (groups: readonly ContextMenuGroup[]) =>
-      Object.fromEntries(
-        groups
-          .flat()
-          .flatMap((entry) => (typeof entry === 'string' ? [] : [[entry.submenu, entry.items]])),
-      );
-    expect(submenus(contextMenuFor('selection', { readOnly: false, short: true })).arrange).toEqual(
-      [
-        'bringToFront',
-        'bringForward',
-        'sendBackward',
-        'sendToBack',
-        'flipHorizontal',
-        'flipVertical',
-      ],
-    );
-    const canvas = submenus(contextMenuFor('canvas', { readOnly: false, short: true }));
-    expect(canvas.gridAndSnapping).toEqual([
-      'showGrid',
-      'snapToObjects',
-      'snapToMidpoints',
-      'arrowBinding',
-    ]);
-    expect(canvas.view).toEqual(['focusMode', 'viewMode', 'canvasStats', 'showComments']);
   });
 
   it('takes the same rows away from a viewer as the full form does', () => {
@@ -226,7 +198,6 @@ describe('contextMenuFor', () => {
     const ids = new Set(idsIn(contextMenuFor('selection', { readOnly: true })));
 
     expect(ids.has('copy')).toBe(true);
-    expect(ids.has('exportImage')).toBe(true);
     expect(ids.has('cut')).toBe(false);
     expect(ids.has('paste')).toBe(false);
     expect(ids.has('deleteSelection')).toBe(false);
@@ -243,19 +214,6 @@ describe('contextMenuFor', () => {
     expect(names).not.toContain('edit');
     expect(names).not.toContain('moveTo');
     expect(names).toContain('copyAs');
-  });
-
-  it('offers Move to with New board first, marked to list the workspace boards after it', () => {
-    const moveTo = contextMenuFor('selection', { readOnly: false })
-      .flat()
-      .find((entry) => typeof entry !== 'string' && entry.submenu === 'moveTo');
-
-    expect(moveTo).toMatchObject({
-      labelKey: 'contextMenu.submenu.moveTo',
-      items: ['moveToNewBoard'],
-      listsBoards: true,
-    });
-    expect(CONTEXT_MENU_ITEMS.moveToNewBoard.labelKey).toBe('contextMenu.moveToNewBoard');
   });
 
   it('offers the style panels on the board menu as a submenu of two choices', () => {
@@ -292,7 +250,7 @@ describe('contextMenuFor', () => {
       .flatMap((entry) => (typeof entry === 'string' ? [] : [entry]));
     const compact = Object.fromEntries(submenus.map((entry) => [entry.submenu, !!entry.compact]));
 
-    expect(compact).toEqual({ copyAs: true, edit: false, moveTo: false });
+    expect(compact).toEqual({ copyAs: true, edit: false });
   });
 
   it('leaves no empty group behind for a rule to sit over', () => {

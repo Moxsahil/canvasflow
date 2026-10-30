@@ -64,11 +64,11 @@ export function EmbedPlacer({
         <div
           // The board's own selection colour, as the outline the embed is
           // about to get, a shade lighter on the dark board to stay legible.
-          className="pointer-events-none absolute z-(--zIndex-wysiwyg) rounded-lg border-[1.5px] border-dashed border-[#6366f1] bg-[#6366f1]/6 dark:border-[#818cf8] dark:bg-[#818cf8]/8"
+          className="pointer-events-none absolute z-(--zIndex-wysiwyg) rounded-lg border-[1.5px] border-dashed border-[#4d84fd] bg-[#4d84fd]/6 dark:border-[#818cf8] dark:bg-[#818cf8]/8"
           style={{ left: frame.x, top: frame.y, width: frame.width, height: frame.height }}
           data-testid="embed-place-frame"
         >
-          <span className="absolute top-1.5 left-2 text-[11px] font-medium text-[#6366f1] dark:text-[#a5b4fc]">
+          <span className="absolute top-1.5 left-2 text-[11px] font-medium text-[#4d84fd] dark:text-[#a5b4fc]">
             {t('tools.embed')}
           </span>
         </div>

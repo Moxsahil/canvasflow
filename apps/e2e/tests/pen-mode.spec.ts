@@ -415,6 +415,7 @@ test('a pen draws, fingers move the board, and a resting hand leaves it alone', 
   });
 
   await test.step('turned off in Preferences, a finger draws again and the next pen leaves it off', async () => {
+    await page.getByTestId('menu-account').click();
     await page.getByTestId('menu-preferences').click();
     const row = page.getByTestId('preference-penMode');
     await expect(row).toHaveAttribute('aria-checked', 'true');

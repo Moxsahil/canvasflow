@@ -28,7 +28,23 @@ interface ShortcutsModalProps {
 const TOTAL_SHORTCUTS = SHORTCUTS.reduce((count, category) => count + category.entries.length, 0);
 
 /** Evened out rather than one per category, so no one group sets the height. */
-const COLUMNS = balanceColumns(SHORTCUTS, 3);
+const COLUMNS_NARROW = balanceColumns(SHORTCUTS, 3);
+const COLUMNS_WIDE = balanceColumns(SHORTCUTS, 4);
+
+/** From this window width there is room for four columns, and nothing has to scroll. */
+const WIDE_FROM = 1400;
+
+function useWideWindow(): boolean {
+  const [wide, setWide] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth >= WIDE_FROM,
+  );
+  useEffect(() => {
+    const onResize = () => setWide(window.innerWidth >= WIDE_FROM);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return wide;
+}
 
 const ALL_ENTRIES = SHORTCUTS.flatMap((category) => category.entries);
 
@@ -137,14 +153,15 @@ type Said = { kind: 'found'; entry: ShortcutEntry } | { kind: 'missed'; combo: s
 /**
  * Everything the keyboard can do, on one page.
  *
- * Three columns, so all 52 are in view at once and read as a reference rather
- * than a list to scroll. The search filters in place: a category with nothing
+ * Four columns on a wide window and three on a narrower one, so all of them are
+ * in view at once and read as a reference rather than a list to scroll. The search filters in place: a category with nothing
  * left folds away and the rest close up from the left. Pressing a shortcut
  * while the window is open lights up its row, and the foot says what it does.
  */
 export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
   const t = useT();
   const titleId = useId();
+  const wide = useWideWindow();
   const mac = useMemo(() => isMac(), []);
   const [query, setQuery] = useState('');
   const [said, setSaid] = useState<Said | null>(null);
@@ -232,7 +249,7 @@ export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
       open={open}
       theme={theme}
       onClose={onClose}
-      width={980}
+      width={wide ? 1500 : 980}
       labelledBy={titleId}
       onEscape={() => {
         if (!query) return false;
@@ -316,14 +333,18 @@ export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
           <div
             className={cn(
               searching
-                ? 'block columns-3 gap-x-[32px]'
-                : 'grid grid-cols-3 items-start gap-x-[32px]',
+                ? wide
+                  ? 'block columns-4 gap-x-[40px]'
+                  : 'block columns-3 gap-x-[32px]'
+                : wide
+                  ? 'grid grid-cols-4 items-start gap-x-[40px]'
+                  : 'grid grid-cols-3 items-start gap-x-[32px]',
             )}
           >
-            {COLUMNS.map((column, index) => (
+            {(wide ? COLUMNS_WIDE : COLUMNS_NARROW).map((column, index) => (
               <div
                 key={index}
-                className={searching ? 'contents' : 'grid min-w-0 content-start gap-[16px]'}
+                className={searching ? 'contents' : 'grid min-w-0 content-start gap-[24px]'}
               >
                 {column.map((category) => {
                   const entries = searching ? category.entries.filter(matches) : category.entries;
@@ -334,7 +355,7 @@ export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
                       aria-label={t(category.titleKey)}
                       className={cn('grid min-w-0', searching && 'break-inside-avoid pb-[16px]')}
                     >
-                      <h3 className="mb-[3px] flex items-baseline justify-between text-[12px] font-semibold">
+                      <h3 className="mb-[6px] flex items-baseline justify-between text-[12px] font-semibold">
                         {t(category.titleKey)}
                         <span className="text-[11px] font-normal text-[var(--surface-fg-faint)] tabular-nums">
                           {category.entries.length}
@@ -414,7 +435,7 @@ function ShortcutRow({
     <div
       data-shortcut={entry.keys}
       data-flash={flashing ? '' : undefined}
-      className="relative -mx-[6px] flex min-h-[28px] items-center gap-[12px] rounded-[6px] px-[6px] py-[3px] transition-colors duration-[600ms] before:absolute before:inset-x-[6px] before:top-0 before:h-px before:bg-[var(--surface-line)] first-of-type:before:hidden data-[flash]:bg-[var(--surface-flash)] data-[flash]:duration-0 data-[flash]:before:hidden"
+      className="relative -mx-[6px] flex min-h-[32px] items-center gap-[12px] rounded-[6px] px-[6px] py-[4px] transition-colors duration-[600ms] before:absolute before:inset-x-[6px] before:top-0 before:h-px before:bg-[var(--surface-line)] first-of-type:before:hidden data-[flash]:bg-[var(--surface-flash)] data-[flash]:duration-0 data-[flash]:before:hidden"
     >
       <span className="min-w-0 flex-1 text-[12px] leading-[1.35]">
         {highlight(t(entry.descriptionKey), terms)}

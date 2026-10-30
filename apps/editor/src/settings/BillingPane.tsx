@@ -330,7 +330,7 @@ export function BillingPane({ workspace, onUpgrade }: BillingPaneProps) {
                           type="button"
                           disabled={busy !== null}
                           onClick={() => void download(invoice.id)}
-                          className="text-[12.5px] text-[var(--surface-accent)] underline underline-offset-2 hover:opacity-80 focus-visible:rounded-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] disabled:opacity-50"
+                          className="text-[12.5px] text-[var(--surface-link)] underline underline-offset-2 hover:opacity-80 focus-visible:rounded-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] disabled:opacity-50"
                         >
                           {busy === invoice.id ? t('billing.opening') : t('billing.downloadPdf')}
                         </button>

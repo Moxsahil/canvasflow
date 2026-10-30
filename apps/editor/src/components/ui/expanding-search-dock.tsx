@@ -69,7 +69,7 @@ export function ExpandingSearchDock({
             aria-label={name}
             aria-expanded={false}
             style={{ width: COLLAPSED_SIZE, height: COLLAPSED_SIZE }}
-            className="flex items-center justify-center rounded-full border border-(--default-border-color) bg-(--island-bg-color) text-(--icon-fill-color) transition-colors hover:bg-(--button-hover-bg) focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none"
+            className="flex items-center justify-center rounded-[10px] border border-(--default-border-color) bg-(--island-bg-color) text-(--icon-fill-color) transition-colors hover:bg-(--button-hover-bg) focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none"
           >
             <Search className="h-4 w-4" aria-hidden="true" />
           </motion.button>
@@ -88,7 +88,7 @@ export function ExpandingSearchDock({
           >
             <div
               style={{ height: COLLAPSED_SIZE }}
-              className="relative flex items-center gap-1 overflow-hidden rounded-full border border-(--default-border-color) bg-(--island-bg-color)"
+              className="relative flex items-center gap-1 overflow-hidden rounded-[10px] border border-(--default-border-color) bg-(--island-bg-color)"
             >
               <Search
                 className="ml-3 h-4 w-4 shrink-0 text-(--keybinding-color)"

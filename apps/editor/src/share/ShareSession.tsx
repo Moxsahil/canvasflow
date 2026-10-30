@@ -2,24 +2,22 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import {
   Check,
+  Ellipsis,
+  Link2,
+  QrCode,
   ChevronDown,
   Code,
   Copy,
   Crown,
   Eye,
-  Lock,
   Pencil,
-  Play,
-  Radio,
-  Square,
-  Trash2,
   Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { menuDangerRowClasses } from '@/components/ui/menu-look';
 import { initialsOf } from '@/lib/initials';
 import { PersonAvatar } from '../ui/PersonAvatar';
-import { formatShortDate, t as translate, useT, type TranslationKey } from '../i18n';
+import { formatShortDate, useT, type TranslationKey } from '../i18n';
 import {
   InlineDropdownMenu,
   InlineDropdownMenuChoiceItem,
@@ -116,7 +114,8 @@ export interface ShareSessionPanelProps {
   /** The QR code for `url`, drawn by the caller. */
   qr?: ReactNode;
   /** Pinned in tests; otherwise the clock. */
-  now?: number;
+  /** How many people are on the board right now. */
+  hereCount?: number;
   /** Embedding the board on other sites; left out, the section is not shown. */
   embed?: EmbedSettings;
 }
@@ -162,32 +161,33 @@ const REMOVE = 'remove';
  */
 export function ShareSessionPanel(props: ShareSessionPanelProps) {
   const t = useT();
-  const { boardName, people, session, onClose } = props;
-  const members = t('share.memberCount', { count: people.length });
+  const { boardName, session, onClose } = props;
+  const [more, setMore] = useState(false);
 
   return (
     <>
-      <header className="flex shrink-0 items-start gap-[12px] px-[20px] pt-[18px] pr-[16px]">
-        <span
-          aria-hidden="true"
-          className="flex size-[36px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-accent)] text-[12px] font-semibold text-[var(--surface-on-accent)]"
-        >
-          {initialsOf(boardName)}
-        </span>
-        <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
-          <h2 className="truncate text-[16px] font-semibold tracking-[-0.01em]">{boardName}</h2>
-          <p className="flex items-center gap-[5px] text-[12px] text-[var(--surface-fg-muted)]">
-            <Users className="size-[12px]" aria-hidden="true" />
-            {members}
-            {session ? ` · ${t('share.sharingIsLive')}` : ''}
-          </p>
-        </div>
+      <header className="flex shrink-0 items-center gap-[12px] px-[20px] pt-[16px] pr-[16px]">
+        <h2 className="min-w-0 flex-1 truncate text-[16px] font-semibold tracking-[-0.01em]">
+          {t('share.dialogLabel', { name: boardName })}
+        </h2>
+        {props.embed && (
+          <button
+            type="button"
+            aria-label={t('common.more')}
+            aria-expanded={more}
+            data-testid="share-more"
+            onClick={() => setMore((open) => !open)}
+            className="flex size-[28px] shrink-0 items-center justify-center rounded-[8px] text-[var(--surface-fg-muted)] transition-colors hover:bg-[var(--surface-wash)] hover:text-[var(--surface-fg)] focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] focus-visible:outline-none"
+          >
+            <Ellipsis className="size-[16px]" aria-hidden="true" />
+          </button>
+        )}
         <CloseButton label={t('common.close')} onClick={onClose} />
       </header>
 
       <div
         className={cn(
-          'flex min-h-0 flex-col gap-[16px] overflow-y-auto px-[20px] pt-[14px]',
+          'flex min-h-0 flex-col gap-[16px] overflow-y-auto px-[20px] pt-[14px] pb-[20px]',
           SCROLLBAR,
         )}
       >
@@ -196,10 +196,10 @@ export function ShareSessionPanel(props: ShareSessionPanelProps) {
         </Measured>
 
         <section aria-label={t('share.onThisBoard')} className="flex min-h-0 flex-col gap-[2px]">
-          <div className="flex items-baseline justify-between">
-            <h3 className="text-[12px] font-semibold">{t('share.onThisBoard')}</h3>
-            <span className="text-[11.5px] text-[var(--surface-fg-muted)]">{members}</span>
-          </div>
+          <div aria-hidden="true" className="mb-[14px] h-px bg-[var(--surface-line)]" />
+          <h3 className="mb-[6px] text-[11px] font-medium text-[var(--surface-fg-muted)]">
+            {t('share.onThisBoard')}
+          </h3>
           <PeopleList {...props} />
           {props.guestMayReturn && props.onResetLink && (
             <GuestMayReturn
@@ -212,40 +212,14 @@ export function ShareSessionPanel(props: ShareSessionPanelProps) {
             <RemovedList removed={props.removed} onAddBack={props.onAddBack} />
           )}
         </section>
-
-        {props.embed && <EmbedSection {...props.embed} />}
+        {more && props.embed && <EmbedSection {...props.embed} />}
       </div>
 
-      <footer className="flex shrink-0 items-center gap-[8px] px-[20px] pt-[16px] pb-[18px]">
-        <p
-          role={props.error ? 'alert' : undefined}
-          className={cn(
-            'min-w-0 flex-1 text-[11px]',
-            props.error ? 'text-[var(--surface-danger)]' : 'text-[var(--surface-fg-faint)]',
-          )}
-        >
-          {props.error ?? (session ? t('share.keepsRunning') : '')}
+      {props.error && (
+        <p role="alert" className="px-[20px] pb-[16px] text-[11px] text-[var(--surface-danger)]">
+          {props.error}
         </p>
-        <SettingsButton
-          variant="ghost"
-          className="h-[32px] px-[14px] text-[12.5px]"
-          onClick={onClose}
-        >
-          {t('common.done')}
-        </SettingsButton>
-        {!session && (
-          <SettingsButton
-            variant="primary"
-            className="h-[32px] px-[14px] text-[12.5px]"
-            onClick={props.onStart}
-            disabled={props.busy}
-            data-testid="share-start"
-          >
-            <Play className="size-[12px]" aria-hidden="true" />
-            {props.busy ? t('share.starting') : t('share.start')}
-          </SettingsButton>
-        )}
-      </footer>
+      )}
     </>
   );
 }
@@ -381,15 +355,7 @@ export function ShareCollaboratorPanel({
         </section>
       </div>
 
-      <footer className="flex shrink-0 items-center justify-end gap-[8px] px-[20px] pt-[16px] pb-[18px]">
-        <SettingsButton
-          variant="ghost"
-          className="h-[32px] px-[14px] text-[12.5px]"
-          onClick={onClose}
-        >
-          {t('common.done')}
-        </SettingsButton>
-      </footer>
+      <footer className="flex shrink-0 items-center justify-end gap-[8px] px-[20px] pt-[16px] pb-[18px]"></footer>
     </>
   );
 }
@@ -429,23 +395,17 @@ function HeroTop({
 }: {
   live: boolean;
   title: ReactNode;
-  hint: string;
+  hint?: string;
   action?: ReactNode;
 }) {
   return (
     <div className="flex items-center gap-[12px]">
-      <span
-        aria-hidden="true"
-        className={cn(
-          'flex size-[36px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-panel)]',
-          live ? 'text-[#22c55e]' : 'text-[var(--surface-fg-muted)]',
-        )}
-      >
-        <Radio className="size-[16px]" />
-      </span>
+      {live && (
+        <span aria-hidden="true" className="size-[7px] shrink-0 rounded-full bg-[#22c55e]" />
+      )}
       <div className="flex min-w-0 flex-1 flex-col gap-[1px]">
-        <p className="text-[13.5px] font-semibold">{title}</p>
-        <p className="text-[11.5px] text-[var(--surface-fg-muted)]">{hint}</p>
+        <p className="text-[12.5px] font-medium first-letter:uppercase">{title}</p>
+        {hint && <p className="text-[11.5px] text-[var(--surface-fg-muted)]">{hint}</p>}
       </div>
       {action}
     </div>
@@ -458,53 +418,73 @@ function IdleHero({
   allowGuests,
   onRoleChange,
   onAllowGuestsChange,
+  onStart,
+  onMenuOpenChange,
+  menuContainer,
   busy,
 }: ShareSessionPanelProps) {
   const t = useT();
+  const { label } = PERMISSIONS[role];
   return (
-    <div className={HERO}>
-      <HeroTop live={false} title={t('share.notSharing')} hint={t('share.notSharingHint')} />
-      <div className="flex flex-col gap-[8px]">
-        <p id="share-joiners" className="text-[11.5px] text-[var(--surface-fg-muted)]">
+    <div className="flex flex-col gap-[16px]">
+      <div className={HERO}>
+        <HeroTop live={false} title={t('share.notSharing')} hint={t('share.notSharingHint')} />
+        <SettingsButton
+          variant="primary"
+          className="h-[36px] self-start px-[16px] text-[13px]"
+          onClick={onStart}
+          disabled={busy}
+          data-testid="share-start"
+        >
+          {busy ? t('share.starting') : t('share.start')}
+        </SettingsButton>
+      </div>
+      <div className="flex items-center justify-between gap-[12px]">
+        <p id="share-joiners" className="text-[12.5px] font-medium">
           {t('share.peopleWhoJoinCan')}
         </p>
-        <div
-          role="radiogroup"
-          aria-labelledby="share-joiners"
-          className="grid grid-cols-2 gap-[8px]"
-        >
-          {(['viewer', 'editor'] as const).map((key) => {
-            const { label, hint, icon: Icon } = PERMISSIONS[key];
-            const selected = role === key;
-            return (
-              <button
-                key={key}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                disabled={busy}
-                onClick={() => onRoleChange(key)}
-                data-testid={`share-role-${key}`}
-                className={cn(
-                  'grid grid-cols-[16px_1fr] gap-x-[8px] gap-y-[2px] rounded-[10px] bg-[var(--surface-panel)] px-[12px] py-[10px] text-left transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-wash)]',
-                  selected
-                    ? 'shadow-[0_0_0_2px_var(--surface-accent)]'
-                    : 'shadow-[0_0_0_1px_var(--surface-border)]',
-                )}
-              >
-                <Icon
-                  aria-hidden="true"
-                  className={cn(
-                    'row-span-2 mt-[1px] size-[14px]',
-                    selected ? 'text-[var(--surface-accent)]' : 'text-[var(--surface-fg-muted)]',
-                  )}
-                />
-                <span className="text-[12.5px] font-medium">{t(label)}</span>
-                <span className="text-[11px] text-[var(--surface-fg-muted)]">{t(hint)}</span>
-              </button>
-            );
-          })}
-        </div>
+        <InlineDropdownMenu onOpenChange={onMenuOpenChange}>
+          <InlineDropdownMenuTrigger asChild>
+            <SettingsButton
+              aria-labelledby="share-joiners"
+              disabled={busy}
+              data-testid="share-role-joiners"
+              className="gap-[6px] pr-[7px] pl-[9px] data-[state=open]:bg-[var(--surface-wash-hover)] [&[data-state=open]>svg:last-child]:rotate-180"
+            >
+              {t(label)}
+              <ChevronDown
+                className="size-[12px] text-[var(--surface-fg-muted)] transition-transform duration-200"
+                aria-hidden="true"
+              />
+            </SettingsButton>
+          </InlineDropdownMenuTrigger>
+          <InlineDropdownMenuContent
+            align="end"
+            sideOffset={4}
+            collisionPadding={8}
+            container={menuContainer}
+            className="min-w-56"
+          >
+            <InlineDropdownMenuRadioGroup
+              value={role}
+              onValueChange={(value) => onRoleChange(value as 'viewer' | 'editor')}
+            >
+              {(['viewer', 'editor'] as const).map((key) => {
+                const Option = PERMISSIONS[key];
+                return (
+                  <InlineDropdownMenuChoiceItem
+                    key={key}
+                    value={key}
+                    title={t(Option.hint)}
+                    data-testid={`share-role-${key}`}
+                  >
+                    {t(Option.label)}
+                  </InlineDropdownMenuChoiceItem>
+                );
+              })}
+            </InlineDropdownMenuRadioGroup>
+          </InlineDropdownMenuContent>
+        </InlineDropdownMenu>
       </div>
       <div className="flex items-center gap-[12px]">
         <div className="flex min-w-0 flex-1 flex-col gap-[1px]">
@@ -532,75 +512,125 @@ function LiveHero({
   copied,
   onStop,
   onCopy,
+  onMenuOpenChange,
+  menuContainer,
   qr,
-  now,
+  hereCount = 0,
 }: ShareSessionPanelProps & { session: LiveSession }) {
   const t = useT();
-  const clock = useNow(now);
-  const until = session.expiresAt
-    ? t('share.joinUntil', { date: formatDate(session.expiresAt) })
-    : t('share.joinUntilStopped');
 
   return (
-    <div className={HERO} aria-live="polite">
-      <HeroTop
-        live
-        title={t('share.liveFor', { duration: liveFor(session.startedAt, clock) })}
-        hint={until}
-        action={
-          <SettingsButton
-            variant="danger"
-            onClick={onStop}
-            disabled={busy}
-            data-testid="share-stop"
-          >
-            <Square className="size-[11px]" aria-hidden="true" />
-            {busy ? t('share.stopping') : t('share.stop')}
-          </SettingsButton>
-        }
-      />
-      <div className="flex items-center gap-[14px]">
-        <div className="flex min-w-0 flex-1 flex-col gap-[8px]">
-          <div className="flex gap-[6px]">
-            <input
-              readOnly
-              value={url ?? ''}
-              placeholder={t('share.linkElsewhere')}
-              aria-label={t('share.sessionLink')}
-              onFocus={(event) => event.currentTarget.select()}
-              className={cn(INPUT, 'min-w-0 flex-1')}
-            />
+    <div className="flex flex-col gap-[16px]">
+      <div
+        className="flex flex-col gap-[14px] rounded-[12px] bg-[var(--surface-accent-wash)] p-[16px]"
+        aria-live="polite"
+      >
+        <HeroTop
+          live
+          title={
+            hereCount > 0
+              ? `${t('share.sharingIsLive')} · ${t('share.hereNowCount', { count: hereCount })}`
+              : t('share.sharingIsLive')
+          }
+          hint={
+            session.expiresAt
+              ? t('share.joinUntil', { date: formatDate(session.expiresAt) })
+              : undefined
+          }
+          action={
             <SettingsButton
-              variant="primary"
-              className="h-[32px] px-[14px] text-[12.5px]"
-              onClick={onCopy}
-              disabled={!url}
-              data-testid="share-copy"
+              className="text-[var(--surface-danger)]"
+              onClick={onStop}
+              disabled={busy}
+              data-testid="share-stop"
             >
-              {copied ? (
-                <Check className="size-[14px]" aria-hidden="true" />
-              ) : (
-                <Copy className="size-[14px]" aria-hidden="true" />
-              )}
-              {copied ? t('links.copied') : t('export.copy')}
+              {busy ? t('share.stopping') : t('share.stop')}
             </SettingsButton>
-          </div>
-          <div className="flex flex-wrap items-center gap-[6px]">
-            <span className="inline-flex h-[22px] items-center gap-[5px] rounded-full bg-[var(--surface-panel)] px-[8px] text-[11px] text-[var(--surface-fg-muted)]">
-              <Lock className="size-[11px]" aria-hidden="true" />
-              {t(PERMISSIONS[session.role].label)} ·{' '}
-              {session.allowGuests ? t('share.guestsCanJoin') : t('share.accountsOnly')}
-            </span>
-            <span className="text-[11.5px] text-[var(--surface-fg-muted)]">
-              {url ? t('share.setAtStart') : t('share.restartForLink')}
-            </span>
+          }
+        />
+        <div className="flex items-center gap-[14px]">
+          <div className="flex min-w-0 flex-1 flex-col gap-[8px]">
+            <div className="flex gap-[6px]">
+              <label className="flex h-[36px] min-w-0 flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--surface-border)] bg-[var(--surface-input)] px-[12px]">
+                <Link2
+                  className="size-[14px] shrink-0 text-[var(--surface-fg-muted)]"
+                  aria-hidden="true"
+                />
+                <input
+                  readOnly
+                  value={url ?? ''}
+                  placeholder={t('share.linkElsewhere')}
+                  aria-label={t('share.sessionLink')}
+                  onFocus={(event) => event.currentTarget.select()}
+                  className="min-w-0 flex-1 bg-transparent text-[12.5px] outline-none"
+                />
+              </label>
+              <SettingsButton
+                variant="primary"
+                className="h-[36px] px-[16px] text-[13px]"
+                onClick={onCopy}
+                disabled={!url}
+                data-testid="share-copy"
+              >
+                {copied ? t('links.copied') : t('links.copy')}
+              </SettingsButton>
+              {url && qr && (
+                <InlineDropdownMenu onOpenChange={onMenuOpenChange}>
+                  <InlineDropdownMenuTrigger asChild>
+                    <SettingsButton
+                      aria-label={t('share.qrLabel')}
+                      title={t('share.scanHint')}
+                      data-testid="share-qr-toggle"
+                      className="h-[36px] w-[36px] px-0 data-[state=open]:bg-[var(--surface-wash-hover)]"
+                    >
+                      <QrCode className="size-[14px]" aria-hidden="true" />
+                    </SettingsButton>
+                  </InlineDropdownMenuTrigger>
+                  <InlineDropdownMenuContent
+                    align="end"
+                    sideOffset={6}
+                    collisionPadding={8}
+                    container={menuContainer}
+                    aria-label={t('share.qrLabel')}
+                    className="w-auto min-w-0 p-2"
+                  >
+                    {qr}
+                  </InlineDropdownMenuContent>
+                </InlineDropdownMenu>
+              )}
+            </div>
+            {!url && (
+              <p className="text-[11.5px] text-[var(--surface-fg-muted)]">
+                {t('share.restartForLink')}
+              </p>
+            )}
           </div>
         </div>
-        {url && qr ? (
-          <div title={t('share.scanHint')} className="shrink-0">
-            {qr}
-          </div>
-        ) : null}
+      </div>
+      <div className="flex items-center justify-between gap-[12px]">
+        <p className="text-[12.5px] font-medium">{t('share.peopleWhoJoinCan')}</p>
+        <SettingsButton
+          disabled
+          title={t('share.setAtStart')}
+          className="gap-[6px] pr-[7px] pl-[9px]"
+        >
+          {t(PERMISSIONS[session.role].label)}
+          <ChevronDown className="size-[12px]" aria-hidden="true" />
+        </SettingsButton>
+      </div>
+      <div className="flex items-center gap-[12px]">
+        <div className="flex min-w-0 flex-1 flex-col gap-[1px]">
+          <p className="text-[12.5px] font-medium">{t('share.allowGuests')}</p>
+          <p className="text-[11.5px] text-[var(--surface-fg-muted)]">
+            {t('share.allowGuestsHint')}
+          </p>
+        </div>
+        <Toggle
+          label={t('share.allowGuestsLabel')}
+          on={session.allowGuests}
+          onChange={() => {}}
+          disabled
+        />
       </div>
     </div>
   );
@@ -650,7 +680,7 @@ function EmbedSection({ on, code, busy, copied, onChange, onCopy }: EmbedSetting
             />
             <SettingsButton
               variant="primary"
-              className="h-[32px] px-[14px] text-[12.5px]"
+              className="h-[36px] px-[16px] text-[13px]"
               onClick={onCopy}
               disabled={!code}
               data-testid="share-embed-copy"
@@ -668,6 +698,15 @@ function EmbedSection({ on, code, busy, copied, onChange, onCopy }: EmbedSetting
       )}
     </section>
   );
+}
+
+const AVATAR_COLOURS = ['bg-[#135dfc]', 'bg-[#a855f7]', 'bg-[#16a34a]', 'bg-[#f97316]'];
+
+/** Each person's letters on a colour of their own, the same every time. */
+function avatarColour(id: string): string {
+  let sum = 0;
+  for (const char of id) sum += char.charCodeAt(0);
+  return AVATAR_COLOURS[sum % AVATAR_COLOURS.length]!;
 }
 
 /**
@@ -699,9 +738,16 @@ function PeopleList({
           initial={person.justJoined ? { opacity: 0, y: -6 } : false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: EASE }}
-          className="flex h-[50px] shrink-0 items-center gap-[11px] border-t border-[var(--surface-line)] first:border-t-0"
+          className="flex shrink-0 items-center gap-[10px] py-[6px]"
         >
-          <PersonAvatar url={person.photo} name={person.name} className="size-[30px] text-[11px]" />
+          <PersonAvatar
+            url={person.photo}
+            name={person.name}
+            className={cn(
+              'size-[26px] text-[10px] font-semibold text-white',
+              avatarColour(person.id),
+            )}
+          />
           <div className="flex min-w-0 flex-1 flex-col gap-[1px]">
             <p className="flex min-w-0 items-center gap-[6px] text-[12.5px] font-medium">
               <span className="truncate">
@@ -721,8 +767,7 @@ function PeopleList({
             </p>
           </div>
           {person.isOwner ? (
-            <span className="inline-flex h-[26px] shrink-0 items-center gap-[5px] rounded-[7px] border border-[var(--surface-border)] px-[9px] text-[11.5px] text-[var(--surface-fg-muted)]">
-              <Crown className="size-[12px]" aria-hidden="true" />
+            <span className="shrink-0 text-[11px] text-[var(--surface-fg-muted)]">
               {t('role.owner')}
             </span>
           ) : person.workspaceRole ? (
@@ -861,7 +906,7 @@ function RoleMenu({
 }) {
   const t = useT();
   const role = person.role === 'owner' ? 'editor' : person.role;
-  const { label, icon: Icon } = PERMISSIONS[role];
+  const { label } = PERMISSIONS[role];
   return (
     <InlineDropdownMenu onOpenChange={onOpenChange}>
       <InlineDropdownMenuTrigger asChild>
@@ -870,7 +915,6 @@ function RoleMenu({
           data-testid={`share-role-menu-${person.id}`}
           className="gap-[6px] pr-[7px] pl-[9px] data-[state=open]:bg-[var(--surface-wash-hover)] [&[data-state=open]>svg:last-child]:rotate-180"
         >
-          <Icon className="size-[12px]" aria-hidden="true" />
           {t(label)}
           <ChevronDown
             className="size-[12px] text-[var(--surface-fg-muted)] transition-transform duration-200"
@@ -891,24 +935,15 @@ function RoleMenu({
           onValueChange={(value) => onChange(value as ShareRole)}
         >
           {(['viewer', 'editor'] as const).map((key) => {
-            const OptionIcon = PERMISSIONS[key].icon;
             return (
-              <InlineDropdownMenuChoiceItem
-                key={key}
-                value={key}
-                icon={<OptionIcon aria-hidden="true" />}
-              >
+              <InlineDropdownMenuChoiceItem key={key} value={key}>
                 {t(PERMISSIONS[key].label)}
               </InlineDropdownMenuChoiceItem>
             );
           })}
         </InlineDropdownMenuRadioGroup>
         <InlineDropdownMenuSeparator />
-        <InlineDropdownMenuItem
-          icon={<Trash2 aria-hidden="true" />}
-          onSelect={() => onChange(REMOVE)}
-          className={menuDangerRowClasses}
-        >
+        <InlineDropdownMenuItem onSelect={() => onChange(REMOVE)} className={menuDangerRowClasses}>
           {t('share.removeFromBoard')}
         </InlineDropdownMenuItem>
       </InlineDropdownMenuContent>
@@ -917,30 +952,6 @@ function RoleMenu({
 }
 
 /** The clock, once a second, for as long as something is live on screen. */
-function useNow(pinned?: number): number {
-  const [now, setNow] = useState(() => pinned ?? Date.now());
-  useEffect(() => {
-    if (pinned !== undefined) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [pinned]);
-  return pinned ?? now;
-}
-
-/**
- * How long a session has run: "0:42" and "12:05" within the hour, then
- * "2 h 14 min", then "3 days". A link lives until it is stopped, so a session
- * can run for weeks, and seconds stop mattering long before that.
- */
-export function liveFor(startedAt: string, now: number): string {
-  const seconds = Math.max(0, Math.floor((now - new Date(startedAt).getTime()) / 1000));
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-  const hours = Math.floor(seconds / 3600);
-  if (hours < 24) {
-    return translate('share.hoursMinutes', { hours, minutes: Math.floor((seconds % 3600) / 60) });
-  }
-  return translate('share.days', { count: Math.floor(hours / 24) });
-}
 
 function formatDate(iso: string): string {
   return formatShortDate(new Date(iso));

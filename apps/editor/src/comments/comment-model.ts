@@ -176,3 +176,19 @@ export function canEditComment(comment: Comment, userId: string | null): boolean
 export function canDeleteThread(thread: CommentThread, userId: string | null): boolean {
   return userId !== null && thread.createdBy === userId;
 }
+
+/**
+ * A name saved while tokens were misread: its UTF-8 bytes stored one character
+ * each, so an emoji or an accent came out as `Mahakð...`. Those are still in old
+ * comments, and reading the bytes again gives the name back. Anything that isn't
+ * exactly that shape, like a real `José`, fails the strict decode and is left be.
+ */
+export function repairGarbledName(name: string): string {
+  if (!/[\u0080-\u00ff]/.test(name) || /[\u0100-\uffff]/.test(name)) return name;
+  try {
+    const bytes = Uint8Array.from(name, (char) => char.charCodeAt(0));
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return name;
+  }
+}

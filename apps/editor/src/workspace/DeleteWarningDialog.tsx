@@ -143,9 +143,15 @@ export function DeleteWarningDialog({
         >
           {t('common.cancel')}
         </WindowButton>
-        <WindowButton variant="danger" type="submit" disabled={!confirmed || busy}>
-          {!busy && <Trash2 aria-hidden="true" />}
-          {busy ? t('common.deleting') : confirmLabel}
+        <WindowButton
+          variant="danger"
+          type="submit"
+          disabled={!confirmed}
+          busy={busy}
+          busyLabel={t('common.deleting')}
+        >
+          <Trash2 aria-hidden="true" />
+          {confirmLabel}
         </WindowButton>
       </WindowFooter>
     </SurfaceWindow>

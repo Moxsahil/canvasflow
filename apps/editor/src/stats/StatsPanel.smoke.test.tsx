@@ -34,7 +34,6 @@ function render(shapes: Shape[], selected: Shape[] = [], readOnly = false): stri
       shapes={shapes}
       selectedShapes={selected}
       readOnly={readOnly}
-      boardWidth={1600}
       onEdit={noop}
       onEditEnd={noop}
       onClose={noop}

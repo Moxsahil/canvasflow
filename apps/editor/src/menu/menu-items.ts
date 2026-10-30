@@ -104,25 +104,12 @@ export const MENU_ITEMS: Readonly<Record<MenuItemId, MenuItemMeta>> = {
  * a row of icons under the board's name. Each carries its label as a tooltip
  * and an accessible name.
  */
-export const BOARD_CARD_ITEMS: readonly MenuItemId[] = [
-  'open',
-  'saveTo',
-  'exportImage',
-  'renameBoard',
-  'copyLink',
-];
-
-/**
- * The rest of what can be done to the board, behind the card's More button.
- * Reset stays last and on its own — it is the one entry that discards work.
- */
-export const BOARD_MORE_GROUPS: readonly (readonly MenuItemId[])[] = [
-  ['liveCollaboration', 'findOnCanvas', 'commandPalette'],
+export const BOARD_MENU_GROUPS: readonly (readonly MenuItemId[])[] = [
+  ['renameBoard', 'open', 'saveTo', 'exportImage'],
+  ['liveCollaboration', 'copyLink'],
+  ['commandPalette', 'findOnCanvas', 'help'],
   ['resetCanvas'],
 ];
-
-/** Rows that stand on their own, at the foot of the sidebar. */
-export const SIDEBAR_ITEMS: readonly MenuItemId[] = ['help'];
 
 /** Account actions, behind the avatar at the bottom of the sidebar. */
 export const ACCOUNT_MENU_GROUPS: readonly (readonly MenuItemId[])[] = [['settings'], ['signOut']];

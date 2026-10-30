@@ -1,3 +1,4 @@
+import { MenuGlide } from '@/components/ui/menu-look';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ChevronUpIcon } from '../assets/icons';
 import { useT } from '../i18n';
@@ -71,12 +72,13 @@ export function ToolOverflow({
         // the dock this opens from (see GlassDock) — same surface, and the
         // shadow reads as a halo around it on a dark canvas. The border and
         // the blurred surface are what set it apart from the board.
-        className="flex w-auto min-w-52 flex-col gap-0.5 rounded-2xl border-(--dock-border-color) bg-(--dock-bg-color) p-1 text-(--text-primary-color) shadow-none backdrop-blur-xl backdrop-saturate-150"
+        className="relative flex w-auto min-w-52 flex-col gap-0.5 rounded-2xl border-(--dock-border-color) bg-(--dock-bg-color) p-1 text-(--text-primary-color) shadow-none backdrop-blur-xl backdrop-saturate-150"
         // Focus stays on the board. Moving it into the list would mean the
         // next keystroke went to a menu item rather than to the canvas, and
         // these rows exist to be clicked, not tabbed through.
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
+        <MenuGlide follow="pointer" />
         {tools.map((meta) => {
           const Icon = meta.icon;
           return (

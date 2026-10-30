@@ -21,7 +21,12 @@ import {
   InlineDropdownMenuItem,
   InlineDropdownMenuTrigger,
 } from '@/components/ui/inline-dropdown-menu';
-import { MenuBadge, menuChipClasses, menuSurfaceClasses } from '@/components/ui/menu-look';
+import {
+  MenuBadge,
+  MenuGlide,
+  menuChipClasses,
+  menuSurfaceClasses,
+} from '@/components/ui/menu-look';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { saveFile } from '../file/save-file';
 import { useT } from '../i18n';
@@ -111,7 +116,7 @@ export function LibraryMenu({
           type="button"
           aria-label={t('library.title')}
           title={t('library.title')}
-          className="relative flex size-9 items-center justify-center rounded-full border border-(--default-border-color) bg-(--island-bg-color) text-(--icon-fill-color) transition-colors hover:bg-(--button-hover-bg) focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none data-[state=open]:bg-(--button-hover-bg)"
+          className="relative flex size-9 items-center justify-center rounded-[10px] border border-(--default-border-color) bg-(--island-bg-color) text-(--icon-fill-color) transition-colors hover:bg-(--button-hover-bg) focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)] focus-visible:outline-none data-[state=open]:bg-(--button-hover-bg)"
           data-testid="library-button"
         >
           <LibraryBig className="size-4" aria-hidden="true" />
@@ -549,8 +554,9 @@ export function LibraryPanel({
       <div className="flex min-h-0 flex-1 flex-col border-t border-neutral-300 sm:flex-row dark:border-neutral-700">
         <nav
           aria-label={t('library.libraries')}
-          className="flex flex-none gap-px overflow-x-auto border-b border-neutral-300 p-1.5 sm:w-46 sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto sm:border-r sm:border-b-0 dark:border-neutral-700"
+          className="relative flex flex-none gap-px overflow-x-auto border-b border-neutral-300 p-1.5 sm:w-46 sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto sm:border-r sm:border-b-0 dark:border-neutral-700"
         >
+          <MenuGlide follow="pointer" />
           <ShelfButton
             icon={<Folder />}
             label={t('library.personal')}
@@ -706,7 +712,6 @@ function ShelfButton({
       className={cn(
         'flex h-7 flex-none items-center gap-2 rounded-md px-2 text-left text-xs whitespace-nowrap',
         focusRing,
-        'hover:bg-neutral-950/10 dark:hover:bg-neutral-50/10',
         'disabled:pointer-events-none',
         current && 'bg-neutral-950/10 font-semibold dark:bg-neutral-50/10',
         soon && mutedText,

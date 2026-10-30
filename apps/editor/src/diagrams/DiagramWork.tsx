@@ -114,7 +114,7 @@ function StepList({ steps, now, elapsed }: { steps: Step[]; now?: WorkPhase; ela
                 {...ORBS[step.phase]}
                 size={18}
                 label={t('diagrams.working')}
-                className="mt-px text-[var(--surface-accent)]"
+                className="mt-px text-[var(--surface-link)]"
               />
             ) : (
               <Check className="mt-0.5 size-3.5 text-[var(--surface-ok)]" aria-hidden="true" />

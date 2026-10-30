@@ -1,4 +1,4 @@
-import { Maximize, Minus, Plus } from 'lucide-react';
+import { Redo2, Undo2, Minus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Toolbar,
@@ -11,7 +11,6 @@ import { formatShortcut } from '../help/platform';
 import { t as translate, useT } from '../i18n';
 import { MAX_ZOOM, MIN_ZOOM } from '../machine/tool-machine.types';
 import type { SyncStatus } from '../sync/sync-status';
-import { BREAKPOINT, getBreakpoint } from '../ui/breakpoints';
 
 interface ZoomPanelProps {
   zoom: number;
@@ -21,17 +20,16 @@ interface ZoomPanelProps {
    * uncommenting it and the `syncStatus` prop in the destructure.
    */
   syncStatus: SyncStatus;
-  /** Fitting has nothing to frame on an empty board, which disables its button. */
-  canZoomToFit: boolean;
-  /**
-   * Width of the canvas, which is what the panel has to share with the dock in
-   * the middle of the same edge. See the shedding rules on the component.
-   */
-  canvasWidth: number;
+  /** Undo and redo, at the end of the panel. Viewers have none. */
+  history?: {
+    canUndo: boolean;
+    canRedo: boolean;
+    onUndo: () => void;
+    onRedo: () => void;
+  };
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetZoom: () => void;
-  onZoomToFit: () => void;
 }
 
 /** Zoom multiplies by 1.2 a step, so it lands near a limit rather than on it. */
@@ -45,11 +43,8 @@ const ZOOM_EPSILON = 0.001;
 const BUTTON_CLASS = 'size-(--default-button-size)';
 
 /**
- * View controls, bottom-right: sync status and the zoom readout with the
- * actions that move it. Undo/redo used to live here too; they sit with the tool
- * dock now (see HistoryPanel), and the theme picker sits in the sidebar's
- * Appearance section — so this panel is about the view alone rather than a mix
- * of view, editing and app settings.
+ * View controls, bottom-left: the zoom readout with the actions that move it,
+ * then undo and redo.
  *
  * It shares this edge with the dock, which is centred on it and, at some 27rem
  * of buttons, much the wider of the two. So the panel gives way as the canvas
@@ -65,18 +60,13 @@ const BUTTON_CLASS = 'size-(--default-button-size)';
 export function ZoomPanel({
   zoom,
   // syncStatus,
-  canZoomToFit,
-  canvasWidth,
   onZoomIn,
   onZoomOut,
   onResetZoom,
-  onZoomToFit,
+  history,
 }: ZoomPanelProps) {
   const t = useT();
   const zoomPercent = Math.round(zoom * 100);
-  const breakpoint = getBreakpoint(canvasWidth);
-
-  if (breakpoint < BREAKPOINT.TABLET) return null;
 
   const readout = (
     <Tooltip>
@@ -111,7 +101,7 @@ export function ZoomPanel({
       // as two panels of slightly different build. `px-1.5 py-1` replace the
       // p-1 the component ships with; they merge, so neither is left to
       // stylesheet order to settle.
-      className="absolute right-4 bottom-4 z-(--zIndex-layerUI) items-center gap-1 rounded-card border-(--dock-border-color) bg-(--dock-bg-color) px-1.5 py-1 backdrop-blur-xl backdrop-saturate-150"
+      className="absolute bottom-4 left-4 z-(--zIndex-layerUI) items-center max-md:bottom-[60px] gap-1 rounded-card border-(--dock-border-color) bg-(--dock-bg-color) px-1.5 py-1 backdrop-blur-xl backdrop-saturate-150"
     >
       {/* <SyncStatusDot status={syncStatus} /> */}
 
@@ -120,9 +110,7 @@ export function ZoomPanel({
       {/* Tight: the readout alone, which is both the reading and the way back
           to 100%. It reads as a label, so the button keeps the ghost surface
           and only lights up on hover. */}
-      {breakpoint < BREAKPOINT.DESKTOP ? (
-        readout
-      ) : (
+      {
         <>
           <ToolbarGroup>
             <Tooltip>
@@ -160,34 +148,48 @@ export function ZoomPanel({
             </Tooltip>
           </ToolbarGroup>
 
-          {/* Two corrections to what the component ships. `my-0`, spelled in
-              the same variant it sets the margin in so the two merge: left on,
-              its 6px a side would count towards the row's height, and the bar
-              could stand prouder than the dock. And `self-center`, because its
-              `self-stretch` with a
-              height this definite lays out as flex-start — which sits the line
-              against the top of the row rather than in the middle of it. */}
-          <ToolbarSeparator className="mx-1 h-4 self-center bg-(--dock-separator-color) data-[orientation=vertical]:my-0" />
-
-          <ToolbarGroup>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <ToolbarButton
-                  aria-label={t('zoom.fitAll')}
-                  disabled={!canZoomToFit}
-                  onClick={onZoomToFit}
-                  render={<Button className={BUTTON_CLASS} size="icon" variant="ghost" />}
-                >
-                  <Maximize />
-                </ToolbarButton>
-              </TooltipTrigger>
-              <TooltipContent>
-                {t('commands.zoomToFit')} · {formatShortcut('mod+2')}
-              </TooltipContent>
-            </Tooltip>
-          </ToolbarGroup>
+          {history && (
+            <>
+              {/* `my-0` and `self-center` correct what the component ships: its
+                  margin would count towards the row's height, and its stretch
+                  at this height would sit the line against the top. */}
+              <ToolbarSeparator className="mx-1 h-4 self-center bg-(--dock-separator-color) data-[orientation=vertical]:my-0" />
+              <ToolbarGroup>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ToolbarButton
+                      aria-label={t('commands.undo')}
+                      disabled={!history.canUndo}
+                      onClick={history.onUndo}
+                      render={<Button className={BUTTON_CLASS} size="icon" variant="ghost" />}
+                    >
+                      <Undo2 />
+                    </ToolbarButton>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {t('commands.undo')} · {formatShortcut('mod+z')}
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ToolbarButton
+                      aria-label={t('commands.redo')}
+                      disabled={!history.canRedo}
+                      onClick={history.onRedo}
+                      render={<Button className={BUTTON_CLASS} size="icon" variant="ghost" />}
+                    >
+                      <Redo2 />
+                    </ToolbarButton>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {t('commands.redo')} · {formatShortcut('mod+shift+z')}
+                  </TooltipContent>
+                </Tooltip>
+              </ToolbarGroup>
+            </>
+          )}
         </>
-      )}
+      }
     </Toolbar>
   );
 }

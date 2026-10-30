@@ -1,11 +1,5 @@
 import { useId, type ReactNode } from 'react';
-import {
-  SurfaceWindow,
-  WindowBadge,
-  WindowButton,
-  WindowFooter,
-  WindowHeader,
-} from './SurfaceWindow';
+import { SurfaceWindow, WindowButton, WindowFooter, WindowHeader } from './SurfaceWindow';
 import { useT } from '../i18n';
 import type { SurfaceTheme } from './surface-palette';
 
@@ -46,7 +40,6 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel,
   destructive = false,
-  icon,
   busy = false,
   theme,
   onClose,
@@ -71,13 +64,10 @@ export function ConfirmDialog({
         title={title}
         description={children}
         descriptionId={bodyId}
-        lead={
-          icon ? <WindowBadge tone={destructive ? 'warn' : 'soft'}>{icon}</WindowBadge> : undefined
-        }
         onClose={onClose}
       />
       <WindowFooter>
-        <WindowButton variant="ghost" autoFocus data-autofocus onClick={onClose}>
+        <WindowButton autoFocus data-autofocus onClick={onClose}>
           {cancelLabel ?? t('common.cancel')}
         </WindowButton>
         <WindowButton

@@ -1,8 +1,7 @@
 import { useId } from 'react';
-import { LogOut, TriangleAlert } from 'lucide-react';
+import { TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '../i18n';
-import { PersonAvatar } from '../ui/PersonAvatar';
 import {
   SurfaceWindow,
   WindowBody,
@@ -19,8 +18,6 @@ interface SignOutDialogProps {
   name: string;
   /** Shown under the name so the dialog says *which* account is leaving. */
   email: string | null;
-  /** The account's photo, when it has one; the initials stand in otherwise. */
-  avatarUrl?: string | null;
   /**
    * Whether this session belongs to someone who joined by share link without
    * an account. A guest identity is not one they can sign back into, which
@@ -54,8 +51,6 @@ export function SignOutDialog({
   open,
   onOpenChange,
   name,
-  email,
-  avatarUrl = null,
   isGuest,
   synced,
   busy,
@@ -81,36 +76,6 @@ export function SignOutDialog({
       <WindowHeader
         titleId={titleId}
         title={t('signOut.title')}
-        // The account, spelled out: the sidebar row that opened this is
-        // collapsed to an initial half the time.
-        description={
-          <span className="flex items-center gap-[6px]">
-            {isGuest ? (
-              <>
-                {name}
-                <span className="inline-flex h-[20px] items-center rounded-full bg-[var(--surface-wash)] px-[7px] text-[10.5px] font-medium">
-                  {t('signOut.guest')}
-                </span>
-              </>
-            ) : email ? (
-              `${name} · ${email}`
-            ) : (
-              name
-            )}
-          </span>
-        }
-        lead={
-          <span className="relative shrink-0" aria-hidden="true">
-            <PersonAvatar
-              url={avatarUrl}
-              name={name}
-              className="size-[36px] bg-[var(--surface-accent)] text-[12px] font-semibold text-[var(--surface-on-accent)]"
-            />
-            <span className="absolute -right-[4px] -bottom-[4px] flex size-[18px] items-center justify-center rounded-full bg-[var(--surface-panel)] text-[var(--surface-fg)] shadow-[0_0_0_1px_var(--surface-border)]">
-              <LogOut className="size-[10px]" strokeWidth={2.5} />
-            </span>
-          </span>
-        }
         onClose={busy ? undefined : close}
       />
 
@@ -144,20 +109,17 @@ export function SignOutDialog({
       <WindowFooter>
         {/* Focus lands here: the button that ends the session is never the
             one under the first keystroke. */}
-        <WindowButton variant="ghost" disabled={busy} autoFocus data-autofocus onClick={close}>
+        <WindowButton disabled={busy} autoFocus data-autofocus onClick={close}>
           {t('common.cancel')}
         </WindowButton>
         <WindowButton
-          variant="ghost"
-          disabled={busy}
+          variant="primary"
+          busy={busy}
+          busyLabel={t('signOut.busy')}
           onClick={onConfirm}
           data-testid="sign-out-confirm"
-          // A touch stronger than the menu's 14.5% and 40%, so the red that shows
-          // over this window's surface is the same one Delete shows over the menu's.
-          className="text-red-400 hover:bg-red-500/[17%] hover:text-red-400 focus-visible:ring-red-400 dark:hover:bg-red-500/[43%]"
         >
-          {!busy && <LogOut aria-hidden="true" />}
-          {busy ? t('signOut.busy') : t('menu.signOut')}
+          {t('menu.signOut')}
         </WindowButton>
       </WindowFooter>
     </SurfaceWindow>

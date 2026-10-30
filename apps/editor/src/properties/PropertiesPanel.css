@@ -13,8 +13,8 @@
    absence of a colour, so it takes the panel's own greys in each theme while
    every real colour beside it holds still. */
 .cf-transparent-swatch {
-  --checker-ground: #fafafa;
-  --checker: #d4d4d4;
+  --checker-ground: #ffffff;
+  --checker: #d4d4d8;
   background-color: var(--checker-ground);
   background-image:
     linear-gradient(45deg, var(--checker) 25%, transparent 25%),
@@ -30,8 +30,8 @@
 }
 
 .cf-editor[data-theme='dark'] .cf-transparent-swatch {
-  --checker-ground: #404040;
-  --checker: #262626;
+  --checker-ground: #35353a;
+  --checker: #111113;
 }
 
 /* ---------- inspector range ----------
@@ -40,8 +40,8 @@
 
 .cf-inspector-range {
   --track: rgb(10 10 10 / 0.08);
-  --ink: #0a0a0a;
-  --ground: #fafafa;
+  --ink: #135dfc;
+  --ground: #ffffff;
   appearance: none;
   height: 16px;
   margin: 0;
@@ -51,8 +51,8 @@
 
 .cf-editor[data-theme='dark'] .cf-inspector-range {
   --track: rgb(250 250 250 / 0.1);
-  --ink: #fafafa;
-  --ground: oklch(26.9% 0 none);
+  --ink: #135dfc;
+  --ground: #111113;
 }
 
 .cf-inspector-range::-webkit-slider-runnable-track {

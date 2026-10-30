@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   ShareCollaboratorPanel,
   ShareSessionPanel,
-  liveFor,
   type SharePerson,
   type ShareSessionPanelProps,
 } from './ShareSession';
@@ -45,7 +44,6 @@ const GUEST: SharePerson = {
 };
 
 const STARTED = '2026-09-29T10:00:00.000Z';
-const AT = new Date('2026-09-29T10:12:05.000Z').getTime();
 
 function render(overrides: Partial<ShareSessionPanelProps> = {}) {
   return renderToString(
@@ -68,7 +66,6 @@ function render(overrides: Partial<ShareSessionPanelProps> = {}) {
       onMemberRole={noop}
       onRemoveMember={noop}
       menuContainer={null}
-      now={AT}
       {...overrides}
     />,
   );
@@ -119,11 +116,8 @@ describe('ShareSessionPanel', () => {
     expect(html).toContain('Not sharing yet');
     expect(html).toContain('Start a session to get a link anyone can join by.');
     expect(html).toContain('People who join can');
-    expect(html).toContain('Can view');
-    expect(html).toContain('Can edit');
-    // The choice for the next session is marked, and it is a radio group.
-    expect(html).toContain('role="radiogroup"');
-    expect(html).toMatch(/aria-checked="true"[^>]*data-testid="share-role-editor"/);
+    // The choice for the next session shows on its menu's button.
+    expect(html).toMatch(/data-testid="share-role-joiners"[\s\S]*Can edit/);
     expect(html).toContain('Allow guests');
     expect(html).toContain('Start session');
     expect(html).not.toContain('Stop session');
@@ -136,17 +130,14 @@ describe('ShareSessionPanel', () => {
       url: 'https://canvasflow.app/join/abc123',
       qr: <span data-testid="qr" />,
     });
-    expect(html).toContain('Live for 12:05');
-    expect(html).toContain('Anyone with the link can join until you stop it.');
-    expect(html).toContain('value="https://canvasflow.app/join/abc123"');
-    expect(html).toContain('data-testid="qr"');
-    expect(html).toContain('Can view');
-    expect(html).toContain('Accounts only');
-    expect(html).toContain('Set when the session started');
-    expect(html).toContain('Stop session');
     expect(html).toContain('sharing is live');
-    // The choices for a session only exist before one starts.
-    expect(html).not.toContain('People who join can');
+    expect(html).toContain('value="https://canvasflow.app/join/abc123"');
+    // The code has its own button on the link's row.
+    expect(html).toContain('data-testid="share-qr-toggle"');
+    expect(html).toContain('Can view');
+    expect(html).toContain('Stop session');
+    // Fixed for the session: the choice shows, but its menu is gone.
+    expect(html).not.toContain('data-testid="share-role-joiners"');
     expect(html).not.toContain('data-testid="share-start"');
   });
 
@@ -177,7 +168,6 @@ describe('ShareSessionPanel', () => {
 
   it('lists everyone, marking the owner, you, guests and who just joined', () => {
     const html = render({ people: [OWNER, JONAH, GUEST] });
-    expect(html).toContain('3 members');
     expect(html).toContain('Owner');
     expect(html).toContain('(you)');
     expect(html).toContain('Guest');
@@ -194,22 +184,6 @@ describe('ShareSessionPanel', () => {
     const html = render({ error: 'Only the board owner can share this board.' });
     expect(html).toContain('role="alert"');
     expect(html).toContain('Only the board owner can share this board.');
-  });
-});
-
-describe('liveFor', () => {
-  const at = (iso: string) => new Date(iso).getTime();
-  it('counts minutes and seconds within the hour', () => {
-    expect(liveFor(STARTED, at('2026-09-29T10:00:07Z'))).toBe('0:07');
-    expect(liveFor(STARTED, at('2026-09-29T10:59:59Z'))).toBe('59:59');
-  });
-  it('switches to hours, then days', () => {
-    expect(liveFor(STARTED, at('2026-09-29T12:14:00Z'))).toBe('2 h 14 min');
-    expect(liveFor(STARTED, at('2026-09-30T10:00:00Z'))).toBe('1 day');
-    expect(liveFor(STARTED, at('2026-10-03T11:00:00Z'))).toBe('4 days');
-  });
-  it('never counts backwards', () => {
-    expect(liveFor(STARTED, at('2026-09-29T09:59:00Z'))).toBe('0:00');
   });
 });
 

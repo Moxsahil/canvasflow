@@ -324,6 +324,7 @@ function UsernameField({
 
   // Only an answer about the name in the field now. Until one comes, the hint.
   const answer = dirty && check?.name === name ? check : null;
+  const [editingName, setEditingName] = useState(false);
 
   const revert = () => {
     touched.current = false;
@@ -349,6 +350,7 @@ function UsernameField({
     }
     touched.current = false;
     setDraft(name);
+    setEditingName(false);
     band?.saved();
   };
 
@@ -368,6 +370,18 @@ function UsernameField({
   ) : (
     t('username.hint')
   );
+
+  // A name already chosen rests as its value and an Edit button. One still to
+  // choose keeps the field out, with the suggestion in it.
+  if (saved && !dirty && !editingName && !problem) {
+    return (
+      <StackedField setting="username" label={t('settings.row.username')} hint={`@${saved}`}>
+        {editable && (
+          <SettingsButton onClick={() => setEditingName(true)}>{t('common.edit')}</SettingsButton>
+        )}
+      </StackedField>
+    );
+  }
 
   return (
     <StackedField setting="username" label={t('settings.row.username')} htmlFor={id} hint={hint}>
@@ -389,8 +403,12 @@ function UsernameField({
           autoCapitalize="none"
           spellCheck={false}
           aria-invalid={problem ? true : undefined}
+          autoFocus={editingName}
           onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onBlur={() => {
+            setFocused(false);
+            if (!dirty) setEditingName(false);
+          }}
           onChange={(event) => {
             const field = event.target;
             const typed = field.value;
@@ -442,7 +460,7 @@ function UsernameField({
               title={t('common.save')}
               disabled={busy || ruleBroken !== null || Boolean(answer?.problem)}
               onClick={() => void claim()}
-              className={cn(INLINE_ACTION, 'text-[var(--surface-accent)]')}
+              className={cn(INLINE_ACTION, 'text-[var(--surface-link)]')}
             >
               <Check className="size-[14px]" aria-hidden="true" />
             </button>

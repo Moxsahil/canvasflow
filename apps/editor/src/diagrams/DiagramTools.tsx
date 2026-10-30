@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
 import {
   Check,
@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { DIAGRAM_DETAILED_COST } from '@canvasflow/types';
+import { MenuGlide } from '@/components/ui/menu-look';
 import { cn } from '@/lib/utils';
 import { useT, type WordKey } from '../i18n';
 
@@ -123,7 +124,7 @@ export function toolInfo(id: DiagramToolId | null, t: ReturnType<typeof useT>) {
       <Icon
         className={cn(
           'size-3.5 shrink-0',
-          tool ? 'text-[var(--surface-accent)]' : 'text-[var(--surface-fg-faint)]',
+          tool ? 'text-[var(--surface-link)]' : 'text-[var(--surface-fg-faint)]',
         )}
         aria-hidden="true"
       />
@@ -176,6 +177,22 @@ export function ToolsShortcut({
   );
 }
 
+const toolRow =
+  'relative flex h-10 cursor-default items-center gap-2.5 rounded-lg px-3 text-sm outline-none select-none';
+
+/** A tool's icon in its own colour, on a round tint of it. */
+function ToolTile({ icon: Icon, color }: { icon: LucideIcon; color: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="grid size-6 shrink-0 place-items-center rounded-full"
+      style={{ backgroundColor: `${color}26` }}
+    >
+      <Icon className="size-3.5" style={{ color }} />
+    </span>
+  );
+}
+
 /**
  * The Tools pill and its list. Picking a tool turns the pill into it, tinted,
  * with an × to take it off; picking it again takes it off too. While the list
@@ -205,6 +222,18 @@ export function DiagramTools({
   const t = useT();
   const tool = diagramTool(picked);
   const short = (item: DiagramTool) => item.id !== picked && left !== null && left < item.cost;
+  const trigger = useRef<HTMLButtonElement>(null);
+  // The list opens from the pill but stands on the box's top edge, over it by a
+  // little, so it never covers what is being typed. Measured each time, since
+  // the box grows with the words.
+  const [offset, setOffset] = useState({ side: 6, align: 0 });
+  useLayoutEffect(() => {
+    const box = trigger.current?.closest('[data-composer]');
+    if (!open || !trigger.current || !box) return;
+    const pill = trigger.current.getBoundingClientRect();
+    const frame = box.getBoundingClientRect();
+    setOffset({ side: pill.top - frame.top - 8, align: frame.left + 12 - pill.left });
+  }, [open]);
 
   const onKeyDown = (event: KeyboardEvent) => {
     const item = DIAGRAM_TOOLS[Number(event.key) - 1];
@@ -219,11 +248,12 @@ export function DiagramTools({
       <DropdownMenuPrimitive.Root open={open} onOpenChange={onOpenChange} modal={false}>
         <DropdownMenuPrimitive.Trigger asChild>
           <button
+            ref={trigger}
             type="button"
             disabled={disabled}
             className={cn(
-              'group inline-flex h-7 min-w-0 items-center gap-1.5 rounded-full border border-[var(--surface-border)] pr-2 pl-2.5 text-xs font-medium outline-none hover:bg-[var(--surface-wash)] focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] disabled:opacity-45 data-[state=open]:bg-[var(--surface-wash)]',
-              tool ? 'text-[var(--surface-accent)]' : 'text-[var(--surface-fg)]',
+              'group inline-flex h-7 min-w-0 items-center gap-1.5 rounded-full border border-[var(--surface-border)] bg-[var(--surface-wash)] pr-2 pl-2.5 text-xs font-medium outline-none hover:bg-[var(--surface-wash-hover)] focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)] disabled:opacity-45 data-[state=open]:bg-[var(--surface-wash-hover)]',
+              tool ? 'text-[var(--surface-link)]' : 'text-[var(--surface-fg)]',
             )}
           >
             {tool ? (
@@ -233,7 +263,7 @@ export function DiagramTools({
             )}
             <span className="truncate">{tool ? t(tool.label) : t('diagrams.tools')}</span>
             <ChevronDown
-              className="size-3 shrink-0 opacity-70 transition-transform duration-150 group-data-[state=open]:rotate-180"
+              className="size-3 shrink-0 opacity-70 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-data-[state=open]:rotate-180"
               aria-hidden="true"
             />
           </button>
@@ -242,7 +272,8 @@ export function DiagramTools({
           <DropdownMenuPrimitive.Content
             side="top"
             align="start"
-            sideOffset={6}
+            sideOffset={offset.side}
+            alignOffset={offset.align}
             collisionPadding={8}
             aria-label={t('diagrams.tools')}
             onKeyDown={onKeyDown}
@@ -250,72 +281,55 @@ export function DiagramTools({
               event.preventDefault();
               onClosed();
             }}
-            className="z-(--zIndex-popup) flex max-h-(--radix-dropdown-menu-content-available-height) w-72 flex-col gap-0.5 overflow-y-auto rounded-xl border border-[var(--surface-border)] bg-[var(--surface-card)] p-1 text-[var(--surface-fg)] shadow-[var(--surface-shadow)] outline-none"
+            className="relative z-(--zIndex-popup) flex max-h-(--radix-dropdown-menu-content-available-height) w-[22rem] max-w-[calc(100vw-2rem)] origin-bottom animate-in fade-in-0 slide-in-from-bottom-2 flex-col overflow-y-auto rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-panel)] p-2 text-[var(--surface-fg)] outline-none duration-300"
           >
-            <div className="flex items-center justify-between px-2 pt-1 pb-1 text-[11px] text-[var(--surface-fg-faint)]">
-              <span>{t('diagrams.tools')}</span>
+            <MenuGlide />
+            <div className="flex items-center justify-between px-3 pt-1 pb-2 text-xs text-[var(--surface-fg-muted)]">
+              <span>{t('diagrams.pickTool')}</span>
               <span>{t('diagrams.toolsKeys', { keys })}</span>
             </div>
-            {DIAGRAM_TOOLS.map((item, index) => {
+            {DIAGRAM_TOOLS.map((item) => {
               const on = item.id === picked;
               return (
                 <DropdownMenuPrimitive.Item
                   key={item.id}
                   disabled={short(item)}
                   onSelect={() => onPick(on ? null : item.id)}
-                  className="flex cursor-default items-start gap-2.5 rounded-lg px-2 py-1.5 outline-none select-none data-[disabled]:opacity-45 data-[highlighted]:bg-[var(--surface-wash)]"
-                >
-                  <item.icon
-                    className="mt-0.5 size-4 shrink-0"
-                    style={{ color: item.color }}
-                    aria-hidden="true"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[12.5px] leading-[1.35] font-medium">
-                      {t(item.label)}
-                      <span className="ml-1.5 font-normal text-[var(--surface-fg-faint)] tabular-nums">
-                        ×{item.cost}
-                      </span>
-                    </span>
-                    <span className="block text-[11.5px] leading-[1.35] text-[var(--surface-fg-muted)]">
-                      {t(item.row)}
-                    </span>
-                  </span>
-                  {on ? (
-                    <Check
-                      className="mt-0.5 size-3.5 shrink-0 text-[var(--surface-fg)]"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <kbd className={cn(kbd, 'mt-0.5')}>{index + 1}</kbd>
+                  title={t(item.row)}
+                  className={cn(
+                    toolRow,
+                    'data-[disabled]:opacity-45',
+                    on && 'bg-[var(--surface-wash)]',
                   )}
+                >
+                  <ToolTile icon={item.icon} color={item.color} />
+                  <span className="min-w-0 flex-1 truncate">{t(item.label)}</span>
+                  <span
+                    className={cn(
+                      'inline-flex shrink-0 items-center gap-1 text-xs tabular-nums',
+                      on
+                        ? 'font-medium text-[var(--surface-link)]'
+                        : 'text-[var(--surface-fg-muted)]',
+                    )}
+                  >
+                    ×{item.cost}
+                    {on && <Check className="size-3.5" aria-hidden="true" />}
+                  </span>
                 </DropdownMenuPrimitive.Item>
               );
             })}
-            <DropdownMenuPrimitive.Separator className="mx-1 my-1 h-px bg-[var(--surface-line)]" />
-            <div className="px-2 pt-0.5 pb-1 text-[11px] text-[var(--surface-fg-faint)]">
-              {t('diagrams.comingSoon')}
-            </div>
             {DIAGRAM_TOOLS_SOON.map((item) => (
               <DropdownMenuPrimitive.Item
                 key={item.id}
                 disabled
-                className="flex cursor-default items-start gap-2.5 rounded-lg px-2 py-1.5 outline-none select-none"
+                title={t(item.row)}
+                className={toolRow}
               >
-                <item.icon
-                  className="mt-0.5 size-4 shrink-0"
-                  style={{ color: item.color }}
-                  aria-hidden="true"
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[12.5px] leading-[1.35] font-medium text-[var(--surface-fg-muted)]">
-                    {t(item.label)}
-                  </span>
-                  <span className="block text-[11.5px] leading-[1.35] text-[var(--surface-fg-muted)]">
-                    {t(item.row)}
-                  </span>
+                <ToolTile icon={item.icon} color={item.color} />
+                <span className="min-w-0 flex-1 truncate text-[var(--surface-fg-muted)]">
+                  {t(item.label)}
                 </span>
-                <span className={cn(soonBadge, 'mt-0.5')}>{t('diagrams.soon')}</span>
+                <span className={soonBadge}>{t('diagrams.soon')}</span>
               </DropdownMenuPrimitive.Item>
             ))}
           </DropdownMenuPrimitive.Content>

@@ -9,6 +9,7 @@ import {
   commentTargetAt,
   isCommentEmpty,
   type CommentThread,
+  repairGarbledName,
 } from './comment-model';
 import { relativeTime } from './comment-time';
 import { isPinInView, isPinOnBoard, panelPlacement, peekPlacement } from './comment-placement';
@@ -184,5 +185,18 @@ describe('isPinOnBoard', () => {
 
     expect(isPinOnBoard({ x: -50, y: 300 }, board)).toBe(true);
     expect(isPinOnBoard({ x: -500, y: 300 }, board)).toBe(false);
+  });
+});
+
+describe('repairGarbledName', () => {
+  it('gives back a name saved as misread bytes', () => {
+    const garbled = String.fromCharCode(...new TextEncoder().encode('Mahak💗'));
+    expect(repairGarbledName(garbled)).toBe('Mahak💗');
+  });
+
+  it('leaves a name that was never garbled alone', () => {
+    for (const name of ['Ada', 'José', 'Mahak💗', 'प्रिया', '']) {
+      expect(repairGarbledName(name)).toBe(name);
+    }
   });
 });

@@ -4,6 +4,7 @@ import {
   renderSceneToCanvas,
   type DiagramStyle,
 } from '@canvasflow/canvas-engine';
+import { cn } from '@/lib/utils';
 import { composeDiagram, type ComposedDiagram } from './diagram-kit';
 
 const previewId = (() => {
@@ -22,6 +23,9 @@ const MIN_HEIGHT = 120;
  * shrinking into a line.
  */
 const MIN_SCALE = 0.42;
+/** How far past life size a diagram grows when it has a whole stage to itself. */
+const MAX_FILL_SCALE = 1;
+const THUMB_HEIGHT = 112;
 
 /**
  * The latest lines, composed one at a time: while one layout is running, lines
@@ -86,15 +90,22 @@ export function DiagramPreview({
   dark,
   label,
   drawStyle,
+  fit: mode,
 }: {
   lines: readonly string[];
   dark: boolean;
   label: string;
   drawStyle?: DiagramStyle;
+  /**
+   * `fill` takes all the room its parent has and sizes the diagram to it, a
+   * little over life size at most; `thumb` is a small picture that never scrolls.
+   */
+  fit?: 'fill' | 'thumb';
 }) {
   const frame = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [room, setRoom] = useState(280);
+  const [roomHeight, setRoomHeight] = useState(MAX_HEIGHT);
   const composed = useComposed(lines, drawStyle);
   const shapes = useMemo(() => composed?.shapes ?? [], [composed]);
   const bounds = useMemo(() => computeBoundingRect(shapes), [shapes]);
@@ -102,7 +113,10 @@ export function DiagramPreview({
   useEffect(() => {
     const element = frame.current;
     if (!element) return;
-    const measure = () => setRoom(Math.max(element.clientWidth - 16, 80));
+    const measure = () => {
+      setRoom(Math.max(element.clientWidth - 16, 80));
+      setRoomHeight(Math.max(element.clientHeight - 16, 80));
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
@@ -111,8 +125,13 @@ export function DiagramPreview({
 
   const width = bounds ? bounds.width + PADDING * 2 : 0;
   const height = bounds ? bounds.height + PADDING * 2 : 0;
-  const fit = width > 0 ? Math.min(room / width, MAX_HEIGHT / height, 1) : 1;
-  const scale = width > 0 ? Math.max(fit, Math.min(MIN_SCALE, MAX_HEIGHT / height)) : 1;
+  const scale = (() => {
+    if (width <= 0) return 1;
+    if (mode === 'fill') return Math.min(room / width, roomHeight / height, MAX_FILL_SCALE);
+    if (mode === 'thumb') return Math.min(room / width, THUMB_HEIGHT / height, 1);
+    const fit = Math.min(room / width, MAX_HEIGHT / height, 1);
+    return Math.max(fit, Math.min(MIN_SCALE, MAX_HEIGHT / height));
+  })();
 
   useEffect(() => {
     const element = canvas.current;
@@ -138,8 +157,21 @@ export function DiagramPreview({
   return (
     <div
       ref={frame}
-      className="flex w-full items-center overflow-x-auto overflow-y-hidden p-2"
-      style={{ height: Math.max(Math.min(height * scale, MAX_HEIGHT), MIN_HEIGHT) + 16 }}
+      className={cn(
+        'flex w-full items-center p-2',
+        mode ? 'overflow-hidden' : 'overflow-x-auto overflow-y-hidden',
+        mode === 'fill' && 'h-full',
+      )}
+      style={
+        mode === 'fill'
+          ? undefined
+          : {
+              height:
+                mode === 'thumb'
+                  ? THUMB_HEIGHT + 16
+                  : Math.max(Math.min(height * scale, MAX_HEIGHT), MIN_HEIGHT) + 16,
+            }
+      }
     >
       <canvas
         ref={canvas}

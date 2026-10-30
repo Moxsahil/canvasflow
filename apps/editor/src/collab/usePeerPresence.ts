@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Peer } from '@canvasflow/canvas-engine';
 import type { CursorColor } from '@canvasflow/types';
 import type { PresenceChannel } from './PresenceChannel';
@@ -117,42 +117,104 @@ function rosterEquals(a: readonly RosterEntry[], b: readonly RosterEntry[]): boo
   });
 }
 
+/**
+ * How long a reload shows the people who were here while the socket reconnects.
+ * Anyone who has really left is gone once this runs out.
+ */
+const SETTLE_MS = 3000;
+/** A remembered list older than this is from an earlier visit, not a reload. */
+const REMEMBER_MS = 30_000;
+
+function peersKey(boardId: string): string {
+  return `cf.peers.${boardId}`;
+}
+
+function readRemembered(boardId: string | null): readonly RosterEntry[] {
+  if (!boardId) return [];
+  try {
+    const raw = window.sessionStorage.getItem(peersKey(boardId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as { at: number; others: RosterEntry[] };
+    return Date.now() - parsed.at < REMEMBER_MS ? parsed.others : [];
+  } catch {
+    return [];
+  }
+}
+
+function remember(boardId: string, others: readonly RosterEntry[]): void {
+  try {
+    if (others.length === 0) window.sessionStorage.removeItem(peersKey(boardId));
+    else
+      window.sessionStorage.setItem(peersKey(boardId), JSON.stringify({ at: Date.now(), others }));
+  } catch {
+    // Private browsing can refuse storage; the list just fills in on connect.
+  }
+}
+
 interface UsePeerPresenceOptions {
   channel: PresenceChannel | null;
   self: RosterSelf | null;
   selfActivity: Peer['activity'];
+  /** The board, so a reload can redraw who was here. Null where nobody else can be. */
+  boardId: string | null;
 }
 
 export function usePeerPresence({
   channel,
   self,
   selfActivity,
+  boardId,
 }: UsePeerPresenceOptions): PeerPresence {
   const peersRef = useRef<readonly Peer[]>([]);
   const listenersRef = useRef(new Set<() => void>());
-  const [roster, setRoster] = useState<readonly RosterEntry[]>([]);
+  const remembered = useMemo(() => readRemembered(boardId), [boardId]);
+  const [settled, setSettled] = useState(false);
+  const [roster, setRoster] = useState<readonly RosterEntry[]>(() => [
+    ...buildRoster([], self, selfActivity),
+    ...remembered,
+  ]);
 
   useEffect(() => {
-    if (!channel) {
-      peersRef.current = [];
-      setRoster([]);
-      for (const listener of listenersRef.current) listener();
-      return;
-    }
+    setSettled(false);
+    const timer = window.setTimeout(() => setSettled(true), SETTLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [boardId]);
 
+  useEffect(() => {
     const apply = (peers: readonly Peer[]) => {
       peersRef.current = peers;
       for (const listener of listenersRef.current) listener();
+      // The first real answer replaces the remembered list outright.
+      if (peers.length > 0) setSettled(true);
       setRoster((previous) => {
         const built = buildRoster(peers, self, selfActivity);
+        if (!settled && peers.length === 0) built.push(...remembered);
         return rosterEquals(previous, built) ? previous : built;
       });
     };
 
+    if (!channel) {
+      apply([]);
+      return;
+    }
+
     const unsubscribe = channel.subscribe(apply);
     apply(channel.getPeers());
     return unsubscribe;
-  }, [channel, self, selfActivity]);
+  }, [channel, self, selfActivity, settled, remembered]);
+
+  const rosterRef = useRef(roster);
+  rosterRef.current = roster;
+  useEffect(() => {
+    if (!boardId) return;
+    const save = () =>
+      remember(
+        boardId,
+        rosterRef.current.filter((entry) => !entry.isSelf),
+      );
+    window.addEventListener('pagehide', save);
+    return () => window.removeEventListener('pagehide', save);
+  }, [boardId]);
 
   const subscribeRef = useRef((listener: () => void) => {
     listenersRef.current.add(listener);

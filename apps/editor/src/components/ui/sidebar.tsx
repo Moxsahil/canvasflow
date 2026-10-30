@@ -22,12 +22,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state';
-const SIDEBAR_WIDTH_COOKIE_NAME = 'sidebar_width';
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-/** Widths the rail can be dragged between, in px. The default is the old fixed 16rem. */
-export const SIDEBAR_WIDTH_DEFAULT = 256;
-export const SIDEBAR_WIDTH_MIN = 240;
-export const SIDEBAR_WIDTH_MAX = 480;
+const SIDEBAR_WIDTH = '16rem';
 const SIDEBAR_WIDTH_MOBILE = '18rem';
 const SIDEBAR_WIDTH_ICON = '3rem';
 const SIDEBAR_KEYBOARD_SHORTCUT = 'b';
@@ -40,19 +36,7 @@ type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void;
   isMobile: boolean;
   toggleSidebar: () => void;
-  /** The expanded width in px, whatever the state — collapsing keeps it for next time. */
-  width: number;
-  setWidth: (width: number) => void;
-  /** True while the rail is being dragged, so nothing animates behind the pointer. */
-  isResizing: boolean;
-  setIsResizing: (resizing: boolean) => void;
 };
-
-/** A width the rail allows, so a stale cookie or a bad caller can't break the layout. */
-export function clampSidebarWidth(width: number): number {
-  if (!Number.isFinite(width)) return SIDEBAR_WIDTH_DEFAULT;
-  return Math.round(Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, width)));
-}
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null);
 
@@ -71,13 +55,10 @@ const SidebarProvider = React.forwardRef<
     defaultOpen?: boolean;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
-    /** The expanded width to start at, in px; persisted to its own cookie once dragged. */
-    defaultWidth?: number;
   }
 >(function SidebarProvider(
   {
     defaultOpen = true,
-    defaultWidth = SIDEBAR_WIDTH_DEFAULT,
     open: openProp,
     onOpenChange: setOpenProp,
     className,
@@ -108,21 +89,6 @@ const SidebarProvider = React.forwardRef<
     },
     [setOpenProp, open],
   );
-
-  const [width, _setWidth] = React.useState(() => clampSidebarWidth(defaultWidth));
-  const [isResizing, setIsResizing] = React.useState(false);
-  const setWidth = React.useCallback((value: number) => {
-    _setWidth(clampSidebarWidth(value));
-  }, []);
-
-  // Persisted once a drag lets go rather than on every pointer move, and never
-  // for the width it started at.
-  const persistedWidth = React.useRef(width);
-  React.useEffect(() => {
-    if (isResizing || width === persistedWidth.current) return;
-    persistedWidth.current = width;
-    document.cookie = `${SIDEBAR_WIDTH_COOKIE_NAME}=${width}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
-  }, [width, isResizing]);
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
@@ -155,23 +121,8 @@ const SidebarProvider = React.forwardRef<
       openMobile,
       setOpenMobile,
       toggleSidebar,
-      width,
-      setWidth,
-      isResizing,
-      setIsResizing,
     }),
-    [
-      state,
-      open,
-      setOpen,
-      isMobile,
-      openMobile,
-      setOpenMobile,
-      toggleSidebar,
-      width,
-      setWidth,
-      isResizing,
-    ],
+    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar],
   );
 
   return (
@@ -182,7 +133,7 @@ const SidebarProvider = React.forwardRef<
           data-slot="sidebar-wrapper"
           style={
             {
-              '--sidebar-width': `${width}px`,
+              '--sidebar-width': SIDEBAR_WIDTH,
               '--sidebar-width-icon': SIDEBAR_WIDTH_ICON,
               ...style,
             } as React.CSSProperties
@@ -212,7 +163,7 @@ const Sidebar = React.forwardRef<
   ref,
 ) {
   const t = useT();
-  const { isMobile, state, openMobile, setOpenMobile, isResizing } = useSidebar();
+  const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
 
   if (collapsible === 'none') {
     return (
@@ -264,14 +215,13 @@ const Sidebar = React.forwardRef<
       data-collapsible={state === 'collapsed' ? collapsible : ''}
       data-variant={variant}
       data-side={side}
-      data-resizing={isResizing ? 'true' : undefined}
       data-slot="sidebar"
     >
       {/* This is what handles the sidebar gap on desktop */}
       <div
         data-slot="sidebar-gap"
         className={cn(
-          'relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear group-data-[resizing=true]:transition-none',
+          'relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear',
           'group-data-[collapsible=offcanvas]:w-0',
           'group-data-[side=right]:rotate-180',
           variant === 'floating' || variant === 'inset'
@@ -282,7 +232,7 @@ const Sidebar = React.forwardRef<
       <div
         data-slot="sidebar-container"
         className={cn(
-          'fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear group-data-[resizing=true]:transition-none md:flex',
+          'fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex',
           side === 'left'
             ? 'left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]'
             : 'right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]',
@@ -302,7 +252,7 @@ const Sidebar = React.forwardRef<
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm"
+          className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-card group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border"
         >
           {children}
         </div>
@@ -337,122 +287,6 @@ const SidebarTrigger = React.forwardRef<
     </Button>
   );
 });
-
-/** How far the pointer travels before a press on the rail counts as a drag. */
-const RAIL_DRAG_THRESHOLD = 3;
-
-interface RailDrag {
-  startX: number;
-  /** The sidebar's width when the press began: the icon column if collapsed. */
-  startWidth: number;
-  /** +1 when dragging away from the screen edge widens it (left side), -1 otherwise. */
-  direction: 1 | -1;
-  dragging: boolean;
-}
-
-/**
- * The sidebar's edge: click it to collapse or expand, drag it to resize.
- *
- * Dragging below half the minimum width collapses to the icon column, and
- * dragging out past it from there expands again, so one gesture covers both.
- * A drag never also counts as a click.
- */
-const SidebarRail = React.forwardRef<HTMLButtonElement, React.ComponentPropsWithoutRef<'button'>>(
-  function SidebarRail({ className, onClick, ...props }, ref) {
-    const t = useT();
-    const { toggleSidebar, open, setOpen, setWidth, isResizing, setIsResizing } = useSidebar();
-    const drag = React.useRef<RailDrag | null>(null);
-    const suppressClick = React.useRef(false);
-
-    // The pointer leaves the rail as soon as it moves, so the resize cursor and
-    // the ban on selecting text go on the whole page for the drag.
-    React.useEffect(() => {
-      if (!isResizing) return;
-      const style = document.createElement('style');
-      style.textContent = '* { cursor: col-resize !important; user-select: none !important; }';
-      document.head.appendChild(style);
-      return () => style.remove();
-    }, [isResizing]);
-
-    const endDrag = () => {
-      if (drag.current?.dragging) setIsResizing(false);
-      drag.current = null;
-    };
-
-    return (
-      <button
-        ref={ref}
-        data-sidebar="rail"
-        data-slot="sidebar-rail"
-        data-resizing={isResizing ? 'true' : undefined}
-        aria-label={t('sidebar.toggle')}
-        tabIndex={-1}
-        onPointerDown={(event) => {
-          if (event.button !== 0) return;
-          const container = event.currentTarget.closest('[data-slot=sidebar-container]');
-          const side = event.currentTarget.closest('[data-side]')?.getAttribute('data-side');
-          if (!container) return;
-
-          event.currentTarget.setPointerCapture(event.pointerId);
-          suppressClick.current = false;
-          drag.current = {
-            startX: event.clientX,
-            startWidth: container.getBoundingClientRect().width,
-            direction: side === 'right' ? -1 : 1,
-            dragging: false,
-          };
-        }}
-        onPointerMove={(event) => {
-          const current = drag.current;
-          if (!current) return;
-          const delta = (event.clientX - current.startX) * current.direction;
-
-          if (!current.dragging) {
-            if (Math.abs(delta) < RAIL_DRAG_THRESHOLD) return;
-            current.dragging = true;
-            suppressClick.current = true;
-            setIsResizing(true);
-          }
-
-          const next = current.startWidth + delta;
-          if (next < SIDEBAR_WIDTH_MIN / 2) {
-            if (open) setOpen(false);
-            return;
-          }
-          if (!open) setOpen(true);
-          setWidth(next);
-        }}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        onLostPointerCapture={endDrag}
-        onClick={(event) => {
-          onClick?.(event);
-          if (suppressClick.current) {
-            suppressClick.current = false;
-            return;
-          }
-          toggleSidebar();
-        }}
-        title={t('sidebar.toggle')}
-        className={cn(
-          'absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border data-[resizing=true]:after:bg-sidebar-ring sm:flex',
-          'cursor-col-resize',
-          '[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize',
-          'group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full hover:group-data-[collapsible=offcanvas]:bg-sidebar',
-          '[[data-side=left][data-collapsible=offcanvas]_&]:-right-2',
-          '[[data-side=right][data-collapsible=offcanvas]_&]:-left-2',
-          // Inset: the rail is the gap between the sidebar and the rounded
-          // panel, and draws no line of its own; the panel's edge is the line.
-          'group-data-[variant=inset]:w-2! group-data-[variant=inset]:translate-x-0! group-data-[variant=inset]:after:hidden',
-          'group-data-[side=left]:group-data-[variant=inset]:right-0!',
-          'group-data-[side=right]:group-data-[variant=inset]:left-0!',
-          className,
-        )}
-        {...props}
-      />
-    );
-  },
-);
 
 const SidebarInset = React.forwardRef<HTMLElement, React.ComponentPropsWithoutRef<'main'>>(
   function SidebarInset({ className, ...props }, ref) {
@@ -897,7 +731,6 @@ export {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarProvider,
-  SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
   useSidebar,

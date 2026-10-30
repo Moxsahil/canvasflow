@@ -1,12 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { Check, Copy, Radio, TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isMac } from '../help/platform';
 import { useT } from '../i18n';
 import { INPUT } from '../settings/settings-ui';
 import {
   SurfaceWindow,
-  WindowBadge,
   WindowBody,
   WindowButton,
   WindowFooter,
@@ -17,8 +15,6 @@ import type { SurfaceTheme } from './surface-palette';
 export interface Notice {
   title: string;
   body: string;
-  /** How it went: `ok` when it worked, `warn` when it didn't, or only partly. */
-  tone: 'ok' | 'warn';
   /**
    * The link a notice is about, on show so it can be copied again — or, when
    * copying it failed, copied by hand.
@@ -85,47 +81,43 @@ export function NoticeDialog({ notice, theme, onClose, onLiveCollaboration }: No
         title={shown.title}
         description={shown.body}
         descriptionId={bodyId}
-        lead={
-          <WindowBadge tone={shown.tone}>
-            {shown.tone === 'ok' ? (
-              <Check aria-hidden="true" />
-            ) : (
-              <TriangleAlert aria-hidden="true" />
-            )}
-          </WindowBadge>
-        }
         onClose={onClose}
       />
 
       {link && (
         <WindowBody>
-          <div className="flex gap-[6px]">
-            <input
-              ref={fieldRef}
-              readOnly
-              value={link.url}
-              aria-label={t('notice.boardLink')}
-              onFocus={(event) => event.currentTarget.select()}
-              className={cn(INPUT, 'min-w-0 flex-1')}
-            />
-            <WindowButton onClick={copyAgain}>
-              <Copy aria-hidden="true" />
-              {link.copied ? t('notice.copyAgain') : t('common.tryAgain')}
-            </WindowButton>
-          </div>
+          <input
+            ref={fieldRef}
+            readOnly
+            value={link.url}
+            aria-label={t('notice.boardLink')}
+            onFocus={(event) => event.currentTarget.select()}
+            className={cn(INPUT, 'h-[36px] min-w-0')}
+          />
         </WindowBody>
       )}
 
       <WindowFooter status={status}>
-        {link && onLiveCollaboration && (
-          <WindowButton variant="ghost" onClick={onLiveCollaboration}>
-            <Radio aria-hidden="true" />
-            {t('notice.liveCollaboration')}
+        {link ? (
+          <>
+            <WindowButton onClick={copyAgain}>
+              {link.copied ? t('notice.copyAgain') : t('common.tryAgain')}
+            </WindowButton>
+            {onLiveCollaboration ? (
+              <WindowButton variant="primary" onClick={onLiveCollaboration}>
+                {t('notice.liveCollaboration')}
+              </WindowButton>
+            ) : (
+              <WindowButton variant="primary" autoFocus data-autofocus onClick={onClose}>
+                {t('common.gotIt')}
+              </WindowButton>
+            )}
+          </>
+        ) : (
+          <WindowButton variant="primary" autoFocus data-autofocus onClick={onClose}>
+            {t('common.gotIt')}
           </WindowButton>
         )}
-        <WindowButton variant="primary" autoFocus data-autofocus onClick={onClose}>
-          {t('common.gotIt')}
-        </WindowButton>
       </WindowFooter>
     </SurfaceWindow>
   );

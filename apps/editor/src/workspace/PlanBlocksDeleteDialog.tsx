@@ -60,9 +60,7 @@ export function PlanBlocksDeleteDialog({
         onClose={onClose}
       />
       <WindowFooter>
-        <WindowButton variant="ghost" onClick={onClose}>
-          {t('common.close')}
-        </WindowButton>
+        <WindowButton onClick={onClose}>{t('common.close')}</WindowButton>
         {block && onOpenBilling && (
           <WindowButton
             variant="primary"

@@ -11,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
 import { AvatarStack } from '@/components/kibo-ui/avatar-stack';
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
@@ -31,6 +30,8 @@ interface PeerListProps {
   onFollow: (userId: string) => void;
   onStopFollowing: () => void;
   onShare: () => void;
+  /** The board has a live share session, whether or not anyone has joined it yet. */
+  sessionLive?: boolean;
   readOnly?: boolean;
   /** Set on an archived board: its badge says so, in place of "View only". */
   archived?: ArchivedNoticeProps | null;
@@ -50,9 +51,8 @@ const AVATAR = 26;
  *
  * Who is here and the invitation to bring someone are two separate controls, so
  * they are two separate surfaces — the dock spaces them apart. The share button
- * turns green with a live count while anyone else is here. That colour answers
- * the one question a host has after sending a link — did it work — which the
- * share dialog cannot answer, because by then it is closed.
+ * turns green with a live count while a session runs or anyone else is here, so
+ * a host can see from the board that the link is still open.
  */
 export function PeerList({
   roster,
@@ -63,13 +63,14 @@ export function PeerList({
   onFollow,
   onStopFollowing,
   onShare,
+  sessionLive = false,
   readOnly = false,
   archived = null,
   portalContainer,
 }: PeerListProps) {
   const t = useT();
   const others = roster.filter((entry) => !entry.isSelf);
-  const isLive = others.length > 0;
+  const isLive = sessionLive || others.length > 0;
 
   /**
    * Photos for the faces on show.
@@ -115,8 +116,8 @@ export function PeerList({
               <button
                 type="button"
                 className="cf-peer-stack__trigger"
-                title={t('collab.peopleHere', { count: others.length })}
-                aria-label={t('collab.showWhoIsHere', { count: others.length })}
+                title={t('collab.peopleHere', { count: roster.length })}
+                aria-label={t('collab.showWhoIsHere', { count: roster.length })}
               >
                 <AvatarStack size={AVATAR} animate>
                   {visible.map((entry) => (
@@ -167,23 +168,20 @@ export function PeerList({
           clips its own overflow so the fill can sweep across it, which would
           crop a badge sitting on the corner. */}
       <span className="relative inline-flex">
-        <InteractiveHoverButton
+        <button
           type="button"
-          text={t('share.button')}
           onClick={onShare}
           title={isLive ? t('share.liveManage') : t('share.thisBoard')}
           aria-label={isLive ? t('share.liveManage') : t('share.thisBoard')}
           className={cn(
-            // Chrome tokens rather than the component palette, so this reads as
-            // one family with the search button sitting next to it.
-            'h-9 w-auto min-w-24 px-4 text-xs [&_svg]:size-4',
-            'border-(--default-border-color) bg-(--island-bg-color) text-(--text-primary-color)',
-            // Green while people are actually here — the answer to "did the
-            // link work?". Recolouring the token rather than the utilities
-            // keeps the sweep, its text and the badge in step.
-            isLive && '[--color-primary:#0f9d58] [--color-primary-foreground:#ffffff]',
+            // The board's one blue button, as the website's main actions are;
+            // green while the board is live.
+            'flex h-9 min-w-24 cursor-pointer items-center justify-center rounded-[10px] px-4 text-xs font-semibold text-white outline-none focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)]',
+            isLive ? 'bg-[#0f9d58] hover:bg-[#0c8a4d]' : 'bg-[#135dfc] hover:bg-[#2a6dfc]',
           )}
-        />
+        >
+          {t('share.button')}
+        </button>
         {isLive && (
           <span className="cf-share-button__count" aria-hidden="true">
             {roster.length}

@@ -14,7 +14,7 @@ export interface PresenceColor {
 /**
  * The two shades each colour is drawn in.
  *
- * Indigo is deliberately absent: the selection UI draws in #6366f1, and a
+ * Indigo is deliberately absent: the selection UI once drew in #6366f1, and a
  * collaborator wearing the same colour as your own selection outline is the one
  * collision that actively misleads.
  */

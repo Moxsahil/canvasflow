@@ -43,7 +43,7 @@ export function InspectorSection({ title, children }: { title: string; children:
 }
 
 export function InspectorDivider() {
-  return <div role="separator" className={cn(menuSeparatorClasses, 'my-1')} />;
+  return <div role="separator" className={cn(menuSeparatorClasses, 'mx-0 my-1 w-full')} />;
 }
 
 /** A property: its name on the left, its one control on the right. */
@@ -515,7 +515,7 @@ export function PickerCell({
         variant === 'glyph' && selected && wellOpenClasses,
         variant === 'colour' &&
           selected &&
-          'shadow-[0_0_0_2px_#fafafa,0_0_0_3.5px_#0a0a0a] dark:shadow-[0_0_0_2px_oklch(26.9%_0_none),0_0_0_3.5px_#fafafa]',
+          'shadow-[0_0_0_2px_#fafafa,0_0_0_3.5px_#0a0a0a] dark:shadow-[0_0_0_2px_#111113,0_0_0_3.5px_#fafafa]',
         className,
       )}
       style={style}

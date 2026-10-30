@@ -124,7 +124,7 @@ describe('SettingsDialog', () => {
     expect(html).toContain('role="tabpanel"');
   });
 
-  it('opens on Profile, its groups named by a caption alone, its rows led by icons', () => {
+  it('opens on Profile, its groups named by a caption alone, its rows plain', () => {
     const html = render();
     expect(html).toContain('How you appear to collaborators on shared boards.');
     for (const band of ['Identity', 'Presence']) {
@@ -134,8 +134,7 @@ describe('SettingsDialog', () => {
     expect(html).not.toContain('How other people pick you out on a board.');
     expect(html).toContain('Display name');
     expect(html).toContain('Cursor colour');
-    expect(html).toContain('lucide-type');
-    expect(html).toContain('lucide-at-sign');
+    expect(html).not.toContain('lucide-type');
   });
 
   it('has no footer and no rail: everything saves where it is changed', () => {
@@ -187,7 +186,7 @@ describe('SettingsDialog', () => {
 
   it('shows the workspace the sidebar names, and lets its owner rename it', () => {
     const pane = renderPane('workspace');
-    expect(pane).toContain('value="Studio Boards"');
+    expect(pane).toContain('Studio Boards');
     expect(pane).toContain('Owner');
     expect(pane).toContain('Full control, including deleting the workspace');
     expect(pane).toContain('Can edit');
@@ -546,29 +545,29 @@ describe('SettingsDialog', () => {
 
   it('seeds the display name from the account, and its initials from the name', () => {
     const html = render();
-    expect(html).toContain('value="Sahil Barak"');
+    expect(html).toContain('Sahil Barak');
     // One letter per name, as the share dialog's access list abbreviates people.
     expect(html).toContain('>SB</div>');
   });
 
   it('falls back to a placeholder name before the token decodes', () => {
-    expect(render(null)).toContain('value="Account"');
+    expect(render(null)).toContain('Account');
   });
 
   it('carries a whole palette for each theme, not a dark one with patches', () => {
     const dark = render(undefined, 'dark');
-    expect(dark).toContain('--surface-panel:#1a1a19');
-    expect(dark).toContain('--surface-wash:#222221');
-    expect(dark).toContain('--surface-fg:#f2f2f2');
+    expect(dark).toContain('--surface-panel:#111113');
+    expect(dark).toContain('--surface-wash:#1b1b1e');
+    expect(dark).toContain('--surface-fg:#fafafa');
 
     const light = render(undefined, 'light');
     expect(light).toContain('--surface-panel:#ffffff');
-    expect(light).toContain('--surface-wash:#f4f4f2');
-    expect(light).toContain('--surface-fg:#1a1a19');
+    expect(light).toContain('--surface-wash:#f4f4f5');
+    expect(light).toContain('--surface-fg:#09090b');
 
     // The accent means "selected/primary/you" in both, so it does not move.
-    expect(dark).toContain('--surface-accent:#3b82f6');
-    expect(light).toContain('--surface-accent:#3b82f6');
+    expect(dark).toContain('--surface-accent:#135dfc');
+    expect(light).toContain('--surface-accent:#135dfc');
   });
 
   it('offers the board’s own palette, with nothing marked until a colour is picked', () => {
@@ -584,7 +583,7 @@ describe('SettingsDialog', () => {
 
   it('seeds the fields from the saved profile, not the token', () => {
     const html = render(undefined, 'dark', accountStub(SAVED));
-    expect(html).toContain('value="Sahil Saved"');
+    expect(html).toContain('Sahil Saved');
     expect(html.match(/aria-checked="true"/g)).toHaveLength(1);
   });
 
@@ -593,11 +592,10 @@ describe('SettingsDialog', () => {
     expect(renderPane('account').match(/Coming soon/g)).toHaveLength(1);
   });
 
-  it('shows the saved username after its @, ready to change', () => {
+  it('rests a saved username as its value and an Edit button', () => {
     const html = render(undefined, 'dark', accountStub(SAVED));
-    expect(html).toMatch(/<label for="[^"]+"[^>]*>Username<\/label>/);
-    expect(html).toContain('value="sahil.saved"');
-    expect(html).toContain('Lets people find you in @mentions');
+    expect(html).toContain('@sahil.saved');
+    expect(html).not.toContain('value="sahil.saved"');
     // Nothing typed, so nothing to save or cancel yet.
     expect(html).not.toContain('aria-label="Save"');
   });

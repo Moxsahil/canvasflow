@@ -316,7 +316,9 @@ test('only the owner and the workspace’s admins run sharing; others get no lin
   await expect(theirs.getByLabel('Board link')).toHaveCount(0);
   await expect(theirs.getByTestId('share-start')).toHaveCount(0);
   // Nor anywhere else: no Copy board link on the board card.
-  await expect(member.getByTestId('menu-copyLink')).toHaveCount(0);
+  await member.getByTestId('menu-board-more').click();
+  await expect(member.getByTestId('menu-item-copyLink')).toHaveCount(0);
+  await member.keyboard.press('Escape');
   expect((await shareLinks(member)).status()).toBe(403);
   expect((await member.request.get(`${WEB}/api/boards/${boardId}/members`)).status()).toBe(403);
 
@@ -336,5 +338,6 @@ test('only the owner and the workspace’s admins run sharing; others get no lin
   );
   expect((await shareLinks(admin)).status()).toBe(201);
   await admin.keyboard.press('Escape');
-  await expect(admin.getByTestId('menu-copyLink').first()).toBeAttached();
+  await admin.getByTestId('menu-board-more').click();
+  await expect(admin.getByTestId('menu-item-copyLink')).toBeAttached();
 });

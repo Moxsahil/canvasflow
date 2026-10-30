@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronRight, LoaderCircle, Plus, Search, X } from 'lucide-react';
+import { ChevronRight, LoaderCircle, PanelLeft, Plus, Search } from 'lucide-react';
 import { PLAN_NAMES, type DiagramUsage } from '@canvasflow/types';
 import { cn } from '@/lib/utils';
 import { relativeTime } from '../comments/comment-time';
@@ -9,7 +9,7 @@ import { chatsOf, type DiagramEntry } from './diagram-history';
 import type { DiagramRun } from './useDiagramPanel';
 
 const iconButton =
-  'grid size-7 shrink-0 place-items-center rounded-md text-[var(--surface-fg-muted)] outline-none hover:bg-[var(--surface-wash)] hover:text-[var(--surface-fg)] focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]';
+  'grid size-7 shrink-0 place-items-center rounded-md text-[var(--surface-fg-muted)] outline-none hover:bg-sidebar-accent hover:text-[var(--surface-fg)] focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]';
 
 /**
  * The diagrams panel's sidebar: the board's chats, each opening to its
@@ -33,7 +33,9 @@ export function DiagramSidebar({
   upgradeLabel,
   onUpgrade,
   open,
+  collapsed,
   onDismiss,
+  onCollapse,
 }: {
   entries: readonly DiagramEntry[];
   /** The chat on show, or null for a new one. */
@@ -53,9 +55,11 @@ export function DiagramSidebar({
   /** Open over the conversation, on a narrow panel. */
   open: boolean;
   onDismiss: () => void;
+  /** Put away, until the header's button brings it back. */
+  collapsed: boolean;
+  onCollapse: () => void;
 }) {
   const t = useT();
-  const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
 
   const chats = useMemo(() => {
@@ -70,7 +74,6 @@ export function DiagramSidebar({
   // A chat whose first diagram is still being drawn has no entries yet.
   const pending =
     run && !entries.some((entry) => entry.chatId === run.chatId) && !query.trim() ? run : null;
-  const inserted = entries.filter(isOnBoard).length;
   const left = usage ? Math.max(usage.limit - usage.used, 0) : null;
 
   /**
@@ -129,59 +132,49 @@ export function DiagramSidebar({
     <nav
       aria-label={t('diagrams.chats')}
       data-open={open ? '' : undefined}
-      className="cf-diagram-sidebar flex min-h-0 flex-col border-r border-[var(--surface-line)] bg-[var(--surface-band)]"
+      data-collapsed={collapsed ? '' : undefined}
+      className="cf-diagram-sidebar m-2 mr-0 flex min-h-0 flex-col rounded-card border border-sidebar-border bg-sidebar text-sidebar-foreground"
     >
-      <div className="flex items-center gap-1 px-3 pt-3 pb-2">
-        <span className="min-w-0 flex-1 truncate pl-1 text-[13px] font-semibold">
-          {t('diagrams.chats')}
-        </span>
-        <button
-          type="button"
-          className={iconButton}
-          aria-label={t('diagrams.searchChats')}
-          title={t('diagrams.searchChats')}
-          aria-pressed={searching}
-          onClick={() => {
-            setSearching((value) => !value);
-            setQuery('');
-          }}
-        >
-          <Search className="size-3.5" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          onClick={() => pick(onNewChat)}
-          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--surface-border)] bg-[var(--surface-raised)] px-2.5 text-xs font-medium outline-none hover:bg-[var(--surface-raised-hover)] focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]"
-        >
-          <Plus className="size-3.5" aria-hidden="true" />
-          {t('diagrams.newChat')}
-        </button>
-        {open && (
-          <button
-            type="button"
-            onClick={onDismiss}
-            aria-label={t('diagrams.hideChats')}
-            title={t('diagrams.hideChats')}
-            className={iconButton}
-          >
-            <X className="size-4" aria-hidden="true" />
-          </button>
-        )}
-      </div>
-
-      {searching && (
-        <div className="px-3 pb-2">
+      <div className="flex items-center gap-1 px-2 pt-2">
+        <div className="relative min-w-0 flex-1">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-sidebar-foreground/50"
+            aria-hidden="true"
+          />
           <input
-            autoFocus
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             aria-label={t('diagrams.searchChats')}
             placeholder={t('diagrams.searchChats')}
-            className="h-8 w-full rounded-md border border-[var(--surface-border)] bg-[var(--surface-input)] px-2.5 text-xs text-[var(--surface-fg)] outline-none placeholder:text-[var(--surface-fg-faint)] focus:border-[var(--surface-accent)]"
+            className="h-8 w-full rounded-md bg-sidebar-accent/60 pr-2 pl-8 text-sm text-sidebar-foreground outline-hidden ring-sidebar-ring placeholder:text-sidebar-foreground/50 focus-visible:ring-2 [&::-webkit-search-cancel-button]:hidden"
           />
         </div>
-      )}
+        <button
+          type="button"
+          onClick={onCollapse}
+          aria-label={t('diagrams.hideChats')}
+          title={t('diagrams.hideChats')}
+          className={iconButton}
+        >
+          <PanelLeft className="size-4" aria-hidden="true" />
+        </button>
+      </div>
+
+      <div className="flex items-center gap-0.5 pr-2 pl-3 pt-3 pb-1">
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-sidebar-foreground/70">
+          {t('diagrams.chats')}
+        </span>
+        <button
+          type="button"
+          onClick={() => pick(onNewChat)}
+          aria-label={t('diagrams.newChat')}
+          title={t('diagrams.newChat')}
+          className={iconButton}
+        >
+          <Plus className="size-4" aria-hidden="true" />
+        </button>
+      </div>
 
       {/* A scroll moves the rows from under the highlight, so it fades. */}
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2" onScroll={rest}>
@@ -199,7 +192,7 @@ export function DiagramSidebar({
             <span
               aria-hidden="true"
               className={cn(
-                'pointer-events-none absolute top-0 left-0 rounded-md bg-[var(--surface-wash)] motion-reduce:transition-none',
+                'pointer-events-none absolute top-0 left-0 rounded-md bg-sidebar-accent motion-reduce:transition-none',
                 glide.instant
                   ? 'transition-opacity duration-150'
                   : 'transition-[transform,width,height,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)]',
@@ -213,9 +206,9 @@ export function DiagramSidebar({
             />
           )}
           {pending && (
-            <div className="relative flex items-center gap-2 rounded-md bg-[var(--surface-wash)] px-2 py-1.5 text-[13px]">
+            <div className="relative flex items-center gap-2 rounded-md bg-sidebar-accent px-2 py-1.5 text-[13px]">
               <LoaderCircle
-                className="size-3.5 shrink-0 animate-spin text-[var(--surface-accent)] motion-reduce:animate-none"
+                className="size-3.5 shrink-0 animate-spin text-[var(--surface-link)] motion-reduce:animate-none"
                 aria-hidden="true"
               />
               <span className="min-w-0 flex-1 truncate">{pending.description}</span>
@@ -235,10 +228,8 @@ export function DiagramSidebar({
                 <div
                   data-glide=""
                   className={cn(
-                    'relative flex w-full items-center rounded-md text-[13px]',
-                    shown
-                      ? 'font-medium text-[var(--surface-fg)]'
-                      : 'text-[var(--surface-fg-muted)]',
+                    'relative flex min-h-8 w-full items-center rounded-md text-sm',
+                    shown ? 'font-medium text-sidebar-foreground' : 'text-sidebar-foreground/70',
                   )}
                 >
                   <button
@@ -268,7 +259,7 @@ export function DiagramSidebar({
                     </span>
                     {drawing ? (
                       <LoaderCircle
-                        className="size-3.5 shrink-0 animate-spin text-[var(--surface-accent)] motion-reduce:animate-none"
+                        className="size-3.5 shrink-0 animate-spin text-[var(--surface-link)] motion-reduce:animate-none"
                         aria-hidden="true"
                       />
                     ) : (
@@ -303,7 +294,7 @@ export function DiagramSidebar({
                             onClick={() => pick(() => onShowVersion(entry))}
                             className={cn(
                               'relative flex w-full items-start gap-2 rounded-md py-1.5 pr-2 pl-7 text-left text-xs outline-none focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]',
-                              lit && 'bg-[var(--surface-wash)]',
+                              lit && 'bg-sidebar-accent',
                             )}
                           >
                             <span
@@ -312,7 +303,7 @@ export function DiagramSidebar({
                                 'absolute top-[9px] left-[9px] size-[9px] rounded-full border-2',
                                 lit
                                   ? 'border-[var(--surface-accent)] bg-[var(--surface-accent)]'
-                                  : 'border-[var(--surface-fg-faint)] bg-[var(--surface-band)]',
+                                  : 'border-[var(--surface-fg-faint)] bg-sidebar',
                               )}
                             />
                             <span className="min-w-0 flex-1">
@@ -341,28 +332,22 @@ export function DiagramSidebar({
         </div>
       </div>
 
-      <div className="flex flex-col gap-2.5 border-t border-[var(--surface-line)] px-3 pt-3 pb-3">
-        {inserted > 0 && (
-          <div className="flex justify-between text-xs text-[var(--surface-fg-muted)]">
-            <span>{t('diagrams.insertedOnBoard')}</span>
-            <span className="text-[var(--surface-fg)] tabular-nums">{inserted}</span>
-          </div>
-        )}
+      <div className="flex flex-col gap-2 p-2">
         {profile && (
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 px-2 pt-1 text-left" title={profile.name}>
             <PersonAvatar
               url={profile.avatarUrl}
               name={profile.name}
-              className="size-7 text-[11px]"
+              className="size-6 text-[10px]"
             />
-            <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{profile.name}</span>
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">{profile.name}</span>
             {usage && (
               <span
                 className={cn(
                   'shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-medium',
                   usage.plan === 'free'
-                    ? 'border border-[var(--surface-border)] text-[var(--surface-fg-muted)]'
-                    : 'bg-[var(--surface-accent-wash)] text-[var(--surface-fg)]',
+                    ? 'border border-sidebar-border text-sidebar-foreground/70'
+                    : 'bg-[var(--surface-accent-wash)] text-[var(--surface-link)]',
                 )}
               >
                 {PLAN_NAMES[usage.plan]}
@@ -370,45 +355,47 @@ export function DiagramSidebar({
             )}
           </div>
         )}
-        {usage && left !== null && (
-          <div className="flex flex-col gap-1.5">
-            <div
-              role="progressbar"
-              aria-label={t('diagrams.left', { left, limit: usage.limit })}
-              aria-valuemin={0}
-              aria-valuemax={usage.limit}
-              aria-valuenow={left}
-              className="h-1.5 overflow-hidden rounded-full bg-[var(--surface-wash)]"
-            >
+        <div className="flex flex-col gap-2.5 px-2 pb-1">
+          {usage && left !== null && (
+            <div className="flex flex-col gap-1.5">
               <div
-                className={cn(
-                  'h-full rounded-full',
-                  left === 0
-                    ? 'bg-[var(--surface-danger)]'
-                    : left / usage.limit < 0.2
-                      ? 'bg-[var(--surface-warn)]'
-                      : 'bg-[var(--surface-accent)]',
+                role="progressbar"
+                aria-label={t('diagrams.left', { left, limit: usage.limit })}
+                aria-valuemin={0}
+                aria-valuemax={usage.limit}
+                aria-valuenow={left}
+                className="h-1 overflow-hidden rounded-full bg-sidebar-accent"
+              >
+                <div
+                  className={cn(
+                    'h-full rounded-full',
+                    left === 0
+                      ? 'bg-[var(--surface-danger)]'
+                      : left / usage.limit < 0.2
+                        ? 'bg-[var(--surface-warn)]'
+                        : 'bg-[var(--surface-accent)]',
+                  )}
+                  style={{ width: `${Math.min(100, (left / usage.limit) * 100)}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--surface-fg-muted)]">
+                <span className="tabular-nums">
+                  {t('diagrams.left', { left, limit: usage.limit })} ·{' '}
+                  {t('diagrams.resets', { date: formatShortDate(new Date(usage.resetsAt)) })}
+                </span>
+                {usage.plan === 'free' && upgradeLabel && (
+                  <button
+                    type="button"
+                    onClick={onUpgrade}
+                    className="shrink-0 rounded font-semibold text-[var(--diagram-link)] underline-offset-[3px] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]"
+                  >
+                    {upgradeLabel}
+                  </button>
                 )}
-                style={{ width: `${Math.min(100, (left / usage.limit) * 100)}%` }}
-              />
+              </div>
             </div>
-            <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--surface-fg-muted)]">
-              <span className="tabular-nums">
-                {t('diagrams.left', { left, limit: usage.limit })} ·{' '}
-                {t('diagrams.resets', { date: formatShortDate(new Date(usage.resetsAt)) })}
-              </span>
-              {usage.plan === 'free' && upgradeLabel && (
-                <button
-                  type="button"
-                  onClick={onUpgrade}
-                  className="shrink-0 rounded font-semibold text-[var(--diagram-link)] underline-offset-[3px] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--surface-accent)]"
-                >
-                  {upgradeLabel}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </nav>
   );

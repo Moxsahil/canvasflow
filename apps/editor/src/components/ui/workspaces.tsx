@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
+  MenuGlide,
   menuButtonRowClasses,
   menuLabelClasses,
   menuPopoverClasses,
@@ -224,10 +225,16 @@ function WorkspaceContent({
 
   return (
     <PopoverContent
-      className={cn(menuPopoverClasses, 'overflow-hidden', className)}
+      className={cn(
+        menuPopoverClasses,
+        // The glide paints what these rows would on hover.
+        'relative overflow-hidden [&_button]:hover:bg-transparent [&_button]:focus-visible:bg-transparent dark:[&_button]:hover:bg-transparent dark:[&_button]:focus-visible:bg-transparent',
+        className,
+      )}
       align={props.align || 'start'}
       {...props}
     >
+      <MenuGlide follow="pointer" />
       <p className={menuLabelClasses}>{title ?? t('manage.workspaces')}</p>
 
       {searchable && (
@@ -257,10 +264,7 @@ function WorkspaceContent({
                 onClick={() => onWorkspaceSelect(workspace)}
                 // A caller's row marks itself `data-expanded` while whatever it
                 // opens beside the list is up, and stays lit for as long.
-                className={cn(
-                  menuButtonRowClasses,
-                  'has-data-expanded:bg-neutral-950/10 dark:has-data-expanded:bg-neutral-50/10',
-                )}
+                className={menuButtonRowClasses}
               >
                 {renderWorkspace
                   ? renderWorkspace(workspace, !!isSelected)

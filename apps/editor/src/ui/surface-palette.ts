@@ -50,6 +50,8 @@ interface SurfacePalette {
   fgFaint: string;
   accent: string;
   accentHover: string;
+  /** The accent as small text and links, where the fill's own blue is too dark to read. */
+  link: string;
   onAccent: string;
   /** The switch's track while off, and the empty part of the storage meter. */
   toggleOff: string;
@@ -82,93 +84,97 @@ interface SurfacePalette {
   shadow: string;
 }
 
-const PALETTES: Record<SurfaceTheme, SurfacePalette> = {
+/**
+ * The windows' palette, the AI panel's included: the website's near-black,
+ * hairlines and blue.
+ */
+const WINDOW_PALETTES: Record<SurfaceTheme, SurfacePalette> = {
   dark: {
-    backdrop: 'rgba(0,0,0,0.5)',
-    surface: '#1a1a19',
-    border: '#232323',
-    line: '#242423',
-    card: '#131313',
-    input: '#0b0b0b',
-    raised: '#1e1e1e',
-    raisedHover: '#282828',
-    navActive: '#1a1a1a',
-    navHover: '#161616',
-    fg: '#f2f2f2',
-    fgMuted: '#9a9a9a',
-    fgFaint: '#6b6b6b',
-    accent: '#3b82f6',
-    accentHover: '#2f76e8',
+    backdrop: 'rgba(5,5,7,0.66)',
+    surface: '#111113',
+    border: '#29292b',
+    line: '#212124',
+    card: '#141416',
+    input: '#09090b',
+    raised: '#1b1b1e',
+    raisedHover: '#27272a',
+    navActive: '#27272a',
+    navHover: '#1b1b1e',
+    fg: '#fafafa',
+    fgMuted: '#9f9fa9',
+    fgFaint: '#8b8b95',
+    accent: '#135dfc',
+    accentHover: '#2a6dfc',
+    link: '#4d84fd',
     onAccent: '#ffffff',
-    toggleOff: '#2f2f2f',
-    wash: '#222221',
-    washHover: '#2a2a29',
-    band: '#141413',
-    thumb: '#333332',
+    toggleOff: '#333338',
+    wash: '#1b1b1e',
+    washHover: '#27272a',
+    band: '#111113',
+    thumb: '#35353a',
     thumbShadow: '0 1px 2px rgba(0,0,0,0.5)',
-    accentWash: 'rgba(59,130,246,0.15)',
+    accentWash: 'rgba(77,132,253,0.16)',
     ok: '#4ade80',
     okWash: 'rgba(74,222,128,0.12)',
     warn: '#fbbf24',
     warnWash: 'rgba(251,191,36,0.12)',
-    flash: 'rgba(59,130,246,0.22)',
+    flash: 'rgba(77,132,253,0.22)',
     stuck: '0 8px 16px -12px rgba(0,0,0,0.9)',
-    scrollbar: '#484847',
+    scrollbar: '#3f3f46',
     danger: '#f87171',
     dangerBorder: '#5a2a2a',
     dangerWash: 'rgba(248,113,113,0.12)',
-    shadow: '0px 28px 64px 0px rgba(0,0,0,0.6)',
+    shadow: 'none',
   },
   light: {
-    // Lighter than the dark backdrop: 50% black over a white board reads as a
-    // fault rather than as depth.
-    backdrop: 'rgba(0,0,0,0.35)',
+    backdrop: 'rgba(9,9,11,0.36)',
     surface: '#ffffff',
-    border: '#e4e4e2',
-    line: '#efefed',
-    card: '#fafaf9',
+    border: '#e4e4e7',
+    line: '#f0f0f2',
+    card: '#fafafa',
     input: '#ffffff',
-    raised: '#f4f4f2',
-    raisedHover: '#eaeae7',
-    navActive: '#ececea',
-    navHover: '#f2f2f0',
-    fg: '#1a1a19',
-    fgMuted: '#5f5f5b',
-    fgFaint: '#767671',
-    accent: '#3b82f6',
-    accentHover: '#2f76e8',
+    raised: '#f4f4f5',
+    raisedHover: '#e9e9ec',
+    navActive: '#efeff1',
+    navHover: '#f4f4f5',
+    fg: '#09090b',
+    fgMuted: '#5f5f6b',
+    fgFaint: '#71717a',
+    accent: '#135dfc',
+    accentHover: '#2a6dfc',
+    link: '#135dfc',
     onAccent: '#ffffff',
-    toggleOff: '#d9d9d6',
-    wash: '#f4f4f2',
-    washHover: '#ebebe8',
-    band: '#f3f3f1',
+    toggleOff: '#d4d4d8',
+    wash: '#f4f4f5',
+    washHover: '#e9e9ec',
+    band: '#ffffff',
     thumb: '#ffffff',
     thumbShadow: '0 1px 2px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04)',
-    accentWash: 'rgba(59,130,246,0.1)',
-    // Darker than the dark theme's green: it has to read as text on white.
+    accentWash: 'rgba(19,93,252,0.08)',
     ok: '#15803d',
     okWash: 'rgba(22,163,74,0.1)',
     warn: '#b45309',
     warnWash: 'rgba(245,158,11,0.12)',
-    flash: 'rgba(59,130,246,0.16)',
+    flash: 'rgba(19,93,252,0.14)',
     stuck: '0 8px 14px -12px rgba(0,0,0,0.35)',
-    scrollbar: '#cdcdc9',
+    scrollbar: '#d4d4d8',
     danger: '#dc2626',
     dangerBorder: '#f0c8c8',
     dangerWash: 'rgba(220,38,38,0.08)',
-    // Shorter and far weaker: the dark shadow exists to separate one near-black
-    // from another, which a light page does not need.
-    shadow: '0px 24px 56px 0px rgba(0,0,0,0.18)',
+    shadow: 'none',
   },
 };
 
+/** The palette for every window: dialogs, Settings, Share and the AI panel. */
+export function windowThemeVars(theme: SurfaceTheme): CSSProperties {
+  return varsFor(WINDOW_PALETTES[theme]);
+}
+
 /**
- * The palette as custom properties, for the dialog's root element. Everything
- * inside reads `var(--surface-*)`, so the theme is decided once here rather
- * than at forty call sites.
+ * A palette as custom properties. Everything inside reads `var(--surface-*)`,
+ * so the theme is decided once here rather than at forty call sites.
  */
-export function surfaceThemeVars(theme: SurfaceTheme): CSSProperties {
-  const palette = PALETTES[theme];
+function varsFor(palette: SurfacePalette): CSSProperties {
   return {
     '--surface-backdrop': palette.backdrop,
     '--surface-panel': palette.surface,
@@ -185,6 +191,7 @@ export function surfaceThemeVars(theme: SurfaceTheme): CSSProperties {
     '--surface-fg-faint': palette.fgFaint,
     '--surface-accent': palette.accent,
     '--surface-accent-hover': palette.accentHover,
+    '--surface-link': palette.link,
     '--surface-on-accent': palette.onAccent,
     '--surface-toggle-off': palette.toggleOff,
     '--surface-wash': palette.wash,

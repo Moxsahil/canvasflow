@@ -21,7 +21,7 @@ export function BoardLoading({ overlay = false }: { overlay?: boolean }) {
       role="status"
       data-testid="board-loading"
       className={cn(
-        'pointer-events-none flex items-center justify-center text-[#a3a3a3]',
+        'pointer-events-none flex items-center justify-center text-[#9f9fa9]',
         overlay ? 'absolute inset-0' : 'h-full',
       )}
     >
