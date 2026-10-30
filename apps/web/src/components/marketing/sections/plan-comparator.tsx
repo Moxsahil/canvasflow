@@ -51,6 +51,8 @@ function ctaHref(plan: WorkspacePlan): string {
   if (!PLAN_PRICES[plan]) return WHITEBOARD_HREF;
   const url = new URL('/upgrade', WHITEBOARD_HREF);
   url.searchParams.set('plan', plan);
+  // The upgrade page's back link returns here rather than to the editor.
+  url.searchParams.set('from', 'pricing');
   return url.toString();
 }
 

@@ -1,13 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { PLAN_NAMES, PLAN_PRICES, SUPPORT_EMAIL } from '@canvasflow/types';
 import { useT } from '../i18n';
 import { forgetUsage } from '../diagrams/usage-cache';
 import { fetchCurrentAccount } from '../profile/current-account';
 import { announceWorkspaceChanged } from '../workspace/workspace-events';
-import { AnimatedTicket, type TicketDetail } from '@/components/ui/ticket-confirmation-card';
+import type { TicketDetail } from '@/components/ui/ticket-confirmation-card';
 import { billingWorkspace, checkoutStatus, type CheckoutStatus } from './billing-api';
-import { UpgradeShell, boardAddress, formatDay, formatMoney } from './UpgradeShell';
+import { boardAddress, formatDay, formatMoney } from './format';
+import { UpgradeBackLink, backLabel, type UpgradeBack } from './upgrade-back';
+import {
+  UpgradeConfirmed,
+  UpgradeConfirming,
+  UpgradeFrame,
+  UpgradeNotice,
+  upgradeButtons,
+} from './UpgradeViews';
 
 /** How often to ask, and for how long, before saying it is taking a while. */
 const POLL_MS = 2000;
@@ -33,15 +41,11 @@ export function UpgradeCompletePage() {
   const checkoutId = params.get('checkout_id');
   const from = params.get('from');
   const [stage, setStage] = useState<Stage>(checkoutId ? { kind: 'waiting' } : { kind: 'missing' });
-  const [email, setEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchCurrentAccount()
-      .then((account) => {
-        setEmail(account.email);
-        setUserId(account.id);
-      })
+      .then((account) => setUserId(account.id))
       .catch(() => undefined);
   }, []);
 
@@ -91,59 +95,40 @@ export function UpgradeCompletePage() {
     if (stage.kind === 'done' && userId && from) forgetUsage(userId, from);
   }, [stage.kind, userId, from]);
 
+  // Paid, so back to work: the board it was bought from, or the editor's home.
   const backTo = boardAddress(from);
 
   return (
-    <UpgradeShell backTo={backTo} email={email}>
-      {stage.kind === 'waiting' && (
-        <main className="up-narrow" aria-live="polite">
-          <span className="up-spinner" aria-hidden="true" />
-          <h1 className="up-title">{t('upgradeDone.waitingTitle')}</h1>
-          <p className="up-lead">{t('upgradeDone.waitingLead')}</p>
-          <ol className="up-steps up-mono">
-            <li className="up-step" data-state="done">
-              <Tick />
-              {t('upgradeDone.stepPaid')}
-            </li>
-            <li className="up-step" data-state="now">
-              <Dot />
-              {t('upgradeDone.stepConfirm')}
-            </li>
-            <li className="up-step">
-              <Dot />
-              {t('upgradeDone.stepOn')}
-            </li>
-          </ol>
-        </main>
-      )}
+    <UpgradeFrame backTo={backTo}>
+      {stage.kind === 'waiting' && <UpgradeConfirming />}
 
       {stage.kind === 'done' && checkoutId && (
         <Receipt stage={stage} checkoutId={checkoutId} backTo={backTo} />
       )}
 
       {stage.kind === 'slow' && (
-        <main className="up-narrow">
-          <h1 className="up-title">{t('upgradeDone.slowTitle')}</h1>
-          <p className="up-lead">{t('upgradeDone.slowLead', { email: SUPPORT_EMAIL })}</p>
-          <div className="up-actions">
-            <Link className="up-primary" to={backTo}>
-              {t('upgradePage.backToBoard')}
-            </Link>
-          </div>
-        </main>
+        <UpgradeNotice
+          title={t('upgradeDone.slowTitle')}
+          lead={t('upgradeDone.slowLead', { email: SUPPORT_EMAIL })}
+          action={
+            <UpgradeBackLink to={backTo} className={upgradeButtons.primary}>
+              {t(backLabel(backTo))}
+            </UpgradeBackLink>
+          }
+        />
       )}
 
       {stage.kind === 'missing' && (
-        <main className="up-narrow">
-          <h1 className="up-title">{t('upgradeDone.missing')}</h1>
-          <div className="up-actions">
-            <Link className="up-secondary" to={backTo}>
-              {t('upgradePage.backToBoard')}
-            </Link>
-          </div>
-        </main>
+        <UpgradeNotice
+          title={t('upgradeDone.missing')}
+          action={
+            <UpgradeBackLink to={backTo} className={upgradeButtons.quiet}>
+              {t(backLabel(backTo))}
+            </UpgradeBackLink>
+          }
+        />
       )}
-    </UpgradeShell>
+    </UpgradeFrame>
   );
 }
 
@@ -154,7 +139,7 @@ function Receipt({
 }: {
   stage: Extract<Stage, { kind: 'done' }>;
   checkoutId: string;
-  backTo: string;
+  backTo: UpgradeBack;
 }) {
   const t = useT();
   const { status, workspace } = stage;
@@ -186,50 +171,21 @@ function Receipt({
   ];
 
   return (
-    <main className="up-ticket">
-      <AnimatedTicket
-        title={t('upgradeDone.ticketTitle', { plan })}
-        subtitle={
-          workspace
-            ? t('upgradeDone.ticketLead', { workspace, plan })
-            : t('upgradeDone.ticketLeadShort', { plan })
-        }
-        details={details}
-        barcodeValue={orderNumber(checkoutId)}
-        barcodeLabel={t('upgradeDone.barcode')}
-      />
-      <Link className="up-primary" to={backTo}>
-        {t('upgradePage.backToBoard')}
-      </Link>
-    </main>
+    <UpgradeConfirmed
+      title={t('upgradeDone.ticketTitle', { plan })}
+      subtitle={
+        workspace
+          ? t('upgradeDone.ticketLead', { workspace, plan })
+          : t('upgradeDone.ticketLeadShort', { plan })
+      }
+      details={details}
+      orderNumber={orderNumber(checkoutId)}
+      backTo={backTo}
+    />
   );
 }
 
 /** The checkout's id, cut to a short order number a person could read out. */
 function orderNumber(checkoutId: string): string {
   return checkoutId.replace(/-/g, '').slice(0, 12).toUpperCase();
-}
-
-function Tick() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      aria-hidden="true"
-    >
-      <path d="M5 12l4 4 10-10" />
-    </svg>
-  );
-}
-
-function Dot() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="3" fill="currentColor" />
-    </svg>
-  );
 }

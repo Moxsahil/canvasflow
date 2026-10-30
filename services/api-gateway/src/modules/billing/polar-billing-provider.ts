@@ -17,6 +17,9 @@ const PRODUCT_PAGE = 100;
 /** Eight years of monthly charges: more than the list will ever need to show. */
 const ORDER_PAGE = 100;
 
+/** A workspace has one subscription at a time, and a few ended ones at most. */
+const WORKSPACE_SUBSCRIPTION_PAGE = 20;
+
 /** How long a freshly asked-for invoice is waited for before saying to try again. */
 const INVOICE_POLLS = 4;
 const INVOICE_POLL_MS = 1000;
@@ -96,6 +99,14 @@ export class PolarBillingProvider implements BillingProvider {
         currency: order.currency,
         status: order.status,
       }));
+  }
+
+  async workspaceSubscriptions(workspaceId: string): Promise<ProviderSubscription[]> {
+    const page = await this.polar.subscriptions.list({
+      metadata: { workspace_id: workspaceId },
+      limit: WORKSPACE_SUBSCRIPTION_PAGE,
+    });
+    return page.items.map(toSubscription);
   }
 
   async orderSubscription(orderId: string): Promise<string | null> {

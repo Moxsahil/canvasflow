@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/inline-dropdown-menu';
 import { PLAN_NAMES, type WorkspacePlan } from '@canvasflow/types';
 import { cachedBilling, loadBilling } from '../billing/billing-cache';
-import { formatDay } from '../billing/UpgradeShell';
+import { formatDay } from '../billing/format';
 import { rich, useT } from '../i18n';
 import { INPUT, SCROLLBAR, SLIDE } from '../settings/settings-ui';
 import {

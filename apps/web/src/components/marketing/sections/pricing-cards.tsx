@@ -70,6 +70,8 @@ function ctaHref(plan: WorkspacePlan, billing: Billing): string {
   const url = new URL('/upgrade', WHITEBOARD_HREF);
   url.searchParams.set('plan', plan);
   url.searchParams.set('cycle', billing);
+  // The upgrade page's back link returns here rather than to the editor.
+  url.searchParams.set('from', 'pricing');
   return url.toString();
 }
 

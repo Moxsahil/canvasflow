@@ -91,9 +91,15 @@ importers:
       '@canvasflow/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@fontsource-variable/inter':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@hocuspocus/provider':
         specifier: ^4.5.0
         version: 4.5.0(y-protocols@1.0.7(yjs@13.6.31))(yjs@13.6.31)
+      '@number-flow/react':
+        specifier: ^0.6.2
+        version: 0.6.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@radix-ui/react-alert-dialog':
         specifier: ^1.1.23
         version: 1.1.23(@types/react-dom@18.3.7(@types/react@18.3.29))(@types/react@18.3.29)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -2520,6 +2526,12 @@ packages:
     resolution:
       {
         integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==,
+      }
+
+  '@fontsource-variable/inter@5.3.0':
+    resolution:
+      {
+        integrity: sha512-OupL48va4JNofb97w6NYeF9S7W/kHNKM0Er8Dem5nqi4jeOLrVJDoE8tZEpnMJmtkvNbB1EIPPwHcdkF6b1oUA==,
       }
 
   '@grpc/grpc-js@1.14.4':
@@ -15219,6 +15231,8 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
 
   '@floating-ui/utils@0.2.12': {}
+
+  '@fontsource-variable/inter@5.3.0': {}
 
   '@grpc/grpc-js@1.14.4':
     dependencies:

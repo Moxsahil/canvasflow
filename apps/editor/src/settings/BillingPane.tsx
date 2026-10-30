@@ -12,7 +12,7 @@ import {
   type BillingHistory,
   type BillingWorkspace,
 } from '../billing/billing-api';
-import { formatDay, formatMoney } from '../billing/UpgradeShell';
+import { formatDay, formatMoney } from '../billing/format';
 import { settingsAddress } from './settings-link';
 import { ErrorLine, SettingsButton, SettingsPage } from './settings-ui';
 import type { WorkspaceSettingsSource } from './WorkspacePane';

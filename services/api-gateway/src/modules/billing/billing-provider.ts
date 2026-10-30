@@ -110,6 +110,12 @@ export interface BillingProvider {
   savedCard(customerId: string): Promise<SavedCard | null>;
   /** Every charge on these subscriptions, newest first. */
   invoices(subscriptionIds: string[]): Promise<ProviderInvoice[]>;
+  /**
+   * Every subscription the provider holds for a workspace, by the
+   * `workspace_id` its checkout copied onto it. How a missed webhook is made
+   * up for: asked directly instead of waiting to be told.
+   */
+  workspaceSubscriptions(workspaceId: string): Promise<ProviderSubscription[]>;
   /** The subscription an order was for, or null for an order that is not ours. */
   orderSubscription(orderId: string): Promise<string | null>;
   /** A short-lived link to the order's invoice PDF, or null while there is none. */
