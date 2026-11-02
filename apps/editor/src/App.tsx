@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import { Editor } from './Editor';
 import { useT } from './i18n';
 import {
@@ -19,6 +19,9 @@ const UpgradePage = lazy(() =>
 );
 const UpgradeCompletePage = lazy(() =>
   import('./billing/UpgradeCompletePage').then((m) => ({ default: m.UpgradeCompletePage })),
+);
+const NotFoundPage = lazy(() =>
+  import('./NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
 );
 
 export function App() {
@@ -44,7 +47,14 @@ export function App() {
             </Suspense>
           }
         />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="*"
+          element={
+            <Suspense fallback={<div className="fixed inset-0 bg-black" />}>
+              <NotFoundPage />
+            </Suspense>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

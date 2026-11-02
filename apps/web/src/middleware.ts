@@ -47,6 +47,14 @@ const PUBLIC_PATHS = [
  */
 const EDITOR_API_PREFIXES = ['/api/editor-token', '/api/boards/', '/api/workspaces', '/api/me'];
 
+/**
+ * What actually needs a session. Everything else on this site is listed above
+ * or doesn't exist, and an address that doesn't exist should get the 404 page
+ * rather than a sign-in form that leads back to nothing. A new page that needs
+ * a session has to be added here.
+ */
+const GUARDED_PREFIXES = ['/open', '/api/'];
+
 export default async function middleware(req: NextRequest) {
   const isPublic =
     PUBLIC_PATHS.includes(req.nextUrl.pathname) ||
@@ -60,6 +68,9 @@ export default async function middleware(req: NextRequest) {
     req.nextUrl.pathname.startsWith('/join/');
 
   if (isPublic) return NextResponse.next();
+
+  const guarded = GUARDED_PREFIXES.some((prefix) => req.nextUrl.pathname.startsWith(prefix));
+  if (!guarded) return NextResponse.next();
 
   // See EDITOR_API_PREFIXES: these authenticate inside the route handler so a
   // cookieless preflight is answered rather than redirected.

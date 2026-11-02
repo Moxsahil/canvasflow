@@ -13,7 +13,12 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./styles.css": "./dist/styles.css"
+    "./styles.css": "./dist/styles.css",
+    "./not-found-board": {
+      "types": "./dist/components/not-found-board.d.ts",
+      "import": "./dist/components/not-found-board.js",
+      "default": "./dist/components/not-found-board.js"
+    }
   },
   "files": [
     "dist"
@@ -30,6 +35,7 @@
     "@canvasflow/types": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "roughjs": "^4.6.6",
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {

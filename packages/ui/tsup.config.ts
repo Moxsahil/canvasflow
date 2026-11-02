@@ -3,7 +3,7 @@ import { defineConfig } from 'tsup';
 import { copyFile, mkdir } from 'node:fs/promises';
 
 export default defineConfig({
-  entry: ['src/index.ts'],
+  entry: ['src/index.ts', 'src/components/not-found-board.tsx'],
   format: ['esm'],
   dts: true,
   sourcemap: true,
