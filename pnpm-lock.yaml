@@ -445,6 +445,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      roughjs:
+        specifier: ^4.6.6
+        version: 4.6.6
       tailwind-merge:
         specifier: ^3.3.1
         version: 3.6.0
@@ -4046,6 +4049,7 @@ packages:
         integrity: sha512-ceUVWuCpIao7Y5xE02Xs3nQi0tOGmMea17ecBdwtCvdo9ekmO+ijc9RFDgfifMl7XCBf41zne/1POM3LqSTZDA==,
       }
     engines: { node: '>=14' }
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
@@ -4055,6 +4059,7 @@ packages:
         integrity: sha512-jVPgBbH1gCy2Lb7X0AVQ8XAfgg0pJ4nvl8/IiQA6nxOsPvS+0zMJaFSs2ltXe0J6C8dqjcnpyqINDJmU30+uOg==,
       }
     engines: { node: '>=14' }
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
