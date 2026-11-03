@@ -19,6 +19,7 @@ import {
 } from '../profile';
 import { usernameCandidates } from '../profile/username-suggestions';
 import { t as translate, useT, type TranslationKey } from '../i18n';
+import { AccentColour } from './AccentColour';
 import { PhotoDialog } from './PhotoDialog';
 import { useBand, useEscape } from './settings-frame';
 import {
@@ -134,13 +135,14 @@ export function ProfilePane({ user, account, avatar, theme }: ProfilePaneProps) 
 
       <Band title={t('settings.group.presence')}>
         <CursorColour profile={profile} save={save} theme={theme} editable={editable} />
+        <AccentColour />
       </Band>
     </SettingsPage>
   );
 }
 
 /** Each cursor colour's name, for the swatch that shows it. */
-const CURSOR_COLOUR_NAMES: Readonly<Record<CursorColor, TranslationKey>> = {
+export const CURSOR_COLOUR_NAMES: Readonly<Record<CursorColor, TranslationKey>> = {
   red: 'color.red',
   orange: 'color.orange',
   amber: 'color.amber',

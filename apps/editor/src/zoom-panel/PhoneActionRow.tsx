@@ -57,8 +57,8 @@ const BUTTON_CLASS = 'size-(--default-button-size)';
 
 /**
  * A phone's row above the toolbar: the zoom on the left, and on the right the
- * actions a keyboard would otherwise give — tool lock, undo, redo, duplicate
- * and delete.
+ * actions a keyboard would otherwise give — tool lock (for a tool that can be
+ * kept), undo, redo, duplicate and delete.
  *
  * Duplicate and delete stay in place with nothing selected, disabled, so the
  * row never shifts under a thumb as the selection comes and goes.
@@ -145,16 +145,22 @@ export function PhoneActionRow({
 
       {editing && (
         <Toolbar aria-label={t('toolbar.editingTools')} className={cn(SURFACE, 'ml-auto')}>
-          <ToolbarGroup>
-            {action(
-              editing.toolLocked ? t('toolLock.onSpoken') : t('toolLock.offSpoken'),
-              editing.toolLocked ? <LockIcon /> : <UnlockIcon />,
-              editing.onToggleToolLock,
-              !isLockableTool(editing.activeTool),
-              editing.toolLocked,
-            )}
-          </ToolbarGroup>
-          <ToolbarSeparator className="mx-1 h-4 self-center bg-(--dock-separator-color) data-[orientation=vertical]:my-0" />
+          {/* Only for a tool that can be kept, as on a desktop: select, the
+              hand, the eraser and the rest go back to nothing to lock. */}
+          {isLockableTool(editing.activeTool) && (
+            <>
+              <ToolbarGroup>
+                {action(
+                  editing.toolLocked ? t('toolLock.onSpoken') : t('toolLock.offSpoken'),
+                  editing.toolLocked ? <LockIcon /> : <UnlockIcon />,
+                  editing.onToggleToolLock,
+                  false,
+                  editing.toolLocked,
+                )}
+              </ToolbarGroup>
+              <ToolbarSeparator className="mx-1 h-4 self-center bg-(--dock-separator-color) data-[orientation=vertical]:my-0" />
+            </>
+          )}
           <ToolbarGroup>
             {action(t('commands.undo'), <Undo2 />, editing.onUndo, !editing.canUndo)}
             {action(t('commands.redo'), <Redo2 />, editing.onRedo, !editing.canRedo)}

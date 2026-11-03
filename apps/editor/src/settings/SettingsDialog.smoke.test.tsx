@@ -80,6 +80,14 @@ function workspaceSource(
  * choice to itself, so a page is reached here directly rather than through a
  * click the server renderer cannot make.
  */
+/** The cursor colour's swatches alone, without the accent colour's under them. */
+function cursorSwatches(html: string) {
+  return html.slice(
+    html.indexOf('data-setting="cursor-colour"'),
+    html.indexOf('data-setting="accent-colour"'),
+  );
+}
+
 function renderPane(id: string) {
   const panes: Record<string, JSX.Element> = {
     profile: <ProfilePane user={null} account={accountStub()} avatar={avatarStub()} theme="dark" />,
@@ -578,13 +586,23 @@ describe('SettingsDialog', () => {
     }
     // No choice yet means the colour still comes from the account id, and
     // marking a swatch would claim otherwise.
-    expect(html).not.toContain('aria-checked="true"');
+    expect(cursorSwatches(html)).not.toContain('aria-checked="true"');
   });
 
   it('seeds the fields from the saved profile, not the token', () => {
     const html = render(undefined, 'dark', accountStub(SAVED));
     expect(html).toContain('Sahil Saved');
-    expect(html.match(/aria-checked="true"/g)).toHaveLength(1);
+    expect(cursorSwatches(html).match(/aria-checked="true"/g)).toHaveLength(1);
+  });
+
+  it('puts the accent colour under the cursor colour, with the default picked', () => {
+    const html = render();
+    const accent = html.slice(html.indexOf('data-setting="accent-colour"'));
+    expect(html.indexOf('data-setting="cursor-colour"')).toBeLessThan(
+      html.indexOf('data-setting="accent-colour"'),
+    );
+    expect(accent).toContain('aria-label="Accent colour"');
+    expect(accent.match(/aria-checked="true"/g)).toHaveLength(1);
   });
 
   it('marks the unbuilt rows rather than letting them look ready', () => {

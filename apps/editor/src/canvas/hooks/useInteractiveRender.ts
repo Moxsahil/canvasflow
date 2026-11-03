@@ -32,6 +32,8 @@ interface UseInteractiveRenderOptions {
   darkMode?: boolean;
   /** The resize handles' size in screen pixels; the engine's default if left out. */
   handleSize?: number;
+  /** The selection's colour: the accent picked in Settings. */
+  selectionColor?: string;
 }
 
 export function useInteractiveRender(
@@ -54,6 +56,7 @@ export function useInteractiveRender(
     bindingHint,
     darkMode,
     handleSize,
+    selectionColor,
   } = options;
 
   useEffect(() => {
@@ -76,6 +79,7 @@ export function useInteractiveRender(
       bindingHint,
       darkMode,
       handleSize,
+      selectionColor,
     });
   }, [
     canvasRef,
@@ -94,5 +98,6 @@ export function useInteractiveRender(
     bindingHint,
     darkMode,
     handleSize,
+    selectionColor,
   ]);
 }

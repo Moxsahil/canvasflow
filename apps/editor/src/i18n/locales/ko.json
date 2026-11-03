@@ -1651,6 +1651,9 @@
   "embedView.madeWith": "CanvasFlow로 만듦",
   "storage.ofAllowance": "{{allowance}}GB 중 {{used}}",
   "common.back": "뒤로",
+  "drawer.upgrade.to": "{{plan}}(으)로 업그레이드",
+  "drawer.upgrade.proHint": "AI 다이어그램, 더 많은 저장 공간, 버전 기록",
+  "drawer.upgrade.teamHint": "Pro의 모든 기능을 팀 전체에",
   "drawer.tile.share": "공유",
   "drawer.tile.copyLink": "링크 복사",
   "drawer.tile.export": "내보내기"

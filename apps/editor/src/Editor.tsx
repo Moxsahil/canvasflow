@@ -198,10 +198,12 @@ import {
 import { usePeerTyping, withPeerTyping } from './collab/peer-typing';
 import { ZoomPanel } from './zoom-panel/ZoomPanel';
 import { PhoneActionRow, PhoneDoneButton } from './zoom-panel/PhoneActionRow';
+import { PhoneSettings } from './settings/phone/PhoneSettings';
 import { cn } from '@/lib/utils';
 import { isPhoneCanvas } from './ui/breakpoints';
 import { cameraKeepingInView } from './canvas/keep-in-view';
 import { useKeyboardTop } from './hooks/useKeyboardTop';
+import { accentThemeVars, selectionColorFor, useAccent, useReduceMotion } from './theme/accent';
 import { ExitModeButton } from './modes/ExitModeButton';
 import { toolMachine, resizeShape, resizeSnapHandle } from './machine/tool-machine';
 import { useKeyboardShortcuts } from './tools/useKeyboardShortcuts';
@@ -1520,6 +1522,10 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // A phone-sized canvas gathers the chrome along its top and bottom edges;
   // anything larger keeps the desktop layout untouched.
   const phone = isPhoneCanvas(width, height);
+  // Settings ▸ Appearance: the accent over the theme's blue, and whether
+  // sheets and pages slide in.
+  const accent = useAccent();
+  const reduceMotion = useReduceMotion();
 
   const cameraRef = useRef(camera);
   cameraRef.current = camera;
@@ -6123,12 +6129,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // The page's back link returns to this board with whatever sent them there
   // (Settings at Billing, or the AI panel) open again.
   const upgradeWorkspace = useCallback(
-    (workspaceId: string | null, via: UpgradeVia) => {
+    (workspaceId: string | null, via?: UpgradeVia) => {
       const target = new URLSearchParams();
       if (workspaceId) target.set('workspace', workspaceId);
       if (!local) {
         target.set('from', boardId);
-        target.set('via', via);
+        if (via) target.set('via', via);
       }
       navigate(`/upgrade?${target.toString()}`);
     },
@@ -6137,6 +6143,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const showPlans = useCallback(
     () => upgradeWorkspace(boardSwitcher.workspaceId, 'ai'),
     [upgradeWorkspace, boardSwitcher.workspaceId],
+  );
+  // From the phone's account menu: going back lands on the board, nothing reopened.
+  const upgradeFromMenu = useCallback(
+    (workspaceId: string) => upgradeWorkspace(workspaceId),
+    [upgradeWorkspace],
   );
   const upgradeFromSettings = useCallback(
     (workspaceId: string) => upgradeWorkspace(workspaceId, 'settings'),
@@ -6529,6 +6540,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       data-theme={resolvedTheme}
       // Read by global.css, which moves the chrome to the phone's edges.
       data-phone={phone ? '' : undefined}
+      data-reduce-motion={reduceMotion ? '' : undefined}
       // A phone's find bar takes the whole top row while it is open.
       data-searching={phone && search.open ? '' : undefined}
       // Read by global.css, which hides the sidebar on it. The chrome drawn
@@ -6546,12 +6558,15 @@ export function Editor({ boardId, local = false }: EditorProps) {
           overflow: 'hidden',
           // Overrides the neutral default in cursors.css for the whole editor.
           ...(pointerCursor ? { '--cursor-select': pointerCursor } : {}),
+          // Settings ▸ Appearance's accent, over the theme's blue.
+          ...(accent === 'blue' ? {} : accentThemeVars(accent, resolvedTheme === 'dark')),
         } as React.CSSProperties
       }
     >
       <SidebarProvider defaultOpen={sidebarDefaultOpen} className="h-full min-h-0">
         <AppSidebar
           onOpenBilling={openBillingFor}
+          onUpgrade={upgradeFromMenu}
           boardShapes={shownShapes}
           peopleHere={Math.max(1, roster.length)}
           boardSwitcher={sidebarSwitcher}
@@ -6714,6 +6729,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   imageRevision={pictureRevision}
                   darkMode={resolvedTheme === 'dark'}
                   handleSize={phone ? PHONE_HANDLE_SIZE : undefined}
+                  selectionColor={accent === 'blue' ? undefined : selectionColorFor(accent)}
                   onDropFiles={readOnly ? undefined : handleInsertImages}
                   onDropLibraryItem={readOnly ? undefined : handleDropLibraryItem}
                   activeTool={activeTool}
@@ -7354,7 +7370,38 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 and closing the window is what discards them. Kept a moment
                 longer on the way out, so it can sink away rather than vanish. */}
             <AnimatePresence>
-              {settingsOpen && (
+              {settingsOpen && phone && (
+                // A phone: Settings as a full-height sheet with pages.
+                <PhoneSettings
+                  key="phone-settings"
+                  user={chromeUser}
+                  token={authToken}
+                  account={account}
+                  avatar={avatar}
+                  theme={presenceTheme}
+                  themePreference={theme}
+                  resolvedTheme={resolvedTheme}
+                  onThemeChange={setTheme}
+                  preferences={preferences}
+                  userId={userId}
+                  isGuest={user?.isGuest ?? false}
+                  resumeDeletion={resumeDeletion}
+                  initialSection={settingsSection}
+                  deleteAccount={deleteAccount}
+                  workspace={settingsWorkspace}
+                  renameWorkspace={renameWorkspaceFromSettings}
+                  upgradeWorkspace={upgradeFromSettings}
+                  openBoard={exportOpenBoard}
+                  analytics={usage.consent}
+                  chooseAnalytics={usage.choose}
+                  boardId={boardId}
+                  onSignOut={local ? undefined : showSignOut}
+                  onShowShortcuts={handleShowHelp}
+                  onClose={hideSettings}
+                  container={editorRoot}
+                />
+              )}
+              {settingsOpen && !phone && (
                 <SettingsDialog
                   key="settings"
                   user={chromeUser}

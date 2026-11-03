@@ -1651,6 +1651,9 @@
   "embedView.madeWith": "CanvasFlow で作成",
   "storage.ofAllowance": "{{allowance}} GB 中 {{used}}",
   "common.back": "戻る",
+  "drawer.upgrade.to": "{{plan}} にアップグレード",
+  "drawer.upgrade.proHint": "AI ダイアグラム、ストレージ増量、バージョン履歴",
+  "drawer.upgrade.teamHint": "Pro のすべてをチーム全員に",
   "drawer.tile.share": "共有",
   "drawer.tile.copyLink": "リンクをコピー",
   "drawer.tile.export": "書き出し"

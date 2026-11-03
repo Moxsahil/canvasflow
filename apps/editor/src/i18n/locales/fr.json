@@ -1700,6 +1700,9 @@
   "embedView.madeWith": "Créé avec CanvasFlow",
   "storage.ofAllowance": "{{used}} sur {{allowance}} Go",
   "common.back": "Retour",
+  "drawer.upgrade.to": "Passer à {{plan}}",
+  "drawer.upgrade.proHint": "Diagrammes IA, plus de stockage, historique des versions",
+  "drawer.upgrade.teamHint": "Tout Pro, pour toute l’équipe",
   "drawer.tile.share": "Partager",
   "drawer.tile.copyLink": "Copier le lien",
   "drawer.tile.export": "Exporter"

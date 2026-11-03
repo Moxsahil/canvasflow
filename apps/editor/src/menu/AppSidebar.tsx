@@ -54,6 +54,8 @@ interface AppSidebarProps {
   portalContainer: HTMLElement | null;
   /** Opens Settings at Billing on a workspace, for a delete that waits on its plan. */
   onOpenBilling?: (workspaceId: string) => void;
+  /** Opens the upgrade page for a workspace, from the phone's account sheet. */
+  onUpgrade?: (workspaceId: string) => void;
   /** What the open board holds: the phone drawer shows it on the board's card. */
   boardShapes?: readonly Shape[];
   /** Everyone on the open board right now, oneself included. */
@@ -81,6 +83,7 @@ export function AppSidebar({
   actions,
   portalContainer,
   onOpenBilling,
+  onUpgrade,
   boardShapes = NO_SHAPES,
   peopleHere = 1,
 }: AppSidebarProps) {
@@ -110,6 +113,7 @@ export function AppSidebar({
           portalContainer={portalContainer}
           boardShapes={boardShapes}
           peopleHere={peopleHere}
+          onUpgrade={onUpgrade}
         />
       ) : (
         <>
