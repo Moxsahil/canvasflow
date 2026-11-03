@@ -83,6 +83,62 @@ const PATHS = {
       <path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4" />
     </>
   ),
+  trash: <path d="M3.5 6h17M9 6V4h6v2M18.5 6l-1 14h-11l-1-14" />,
+  link: (
+    <>
+      <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+      <path d="M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1-1" />
+    </>
+  ),
+  eye: (
+    <>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+      <circle cx="12" cy="12" r="2.5" />
+    </>
+  ),
+  mail: (
+    <>
+      <rect x="3" y="5.5" width="18" height="13" rx="2.5" />
+      <path d="m4 7 8 6 8-6" />
+    </>
+  ),
+  phone: (
+    <>
+      <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
+      <path d="M10.5 18.5h3" />
+    </>
+  ),
+  laptop: (
+    <>
+      <rect x="4.5" y="5" width="15" height="10.5" rx="1.5" />
+      <path d="M2.5 19h19" />
+    </>
+  ),
+  monitor: (
+    <>
+      <rect x="3" y="4" width="18" height="12" rx="2" />
+      <path d="M8.5 20h7M12 16v4" />
+    </>
+  ),
+  tablet: (
+    <>
+      <rect x="4.5" y="2.5" width="15" height="19" rx="2.5" />
+      <path d="M11 18.5h2" />
+    </>
+  ),
+  alert: (
+    <>
+      <path d="M12 3.5 21.5 20h-19z" />
+      <path d="M12 10v4.5M12 17.5h.01" />
+    </>
+  ),
+  crown: <path d="m3.5 8 4.5 4 4-6.5 4 6.5 4.5-4-2 10.5h-13z" />,
+  userminus: (
+    <>
+      <circle cx="9.5" cy="8.5" r="4" />
+      <path d="M2.5 20.5c.8-3.8 3.5-6 7-6s6.2 2.2 7 6M16 10h6" />
+    </>
+  ),
 } as const;
 
 export type PhoneIconName = keyof typeof PATHS;
