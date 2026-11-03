@@ -7056,6 +7056,9 @@ export function Editor({ boardId, local = false }: EditorProps) {
                     // Nobody else can be on the local board, and its one
                     // person has no account to show a face for.
                     roster={local ? [] : roster}
+                    // Two faces on a phone's narrow top bar, four on a
+                    // desktop; past that, the rest are counted.
+                    maxVisible={phone ? 2 : 4}
                     boardId={boardId}
                     authToken={authToken}
                     theme={presenceTheme}
