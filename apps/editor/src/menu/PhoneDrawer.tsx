@@ -18,7 +18,6 @@ import {
   PinOff,
   Plus,
   Search,
-  Settings,
   Settings2,
   SlidersHorizontal,
   Sun,
@@ -811,18 +810,11 @@ export function PhoneDrawer({
               {PLAN_NAMES[plan]}
             </span>
           )}
+          <ChevronsUpDown
+            className="size-4 shrink-0 text-sidebar-foreground/55"
+            aria-hidden="true"
+          />
         </button>
-        {actions?.settings && (
-          <button
-            type="button"
-            onClick={runAction('settings')}
-            aria-label={t('menu.settings')}
-            className="grid size-10 shrink-0 place-items-center rounded-[10px] text-sidebar-foreground/80 active:bg-sidebar-foreground/10"
-            data-testid="drawer-settings"
-          >
-            <Settings className="size-[19px]" aria-hidden="true" />
-          </button>
-        )}
       </div>
 
       <PhoneSheet
