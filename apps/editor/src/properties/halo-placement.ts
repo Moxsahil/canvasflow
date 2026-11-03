@@ -18,7 +18,7 @@ export interface HaloPlacement {
    * Where the bar ended up: over the selection, under it, or docked above the
    * toolbar when there is no selection on screen to follow.
    */
-  side: 'above' | 'below' | 'dock';
+  side: 'above' | 'below' | 'dock' | 'pinned';
   /** Whether its menus open upwards — towards whichever side has more room. */
   opensUp: boolean;
 }
@@ -48,10 +48,27 @@ const clamp = (value: number, min: number, max: number) =>
  * selected — styling the next shape a tool will draw — or with the selection
  * scrolled out of view, there is nothing to follow, and the bar docks above
  * the toolbar where the drawing tools are.
+ *
+ * `dockClearance` is how much of the board's foot the toolbar takes — more
+ * on a phone, where the actions row stands on it too. A bar moved by hand is
+ * `pinned` and stays where it was put.
  */
-export function haloPlacement(anchor: ScreenRect | null, bar: Size, board: Size): HaloPlacement {
+export function haloPlacement(
+  anchor: ScreenRect | null,
+  bar: Size,
+  board: Size,
+  dockClearance: number = DOCK_CLEARANCE,
+  pinned: { left: number; top: number } | null = null,
+): HaloPlacement {
   const maxLeft = board.width - bar.width - EDGE;
   const opensUp = (top: number) => top > board.height - (top + bar.height);
+
+  // Moved by hand: it stays where it was put, kept whole on the board and
+  // clear of the toolbar.
+  if (pinned) {
+    const top = clamp(pinned.top, EDGE, board.height - dockClearance - bar.height);
+    return { left: clamp(pinned.left, EDGE, maxLeft), top, side: 'pinned', opensUp: opensUp(top) };
+  }
 
   const onScreen =
     anchor !== null &&
@@ -61,7 +78,7 @@ export function haloPlacement(anchor: ScreenRect | null, bar: Size, board: Size)
     anchor.y < board.height;
 
   if (!anchor || !onScreen) {
-    const top = board.height - DOCK_CLEARANCE - bar.height;
+    const top = board.height - dockClearance - bar.height;
     return {
       left: clamp((board.width - bar.width) / 2, EDGE, maxLeft),
       top,
@@ -76,7 +93,7 @@ export function haloPlacement(anchor: ScreenRect | null, bar: Size, board: Size)
   if (above >= TOP_CHROME) return { left, top: above, side: 'above', opensUp: opensUp(above) };
 
   const below = anchor.y + anchor.height + HANDLE_MARGIN + GAP;
-  if (below + bar.height <= board.height - DOCK_CLEARANCE) {
+  if (below + bar.height <= board.height - dockClearance) {
     return { left, top: below, side: 'below', opensUp: opensUp(below) };
   }
 

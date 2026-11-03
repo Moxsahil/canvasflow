@@ -1321,6 +1321,8 @@
   "style.layer": "Capa",
   "style.opacity": "Opacidad",
   "style.arrange": "Organizar",
+  "style.haloMove": "Mover la barra de estilo",
+  "style.haloMoveHint": "Arrastra para moverla. Haz doble clic para devolverla junto a la selección.",
   "style.style": "Estilo",
   "style.bringToFront": "Traer al frente",
   "style.bringForward": "Traer adelante",

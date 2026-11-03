@@ -1321,6 +1321,8 @@
   "style.layer": "Ebene",
   "style.opacity": "Deckkraft",
   "style.arrange": "Anordnen",
+  "style.haloMove": "Stilleiste verschieben",
+  "style.haloMoveHint": "Zum Verschieben ziehen. Doppelklicken, um sie wieder neben die Auswahl zu setzen.",
   "style.style": "Stil",
   "style.bringToFront": "In den Vordergrund",
   "style.bringForward": "Nach vorne",

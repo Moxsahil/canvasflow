@@ -187,7 +187,11 @@ export function GlassDockItem({ id, label, children }: GlassDockItemProps) {
   return (
     <motion.div
       ref={ref}
-      onMouseEnter={show}
+      // A mouse or a pen hovering, never a finger: a tap is no hover, and a
+      // tooltip left up over the tool just tapped tells nobody anything.
+      onPointerEnter={(event) => {
+        if (event.pointerType !== 'touch') show();
+      }}
       // Keyboard users get the same tooltip; you cannot hover with arrow keys,
       // and the tools are navigated with them. Only them: a click focuses the
       // tool too, and so does the browser on returning to this window.

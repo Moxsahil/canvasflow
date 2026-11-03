@@ -50,4 +50,18 @@ describe('haloPlacement', () => {
       false,
     );
   });
+
+  it('docks higher where the toolbar takes more of the board', () => {
+    const place = haloPlacement(null, bar, board, 160);
+    expect(place.top).toBe(board.height - 160 - bar.height);
+  });
+
+  it('stays where it was moved to, kept whole on the board', () => {
+    const anchor = { x: 400, y: 300, width: 200, height: 100 };
+    const moved = haloPlacement(anchor, bar, board, undefined, { left: 120, top: 200 });
+    expect(moved).toMatchObject({ left: 120, top: 200, side: 'pinned' });
+    const off = haloPlacement(anchor, bar, board, undefined, { left: -50, top: 5000 });
+    expect(off.left).toBe(8);
+    expect(off.top).toBe(board.height - 68 - bar.height);
+  });
 });

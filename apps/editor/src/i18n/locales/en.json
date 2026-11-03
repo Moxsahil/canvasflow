@@ -1328,6 +1328,8 @@
   "style.layer": "Layer",
   "style.opacity": "Opacity",
   "style.arrange": "Arrange",
+  "style.haloMove": "Move style bar",
+  "style.haloMoveHint": "Drag to move. Double-click to put it back by the selection.",
   "style.style": "Style",
   "style.bringToFront": "Bring to front",
   "style.bringForward": "Bring forward",

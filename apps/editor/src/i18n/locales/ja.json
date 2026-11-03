@@ -1284,6 +1284,8 @@
   "style.layer": "レイヤー",
   "style.opacity": "不透明度",
   "style.arrange": "配置",
+  "style.haloMove": "スタイルバーを移動",
+  "style.haloMoveHint": "ドラッグして移動します。ダブルクリックで選択範囲の近くに戻します。",
   "style.style": "スタイル",
   "style.bringToFront": "最前面へ移動",
   "style.bringForward": "前面へ移動",
