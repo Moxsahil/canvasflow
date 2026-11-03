@@ -91,6 +91,12 @@ export interface InteractiveSceneOptions {
 
   /** Which theme the board is in, for the colours that differ between the two. */
   readonly darkMode?: boolean;
+
+  /**
+   * The resize handles' size, in screen pixels. Larger on a phone, where they
+   * are pressed with a finger; 8 everywhere else.
+   */
+  readonly handleSize?: number;
 }
 
 const HANDLE_SIZE = 8; // screen pixels
@@ -243,7 +249,7 @@ export function renderInteractiveScene(
           width: b.width + pad * 2,
           height: b.height + pad * 2,
         };
-        drawHandles(ctx, outerBounds, zoom);
+        drawHandles(ctx, outerBounds, zoom, opts.handleSize ?? HANDLE_SIZE);
       }
     }
   }
@@ -469,8 +475,9 @@ function drawHandles(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   bounds: Rect,
   zoom: number,
+  size: number,
 ): void {
-  const s = HANDLE_SIZE / zoom; // Handle size in world coords
+  const s = size / zoom; // Handle size in world coords
   const half = s / 2;
 
   const cx = bounds.x + bounds.width / 2;

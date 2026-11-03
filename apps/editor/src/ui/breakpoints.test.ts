@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BREAKPOINT, BREAKPOINT_WIDTHS, getBreakpoint } from './breakpoints';
+import { BREAKPOINT, BREAKPOINT_WIDTHS, getBreakpoint, isPhoneCanvas } from './breakpoints';
 
 describe('getBreakpoint', () => {
   it('puts a width on the rung whose upper threshold it is under', () => {
@@ -23,5 +23,31 @@ describe('getBreakpoint', () => {
 
   it('assumes the widest until the canvas has been measured', () => {
     expect(getBreakpoint(0)).toBe(BREAKPOINT.DESKTOP);
+  });
+});
+
+describe('isPhoneCanvas', () => {
+  it('lays out phones held upright as phones', () => {
+    expect(isPhoneCanvas(375, 667)).toBe(true);
+    expect(isPhoneCanvas(393, 716)).toBe(true);
+    expect(isPhoneCanvas(599, 900)).toBe(true);
+  });
+
+  it('lays out a phone on its side as a phone', () => {
+    expect(isPhoneCanvas(852, 353)).toBe(true);
+    expect(isPhoneCanvas(932, 390)).toBe(true);
+  });
+
+  it('leaves tablets and computers alone', () => {
+    expect(isPhoneCanvas(600, 900)).toBe(false);
+    expect(isPhoneCanvas(834, 1120)).toBe(false);
+    expect(isPhoneCanvas(1194, 760)).toBe(false);
+    expect(isPhoneCanvas(1440, 820)).toBe(false);
+    // A short but wide desktop window is still a desktop.
+    expect(isPhoneCanvas(1200, 480)).toBe(false);
+  });
+
+  it('is not a phone until the canvas has been measured', () => {
+    expect(isPhoneCanvas(0, 0)).toBe(false);
   });
 });

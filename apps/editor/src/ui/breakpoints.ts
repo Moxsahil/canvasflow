@@ -42,3 +42,33 @@ export function getBreakpoint(width: number): Breakpoint {
   const rung = BREAKPOINT_WIDTHS.filter((threshold) => threshold < width).length - 1;
   return Math.min(rung, BREAKPOINT.DESKTOP) as Breakpoint;
 }
+
+/** The widest canvas laid out as a phone, in CSS pixels. */
+export const PHONE_MAX_WIDTH = 599;
+
+/**
+ * A landscape phone is wide but short: below this height, and under
+ * {@link PHONE_LANDSCAPE_MAX_WIDTH} wide, the canvas is a phone on its side.
+ */
+export const PHONE_LANDSCAPE_MAX_HEIGHT = 500;
+export const PHONE_LANDSCAPE_MAX_WIDTH = 1000;
+
+/**
+ * Whether a canvas of this size gets the phone layout: the chrome gathered
+ * along the top and bottom edges, with the toolbar sized to the screen.
+ *
+ * Measured against the canvas, like the ladder above. An unmeasured canvas
+ * (0 × 0) is not a phone, for the same reason the ladder guesses the widest:
+ * guessing small would flash the phone layout on every desktop load.
+ */
+export function isPhoneCanvas(width: number, height: number): boolean {
+  if (width <= 0 || height <= 0) return false;
+  if (width <= PHONE_MAX_WIDTH) return true;
+  return height < PHONE_LANDSCAPE_MAX_HEIGHT && width < PHONE_LANDSCAPE_MAX_WIDTH;
+}
+
+/**
+ * The same phone sizes as {@link isPhoneCanvas}, measured on the window, for
+ * the popups that portal outside the board and cannot ask it.
+ */
+export const PHONE_MEDIA_QUERY = `(max-width: ${PHONE_MAX_WIDTH}px), (max-height: ${PHONE_LANDSCAPE_MAX_HEIGHT - 1}px) and (max-width: ${PHONE_LANDSCAPE_MAX_WIDTH - 1}px)`;

@@ -40,7 +40,7 @@ interface Entry {
  * The mark for "Shared with you": people rather than an initial, since it is
  * not a workspace with a name but boards from other people's.
  */
-function SharedBadge({ className }: { className?: string }) {
+export function SharedBadge({ className }: { className?: string }) {
   return (
     <span
       aria-hidden="true"

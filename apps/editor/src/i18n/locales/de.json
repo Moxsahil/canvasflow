@@ -1698,5 +1698,9 @@
   "deleteAccount.planEnds": "{{name}} hat {{plan}}. Der Tarif verlängert sich ab jetzt nicht mehr und endet am {{date}}. Wenn du dein Konto vorher wiederherstellst, kannst du ihn unter Einstellungen → Abrechnung wieder abonnieren.",
   "deleteAccount.planEndsNoDate": "{{name}} hat {{plan}}. Der Tarif verlängert sich ab jetzt nicht mehr und endet mit seinem bezahlten Zeitraum.",
   "embedView.madeWith": "Erstellt mit CanvasFlow",
-  "storage.ofAllowance": "{{used}} von {{allowance}} GB"
+  "storage.ofAllowance": "{{used}} von {{allowance}} GB",
+  "common.back": "Zurück",
+  "drawer.tile.share": "Teilen",
+  "drawer.tile.copyLink": "Link kopieren",
+  "drawer.tile.export": "Exportieren"
 }

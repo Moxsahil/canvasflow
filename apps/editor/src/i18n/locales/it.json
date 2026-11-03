@@ -1698,5 +1698,9 @@
   "deleteAccount.planEnds": "{{name}} ha il piano {{plan}}. Smette di rinnovarsi da ora e termina il {{date}}. Se ripristini l’account prima di allora, puoi riabbonarti in Impostazioni → Fatturazione.",
   "deleteAccount.planEndsNoDate": "{{name}} ha il piano {{plan}}. Smette di rinnovarsi da ora e termina con il periodo pagato.",
   "embedView.madeWith": "Creato con CanvasFlow",
-  "storage.ofAllowance": "{{used}} di {{allowance}} GB"
+  "storage.ofAllowance": "{{used}} di {{allowance}} GB",
+  "common.back": "Indietro",
+  "drawer.tile.share": "Condividi",
+  "drawer.tile.copyLink": "Copia link",
+  "drawer.tile.export": "Esporta"
 }

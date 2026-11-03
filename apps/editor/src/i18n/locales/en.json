@@ -1701,5 +1701,9 @@
   "deleteAccount.planEnds": "{{name}} is on {{plan}}. It stops renewing now and ends on {{date}}. If you restore your account before then, you can resubscribe in Settings → Billing.",
   "deleteAccount.planEndsNoDate": "{{name}} is on {{plan}}. It stops renewing now and ends with its paid period.",
   "embedView.madeWith": "Made with CanvasFlow",
-  "storage.ofAllowance": "{{used}} of {{allowance}} GB"
+  "storage.ofAllowance": "{{used}} of {{allowance}} GB",
+  "common.back": "Back",
+  "drawer.tile.share": "Share",
+  "drawer.tile.copyLink": "Copy link",
+  "drawer.tile.export": "Export"
 }

@@ -30,20 +30,30 @@ const TOTAL_SHORTCUTS = SHORTCUTS.reduce((count, category) => count + category.e
 /** Evened out rather than one per category, so no one group sets the height. */
 const COLUMNS_NARROW = balanceColumns(SHORTCUTS, 3);
 const COLUMNS_WIDE = balanceColumns(SHORTCUTS, 4);
+const COLUMNS_PHONE = balanceColumns(SHORTCUTS, 1);
 
 /** From this window width there is room for four columns, and nothing has to scroll. */
 const WIDE_FROM = 1400;
 
-function useWideWindow(): boolean {
-  const [wide, setWide] = useState(
-    () => typeof window !== 'undefined' && window.innerWidth >= WIDE_FROM,
-  );
+/** Below this window width the shortcuts stand in one column, as on a phone. */
+const PHONE_BELOW = 600;
+
+type WindowSize = 'phone' | 'narrow' | 'wide';
+
+const windowSize = (): WindowSize => {
+  if (typeof window === 'undefined') return 'narrow';
+  if (window.innerWidth >= WIDE_FROM) return 'wide';
+  return window.innerWidth < PHONE_BELOW ? 'phone' : 'narrow';
+};
+
+function useWindowSize(): WindowSize {
+  const [size, setSize] = useState(windowSize);
   useEffect(() => {
-    const onResize = () => setWide(window.innerWidth >= WIDE_FROM);
+    const onResize = () => setSize(windowSize());
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-  return wide;
+  return size;
 }
 
 const ALL_ENTRIES = SHORTCUTS.flatMap((category) => category.entries);
@@ -161,7 +171,9 @@ type Said = { kind: 'found'; entry: ShortcutEntry } | { kind: 'missed'; combo: s
 export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
   const t = useT();
   const titleId = useId();
-  const wide = useWideWindow();
+  const size = useWindowSize();
+  const wide = size === 'wide';
+  const phone = size === 'phone';
   const mac = useMemo(() => isMac(), []);
   const [query, setQuery] = useState('');
   const [said, setSaid] = useState<Said | null>(null);
@@ -262,6 +274,7 @@ export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
       <div
         className={cn(
           'relative z-[2] flex shrink-0 items-start gap-[12px] bg-[var(--surface-panel)] pt-[18px] pr-[16px] pb-[14px] pl-[22px] transition-shadow',
+          phone && 'flex-wrap',
           stuck && 'shadow-[var(--surface-stuck)]',
         )}
       >
@@ -285,7 +298,13 @@ export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
             )}
           </span>
         </div>
-        <label className="group flex h-[30px] w-[240px] shrink-0 cursor-text items-center gap-[8px] rounded-[8px] border border-[var(--surface-border)] bg-[var(--surface-input)] pr-[6px] pl-[10px] text-[var(--surface-fg-faint)] transition-[border-color,box-shadow] focus-within:border-[var(--surface-accent)] focus-within:shadow-[0_0_0_3px_var(--surface-accent-wash)]">
+        <label
+          className={cn(
+            'group flex h-[30px] shrink-0 cursor-text items-center gap-[8px] rounded-[8px] border border-[var(--surface-border)] bg-[var(--surface-input)] pr-[6px] pl-[10px] text-[var(--surface-fg-faint)] transition-[border-color,box-shadow] focus-within:border-[var(--surface-accent)] focus-within:shadow-[0_0_0_3px_var(--surface-accent-wash)]',
+            // A phone gives it the whole line under the title.
+            phone ? 'order-last w-full' : 'w-[240px]',
+          )}
+        >
           <Search className="size-[14px] shrink-0" aria-hidden="true" />
           <input
             ref={searchRef}
@@ -333,15 +352,19 @@ export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
           <div
             className={cn(
               searching
-                ? wide
-                  ? 'block columns-4 gap-x-[40px]'
-                  : 'block columns-3 gap-x-[32px]'
-                : wide
-                  ? 'grid grid-cols-4 items-start gap-x-[40px]'
-                  : 'grid grid-cols-3 items-start gap-x-[32px]',
+                ? phone
+                  ? 'block'
+                  : wide
+                    ? 'block columns-4 gap-x-[40px]'
+                    : 'block columns-3 gap-x-[32px]'
+                : phone
+                  ? 'grid gap-y-[24px]'
+                  : wide
+                    ? 'grid grid-cols-4 items-start gap-x-[40px]'
+                    : 'grid grid-cols-3 items-start gap-x-[32px]',
             )}
           >
-            {(wide ? COLUMNS_WIDE : COLUMNS_NARROW).map((column, index) => (
+            {(phone ? COLUMNS_PHONE : wide ? COLUMNS_WIDE : COLUMNS_NARROW).map((column, index) => (
               <div
                 key={index}
                 className={searching ? 'contents' : 'grid min-w-0 content-start gap-[24px]'}

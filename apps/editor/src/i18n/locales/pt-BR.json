@@ -1698,5 +1698,9 @@
   "deleteAccount.planEnds": "{{name}} está no {{plan}}. Ele deixa de renovar agora e termina em {{date}}. Se você restaurar sua conta antes disso, poderá assinar novamente em Configurações → Cobrança.",
   "deleteAccount.planEndsNoDate": "{{name}} está no {{plan}}. Ele deixa de renovar agora e termina com o período pago.",
   "embedView.madeWith": "Feito com CanvasFlow",
-  "storage.ofAllowance": "{{used}} de {{allowance}} GB"
+  "storage.ofAllowance": "{{used}} de {{allowance}} GB",
+  "common.back": "Voltar",
+  "drawer.tile.share": "Compartilhar",
+  "drawer.tile.copyLink": "Copiar link",
+  "drawer.tile.export": "Exportar"
 }

@@ -1649,5 +1649,9 @@
   "deleteAccount.planEnds": "{{name}}은(는) {{plan}} 플랜입니다. 이제 더 이상 갱신되지 않으며 {{date}}에 종료됩니다. 그 전에 계정을 복구하면 설정 → 결제에서 다시 구독할 수 있습니다.",
   "deleteAccount.planEndsNoDate": "{{name}}은(는) {{plan}} 플랜입니다. 이제 더 이상 갱신되지 않으며 결제된 기간이 끝나면 종료됩니다.",
   "embedView.madeWith": "CanvasFlow로 만듦",
-  "storage.ofAllowance": "{{allowance}}GB 중 {{used}}"
+  "storage.ofAllowance": "{{allowance}}GB 중 {{used}}",
+  "common.back": "뒤로",
+  "drawer.tile.share": "공유",
+  "drawer.tile.copyLink": "링크 복사",
+  "drawer.tile.export": "내보내기"
 }

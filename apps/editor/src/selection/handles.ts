@@ -15,6 +15,8 @@ export function hitTestHandles(
   px: number,
   py: number,
   zoom: number,
+  /** The square a press counts within, in screen pixels: bigger for a finger. */
+  hitSize = HANDLE_SIZE,
 ): HandleIndex | null {
   if (hasPointHandles(shape) || shape.kind === 'topic') return null;
 
@@ -27,7 +29,7 @@ export function hitTestHandles(
     height: b.height + pad * 2,
   };
 
-  const halfHandle = HANDLE_SIZE / 2 / zoom;
+  const halfHandle = hitSize / 2 / zoom;
   const cx = outerBounds.x + outerBounds.width / 2;
   const cy = outerBounds.y + outerBounds.height / 2;
   const right = outerBounds.x + outerBounds.width;

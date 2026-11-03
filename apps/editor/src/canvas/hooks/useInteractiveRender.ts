@@ -30,6 +30,8 @@ interface UseInteractiveRenderOptions {
   /** Where an arrow end being dragged would attach, outlined and marked. */
   bindingHint?: BindingHint | null;
   darkMode?: boolean;
+  /** The resize handles' size in screen pixels; the engine's default if left out. */
+  handleSize?: number;
 }
 
 export function useInteractiveRender(
@@ -51,6 +53,7 @@ export function useInteractiveRender(
     lockHighlightIds,
     bindingHint,
     darkMode,
+    handleSize,
   } = options;
 
   useEffect(() => {
@@ -72,6 +75,7 @@ export function useInteractiveRender(
       lockHighlightIds,
       bindingHint,
       darkMode,
+      handleSize,
     });
   }, [
     canvasRef,
@@ -89,5 +93,6 @@ export function useInteractiveRender(
     lockHighlightIds,
     bindingHint,
     darkMode,
+    handleSize,
   ]);
 }

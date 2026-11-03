@@ -51,14 +51,19 @@ const SheetContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content> & {
     side?: 'top' | 'right' | 'bottom' | 'left';
     showCloseButton?: boolean;
+    /**
+     * Where the sheet portals. Inside `.cf-editor` it shares a stacking order
+     * with the menus it opens, which portal there too and so draw above it.
+     */
+    container?: HTMLElement | null;
   }
 >(function SheetContent(
-  { className, children, side = 'right', showCloseButton = true, ...props },
+  { className, children, side = 'right', showCloseButton = true, container, ...props },
   ref,
 ) {
   const t = useT();
   return (
-    <SheetPortal>
+    <SheetPortal container={container ?? undefined}>
       <SheetOverlay />
       <SheetPrimitive.Content
         ref={ref}

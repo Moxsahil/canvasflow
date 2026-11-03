@@ -4,6 +4,7 @@ import { MotionConfig } from 'framer-motion';
 import { Check, ChevronRight } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { PHONE_MEDIA_QUERY } from '../../ui/breakpoints';
 import {
   MenuBadge,
   MenuGlide,
@@ -26,7 +27,23 @@ import {
  */
 const InlineDropdownMenu = DropdownMenuPrimitive.Root;
 const InlineDropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
-const InlineDropdownMenuSub = DropdownMenuPrimitive.Sub;
+/**
+ * The row that opens a submenu, shared with the submenu so that on a phone it
+ * can open over the menu — aligned to the row and as wide — rather than
+ * beside it, where a phone has no room.
+ */
+const SubAnchorContext = React.createContext<React.MutableRefObject<HTMLElement | null> | null>(
+  null,
+);
+
+function InlineDropdownMenuSub(props: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) {
+  const anchor = React.useRef<HTMLElement | null>(null);
+  return (
+    <SubAnchorContext.Provider value={anchor}>
+      <DropdownMenuPrimitive.Sub {...props} />
+    </SubAnchorContext.Provider>
+  );
+}
 const InlineDropdownMenuBadge = MenuBadge;
 
 /**
@@ -52,9 +69,18 @@ const InlineDropdownMenuSubTrigger = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.SubTrigger>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubTrigger>
 >(function InlineDropdownMenuSubTrigger({ className, children, ...props }, ref) {
+  const anchor = React.useContext(SubAnchorContext);
+  const setRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      if (anchor) anchor.current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+    },
+    [anchor, ref],
+  );
   return (
     <DropdownMenuPrimitive.SubTrigger
-      ref={ref}
+      ref={setRef}
       className={cn(menuRowClasses, className)}
       {...props}
     >
@@ -73,13 +99,22 @@ const InlineDropdownMenuSubContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent> & {
     container?: HTMLElement | null;
   }
->(function InlineDropdownMenuSubContent({ className, container, children, ...props }, ref) {
+>(function InlineDropdownMenuSubContent({ className, container, children, style, ...props }, ref) {
+  const anchor = React.useContext(SubAnchorContext);
+  // On a phone: over the menu, from the row's own left edge, as wide as it.
+  const [rowWidth, setRowWidth] = React.useState<number | null>(null);
+  React.useLayoutEffect(() => {
+    const row = anchor?.current;
+    const phone = window.matchMedia?.(PHONE_MEDIA_QUERY).matches ?? false;
+    setRowWidth(row && phone ? row.offsetWidth : null);
+  }, [anchor]);
   return (
     <DropdownMenuPrimitive.Portal container={container ?? undefined}>
       <DropdownMenuPrimitive.SubContent
         ref={ref}
-        sideOffset={MENU_SUB_OFFSET}
+        sideOffset={rowWidth === null ? MENU_SUB_OFFSET : -rowWidth}
         className={cn(panelClasses, className)}
+        style={rowWidth === null ? style : { ...style, minWidth: rowWidth }}
         {...props}
       >
         <MenuGlide />

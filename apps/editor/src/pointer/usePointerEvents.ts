@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, type RefObject } from 'react';
 import type { Point } from '../machine/tool-machine.types';
+import { CONTEXT_MENU_WIDTH } from '../context-menu/CanvasContextMenu';
 import { createTouchNavigator, TOUCH_TRAVEL_SLOP, type TouchNavigation } from './touch-navigation';
 
 /**
@@ -75,6 +76,22 @@ const isDirectDisplayPen = (e: PointerEvent) =>
  * move the board straight after writing still works.
  */
 const PEN_GRACE_MS = 400;
+
+/**
+ * Where across the screen a long press opens the menu from.
+ *
+ * The menu opens beside the press, on whichever side has room. On a phone the
+ * press can leave room on neither, and the menu would hang off an edge: it
+ * then opens from as far right as still keeps all of it on screen.
+ */
+export function menuAnchorX(x: number, screenWidth: number, menuWidth = CONTEXT_MENU_WIDTH) {
+  const room = menuWidth + MENU_EDGE;
+  if (x + room <= screenWidth || x - room >= 0) return x;
+  return Math.max(MENU_EDGE, screenWidth - room);
+}
+
+/** The gap the menu keeps from the screen's edge, as its own collision padding. */
+const MENU_EDGE = 8;
 
 /**
  * The button a pen reports for its far end, on the pens that have one: turned
@@ -410,7 +427,7 @@ export function usePointerEvents(
         new MouseEvent('contextmenu', {
           bubbles: true,
           cancelable: true,
-          clientX: last.clientX,
+          clientX: menuAnchorX(last.clientX, window.innerWidth),
           clientY: last.clientY,
           button: 2,
         }),

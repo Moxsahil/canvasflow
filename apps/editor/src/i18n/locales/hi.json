@@ -1698,5 +1698,9 @@
   "deleteAccount.planEnds": "{{name}} पर {{plan}} है। यह अब से नवीनीकृत नहीं होगा और {{date}} को समाप्त होगा। अगर आप उससे पहले अपना खाता वापस लाते हैं, तो सेटिंग्स → बिलिंग में फिर से सदस्यता ले सकते हैं।",
   "deleteAccount.planEndsNoDate": "{{name}} पर {{plan}} है। यह अब से नवीनीकृत नहीं होगा और भुगतान की गई अवधि के साथ समाप्त होगा।",
   "embedView.madeWith": "CanvasFlow से बनाया गया",
-  "storage.ofAllowance": "{{allowance}} GB में से {{used}}"
+  "storage.ofAllowance": "{{allowance}} GB में से {{used}}",
+  "common.back": "वापस",
+  "drawer.tile.share": "शेयर करें",
+  "drawer.tile.copyLink": "लिंक कॉपी करें",
+  "drawer.tile.export": "एक्सपोर्ट"
 }
