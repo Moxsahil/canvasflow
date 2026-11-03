@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Shape } from '@canvasflow/canvas-engine';
-import { PLAN_NAMES, type WorkspacePlan } from '@canvasflow/types';
+import { PLAN_NAMES, PLAN_PRICES, formatPlanPrice, type WorkspacePlan } from '@canvasflow/types';
 import {
   Archive,
   ArchiveRestore,
@@ -8,8 +8,11 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronsUpDown,
+  CircleArrowUp,
   Ellipsis,
   FileText,
+  Globe,
+  Info,
   Pencil,
   Pin,
   PinOff,
@@ -70,7 +73,16 @@ interface PhoneDrawerProps {
   boardShapes: readonly Shape[];
   /** Everyone on the open board right now, oneself included. */
   peopleHere: number;
+  /** Opens the upgrade page for a workspace; without it there is no upgrade row. */
+  onUpgrade?: (workspaceId: string) => void;
 }
+
+/** The plan one up from each, with what it adds, for the account sheet's upgrade row. */
+const NEXT_PLAN: Partial<Record<WorkspacePlan, { plan: WorkspacePlan; hintKey: TranslationKey }>> =
+  {
+    free: { plan: 'pro', hintKey: 'drawer.upgrade.proHint' },
+    pro: { plan: 'team', hintKey: 'drawer.upgrade.teamHint' },
+  };
 
 const THEMES: readonly { value: ThemePreference; labelKey: TranslationKey }[] = [
   { value: 'system', labelKey: 'theme.system' },
@@ -105,6 +117,7 @@ export function PhoneDrawer({
   portalContainer,
   boardShapes,
   peopleHere,
+  onUpgrade,
 }: PhoneDrawerProps) {
   const t = useT();
   const { setOpenMobile } = useSidebar();
@@ -250,7 +263,7 @@ export function PhoneDrawer({
   // --- the sheets ------------------------------------------------------------
 
   const chevron = <ChevronRight className="size-4" aria-hidden="true" />;
-  const menuRow = (id: MenuItemId, danger = false) => {
+  const menuRow = (id: MenuItemId, danger = false, end?: ReactNode) => {
     const meta = MENU_ITEMS[id];
     const Icon = meta.icon;
     const run = runAction(id);
@@ -263,7 +276,7 @@ export function PhoneDrawer({
         onClick={run ?? (() => {})}
         disabled={!run}
         danger={danger || meta.destructive}
-        end={actions?.[id] === undefined ? t('common.soon') : undefined}
+        end={actions?.[id] === undefined ? t('common.soon') : end}
         testId={`drawer-item-${id}`}
       />
     );
@@ -540,18 +553,44 @@ export function PhoneDrawer({
         />
       );
       const { languages } = languageInfo();
+      // Offered to whoever runs the workspace's billing, as Settings ▸ Billing is.
+      const next = workspace && !shared ? NEXT_PLAN[workspace.plan] : undefined;
+      const canUpgrade =
+        next && onUpgrade && (workspace?.role === 'owner' || workspace?.role === 'admin');
+      const nextPrice = next ? PLAN_PRICES[next.plan] : undefined;
       sheetBody = (
         <>
-          {accountless ? (
+          {canUpgrade && workspace && next && (
+            <SheetGroup>
+              <SheetRow
+                icon={<CircleArrowUp className="!text-sidebar-primary" aria-hidden="true" />}
+                label={
+                  <span className="text-sidebar-primary">
+                    {t('drawer.upgrade.to', { plan: PLAN_NAMES[next.plan] })}
+                  </span>
+                }
+                sub={t(next.hintKey)}
+                end={
+                  nextPrice ? `${formatPlanPrice(nextPrice.yearly)}${t('ps.perMonth')}` : undefined
+                }
+                onClick={() => {
+                  setSheet(null);
+                  onUpgrade(workspace.id);
+                }}
+                testId="drawer-upgrade"
+              />
+            </SheetGroup>
+          )}
+          {accountless && (
             <SheetGroup>
               {(['yourBoards', 'signIn', 'signUp'] as const).map((id) =>
                 actions?.[id] ? menuRow(id) : null,
               )}
             </SheetGroup>
-          ) : (
-            <SheetGroup>{menuRow('settings')}</SheetGroup>
           )}
+          {/* Settings sits with the other preferences, not on a card of its own. */}
           <SheetGroup>
+            {!accountless && menuRow('settings', false, chevron)}
             <SheetRow
               icon={<Sun aria-hidden="true" />}
               label={t('theme.title')}
@@ -593,7 +632,7 @@ export function PhoneDrawer({
               testId="drawer-preferences"
             />
             <SheetRow
-              icon={<span className="w-[19px]" aria-hidden="true" />}
+              icon={<Info aria-hidden="true" />}
               label={t('menu.learnMore')}
               end={chevron}
               onClick={() => setSheet({ kind: 'account', page: 'learn' })}
@@ -854,7 +893,7 @@ function LanguageRow({
   const { locale, t } = useI18n();
   return (
     <SheetRow
-      icon={<span className="w-[19px]" aria-hidden="true" />}
+      icon={<Globe aria-hidden="true" />}
       label={t('menu.language')}
       end={
         <>

@@ -1651,6 +1651,9 @@
   "embedView.madeWith": "使用 CanvasFlow 制作",
   "storage.ofAllowance": "{{used}} / {{allowance}} GB",
   "common.back": "返回",
+  "drawer.upgrade.to": "升级到 {{plan}}",
+  "drawer.upgrade.proHint": "AI 图表、更多存储空间、版本历史",
+  "drawer.upgrade.teamHint": "Pro 的全部功能，供整个团队使用",
   "drawer.tile.share": "共享",
   "drawer.tile.copyLink": "复制链接",
   "drawer.tile.export": "导出"

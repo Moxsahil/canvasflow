@@ -70,6 +70,8 @@ interface CanvasStackProps {
   darkMode?: boolean;
   /** The resize handles' size in screen pixels: larger on a phone. */
   handleSize?: number;
+  /** The selection's colour: the accent picked in Settings. */
+  selectionColor?: string;
   /** Image files dropped onto the canvas, with the world point they landed on. */
   onDropFiles?: (files: File[], at: Point) => void;
   /** A library item dragged out of the library and let go over the canvas. */
@@ -152,6 +154,7 @@ export function CanvasStack({
   imageRevision,
   darkMode = false,
   handleSize,
+  selectionColor,
   peersRef,
   subscribePeers,
   onDropFiles,
@@ -224,6 +227,7 @@ export function CanvasStack({
     bindingHint,
     darkMode,
     handleSize,
+    selectionColor,
   });
 
   const screenToWorldFn = useCallback(

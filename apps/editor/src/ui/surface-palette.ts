@@ -1,3 +1,4 @@
+import { ACCENTS, currentAccent, withAlpha } from '../theme/accent';
 import type { CSSProperties } from 'react';
 
 export type SurfaceTheme = 'light' | 'dark';
@@ -167,7 +168,17 @@ const WINDOW_PALETTES: Record<SurfaceTheme, SurfacePalette> = {
 
 /** The palette for every window: dialogs, Settings, Share and the AI panel. */
 export function windowThemeVars(theme: SurfaceTheme): CSSProperties {
-  return varsFor(WINDOW_PALETTES[theme]);
+  // The accent picked in Settings ▸ Appearance; blue gives the palette as is.
+  const id = currentAccent();
+  if (id === 'blue') return varsFor(WINDOW_PALETTES[theme]);
+  const { strong, soft } = ACCENTS[id];
+  return varsFor({
+    ...WINDOW_PALETTES[theme],
+    accent: strong,
+    accentHover: strong,
+    link: theme === 'dark' ? soft : strong,
+    accentWash: withAlpha(soft, theme === 'dark' ? 0.16 : 0.1),
+  });
 }
 
 /**

@@ -1700,6 +1700,9 @@
   "embedView.madeWith": "CanvasFlow से बनाया गया",
   "storage.ofAllowance": "{{allowance}} GB में से {{used}}",
   "common.back": "वापस",
+  "drawer.upgrade.to": "{{plan}} पर अपग्रेड करें",
+  "drawer.upgrade.proHint": "AI डायग्राम, ज़्यादा स्टोरेज, वर्ज़न हिस्ट्री",
+  "drawer.upgrade.teamHint": "Pro की हर चीज़, पूरी टीम के लिए",
   "drawer.tile.share": "शेयर करें",
   "drawer.tile.copyLink": "लिंक कॉपी करें",
   "drawer.tile.export": "एक्सपोर्ट"

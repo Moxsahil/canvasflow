@@ -227,7 +227,10 @@ export function PrivacyPane({
  * added there, shows up without reopening Settings. A failed refresh keeps the
  * reading already held rather than blanking it.
  */
-function useStorageUsage(token: string | null): { usage: StorageUsage | null; failed: boolean } {
+export function useStorageUsage(token: string | null): {
+  usage: StorageUsage | null;
+  failed: boolean;
+} {
   const [usage, setUsage] = useState<StorageUsage | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -261,7 +264,7 @@ function useStorageUsage(token: string | null): { usage: StorageUsage | null; fa
  * they are packed, and the row's line then says what the download holds, or
  * why there is none. Leaving the pane mid-export lets it finish and download.
  */
-function useBoardsExport(
+export function useBoardsExport(
   token: string | null,
   openBoard: OpenBoard | null,
 ): {

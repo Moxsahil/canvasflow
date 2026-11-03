@@ -83,6 +83,14 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
   },
 
   {
+    id: 'accent-colour',
+    titleKey: 'ps.accent',
+    section: 'profile',
+    groupKey: 'settings.group.presence',
+    terms: 'color theme highlight',
+  },
+
+  {
     id: 'email',
     titleKey: 'settings.row.email',
     section: 'account',

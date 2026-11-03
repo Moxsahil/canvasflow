@@ -177,7 +177,9 @@ export function PeerList({
             // The board's one blue button, as the website's main actions are;
             // green while the board is live.
             'flex h-9 min-w-24 cursor-pointer items-center justify-center rounded-[10px] px-4 text-xs font-semibold text-white outline-none focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)]',
-            isLive ? 'bg-[#0f9d58] hover:bg-[#0c8a4d]' : 'bg-[#135dfc] hover:bg-[#2a6dfc]',
+            isLive
+              ? 'bg-[#0f9d58] hover:bg-[#0c8a4d]'
+              : 'bg-(--color-primary) hover:brightness-110',
           )}
         >
           {t('share.button')}

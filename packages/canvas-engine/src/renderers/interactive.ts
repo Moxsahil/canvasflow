@@ -97,6 +97,9 @@ export interface InteractiveSceneOptions {
    * are pressed with a finger; 8 everywhere else.
    */
   readonly handleSize?: number;
+
+  /** The selection outline and handle colour; the engine's blue if left out. */
+  readonly selectionColor?: string;
 }
 
 const HANDLE_SIZE = 8; // screen pixels
@@ -214,7 +217,7 @@ export function renderInteractiveScene(
 
   // --- Selection outlines ---
   if (selectedIds.length > 0) {
-    ctx.strokeStyle = SELECTION_COLOR;
+    ctx.strokeStyle = opts.selectionColor ?? SELECTION_COLOR;
     ctx.lineWidth = 1.5 / zoom;
     ctx.setLineDash([]);
     ctx.fillStyle = HANDLE_FILL;
@@ -280,7 +283,7 @@ export function renderInteractiveScene(
     }
 
     ctx.fillStyle = 'rgba(99, 102, 241, 0.08)';
-    ctx.strokeStyle = SELECTION_COLOR;
+    ctx.strokeStyle = opts.selectionColor ?? SELECTION_COLOR;
     ctx.lineWidth = 1 / zoom;
     ctx.setLineDash([4 / zoom, 4 / zoom]);
 
