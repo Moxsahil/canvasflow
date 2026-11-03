@@ -112,11 +112,30 @@ export function PhoneActionRow({
     // zoom panel on a wider screen.
     // Wraps on the narrowest phones: the actions drop to a line of their own
     // rather than run off the edge.
-    <div className="flex flex-wrap items-center gap-1.5" data-zoom-panel="">
+    // A size down from the toolbar under it: 34px buttons rather than 40, so
+    // the row reads as the toolbar's companion, not a second toolbar.
+    <div
+      className="flex flex-wrap items-center gap-1.5 [--default-button-size:2.125rem]"
+      data-zoom-panel=""
+    >
       {stylePanel && (
-        <Toolbar aria-label={t('style.style')} className={SURFACE}>
-          {action(t('style.style'), <Palette />, stylePanel.onToggle, false, stylePanel.open)}
-        </Toolbar>
+        // One button that is its own surface, as the zoom pill is: lit, the
+        // whole of it fills, rather than a lit button inside a frame.
+        <Button
+          aria-label={t('style.style')}
+          aria-pressed={stylePanel.open}
+          onClick={stylePanel.onToggle}
+          className={cn(
+            SURFACE,
+            'flex h-auto border px-1.5 py-1',
+            stylePanel.open && cn(PRESSED_CLASS, 'border-(--color-surface-primary-container)'),
+          )}
+          variant="ghost"
+        >
+          <span className="flex size-(--default-button-size) items-center justify-center">
+            <Palette />
+          </span>
+        </Button>
       )}
       <InlineDropdownMenu>
         <InlineDropdownMenuTrigger asChild>

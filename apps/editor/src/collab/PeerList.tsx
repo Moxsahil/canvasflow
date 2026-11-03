@@ -37,9 +37,12 @@ interface PeerListProps {
   archived?: ArchivedNoticeProps | null;
   /** Radix portals out of the tree; the theme tokens live on `.cf-editor`. */
   portalContainer: HTMLElement | null;
+  /** How many faces show before the rest become "+N": fewer on a phone. */
+  maxVisible?: number;
 }
 
-const MAX_VISIBLE = 3;
+/** Faces shown before the rest are counted, on a desktop. */
+const MAX_VISIBLE = 4;
 const AVATAR = 26;
 
 /**
@@ -67,6 +70,7 @@ export function PeerList({
   readOnly = false,
   archived = null,
   portalContainer,
+  maxVisible = MAX_VISIBLE,
 }: PeerListProps) {
   const t = useT();
   const others = roster.filter((entry) => !entry.isSelf);
@@ -94,7 +98,8 @@ export function PeerList({
   // Self last, nearest the edge, so the people you are working with read first
   // and your own avatar never shifts as others come and go.
   const ordered = [...others, ...roster.filter((entry) => entry.isSelf)];
-  const visible = ordered.slice(0, MAX_VISIBLE);
+  // Up to `maxVisible` faces; everyone past them is counted, "+2".
+  const visible = ordered.slice(0, maxVisible);
   const overflow = ordered.length - visible.length;
 
   return (
@@ -176,7 +181,7 @@ export function PeerList({
           className={cn(
             // The board's one blue button, as the website's main actions are;
             // green while the board is live.
-            'flex h-9 min-w-24 cursor-pointer items-center justify-center rounded-[10px] px-4 text-xs font-semibold text-white outline-none focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)]',
+            'cf-share-button flex h-9 min-w-24 cursor-pointer items-center justify-center rounded-[10px] px-4 text-xs font-semibold text-white outline-none focus-visible:shadow-[0_0_0_2px_var(--focus-highlight-color)]',
             isLive
               ? 'bg-[#0f9d58] hover:bg-[#0c8a4d]'
               : 'bg-(--color-primary) hover:brightness-110',
