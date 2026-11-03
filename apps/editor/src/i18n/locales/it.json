@@ -1321,6 +1321,8 @@
   "style.layer": "Livello",
   "style.opacity": "Opacità",
   "style.arrange": "Disponi",
+  "style.haloMove": "Sposta la barra degli stili",
+  "style.haloMoveHint": "Trascina per spostarla. Fai doppio clic per riportarla vicino alla selezione.",
   "style.style": "Stile",
   "style.bringToFront": "Porta in primo piano",
   "style.bringForward": "Porta avanti",

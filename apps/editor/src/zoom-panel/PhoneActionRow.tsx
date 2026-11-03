@@ -56,6 +56,13 @@ const SURFACE =
 const BUTTON_CLASS = 'size-(--default-button-size)';
 
 /**
+ * A toggle that is on — the tool lock, the open style panel — in the accent,
+ * as the desktop's tool lock is, so being on reads at a glance.
+ */
+const PRESSED_CLASS =
+  'bg-(--color-surface-primary-container) text-(--color-on-primary-container) hover:bg-(--color-surface-primary-container) hover:text-(--color-on-primary-container) hover:brightness-110';
+
+/**
  * A phone's row above the toolbar: the zoom on the left, and on the right the
  * actions a keyboard would otherwise give — tool lock (for a tool that can be
  * kept), undo, redo, duplicate and delete.
@@ -90,7 +97,7 @@ export function PhoneActionRow({
       onClick={onClick}
       render={
         <Button
-          className={cn(BUTTON_CLASS, pressed && 'bg-accent text-accent-foreground')}
+          className={cn(BUTTON_CLASS, pressed && PRESSED_CLASS)}
           size="icon"
           variant="ghost"
         />
@@ -172,7 +179,8 @@ export function PhoneActionRow({
             )}
             {action(
               t('contextMenu.deleteSelection'),
-              <Trash2 />,
+              // Red, as delete is wherever else it is offered, so it is told apart at a glance.
+              <Trash2 className="text-destructive" />,
               editing.onDelete,
               !editing.canDelete,
             )}

@@ -1321,6 +1321,8 @@
   "style.layer": "Camada",
   "style.opacity": "Opacidade",
   "style.arrange": "Organizar",
+  "style.haloMove": "Mover a barra de estilo",
+  "style.haloMoveHint": "Arraste para mover. Clique duas vezes para voltar para perto da seleção.",
   "style.style": "Estilo",
   "style.bringToFront": "Trazer para a frente",
   "style.bringForward": "Avançar",

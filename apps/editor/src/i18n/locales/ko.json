@@ -1284,6 +1284,8 @@
   "style.layer": "레이어",
   "style.opacity": "불투명도",
   "style.arrange": "정렬",
+  "style.haloMove": "스타일 바 이동",
+  "style.haloMoveHint": "끌어서 옮기세요. 두 번 클릭하면 선택 항목 옆으로 돌아갑니다.",
   "style.style": "스타일",
   "style.bringToFront": "맨 앞으로 가져오기",
   "style.bringForward": "앞으로 가져오기",

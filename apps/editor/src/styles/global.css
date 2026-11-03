@@ -554,6 +554,29 @@ html:not([data-input='keyboard']) .cf-tool-overflow__item:focus-visible {
   bottom: calc(var(--cf-phone-dock-height, 6rem) + 1rem + env(safe-area-inset-bottom));
 }
 
+/* It arrives on the menus' curve, drifting in from the edge as the board
+   glides aside to make room for it. */
+.cf-editor[data-phone] .cf-properties-container {
+  animation: cf-phone-panel-in 450ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes cf-phone-panel-in {
+  from {
+    opacity: 0;
+    translate: 24px 0;
+  }
+}
+
+.cf-editor[data-reduce-motion] .cf-properties-container {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-editor[data-phone] .cf-properties-container {
+    animation: none;
+  }
+}
+
 .cf-editor[data-phone] [data-testid='properties-panel'] {
   width: auto;
   max-height: calc(
@@ -569,6 +592,23 @@ html:not([data-input='keyboard']) .cf-tool-overflow__item:focus-visible {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* The floating style bar on a phone: the same chips as on a desktop, wrapped
+   onto a second line rather than run off a narrow screen, and menus that
+   scroll rather than reach under the toolbar. */
+.cf-editor[data-phone] [data-testid='style-halo'] {
+  flex-wrap: wrap;
+  max-width: calc(100vw - 1rem - env(safe-area-inset-left) - env(safe-area-inset-right));
+}
+
+.cf-editor[data-phone] div:has(> [data-testid='style-halo']) > [data-inspector-popover] {
+  max-height: min(50dvh, 22rem);
+  overflow-y: auto;
+}
+
+.cf-editor[data-phone] div:has(> [data-testid='style-halo']) > [data-inspector-popover] > * {
+  flex-shrink: 0;
 }
 
 /* Its pickers open over the panel rather than beside it: beside, on a narrow

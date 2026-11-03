@@ -165,7 +165,7 @@ import { useCanvasResize } from './canvas/hooks/useCanvasResize';
 import { useEdgeScroll } from './canvas/hooks/useEdgeScroll';
 import { AppSidebar, readSidebarState } from './menu';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { Toolbar } from './toolbar/Toolbar';
+import { PhoneToolTray, Toolbar } from './toolbar/Toolbar';
 import { ToolLockButton } from './toolbar/ToolLockButton';
 import { GlassDock } from '@/components/ui/glass-dock';
 import { NoteEditor } from './text-editor/NoteEditor';
@@ -455,6 +455,29 @@ const DRAWS_FROM_POINTER = new Set<Tool>([
  * small enough not to bury a small shape.
  */
 const PHONE_HANDLE_SIZE = 16;
+
+/** How long the board takes to slide aside by itself, as for the phone's style panel. */
+const CAMERA_GLIDE_MS = 450;
+
+/**
+ * The menus' highlight curve, cubic-bezier(0.22, 1, 0.36, 1): off quickly,
+ * then a long, soft settle. Shared so the board gliding aside moves as the
+ * menus do.
+ */
+function liquidEase(t: number): number {
+  const [x1, y1, x2, y2] = [0.22, 1, 0.36, 1];
+  const bezier = (u: number, a: number, b: number) =>
+    3 * a * u * (1 - u) ** 2 + 3 * b * u ** 2 * (1 - u) + u ** 3;
+  // Find the curve's u for this t, then read its y there.
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    if (bezier(mid, x1, x2) < t) lo = mid;
+    else hi = mid;
+  }
+  return bezier((lo + hi) / 2, y1, y2);
+}
 const PHONE_HANDLE_HIT = 32;
 
 const DRAWS_AN_ENDPOINT = new Set<Tool>(['line', 'arrow']);
@@ -1530,6 +1553,55 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const cameraRef = useRef(camera);
   cameraRef.current = camera;
 
+  /**
+   * Moves the camera to `next` over a moment, on the menus' curve, rather
+   * than in one jump — for the board making room by itself, so the move can be followed
+   * by eye. Instant for whoever asked for less motion. Stops the moment
+   * anything else moves the camera: a finger on the board wins.
+   */
+  const glideFrame = useRef(0);
+  const glideCamera = useCallback(
+    (next: Camera) => {
+      cancelAnimationFrame(glideFrame.current);
+      const from = cameraRef.current;
+      const still = reduceMotion || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      if (still) {
+        actorRef.send({ type: 'SET_CAMERA', camera: next });
+        return;
+      }
+      const start = performance.now();
+      const same = (a: Camera, b: Camera) =>
+        Math.abs(a.x - b.x) < 0.01 &&
+        Math.abs(a.y - b.y) < 0.01 &&
+        Math.abs(a.zoom - b.zoom) < 1e-6;
+      // What the camera may be between frames: the step sent last, or the one
+      // before it while the board has yet to draw. Anything else is a person.
+      let before = from;
+      let sent = from;
+      const step = (now: number) => {
+        const current = cameraRef.current;
+        if (!same(current, sent) && !same(current, before)) return;
+        const t = Math.min(1, (now - start) / CAMERA_GLIDE_MS);
+        const ease = liquidEase(t);
+        const camera =
+          t < 1
+            ? {
+                x: from.x + (next.x - from.x) * ease,
+                y: from.y + (next.y - from.y) * ease,
+                zoom: from.zoom + (next.zoom - from.zoom) * ease,
+              }
+            : next;
+        before = sent;
+        sent = camera;
+        actorRef.send({ type: 'SET_CAMERA', camera });
+        if (t < 1) glideFrame.current = requestAnimationFrame(step);
+      };
+      glideFrame.current = requestAnimationFrame(step);
+    },
+    [actorRef, reduceMotion],
+  );
+  useEffect(() => () => cancelAnimationFrame(glideFrame.current), []);
+
   const follow = useFollowMode({
     channel,
     selfUserId: user?.id ?? null,
@@ -2200,12 +2272,14 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // stand above it: the style panel and the notices. It changes with the
   // button size and when the actions row wraps on the narrowest phones.
   const phoneDockObserver = useRef<ResizeObserver | null>(null);
+  const [phoneDockHeight, setPhoneDockHeight] = useState(0);
   const measurePhoneDock = useCallback((dock: HTMLDivElement | null) => {
     phoneDockObserver.current?.disconnect();
     phoneDockObserver.current = null;
     if (!dock) return;
     const observer = new ResizeObserver(() => {
       editorRef.current?.style.setProperty('--cf-phone-dock-height', `${dock.offsetHeight}px`);
+      setPhoneDockHeight(dock.offsetHeight);
     });
     observer.observe(dock);
     phoneDockObserver.current = observer;
@@ -2521,6 +2595,9 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // On a phone the style panel waits behind a button in the actions row: open
   // all the time, even narrow, it would sit over the shapes it styles.
   const [phoneStyleOpen, setPhoneStyleOpen] = useState(false);
+  // Where the floating style bar was moved to by hand; null while it follows
+  // the selection.
+  const [haloPin, setHaloPin] = useState<{ left: number; top: number } | null>(null);
   useEffect(() => {
     if (!showProperties || !phone) setPhoneStyleOpen(false);
   }, [showProperties, phone]);
@@ -6505,8 +6582,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
       right: panel.left - board.left - 20,
       bottom: dock.top - board.top - 20,
     });
-    if (next) actorRef.send({ type: 'SET_CAMERA', camera: next });
-  }, [actorRef, selectedShapes]);
+    if (next) glideCamera(next);
+  }, [glideCamera, selectedShapes]);
 
   const togglePhoneStyle = useCallback(() => {
     // Measured once the panel is on screen: two frames, one to render it and
@@ -7077,14 +7154,19 @@ export function Editor({ boardId, local = false }: EditorProps) {
 
             {!chromeHidden && phone && !typingOnPhone && (
               <div className="cf-bottom-dock cf-bottom-dock--phone" ref={measurePhoneDock}>
+                {!readOnly && (
+                  <PhoneToolTray activeTool={activeTool} onToolChange={handleToolChange} />
+                )}
                 <PhoneActionRow
                   zoom={camera.zoom}
                   onZoomIn={handleZoomIn}
                   onZoomOut={handleZoomOut}
                   onResetZoom={handleZoomTo100}
                   onZoomToFit={handleZoomToFit}
+                  // With the floating style bar chosen, the bar over the
+                  // selection holds the style instead, as on a desktop.
                   stylePanel={
-                    showProperties
+                    showProperties && !preferences.values.floatingStyleBar
                       ? { open: phoneStyleOpen, onToggle: togglePhoneStyle }
                       : undefined
                   }
@@ -7125,7 +7207,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 panel docked at the right edge, or a bar floating over the
                 selection that steps aside while the selection is dragged. */}
             {showProperties &&
-              (phone ? (
+              (phone && !preferences.values.floatingStyleBar ? (
                 phoneStyleOpen && <PropertiesPanel {...styleSurfaceProps} />
               ) : preferences.values.floatingStyleBar ? (
                 <StyleHalo
@@ -7134,6 +7216,10 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   board={screen}
                   hidden={isReachingGesture}
                   onPlace={setHaloRect}
+                  // On a phone the actions row stands on the toolbar too.
+                  dockClearance={phone && phoneDockHeight ? phoneDockHeight + 24 : undefined}
+                  pinned={haloPin}
+                  onPin={setHaloPin}
                 />
               ) : (
                 <PropertiesPanel {...styleSurfaceProps} />

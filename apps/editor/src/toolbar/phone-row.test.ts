@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TOOLS } from '../tools/tool';
-import { phoneRowTools } from './Toolbar';
+import { phoneFamilyOf, phoneRowTools } from './Toolbar';
 
 const ALL = TOOLS.map((meta) => meta.id);
 
@@ -32,5 +32,20 @@ describe('phoneRowTools', () => {
 
   it('never drops below the everyday handful', () => {
     expect(phoneRowTools(ALL, 100, null)).toHaveLength(4);
+  });
+
+  it('gives a family of tools one slot, under its first', () => {
+    const row = phoneRowTools(ALL, 2000, null);
+    expect(row).toContain('rectangle');
+    expect(row).toContain('arrow');
+    expect(row).not.toContain('diamond');
+    expect(row).not.toContain('ellipse');
+    expect(row).not.toContain('line');
+  });
+
+  it('knows which tools share a slot', () => {
+    expect(phoneFamilyOf('ellipse')).toEqual(['rectangle', 'diamond', 'ellipse']);
+    expect(phoneFamilyOf('line')).toEqual(['arrow', 'line']);
+    expect(phoneFamilyOf('text')).toBeNull();
   });
 });

@@ -1284,6 +1284,8 @@
   "style.layer": "图层",
   "style.opacity": "不透明度",
   "style.arrange": "排列",
+  "style.haloMove": "移动样式栏",
+  "style.haloMoveHint": "拖动即可移动。双击可放回所选内容旁边。",
   "style.style": "样式",
   "style.bringToFront": "置于顶层",
   "style.bringForward": "上移一层",

@@ -11,6 +11,7 @@ import {
   ArrowDownToLine,
   ArrowUpToLine,
   ChevronDown,
+  GripVertical,
   Layers,
   MoveDown,
   MoveUp,
@@ -75,6 +76,12 @@ interface StyleHaloProps extends StyleSurfaceProps {
    * away, so what else floats by the selection can keep clear of it.
    */
   onPlace?: (rect: ScreenRect | null) => void;
+  /** How much of the board's foot the toolbar takes. */
+  dockClearance?: number;
+  /** Where it was moved to by hand, or null to follow the selection. */
+  pinned?: { left: number; top: number } | null;
+  /** Moves it, or with null puts it back by the selection. */
+  onPin?: (place: { left: number; top: number } | null) => void;
 }
 
 function Separator() {
@@ -115,6 +122,9 @@ export function StyleHalo({
   board,
   hidden,
   onPlace,
+  dockClearance,
+  pinned = null,
+  onPin,
 }: StyleHaloProps) {
   const t = useT();
   const barRef = useRef<HTMLDivElement>(null);
@@ -143,7 +153,11 @@ export function StyleHalo({
     if (hidden) setOpen(null);
   }, [hidden]);
 
-  const place = haloPlacement(anchor, size, board);
+  const place = haloPlacement(anchor, size, board, dockClearance, pinned);
+  const drag = useRef<{ x: number; y: number; left: number; top: number; moved: boolean } | null>(
+    null,
+  );
+  const lastTap = useRef(0);
   // Only once measured: before that the bar stands nowhere in particular.
   const placed = !hidden && size.width > 0;
   useLayoutEffect(() => {
@@ -213,6 +227,57 @@ export function StyleHalo({
         data-testid="style-halo"
         className={cn(menuSurfaceClasses, 'flex items-center gap-0.5 rounded-card p-0.75')}
       >
+        {onPin && (
+          // The grip it is carried by. Dragged, the bar stays where it is
+          // put; a double click or double tap brings it back to the selection.
+          <button
+            type="button"
+            aria-label={t('style.haloMove')}
+            title={t('style.haloMoveHint')}
+            className={cn(
+              menuChipClasses,
+              'cursor-grab touch-none px-0.5 text-neutral-500 active:cursor-grabbing dark:text-neutral-400',
+            )}
+            onPointerDown={(event) => {
+              event.currentTarget.setPointerCapture(event.pointerId);
+              drag.current = {
+                x: event.clientX,
+                y: event.clientY,
+                left: place.left,
+                top: place.top,
+                moved: false,
+              };
+              setOpen(null);
+            }}
+            onPointerMove={(event) => {
+              const start = drag.current;
+              if (!start) return;
+              const dx = event.clientX - start.x;
+              const dy = event.clientY - start.y;
+              if (!start.moved && Math.hypot(dx, dy) < 3) return;
+              start.moved = true;
+              onPin({ left: start.left + dx, top: start.top + dy });
+            }}
+            onPointerUp={() => {
+              const moved = drag.current?.moved ?? false;
+              drag.current = null;
+              if (moved) return;
+              const now = Date.now();
+              if (now - lastTap.current < 350) {
+                lastTap.current = 0;
+                onPin(null);
+              } else {
+                lastTap.current = now;
+              }
+            }}
+            onPointerCancel={() => {
+              drag.current = null;
+            }}
+            data-testid="style-halo-grip"
+          >
+            <GripVertical aria-hidden="true" className="size-3.5" />
+          </button>
+        )}
         {show.strokeColour && (
           <button
             type="button"

@@ -1321,6 +1321,8 @@
   "style.layer": "परत",
   "style.opacity": "अपारदर्शिता",
   "style.arrange": "क्रम",
+  "style.haloMove": "स्टाइल बार हटाएँ",
+  "style.haloMoveHint": "हटाने के लिए खींचें। चयन के पास वापस लाने के लिए डबल-क्लिक करें।",
   "style.style": "स्टाइल",
   "style.bringToFront": "सबसे आगे लाएँ",
   "style.bringForward": "आगे लाएँ",

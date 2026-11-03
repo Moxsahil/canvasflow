@@ -1321,6 +1321,8 @@
   "style.layer": "Calque",
   "style.opacity": "Opacité",
   "style.arrange": "Organiser",
+  "style.haloMove": "Déplacer la barre de style",
+  "style.haloMoveHint": "Faites glisser pour la déplacer. Double-cliquez pour la remettre près de la sélection.",
   "style.style": "Style",
   "style.bringToFront": "Mettre au premier plan",
   "style.bringForward": "Avancer",
