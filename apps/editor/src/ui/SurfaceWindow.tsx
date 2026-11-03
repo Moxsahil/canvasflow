@@ -223,7 +223,7 @@ export function SurfaceWindow({
             // The menus inside wear the editor's menu look, which takes its
             // dark form from this attribute on an ancestor.
             data-theme={theme}
-            className="fixed inset-0 z-[1000] flex items-center justify-center bg-[var(--surface-backdrop)] p-6 text-[var(--surface-fg)] backdrop-blur-[3px]"
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-[var(--surface-backdrop)] p-6 text-[var(--surface-fg)] backdrop-blur-[3px] max-[599px]:p-2.5"
             // Bound to mousedown rather than click, so a drag that starts in a
             // field and ends outside does not count.
             onMouseDown={(event) => {

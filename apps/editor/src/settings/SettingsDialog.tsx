@@ -402,7 +402,7 @@ export function SettingsDialog({
                   : 'max-h-[64px] pb-[14px]',
               )}
             >
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1" data-settings-title="">
                 <h2 className="truncate text-[17px] font-semibold tracking-[-0.01em]">
                   {t('menu.settings')}
                 </h2>
@@ -410,6 +410,7 @@ export function SettingsDialog({
 
               <div
                 className="relative w-[210px] shrink-0"
+                data-settings-search=""
                 onFocus={() => setResultsOpen(true)}
                 onBlur={(event) => {
                   if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {

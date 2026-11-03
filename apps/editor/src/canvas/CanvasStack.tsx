@@ -68,6 +68,8 @@ interface CanvasStackProps {
   imageRevision?: number;
   /** Which board this is. Every layer that paints a shape is told the same. */
   darkMode?: boolean;
+  /** The resize handles' size in screen pixels: larger on a phone. */
+  handleSize?: number;
   /** Image files dropped onto the canvas, with the world point they landed on. */
   onDropFiles?: (files: File[], at: Point) => void;
   /** A library item dragged out of the library and let go over the canvas. */
@@ -149,6 +151,7 @@ export function CanvasStack({
   images,
   imageRevision,
   darkMode = false,
+  handleSize,
   peersRef,
   subscribePeers,
   onDropFiles,
@@ -220,6 +223,7 @@ export function CanvasStack({
     lockHighlightIds,
     bindingHint,
     darkMode,
+    handleSize,
   });
 
   const screenToWorldFn = useCallback(

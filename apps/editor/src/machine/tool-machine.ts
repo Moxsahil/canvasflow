@@ -287,6 +287,18 @@ function wasDragged(from: Point, to: Point): boolean {
   return Math.hypot(to.x - from.x, to.y - from.y) > 3;
 }
 
+/**
+ * The size, in board units at 100%, of a box or frame put down by a tap
+ * rather than drawn: a box big enough to write a few words in, and a frame
+ * big enough to hold a few of those.
+ */
+const TAPPED_SIZE = {
+  rectangle: [140, 88],
+  ellipse: [140, 88],
+  diamond: [140, 88],
+  frame: [320, 220],
+} as const;
+
 export const toolMachine = setup({
   types: {
     context: {} as ToolMachineContext,
@@ -647,6 +659,27 @@ export const toolMachine = setup({
       if (event.type !== 'SET_DYNAMIC_SIZE') return {};
       return { dynamicSize: event.enabled };
     }),
+    setTapToPlace: assign(({ event }) => {
+      if (event.type !== 'SET_TAP_TO_PLACE') return {};
+      return { tapToPlace: event.enabled };
+    }),
+    /** A tapped box or frame, at its usual size and centred on the press. */
+    settleTapped: assign(({ context }) => {
+      const shape = context.newElement;
+      const start = context.pointerDownAt;
+      if (!shape || !start) return {};
+      const [width, height] = TAPPED_SIZE[shape.kind as keyof typeof TAPPED_SIZE];
+      const scale = newShapeScale(context.camera, context.dynamicSize);
+      return {
+        newElement: {
+          ...shape,
+          x: start.x - (width * scale) / 2,
+          y: start.y - (height * scale) / 2,
+          width: width * scale,
+          height: height * scale,
+        },
+      };
+    }),
     /**
      * Hold the shape that was just drawn.
      *
@@ -800,6 +833,17 @@ export const toolMachine = setup({
       const dy = event.point.y - start.y;
       return Math.hypot(dx, dy) > 3;
     },
+    isTapPlacement: ({ context, event }) => {
+      if (event.type !== 'POINTER_UP' || !context.tapToPlace) return false;
+      const shape = context.newElement;
+      const start = context.pointerDownAt;
+      return (
+        shape !== null &&
+        start !== null &&
+        shape.kind in TAPPED_SIZE &&
+        Math.hypot(event.point.x - start.x, event.point.y - start.y) <= 3
+      );
+    },
     freehandHasEnoughPoints: ({ context }) => context.freehandPoints.length > 3,
     // Same bar as a freehand stroke, since it is the same gesture: fewer
     // samples than this is a tap or a slip, and the tool has nothing to say
@@ -821,6 +865,7 @@ export const toolMachine = setup({
     isSpacePressed: false,
     toolLocked: false,
     dynamicSize: false,
+    tapToPlace: false,
     selectedIds: [],
     marquee: null,
     dragOriginShapes: {},
@@ -835,6 +880,7 @@ export const toolMachine = setup({
     SET_ITEM_STYLE: { actions: 'setItemStyle' },
     SET_TOOL_LOCK: { actions: 'setToolLock' },
     SET_DYNAMIC_SIZE: { actions: 'setDynamicSize' },
+    SET_TAP_TO_PLACE: { actions: 'setTapToPlace' },
     ESCAPE: { target: '.idle', actions: ['clearDraw', 'clearTextEditing', 'deselectAll'] },
     EDIT_TEXT_SHAPE: { target: '.editingText', actions: 'startEditingExistingText' },
     START_TEXT_AT: { target: '.editingText', actions: 'startTextEditing' },
@@ -1046,6 +1092,22 @@ export const toolMachine = setup({
             guard: 'isNoteDraw',
             target: 'idle',
             actions: ['settleNote', 'emitCommittedShape', 'selectCommittedShape', 'clearDraw'],
+          },
+          {
+            guard: and(['isTapPlacement', 'returnsToSelect']),
+            target: 'idle',
+            actions: [
+              'settleTapped',
+              'emitCommittedShape',
+              'selectCommittedShape',
+              'returnToSelect',
+              'clearDraw',
+            ],
+          },
+          {
+            guard: 'isTapPlacement',
+            target: 'idle',
+            actions: ['settleTapped', 'emitCommittedShape', 'clearDraw'],
           },
           {
             guard: and(['hasMovedEnough', 'returnsToSelect']),

@@ -157,9 +157,19 @@ const Sidebar = React.forwardRef<
     side?: 'left' | 'right';
     variant?: 'sidebar' | 'floating' | 'inset';
     collapsible?: 'offcanvas' | 'icon' | 'none';
+    /** Where the phone's sheet portals, so the menus opened in it draw above it. */
+    portalContainer?: HTMLElement | null;
   }
 >(function Sidebar(
-  { side = 'left', variant = 'sidebar', collapsible = 'offcanvas', className, children, ...props },
+  {
+    side = 'left',
+    variant = 'sidebar',
+    collapsible = 'offcanvas',
+    className,
+    children,
+    portalContainer,
+    ...props
+  },
   ref,
 ) {
   const t = useT();
@@ -186,6 +196,7 @@ const Sidebar = React.forwardRef<
       <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
         <SheetContent
           ref={ref}
+          container={portalContainer}
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
@@ -263,8 +274,11 @@ const Sidebar = React.forwardRef<
 
 const SidebarTrigger = React.forwardRef<
   HTMLButtonElement,
-  React.ComponentPropsWithoutRef<typeof Button>
->(function SidebarTrigger({ className, onClick, ...props }, ref) {
+  React.ComponentPropsWithoutRef<typeof Button> & {
+    /** In place of the panel mark: a phone's menu button, or its sheet's ×. */
+    icon?: React.ReactNode;
+  }
+>(function SidebarTrigger({ className, onClick, icon, ...props }, ref) {
   const t = useT();
   const { toggleSidebar } = useSidebar();
 
@@ -282,7 +296,7 @@ const SidebarTrigger = React.forwardRef<
       }}
       {...props}
     >
-      <PanelLeftIcon />
+      {icon ?? <PanelLeftIcon />}
       <span className="sr-only">{t('sidebar.toggle')}</span>
     </Button>
   );

@@ -49,8 +49,10 @@ export function InspectorDivider() {
 /** A property: its name on the left, its one control on the right. */
 export function InspectorRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex min-h-7 items-center justify-between gap-3 px-2">
-      <span className={mutedText}>{label}</span>
+    <div className="flex min-h-7 items-center justify-between gap-3 px-2" data-inspector-row="">
+      <span className={mutedText} data-inspector-label="">
+        {label}
+      </span>
       {children}
     </div>
   );
@@ -474,6 +476,7 @@ export function InspectorPopover({
         className,
       )}
       style={position}
+      data-inspector-popover=""
     >
       <p className={cn(menuLabelClasses, 'm-0')}>{title}</p>
       {children}

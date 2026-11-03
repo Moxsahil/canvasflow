@@ -1698,5 +1698,9 @@
   "deleteAccount.planEnds": "{{name}} tiene el plan {{plan}}. Deja de renovarse ahora y termina el {{date}}. Si restauras tu cuenta antes, puedes volver a suscribirte en Ajustes → Facturación.",
   "deleteAccount.planEndsNoDate": "{{name}} tiene el plan {{plan}}. Deja de renovarse ahora y termina con su periodo pagado.",
   "embedView.madeWith": "Hecho con CanvasFlow",
-  "storage.ofAllowance": "{{used}} de {{allowance}} GB"
+  "storage.ofAllowance": "{{used}} de {{allowance}} GB",
+  "common.back": "Atrás",
+  "drawer.tile.share": "Compartir",
+  "drawer.tile.copyLink": "Copiar enlace",
+  "drawer.tile.export": "Exportar"
 }

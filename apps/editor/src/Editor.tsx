@@ -197,6 +197,11 @@ import {
 } from './notes/note-neighbours';
 import { usePeerTyping, withPeerTyping } from './collab/peer-typing';
 import { ZoomPanel } from './zoom-panel/ZoomPanel';
+import { PhoneActionRow, PhoneDoneButton } from './zoom-panel/PhoneActionRow';
+import { cn } from '@/lib/utils';
+import { isPhoneCanvas } from './ui/breakpoints';
+import { cameraKeepingInView } from './canvas/keep-in-view';
+import { useKeyboardTop } from './hooks/useKeyboardTop';
 import { ExitModeButton } from './modes/ExitModeButton';
 import { toolMachine, resizeShape, resizeSnapHandle } from './machine/tool-machine';
 import { useKeyboardShortcuts } from './tools/useKeyboardShortcuts';
@@ -300,7 +305,7 @@ import {
 } from './machine/tool-machine.types';
 import { ShortcutsModal } from './help';
 import { KeyCaps } from './help/KeyCaps';
-import { FileInput, RotateCcw } from 'lucide-react';
+import { FileInput, Menu, RotateCcw } from 'lucide-react';
 import {
   clearStoredAuthTokens,
   decodeJwtUser,
@@ -442,6 +447,14 @@ const DRAWS_FROM_POINTER = new Set<Tool>([
  * The end of a line is going somewhere in particular, so it takes the nearest
  * point outright instead of lining up on each axis separately.
  */
+/**
+ * Resize handles on a phone, in screen pixels: drawn twice the desktop's size,
+ * and caught across a finger's width — larger than drawn, so the handles stay
+ * small enough not to bury a small shape.
+ */
+const PHONE_HANDLE_SIZE = 16;
+const PHONE_HANDLE_HIT = 32;
+
 const DRAWS_AN_ENDPOINT = new Set<Tool>(['line', 'arrow']);
 
 /**
@@ -1504,6 +1517,9 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // Placed after the camera exists: following needs to read and write it, and
   // publishing our own viewport needs its current value.
   const screen = useMemo(() => ({ width, height }), [width, height]);
+  // A phone-sized canvas gathers the chrome along its top and bottom edges;
+  // anything larger keeps the desktop layout untouched.
+  const phone = isPhoneCanvas(width, height);
 
   const cameraRef = useRef(camera);
   cameraRef.current = camera;
@@ -2173,6 +2189,51 @@ export function Editor({ boardId, local = false }: EditorProps) {
         }
       : null;
 
+  // --- the phone's bottom dock ---------------------------------------------
+  // Its height, as `--cf-phone-dock-height` on the editor, for what has to
+  // stand above it: the style panel and the notices. It changes with the
+  // button size and when the actions row wraps on the narrowest phones.
+  const phoneDockObserver = useRef<ResizeObserver | null>(null);
+  const measurePhoneDock = useCallback((dock: HTMLDivElement | null) => {
+    phoneDockObserver.current?.disconnect();
+    phoneDockObserver.current = null;
+    if (!dock) return;
+    const observer = new ResizeObserver(() => {
+      editorRef.current?.style.setProperty('--cf-phone-dock-height', `${dock.offsetHeight}px`);
+    });
+    observer.observe(dock);
+    phoneDockObserver.current = observer;
+  }, []);
+
+  // --- typing on a phone ---------------------------------------------------
+  // While words are being typed on a phone the bottom chrome steps aside for
+  // the keyboard, a Done button stands on the keyboard's top edge, and the
+  // board slides the words above it.
+  const keyboardTopEdge = useKeyboardTop();
+  const typingOnPhone = phone && (Boolean(textEditorScreenPosition) || Boolean(editingNote));
+  useEffect(() => {
+    if (!typingOnPhone || keyboardTopEdge === null) return;
+    const root = editorRef.current;
+    const board = containerRef.current?.getBoundingClientRect();
+    if (!root || !board) return;
+    const zoom = cameraRef.current.zoom;
+    const rect = editingTextShape
+      ? computeBoundingRect([editingTextShape])
+      : textEditorWorldPosition
+        ? { ...textEditorWorldPosition, width: 160 / zoom, height: 48 / zoom }
+        : null;
+    if (!rect) return;
+    const topBar = root.querySelector('.cf-top-right-dock')?.getBoundingClientRect();
+    const next = cameraKeepingInView(rect, cameraRef.current, {
+      left: 8,
+      top: (topBar ? topBar.bottom - board.top : 0) + 8,
+      right: board.width - 8,
+      // Clear of the Done button on the keyboard's edge.
+      bottom: keyboardTopEdge - board.top - 56,
+    });
+    if (next) actorRef.send({ type: 'SET_CAMERA', camera: next });
+  }, [typingOnPhone, keyboardTopEdge, editingTextShape, textEditorWorldPosition, actorRef]);
+
   // --- frame rename --------------------------------------------------------
   // Local state rather than a machine event: renaming edits one field of one
   // shape and commits straight to the document, where text editing has to
@@ -2450,6 +2511,13 @@ export function Editor({ boardId, local = false }: EditorProps) {
     !readOnly &&
     !chromeHidden &&
     (selectedShapes.length > 0 ? !selectionLocked : toolShapeKind !== null || editingBucket);
+
+  // On a phone the style panel waits behind a button in the actions row: open
+  // all the time, even narrow, it would sit over the shapes it styles.
+  const [phoneStyleOpen, setPhoneStyleOpen] = useState(false);
+  useEffect(() => {
+    if (!showProperties || !phone) setPhoneStyleOpen(false);
+  }, [showProperties, phone]);
 
   /**
    * The selection's box in board pixels, for the floating style bar to sit
@@ -3275,7 +3343,13 @@ export function Editor({ boardId, local = false }: EditorProps) {
               vertexReleasedRef.current = false;
             }
           } else if (selectedShape) {
-            hitHandle = hitTestHandles(selectedShape, point.x, point.y, camera.zoom);
+            hitHandle = hitTestHandles(
+              selectedShape,
+              point.x,
+              point.y,
+              camera.zoom,
+              phone ? PHONE_HANDLE_HIT : undefined,
+            );
             if (hitHandle !== null) {
               resizeOriginRef.current = selectedShape;
             }
@@ -3439,6 +3513,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       activeTool,
       doc,
       laser,
+      phone,
       setLasering,
       beginComment,
       isSpacePressed,
@@ -6125,6 +6200,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
     actorRef.send({ type: 'SET_DYNAMIC_SIZE', enabled: preferences.values.dynamicSize });
   }, [actorRef, preferences.values.dynamicSize]);
 
+  // A phone puts a shape down with a tap as well as a drag.
+  useEffect(() => {
+    actorRef.send({ type: 'SET_TAP_TO_PLACE', enabled: phone });
+  }, [actorRef, phone]);
+
   // Read-only takes the drawing tools off the toolbar; it has to take the one
   // in hand as well, or the next drag draws a shape the document then refuses.
   // View mode goes further and keeps only the hand, so that a press on the
@@ -6392,6 +6472,40 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const handleCancelText = useCallback(() => actorRef.send({ type: 'CANCEL_TEXT' }), [actorRef]);
 
   /** What both style surfaces edit with — the docked panel and the floating bar alike. */
+  /**
+   * Slides the board so the selection sits in what the phone's style panel
+   * leaves clear — beside it, between the top bar and the actions row — so
+   * every change it makes can be watched as it is made.
+   */
+  const keepSelectionBesideStylePanel = useCallback(() => {
+    const root = editorRef.current;
+    const board = containerRef.current?.getBoundingClientRect();
+    const rect = computeBoundingRect(selectedShapes);
+    if (!root || !board || !rect) return;
+    const panel = root.querySelector('.cf-properties-container')?.getBoundingClientRect();
+    const dock = root.querySelector('.cf-bottom-dock--phone')?.getBoundingClientRect();
+    const topBar = root.querySelector('.cf-top-right-dock')?.getBoundingClientRect();
+    if (!panel || !dock) return;
+    // Inset by a handle's width as well, so the selection's handles land on
+    // screen with it.
+    const next = cameraKeepingInView(rect, cameraRef.current, {
+      left: 20,
+      top: (topBar ? topBar.bottom - board.top : 0) + 20,
+      right: panel.left - board.left - 20,
+      bottom: dock.top - board.top - 20,
+    });
+    if (next) actorRef.send({ type: 'SET_CAMERA', camera: next });
+  }, [actorRef, selectedShapes]);
+
+  const togglePhoneStyle = useCallback(() => {
+    // Measured once the panel is on screen: two frames, one to render it and
+    // one to lay it out.
+    if (!phoneStyleOpen) {
+      requestAnimationFrame(() => requestAnimationFrame(keepSelectionBesideStylePanel));
+    }
+    setPhoneStyleOpen(!phoneStyleOpen);
+  }, [phoneStyleOpen, keepSelectionBesideStylePanel]);
+
   const styleSurfaceProps = {
     style: propertyStyle,
     shapeKinds: propertyShapeKinds,
@@ -6413,6 +6527,10 @@ export function Editor({ boardId, local = false }: EditorProps) {
       ref={editorRef}
       className="cf-editor"
       data-theme={resolvedTheme}
+      // Read by global.css, which moves the chrome to the phone's edges.
+      data-phone={phone ? '' : undefined}
+      // A phone's find bar takes the whole top row while it is open.
+      data-searching={phone && search.open ? '' : undefined}
       // Read by global.css, which hides the sidebar on it. The chrome drawn
       // below is simply left out of the tree instead.
       data-chrome-hidden={chromeHidden ? '' : undefined}
@@ -6434,6 +6552,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
       <SidebarProvider defaultOpen={sidebarDefaultOpen} className="h-full min-h-0">
         <AppSidebar
           onOpenBilling={openBillingFor}
+          boardShapes={shownShapes}
+          peopleHere={Math.max(1, roster.length)}
           boardSwitcher={sidebarSwitcher}
           user={chromeUser}
           theme={theme}
@@ -6493,6 +6613,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
               open={contextMenuOpen}
               onOpenChange={handleContextMenuOpenChange}
               container={editorRoot}
+              phone={phone}
               actions={{
                 // Locked shapes can be copied and duplicated — the copies come
                 // out unlocked — but nothing that would change them is offered.
@@ -6592,6 +6713,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   images={boardPictures.cache}
                   imageRevision={pictureRevision}
                   darkMode={resolvedTheme === 'dark'}
+                  handleSize={phone ? PHONE_HANDLE_SIZE : undefined}
                   onDropFiles={readOnly ? undefined : handleInsertImages}
                   onDropLibraryItem={readOnly ? undefined : handleDropLibraryItem}
                   activeTool={activeTool}
@@ -6822,7 +6944,9 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   container={editorRoot}
                 />
               )}
-              {(!chromeHidden || search.open) && <FindBar search={search} />}
+              {(!chromeHidden || search.open) && (
+                <FindBar search={search} expandedWidth={phone ? width - 16 : undefined} />
+              )}
               {!chromeHidden && !readOnly && (
                 <DiagramsButton
                   open={diagramsOpen && !diagramsMinimized}
@@ -6887,12 +7011,18 @@ export function Editor({ boardId, local = false }: EditorProps) {
           the workspace does this, so the canvas corner stays clear. Gone
           with the rest of the chrome once it is away. */}
             {!chromeHidden && (
-              <SidebarTrigger className="absolute top-4 left-4 z-(--zIndex-layerUI) md:hidden" />
+              <SidebarTrigger
+                icon={phone ? <Menu aria-hidden="true" /> : undefined}
+                className={cn(
+                  'absolute z-(--zIndex-layerUI) md:hidden',
+                  phone ? 'cf-phone-menu-button' : 'top-4 left-4',
+                )}
+              />
             )}
 
             {/* The dock goes with the rest of the chrome. The tools themselves
                 do not — every one keeps its key, see useKeyboardShortcuts. */}
-            {!chromeHidden && (
+            {!chromeHidden && !phone && (
               <div className="cf-bottom-dock">
                 {/* Above the bar, and not for viewers: it governs what happens
                     after a tool draws, and a viewer's tools never do. */}
@@ -6914,11 +7044,74 @@ export function Editor({ boardId, local = false }: EditorProps) {
               </div>
             )}
 
+            {!chromeHidden && phone && typingOnPhone && (
+              <div
+                className="cf-phone-done"
+                style={
+                  keyboardTopEdge === null
+                    ? undefined
+                    : // The editor fills the page from its top, so page and editor
+                      // pixels agree.
+                      { top: keyboardTopEdge - 52 }
+                }
+              >
+                <PhoneDoneButton />
+              </div>
+            )}
+
+            {!chromeHidden && phone && !typingOnPhone && (
+              <div className="cf-bottom-dock cf-bottom-dock--phone" ref={measurePhoneDock}>
+                <PhoneActionRow
+                  zoom={camera.zoom}
+                  onZoomIn={handleZoomIn}
+                  onZoomOut={handleZoomOut}
+                  onResetZoom={handleZoomTo100}
+                  onZoomToFit={handleZoomToFit}
+                  stylePanel={
+                    showProperties
+                      ? { open: phoneStyleOpen, onToggle: togglePhoneStyle }
+                      : undefined
+                  }
+                  editing={
+                    readOnly
+                      ? undefined
+                      : {
+                          activeTool,
+                          toolLocked: preferences.values.toolLock,
+                          onToggleToolLock: toggleToolLock,
+                          canUndo,
+                          canRedo,
+                          onUndo: handleUndo,
+                          onRedo: handleRedo,
+                          canDuplicate: selectedIds.length > 0,
+                          canDelete: editableIds.length > 0,
+                          onDuplicate: handleDuplicate,
+                          onDelete: handleDelete,
+                        }
+                  }
+                  container={editorRoot}
+                />
+                <div className="flex">
+                  <GlassDock aria-label={t('toolbar.editingTools')} className="w-full">
+                    <Toolbar
+                      activeTool={activeTool}
+                      onToolChange={handleToolChange}
+                      readOnly={readOnly}
+                      portalContainer={editorRoot}
+                      phoneFitWidth={width - 16}
+                    />
+                  </GlassDock>
+                </div>
+              </div>
+            )}
+
             {/* Two ways to set out the same controls, chosen in preferences: a
                 panel docked at the right edge, or a bar floating over the
                 selection that steps aside while the selection is dragged. */}
             {showProperties &&
-              (preferences.values.floatingStyleBar ? (
+              (phone ? (
+                phoneStyleOpen && <PropertiesPanel {...styleSurfaceProps} />
+              ) : preferences.values.floatingStyleBar ? (
                 <StyleHalo
                   {...styleSurfaceProps}
                   anchor={selectionOnBoard}
@@ -7034,7 +7227,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                 />
               )}
 
-            {!chromeHidden && (
+            {!chromeHidden && !phone && (
               <ZoomPanel
                 zoom={camera.zoom}
                 syncStatus={syncStatus}

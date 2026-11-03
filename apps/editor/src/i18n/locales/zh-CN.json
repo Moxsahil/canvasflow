@@ -1649,5 +1649,9 @@
   "deleteAccount.planEnds": "{{name}} 正在使用 {{plan}}。它从现在起不再续订，并将于 {{date}} 结束。如果你在此之前恢复账号，可以在 设置 → 账单 中重新订阅。",
   "deleteAccount.planEndsNoDate": "{{name}} 正在使用 {{plan}}。它从现在起不再续订，并将在已付周期结束时终止。",
   "embedView.madeWith": "使用 CanvasFlow 制作",
-  "storage.ofAllowance": "{{used}} / {{allowance}} GB"
+  "storage.ofAllowance": "{{used}} / {{allowance}} GB",
+  "common.back": "返回",
+  "drawer.tile.share": "共享",
+  "drawer.tile.copyLink": "复制链接",
+  "drawer.tile.export": "导出"
 }

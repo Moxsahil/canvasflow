@@ -5,7 +5,14 @@ import { ExpandingSearchDock } from '@/components/ui/expanding-search-dock';
 import { useT } from '../i18n';
 import type { CanvasSearch } from './useCanvasSearch';
 
-export function FindBar({ search }: { search: CanvasSearch }) {
+export function FindBar({
+  search,
+  expandedWidth,
+}: {
+  search: CanvasSearch;
+  /** The open field's width: the whole top row, on a phone. */
+  expandedWidth?: number;
+}) {
   const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -22,9 +29,10 @@ export function FindBar({ search }: { search: CanvasSearch }) {
     // Unpositioned: the top-right dock lays this out beside the collaborator
     // bar. Positioning itself is what made it cover the avatars — both were
     // pinned to the same corner, and this one paints second.
-    <div>
+    <div data-find-bar="">
       <ExpandingSearchDock
         expanded={search.open}
+        expandedWidth={expandedWidth}
         onExpand={search.openSearch}
         onCollapse={search.closeSearch}
         query={search.query}

@@ -181,6 +181,14 @@ export interface ToolMachineContext {
    */
   dynamicSize: boolean;
 
+  /**
+   * Whether a press with a shape tool that never became a drag puts down a
+   * shape of the usual size, centred on the press. On for a phone, where a
+   * drag the length of a shape is a lot to ask of a thumb; off elsewhere,
+   * where a stray click should make nothing.
+   */
+  tapToPlace: boolean;
+
   selectedIds: string[];
 
   marquee: { x: number; y: number; width: number; height: number } | null;
@@ -243,6 +251,7 @@ export type ToolMachineEvent =
   | { type: 'SET_ITEM_STYLE'; style: Partial<ItemStyle> }
   | { type: 'SET_TOOL_LOCK'; locked: boolean }
   | { type: 'SET_DYNAMIC_SIZE'; enabled: boolean }
+  | { type: 'SET_TAP_TO_PLACE'; enabled: boolean }
   | { type: 'ERASE_MARK'; ids: readonly string[]; restore: boolean }
   | { type: 'INTERNAL_UPDATE_SHAPES'; shapes: Shape[] };
 

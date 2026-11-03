@@ -96,9 +96,20 @@ interface CanvasContextMenuProps {
   onOpenChange: (open: boolean) => void;
   /** The editor root, whose theme the popup paints with. */
   container: HTMLElement | null;
+  /** A phone-sized board: submenus open over the menu rather than beside it. */
+  phone?: boolean;
   /** The surface a right-click opens the menu on. Must take a ref and props. */
   children: ReactNode;
 }
+
+/** The menu's width, in CSS pixels; a long press keeps this much on screen. */
+export const CONTEXT_MENU_WIDTH = 244;
+
+/**
+ * How far back over the menu a phone's submenu opens: from the edge of the
+ * row that opens it to the menu's own edge, past its padding and border.
+ */
+const PHONE_SUBMENU_OFFSET = -(CONTEXT_MENU_WIDTH - 5);
 
 /**
  * The menu a right-click on the board opens: one for a selection, another for
@@ -118,6 +129,7 @@ export function CanvasContextMenu({
   open,
   onOpenChange,
   container,
+  phone = false,
   children,
 }: CanvasContextMenuProps) {
   const t = useT();
@@ -141,7 +153,8 @@ export function CanvasContextMenu({
         onCloseAutoFocus={onCloseAutoFocus}
         aria-label={target === 'selection' ? t('contextMenu.selection') : t('contextMenu.canvas')}
         data-testid={`context-menu-${target}`}
-        className="w-[244px] max-w-none min-w-0"
+        className="max-w-none min-w-0"
+        style={{ width: CONTEXT_MENU_WIDTH }}
       >
         {groups.map((group, index) => (
           <Fragment key={index}>
@@ -165,6 +178,7 @@ export function CanvasContextMenu({
                     checks={checks}
                     moveTo={moveTo}
                     container={container}
+                    phone={phone}
                   />
                 ),
               )}
@@ -255,12 +269,14 @@ function Submenu({
   checks,
   moveTo,
   container,
+  phone,
 }: {
   submenu: ContextSubmenu;
   actions: ContextMenuActions;
   checks: ContextMenuChecks;
   moveTo: MoveToBoards | null;
   container: HTMLElement | null;
+  phone: boolean;
 }) {
   const t = useT();
   const rows = submenu.items.map((id) => (
@@ -278,8 +294,12 @@ function Submenu({
       <ContextMenuSubContent
         container={container}
         collisionPadding={8}
+        // On a phone there is no room beside the menu: the submenu opens over
+        // it, in place, as wide as the menu, back in reach of the same thumb.
+        sideOffset={phone ? PHONE_SUBMENU_OFFSET : undefined}
         loop
-        className="w-[168px] max-w-none min-w-0"
+        className="max-w-none min-w-0"
+        style={{ width: phone ? CONTEXT_MENU_WIDTH : 168 }}
       >
         {picksOne ? (
           <ContextMenuRadioGroup

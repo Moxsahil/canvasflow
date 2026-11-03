@@ -1698,5 +1698,9 @@
   "deleteAccount.planEnds": "{{name}} est au forfait {{plan}}. Il cesse d’être renouvelé dès maintenant et prend fin le {{date}}. Si vous restaurez votre compte avant cette date, vous pourrez vous réabonner dans Paramètres → Facturation.",
   "deleteAccount.planEndsNoDate": "{{name}} est au forfait {{plan}}. Il cesse d’être renouvelé dès maintenant et prend fin avec sa période payée.",
   "embedView.madeWith": "Créé avec CanvasFlow",
-  "storage.ofAllowance": "{{used}} sur {{allowance}} Go"
+  "storage.ofAllowance": "{{used}} sur {{allowance}} Go",
+  "common.back": "Retour",
+  "drawer.tile.share": "Partager",
+  "drawer.tile.copyLink": "Copier le lien",
+  "drawer.tile.export": "Exporter"
 }

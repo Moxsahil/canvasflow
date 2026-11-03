@@ -1649,5 +1649,9 @@
   "deleteAccount.planEnds": "{{name}} は {{plan}} です。今後は更新されず、{{date}} に終了します。それまでにアカウントを復元すれば、設定 → お支払い で再開できます。",
   "deleteAccount.planEndsNoDate": "{{name}} は {{plan}} です。今後は更新されず、支払い済み期間の終了とともに終わります。",
   "embedView.madeWith": "CanvasFlow で作成",
-  "storage.ofAllowance": "{{allowance}} GB 中 {{used}}"
+  "storage.ofAllowance": "{{allowance}} GB 中 {{used}}",
+  "common.back": "戻る",
+  "drawer.tile.share": "共有",
+  "drawer.tile.copyLink": "リンクをコピー",
+  "drawer.tile.export": "書き出し"
 }
