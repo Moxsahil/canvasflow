@@ -13,7 +13,6 @@ import {
   type NotificationSettings,
   type WorkspacePlan,
 } from '@canvasflow/types';
-import { env } from '@/lib/env';
 import { initialsOf } from '@/lib/initials';
 import { privacyUrl, termsUrl } from '@/lib/legal-links';
 import { cn } from '@/lib/utils';
@@ -40,26 +39,14 @@ import {
 } from '../../theme/accent';
 import type { ResolvedTheme, ThemePreference } from '../../theme';
 import type { SurfaceTheme } from '../../ui/surface-palette';
-import { leaveWorkspace } from '../../workspace/people-api';
 import { useWorkspacePeople } from '../../workspace/useWorkspacePeople';
-import {
-  AddPasswordDialog,
-  ChangePasswordDialog,
-  ConnectedAccountsDialog,
-  SessionsDialog,
-} from '../AccountDialogs';
 import { formatStorageSize, providerNames } from '../account-format';
 import {
   knownAccountSecurity,
   loadAccountSecurity,
   type AccountSecurity,
 } from '../account-security-api';
-import {
-  fetchDeletionPreview,
-  type DeletionInput,
-  type DeletionPreview,
-} from '../account-deletion-api';
-import { DeleteAccountDialog } from '../DeleteAccountDialog';
+import type { DeletionInput } from '../account-deletion-api';
 import { CURSOR_COLOUR_NAMES } from '../ProfilePane';
 import type { OpenBoard } from '../export-boards';
 import {
@@ -71,22 +58,24 @@ import { PhotoDialog } from '../PhotoDialog';
 import { useBoardsExport, useStorageUsage } from '../PrivacyPane';
 import { settingsAddress } from '../settings-link';
 import type { SettingsSectionId } from '../settings-sections';
-import { ConfirmDialog, HandOverDialog, MembersDialog } from '../WorkspaceDialogs';
 import type { WorkspaceSettingsSource } from '../WorkspacePane';
 import { Icon, Tile } from './icons';
+import { Avatar, Group, Hint, Label, Row, SlotsContext, SwitchRow, T, type Page } from './shell';
+import {
+  DeleteAccountPage,
+  DeleteWorkspacePage,
+  GooglePage,
+  InvitationPage,
+  InvitationRows,
+  InvitePage,
+  LeaveSheet,
+  MemberPage,
+  PasswordPage,
+  SessionsPage,
+} from './SubPages';
 import './phone-settings.css';
 
-type Page =
-  | 'root'
-  | 'account'
-  | 'appearance'
-  | 'language'
-  | 'workspace'
-  | 'notifications'
-  | 'billing'
-  | 'privacy';
-
-const PAGE_TITLES: Record<Page, TranslationKey> = {
+const PAGE_TITLES: Partial<Record<Page, TranslationKey>> = {
   root: 'menu.settings',
   account: 'ps.page.account',
   appearance: 'ps.page.appearance',
@@ -95,7 +84,16 @@ const PAGE_TITLES: Record<Page, TranslationKey> = {
   notifications: 'ps.page.notifications',
   billing: 'ps.page.billing',
   privacy: 'ps.page.privacy',
+  google: 'ps.page.google',
+  password: 'password.changeTitle',
+  sessions: 'ps.activeSessions',
+  delacct: 'ps.deleteAccount',
+  invite: 'ps.page.invite',
+  delws: 'manage.deleteWorkspace',
 };
+
+/** Pages that open on a large picture of their own instead of the heading. */
+const NO_HEADING = new Set<Page>(['google', 'delacct', 'delws']);
 
 const SECTION_PAGES: Record<SettingsSectionId, Page> = {
   profile: 'account',
@@ -142,17 +140,7 @@ const ROLE_LABELS: Record<'owner' | 'admin' | 'member', TranslationKey> = {
 /** How far the sheet is pulled down, in CSS pixels, before letting go closes it. */
 const DISMISS_DRAG = 120;
 
-type Dialog =
-  | { kind: 'photo'; file: File }
-  | { kind: 'password' }
-  | { kind: 'addPassword' }
-  | { kind: 'accounts' }
-  | { kind: 'sessions' }
-  | { kind: 'delete' }
-  | { kind: 'members' }
-  | { kind: 'leave' }
-  | { kind: 'handover' }
-  | null;
+type Dialog = { kind: 'photo'; file: File } | null;
 
 export interface PhoneSettingsProps {
   user: { name: string; email: string | null } | null;
@@ -172,6 +160,8 @@ export interface PhoneSettingsProps {
   deleteAccount?: (input: DeletionInput) => Promise<void>;
   workspace?: WorkspaceSettingsSource;
   renameWorkspace?: (workspaceId: string, name: string) => Promise<void>;
+  /** Deletes a workspace and moves the editor off it; owner only. */
+  deleteWorkspace?: (workspaceId: string) => Promise<void>;
   upgradeWorkspace?: (workspaceId: string) => void;
   openBoard?: OpenBoard | null;
   analytics?: boolean | null;
@@ -191,11 +181,19 @@ export interface PhoneSettingsProps {
  * Settings changes; what the app does not do yet says "Soon".
  */
 export function PhoneSettings(props: PhoneSettingsProps) {
-  const { onClose, container, theme, initialSection } = props;
+  const { onClose, container, theme, initialSection, resumeDeletion = false, isGuest } = props;
   const t = useT();
   const [stack, setStack] = useState<Page[]>(() =>
-    initialSection ? ['root', SECTION_PAGES[initialSection]] : ['root'],
+    resumeDeletion && !isGuest
+      ? ['root', 'account', 'delacct']
+      : initialSection
+        ? ['root', SECTION_PAGES[initialSection]]
+        : ['root'],
   );
+  const [named, setNamed] = useState<string | null>(null);
+  const [cta, setCta] = useState<HTMLElement | null>(null);
+  const [layer, setLayer] = useState<HTMLElement | null>(null);
+  const slots = useMemo(() => ({ cta, layer, setTitle: setNamed }), [cta, layer]);
   const [push, setPush] = useState<'' | 'in' | 'back'>('');
   const [scrolled, setScrolled] = useState(false);
   const [query, setQuery] = useState('');
@@ -204,6 +202,10 @@ export function PhoneSettings(props: PhoneSettingsProps) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const page = stack[stack.length - 1]!;
   const sub = page !== 'root';
+  const title =
+    named ??
+    t(PAGE_TITLES[page] ?? (page.startsWith('member:') ? 'ps.page.member' : 'ps.page.invitation'));
+  const heading = sub && !NO_HEADING.has(page);
 
   const go = (next: Page) => {
     setPush('in');
@@ -232,7 +234,11 @@ export function PhoneSettings(props: PhoneSettingsProps) {
     else setDrag(0);
   };
 
-  const body = <Pages {...props} page={page} go={go} query={query} setQuery={setQuery} />;
+  const body = (
+    <SlotsContext.Provider value={slots}>
+      <Pages {...props} page={page} go={go} back={back} query={query} setQuery={setQuery} />
+    </SlotsContext.Provider>
+  );
 
   return createPortal(
     <>
@@ -241,13 +247,13 @@ export function PhoneSettings(props: PhoneSettingsProps) {
         className={cn(
           'cf-ps',
           theme === 'light' && 'light',
-          scrolled && 'scrolled',
+          (scrolled || (sub && !heading)) && 'scrolled',
           drag ? 'dragging' : 'settle',
         )}
         style={drag ? { transform: `translateY(${drag}px)` } : undefined}
         role="dialog"
         aria-modal="true"
-        aria-label={t(PAGE_TITLES[page])}
+        aria-label={title}
         data-testid="phone-settings"
       >
         <div
@@ -273,7 +279,7 @@ export function PhoneSettings(props: PhoneSettingsProps) {
             ) : (
               <span />
             )}
-            <span className="st-bar-t">{t(PAGE_TITLES[page])}</span>
+            <span className="st-bar-t">{title}</span>
             <button
               type="button"
               className="st-ib r"
@@ -291,115 +297,14 @@ export function PhoneSettings(props: PhoneSettingsProps) {
           className={cn('st-body', push && `push-${push}`)}
           onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 36)}
         >
-          {sub && <h1 className="st-h1">{t(PAGE_TITLES[page])}</h1>}
+          {heading && <h1 className="st-h1">{title}</h1>}
           {body}
         </div>
+        <div className="st-cta" ref={setCta} />
+        <div ref={setLayer} />
       </section>
     </>,
     container ?? document.body,
-  );
-}
-
-// --- rows -----------------------------------------------------------------
-
-function Row({
-  children,
-  end,
-  chevron = true,
-  onClick,
-  red = false,
-  soon = false,
-  testId,
-}: {
-  children: ReactNode;
-  end?: ReactNode;
-  chevron?: boolean;
-  onClick?: () => void;
-  red?: boolean;
-  soon?: boolean;
-  testId?: string;
-}) {
-  const t = useT();
-  const showEnd = soon || end !== undefined || (chevron && onClick);
-  return (
-    <button
-      type="button"
-      className={cn('st-r', red && 'red', soon && 'dim')}
-      onClick={soon ? undefined : onClick}
-      disabled={soon || !onClick}
-      aria-disabled={soon || undefined}
-      data-testid={testId}
-    >
-      {children}
-      {showEnd && (
-        <span className="end">
-          {soon ? (
-            <span className="st-soon">{t('common.soon')}</span>
-          ) : (
-            <>
-              {end !== undefined && end !== '' && <span>{end}</span>}
-              {chevron && onClick && <Icon name="chevright" size={16} />}
-            </>
-          )}
-        </span>
-      )}
-    </button>
-  );
-}
-
-function SwitchRow({
-  label,
-  hint,
-  on,
-  onToggle,
-  soon = false,
-  testId,
-}: {
-  label: string;
-  hint?: string;
-  on: boolean;
-  onToggle?: () => void;
-  soon?: boolean;
-  testId?: string;
-}) {
-  const t = useT();
-  return (
-    <button
-      type="button"
-      className={cn('st-r', soon && 'dim')}
-      role="switch"
-      aria-checked={on}
-      onClick={soon ? undefined : onToggle}
-      disabled={soon || !onToggle}
-      data-testid={testId}
-    >
-      <span className="t">
-        {label}
-        {hint && <small>{hint}</small>}
-      </span>
-      <span className="end">
-        {soon ? (
-          <span className="st-soon">{t('common.soon')}</span>
-        ) : (
-          <span className={cn('st-sw', on && 'on')} />
-        )}
-      </span>
-    </button>
-  );
-}
-
-const Label = ({ children }: { children: ReactNode }) => <div className="st-sl">{children}</div>;
-const Group = ({ children, noIcons = false }: { children: ReactNode; noIcons?: boolean }) => (
-  <div className={cn('st-g', noIcons && 'noi')}>{children}</div>
-);
-const Hint = ({ children, error = false }: { children: ReactNode; error?: boolean }) => (
-  <div className={cn('st-hint', error && 'err')}>{children}</div>
-);
-const T = ({ children }: { children: ReactNode }) => <span className="t">{children}</span>;
-
-function Avatar({ name, url, size }: { name: string; url: string | null; size?: 's' | 'xl' }) {
-  return (
-    <span className={cn('st-av', size)}>{url ? <img src={url} alt="" /> : initialsOf(name)}</span>
   );
 }
 
@@ -499,6 +404,7 @@ function Pages(
   props: PhoneSettingsProps & {
     page: Page;
     go: (page: Page) => void;
+    back: () => void;
     query: string;
     setQuery: (query: string) => void;
   },
@@ -506,6 +412,7 @@ function Pages(
   const {
     page,
     go,
+    back,
     query,
     setQuery,
     token,
@@ -517,10 +424,10 @@ function Pages(
     preferences,
     userId = null,
     isGuest = false,
-    resumeDeletion = false,
     deleteAccount,
     workspace: source = { status: 'none' },
     renameWorkspace,
+    deleteWorkspace,
     upgradeWorkspace,
     openBoard = null,
     analytics = null,
@@ -535,9 +442,9 @@ function Pages(
   const { locale, setLocale } = useI18n();
   const accent = useAccent();
   const reduceMotion = useReduceMotion();
-  const [dialog, setDialog] = useState<Dialog>(() =>
-    resumeDeletion && !isGuest ? { kind: 'delete' } : null,
-  );
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [leaving, setLeaving] = useState(false);
+  const security = useSecurity(isGuest ? null : token);
 
   const profile = account.profile;
   const name = profile?.name || user?.name || t('menu.account');
@@ -567,20 +474,8 @@ function Pages(
   const storageGb = storage?.allowanceGb ?? allowance.storageGb;
   const storageShare = Math.min(100, (storageUsedBytes / (storageGb * 1024 ** 3)) * 100);
 
-  const dialogs = (
-    <AccountAndWorkspaceDialogs
-      dialog={dialog}
-      setDialog={setDialog}
-      token={token}
-      avatar={avatar}
-      email={email}
-      userId={userId}
-      deleteAccount={deleteAccount}
-      workspace={workspace}
-      people={people}
-      role={role}
-    />
-  );
+  const dialogs = <PhotoDialogFor dialog={dialog} setDialog={setDialog} avatar={avatar} />;
+  const members = people.status === 'ready' ? people.members : [];
 
   if (page === 'account') {
     return (
@@ -588,6 +483,7 @@ function Pages(
         <AccountPage
           account={account}
           avatar={avatar}
+          security={security}
           token={token}
           name={name}
           email={email}
@@ -595,9 +491,75 @@ function Pages(
           canDelete={!isGuest && deleteAccount !== undefined}
           theme={props.theme}
           onDialog={setDialog}
+          go={go}
         />
         {dialogs}
       </>
+    );
+  }
+  if (page === 'google') return <GooglePage security={security} go={go} />;
+  if (page === 'password') {
+    return (
+      <PasswordPage
+        token={token}
+        email={email}
+        security={security}
+        onChanged={() => void loadAccountSecurity(token).catch(() => {})}
+        back={back}
+      />
+    );
+  }
+  if (page === 'sessions') return <SessionsPage token={token} security={security} />;
+  if (page === 'delacct') {
+    return deleteAccount ? (
+      <DeleteAccountPage
+        token={token}
+        userId={userId}
+        fallbackEmail={email}
+        storageBytes={storage ? storage.totalBytes : null}
+        deleteAccount={deleteAccount}
+        membersHere={members}
+        workspaceId={workspaceId}
+        go={go}
+        back={back}
+      />
+    ) : null;
+  }
+  if (page === 'invite' && workspace) {
+    return <InvitePage workspace={workspace} people={people} go={go} />;
+  }
+  if (page.startsWith('member:') && workspace) {
+    return (
+      <MemberPage
+        workspace={workspace}
+        people={people}
+        memberId={page.slice('member:'.length)}
+        userId={userId}
+        viewerRole={role}
+        back={back}
+      />
+    );
+  }
+  if (page.startsWith('invitation:') && workspace) {
+    return (
+      <InvitationPage
+        workspace={workspace}
+        people={people}
+        inviteId={page.slice('invitation:'.length)}
+        back={back}
+      />
+    );
+  }
+  if (page === 'delws' && workspace && deleteWorkspace) {
+    return (
+      <DeleteWorkspacePage
+        workspace={workspace}
+        memberCount={memberCount}
+        deleteWorkspace={deleteWorkspace}
+        onDeleted={onClose}
+        go={go}
+        back={back}
+      />
     );
   }
 
@@ -730,9 +692,20 @@ function Pages(
           role={role}
           userId={userId}
           renameWorkspace={renameWorkspace}
-          onDialog={setDialog}
+          canDelete={role === 'owner' && deleteWorkspace !== undefined}
+          onLeave={() => setLeaving(true)}
+          go={go}
         />
-        {dialogs}
+        {leaving && workspace && (
+          <LeaveSheet
+            workspace={workspace}
+            people={people}
+            userId={userId}
+            isOwner={role === 'owner'}
+            onClose={() => setLeaving(false)}
+            go={go}
+          />
+        )}
       </>
     );
   }
@@ -891,7 +864,7 @@ function Pages(
                   <small>
                     {target === '@shortcuts'
                       ? t('ps.support')
-                      : `${t('menu.settings')} › ${t(PAGE_TITLES[target])}`}
+                      : `${t('menu.settings')} › ${t(PAGE_TITLES[target] ?? 'menu.settings')}`}
                   </small>
                 </T>
               </Row>
@@ -1052,6 +1025,7 @@ function Pages(
 function AccountPage({
   account,
   avatar,
+  security,
   token,
   name,
   email,
@@ -1059,9 +1033,11 @@ function AccountPage({
   canDelete,
   theme,
   onDialog,
+  go,
 }: {
   account: ProfileState;
   avatar: AvatarState;
+  security: AccountSecurity | null;
   token: string | null;
   name: string;
   email: string;
@@ -1069,10 +1045,10 @@ function AccountPage({
   canDelete: boolean;
   theme: SurfaceTheme;
   onDialog: (dialog: Dialog) => void;
+  go: (page: Page) => void;
 }) {
   const t = useT();
   const profile = account.profile;
-  const security = useSecurity(isGuest ? null : token);
   const [draftName, setDraftName] = useState(profile?.name ?? name);
   const [draftUsername, setDraftUsername] = useState(profile?.username ?? '');
   const [note, setNote] = useState<{ text: string; error: boolean } | null>(null);
@@ -1188,25 +1164,21 @@ function AccountPage({
           <Label>{t('settings.group.signIn')}</Label>
           <Group>
             <Row
-              onClick={security ? () => onDialog({ kind: 'accounts' }) : undefined}
+              onClick={security ? () => go('google') : undefined}
               end={security ? (google ? t('ps.connected') : t('ps.notConnected')) : ''}
             >
               <Tile name="globe" color="#4285f4" />
               <T>{providerNames(['google'])}</T>
             </Row>
             <Row
-              onClick={
-                security
-                  ? () => onDialog({ kind: security.hasPassword ? 'password' : 'addPassword' })
-                  : undefined
-              }
+              onClick={security ? () => go('password') : undefined}
               end={security ? (security.hasPassword ? t('ps.change') : t('ps.add')) : ''}
             >
               <Tile name="lock" color="#636366" />
               <T>{t('settings.row.password')}</T>
             </Row>
             <Row
-              onClick={security ? () => onDialog({ kind: 'sessions' }) : undefined}
+              onClick={security ? () => go('sessions') : undefined}
               end={sessions === null ? '' : t('ps.devices', { count: sessions })}
             >
               <Tile name="shield" color="#30b0c7" />
@@ -1218,7 +1190,7 @@ function AccountPage({
 
       {canDelete && (
         <div className="st-g" style={{ marginTop: 20 }}>
-          <Row red chevron={false} onClick={() => onDialog({ kind: 'delete' })} testId="ps-delete">
+          <Row red chevron={false} onClick={() => go('delacct')} testId="ps-delete">
             {t('ps.deleteAccount')}
           </Row>
         </div>
@@ -1236,7 +1208,9 @@ function WorkspacePage({
   role,
   userId,
   renameWorkspace,
-  onDialog,
+  canDelete,
+  onLeave,
+  go,
 }: {
   workspace: { id: string; name: string; plan: WorkspacePlan; logoUrl: string | null } | null;
   memberCount: number | null;
@@ -1244,7 +1218,9 @@ function WorkspacePage({
   role: Parameters<typeof can>[0] | null;
   userId: string | null;
   renameWorkspace?: (workspaceId: string, name: string) => Promise<void>;
-  onDialog: (dialog: Dialog) => void;
+  canDelete: boolean;
+  onLeave: () => void;
+  go: (page: Page) => void;
 }) {
   const t = useT();
   const [draft, setDraft] = useState(workspace?.name ?? '');
@@ -1301,7 +1277,12 @@ function WorkspacePage({
       >
         {t('settings.row.members')}
         {canInvite && people.status === 'ready' && (
-          <button type="button" className="st-link" onClick={() => onDialog({ kind: 'members' })}>
+          <button
+            type="button"
+            className="st-link"
+            onClick={() => go('invite')}
+            data-testid="ps-invite"
+          >
             <Icon name="plus" size={15} /> {t('ps.invite')}
           </button>
         )}
@@ -1311,9 +1292,9 @@ function WorkspacePage({
           people.members.map((member) => (
             <Row
               key={member.userId}
-              chevron={false}
-              onClick={() => onDialog({ kind: 'members' })}
+              onClick={() => go(`member:${member.userId}`)}
               end={<span className="role-pill">{t(ROLE_LABELS[member.role])}</span>}
+              testId={`ps-member-${member.userId}`}
             >
               <Avatar name={member.name} url={member.photo} size="s" />
               <T>
@@ -1330,16 +1311,22 @@ function WorkspacePage({
           </div>
         )}
       </div>
+      {canInvite && people.status === 'ready' && people.invites.length > 0 && (
+        <>
+          <Label>{t('ps.inv.waiting', { count: people.invites.length })}</Label>
+          <InvitationRows invites={people.invites} go={go} />
+        </>
+      )}
       {role !== null && (
         <div className="st-g" style={{ marginTop: 20 }}>
-          <Row
-            red
-            chevron={false}
-            onClick={() => onDialog({ kind: role === 'owner' ? 'handover' : 'leave' })}
-            testId="ps-leave"
-          >
+          <Row red chevron={false} onClick={onLeave} testId="ps-leave">
             {t('settings.row.leave-workspace')}
           </Row>
+          {canDelete && (
+            <Row red chevron={false} onClick={() => go('delws')} testId="ps-delete-workspace">
+              {t('manage.deleteWorkspace')}
+            </Row>
+          )}
         </div>
       )}
     </>
@@ -1647,135 +1634,29 @@ function BillingPage({
 
 // --- dialogs ----------------------------------------------------------------
 
-function AccountAndWorkspaceDialogs({
+/** Positioning a new photo: the one window kept from the desktop, for its cropper. */
+function PhotoDialogFor({
   dialog,
   setDialog,
-  token,
   avatar,
-  email,
-  userId,
-  deleteAccount,
-  workspace,
-  people,
-  role,
 }: {
   dialog: Dialog;
   setDialog: (dialog: Dialog) => void;
-  token: string | null;
   avatar: AvatarState;
-  email: string;
-  userId: string | null;
-  deleteAccount?: (input: DeletionInput) => Promise<void>;
-  workspace: { id: string; name: string; plan: WorkspacePlan } | null;
-  people: ReturnType<typeof useWorkspacePeople>;
-  role: Parameters<typeof can>[0] | null;
 }) {
-  const t = useT();
-  const security = useSecurity(token);
-  const [preview, setPreview] = useState<DeletionPreview | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
-  const wantsPreview = dialog?.kind === 'delete';
-
-  useEffect(() => {
-    if (!wantsPreview) return;
-    let cancelled = false;
-    setPreviewError(null);
-    fetchDeletionPreview(token).then(
-      (loaded) => {
-        if (!cancelled) setPreview(loaded);
-      },
-      (caught: unknown) => {
-        if (!cancelled) {
-          setPreviewError(
-            caught instanceof Error ? caught.message : t('common.somethingWentWrongRetry'),
-          );
-        }
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [wantsPreview, token, attempt, t]);
-
+  if (dialog?.kind !== 'photo') return null;
   const close = () => setDialog(null);
-  if (!dialog) return null;
-  switch (dialog.kind) {
-    case 'photo':
-      return (
-        <PhotoDialog
-          file={dialog.file}
-          busy={avatar.busy}
-          error={avatar.error}
-          onCancel={close}
-          onUse={(blob, mimeType) => {
-            void avatar.upload(blob, mimeType).then((uploaded) => {
-              if (uploaded) close();
-            });
-          }}
-        />
-      );
-    case 'password':
-      return <ChangePasswordDialog token={token} email={email} onClose={close} onChanged={close} />;
-    case 'addPassword':
-      return security ? (
-        <AddPasswordDialog token={token} security={security} onClose={close} />
-      ) : null;
-    case 'accounts':
-      return security ? <ConnectedAccountsDialog security={security} onClose={close} /> : null;
-    case 'sessions':
-      return security ? <SessionsDialog security={security} onClose={close} /> : null;
-    case 'delete':
-      return deleteAccount ? (
-        <DeleteAccountDialog
-          token={token}
-          userId={userId}
-          preview={preview}
-          loadError={previewError}
-          fallbackEmail={email}
-          onRetry={() => setAttempt((n) => n + 1)}
-          onClose={close}
-          deleteAccount={deleteAccount}
-        />
-      ) : null;
-    case 'members':
-      return workspace && people.status === 'ready' ? (
-        <MembersDialog
-          workspaceName={workspace.name}
-          workspaceId={workspace.id}
-          people={people}
-          userId={userId}
-          viewerRole={role}
-          plan={workspace.plan}
-          onClose={close}
-        />
-      ) : null;
-    case 'handover':
-      return workspace && people.status === 'ready' ? (
-        <HandOverDialog
-          workspaceId={workspace.id}
-          workspaceName={workspace.name}
-          members={people.members}
-          userId={userId}
-          onOffered={close}
-          onClose={close}
-        />
-      ) : null;
-    case 'leave':
-      return workspace ? (
-        <ConfirmDialog
-          title={t('workspacePane.leaveTitle', { name: workspace.name })}
-          description={t('ps.leaveBody')}
-          confirmLabel={t('settings.row.leave-workspace')}
-          danger
-          onClose={close}
-          onConfirm={async () => {
-            await leaveWorkspace(workspace.id);
-            // Off this workspace's boards, onto the most recent one left — or
-            // a fresh workspace of their own if this was the only one.
-            window.location.assign(new URL('/open', env.VITE_WEB_URL).toString());
-          }}
-        />
-      ) : null;
-  }
+  return (
+    <PhotoDialog
+      file={dialog.file}
+      busy={avatar.busy}
+      error={avatar.error}
+      onCancel={close}
+      onUse={(blob, mimeType) => {
+        void avatar.upload(blob, mimeType).then((uploaded) => {
+          if (uploaded) close();
+        });
+      }}
+    />
+  );
 }

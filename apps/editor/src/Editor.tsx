@@ -7390,6 +7390,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   deleteAccount={deleteAccount}
                   workspace={settingsWorkspace}
                   renameWorkspace={renameWorkspaceFromSettings}
+                  deleteWorkspace={local ? undefined : boardSwitcher.deleteWorkspace}
                   upgradeWorkspace={upgradeFromSettings}
                   openBoard={exportOpenBoard}
                   analytics={usage.consent}
