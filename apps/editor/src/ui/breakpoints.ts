@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from 'react';
+
 /**
  * The widths at which on-canvas chrome changes shape, as an ordered ladder.
  *
@@ -72,3 +74,18 @@ export function isPhoneCanvas(width: number, height: number): boolean {
  * the popups that portal outside the board and cannot ask it.
  */
 export const PHONE_MEDIA_QUERY = `(max-width: ${PHONE_MAX_WIDTH}px), (max-height: ${PHONE_LANDSCAPE_MAX_HEIGHT - 1}px) and (max-width: ${PHONE_LANDSCAPE_MAX_WIDTH - 1}px)`;
+
+function subscribePhone(onChange: () => void): () => void {
+  const query = window.matchMedia?.(PHONE_MEDIA_QUERY);
+  query?.addEventListener('change', onChange);
+  return () => query?.removeEventListener('change', onChange);
+}
+
+/** Whether the window is phone-sized, following it as it turns or resizes. */
+export function usePhoneWindow(): boolean {
+  return useSyncExternalStore(
+    subscribePhone,
+    () => window.matchMedia?.(PHONE_MEDIA_QUERY).matches ?? false,
+    () => false,
+  );
+}

@@ -1,4 +1,7 @@
 import { useId, type ReactNode } from 'react';
+import { CircleAlert } from 'lucide-react';
+import { PhoneConfirm } from '../settings/phone/PhoneConfirm';
+import { usePhoneWindow } from './breakpoints';
 import { SurfaceWindow, WindowButton, WindowFooter, WindowHeader } from './SurfaceWindow';
 import { useT } from '../i18n';
 import type { SurfaceTheme } from './surface-palette';
@@ -40,6 +43,7 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel,
   destructive = false,
+  icon,
   busy = false,
   theme,
   onClose,
@@ -47,6 +51,26 @@ export function ConfirmDialog({
   const t = useT();
   const titleId = useId();
   const bodyId = useId();
+  const phone = usePhoneWindow();
+
+  // On a phone, the same question as a card from the foot of the screen.
+  if (phone) {
+    return (
+      <PhoneConfirm
+        open={open}
+        icon={icon ?? <CircleAlert aria-hidden="true" className="size-[25px]" />}
+        title={title}
+        body={children}
+        label={confirmLabel ?? t('common.confirm')}
+        danger={destructive}
+        busy={busy}
+        theme={theme}
+        onConfirm={onConfirm}
+        onClose={onClose}
+        testId="confirm-dialog"
+      />
+    );
+  }
 
   return (
     <SurfaceWindow

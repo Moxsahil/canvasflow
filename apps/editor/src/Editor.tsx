@@ -198,6 +198,7 @@ import {
 import { usePeerTyping, withPeerTyping } from './collab/peer-typing';
 import { ZoomPanel } from './zoom-panel/ZoomPanel';
 import { PhoneActionRow, PhoneDoneButton } from './zoom-panel/PhoneActionRow';
+import { PhoneBanner, type PhoneBannerMessage } from './ui/PhoneBanner';
 import { PhoneSettings } from './settings/phone/PhoneSettings';
 import { cn } from '@/lib/utils';
 import { isPhoneCanvas } from './ui/breakpoints';
@@ -5101,10 +5102,28 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const replaceShapeCount = useRef(shapes.length);
   if (pendingReplace) replaceShapeCount.current = shapes.length;
 
+  // A phone's word at the top of the screen that something worked, with the
+  // obvious next step beside it.
+  const [phoneBanner, setPhoneBanner] = useState<PhoneBannerMessage | null>(null);
+  const bannerId = useRef(0);
+  const showPhoneBanner = useCallback((text: string, action?: PhoneBannerMessage['action']) => {
+    bannerId.current += 1;
+    setPhoneBanner({ id: bannerId.current, text, action });
+  }, []);
+  const clearPhoneBanner = useCallback(() => setPhoneBanner(null), []);
+
   const confirmReset = useCallback(() => {
+    const hadShapes = resetShapeCount.current > 0;
     setResetOpen(false);
     handleResetCanvas();
-  }, [handleResetCanvas]);
+    // A phone has no keyboard to undo with, so the way back is offered here.
+    if (phone && hadShapes) {
+      showPhoneBanner(translate('ps.banner.canvasCleared'), {
+        label: translate('ps.banner.undo'),
+        run: handleUndo,
+      });
+    }
+  }, [handleResetCanvas, phone, showPhoneBanner, handleUndo]);
 
   /**
    * Copy this board's own URL.
@@ -5120,6 +5139,14 @@ export function Editor({ boardId, local = false }: EditorProps) {
     const url = window.location.href;
     try {
       await navigator.clipboard.writeText(url);
+      // On a phone, a banner with the way on to sharing it live.
+      if (phone) {
+        showPhoneBanner(translate('ps.banner.linkCopied'), {
+          label: translate('ps.banner.liveCollaboration'),
+          run: showShare,
+        });
+        return;
+      }
       setNotice({
         title: translate('notices.linkCopied'),
         body: translate('notices.linkCopiedBody'),
@@ -5132,7 +5159,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
         link: { url, copied: false },
       });
     }
-  }, [runsSharing]);
+  }, [runsSharing, phone, showPhoneBanner, showShare]);
 
   /**
    * Copy a link that opens this board with the selection in view, for anyone
@@ -7351,6 +7378,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
 
             {/* Just above the zoom panel, or in its corner while it is away. */}
             <Toast toast={toast.toast} />
+            {phone && <PhoneBanner banner={phoneBanner} onDone={clearPhoneBanner} />}
 
             <ShortcutsModal open={helpOpen} onClose={handleCloseHelp} theme={presenceTheme} />
 
@@ -7422,11 +7450,14 @@ export function Editor({ boardId, local = false }: EditorProps) {
               onConfirm={confirmReset}
               onClose={hideReset}
             >
-              {resetShapeCount.current > 0
-                ? rich(t('reset.body', { count: resetShapeCount.current }), {
-                    undo: <KeyCaps keys="mod+z" size="sm" />,
-                  })
-                : t('reset.emptyBody')}
+              {resetShapeCount.current === 0
+                ? t('reset.emptyBody')
+                : phone
+                  ? // No keyboard to undo with: the banner after it offers Undo.
+                    t('reset.bodyPhone', { count: resetShapeCount.current })
+                  : rich(t('reset.body', { count: resetShapeCount.current }), {
+                      undo: <KeyCaps keys="mod+z" size="sm" />,
+                    })}
             </ConfirmDialog>
 
             <NoticeDialog

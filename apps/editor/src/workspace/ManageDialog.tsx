@@ -32,6 +32,8 @@ import {
   useWindowContainer,
 } from '../ui/SurfaceWindow';
 import type { SurfaceTheme } from '../ui/surface-palette';
+import { usePhoneWindow } from '../ui/breakpoints';
+import { PhoneManageSheet } from './PhoneManageSheet';
 import { ColorDot, formatUpdatedAt } from './board-presentation';
 import { DeleteWarningDialog } from './DeleteWarningDialog';
 import { PlanBlocksDeleteDialog, type PlanBlock } from './PlanBlocksDeleteDialog';
@@ -55,6 +57,8 @@ interface ManageDialogProps {
   theme: SurfaceTheme;
   /** Opens Settings at Billing on a workspace, for a delete that waits on its plan. */
   onOpenBilling?: (workspaceId: string) => void;
+  /** After switching workspace on a phone: brings up the drawer, where its boards are. */
+  onShowBoards?: () => void;
 }
 
 /**
@@ -74,11 +78,12 @@ interface ManageDialogProps {
  * Nothing here decides what a person may do; it only declines to offer what
  * the server would refuse. The rules themselves live in the routes.
  */
-export function ManageDialog({ state, theme, onOpenBilling }: ManageDialogProps) {
+export function ManageDialog({ state, theme, onOpenBilling, onShowBoards }: ManageDialogProps) {
   const t = useT();
   const target = state.manageTarget;
   const { loadWorkspaceBoards, endManage, beginManage } = state;
   const titleId = useId();
+  const phone = usePhoneWindow();
 
   // What the window shows: kept while it sinks away on close, so its contents
   // don't change under the fade.
@@ -226,6 +231,92 @@ export function ManageDialog({ state, theme, onOpenBilling }: ManageDialogProps)
     footLine = t('manage.onlyOwnerDeletes');
   }
 
+  const deleteDialogs = (
+    <>
+      <PlanBlocksDeleteDialog
+        block={planBlock}
+        theme={theme}
+        onClose={() => setPlanBlock(null)}
+        onOpenBilling={
+          onOpenBilling &&
+          ((workspaceId) => {
+            setPlanBlock(null);
+            endManage();
+            onOpenBilling(workspaceId);
+          })
+        }
+      />
+      <DeleteWarningDialog
+        open={pending !== null}
+        onOpenChange={(open) => {
+          if (!open) setPending(null);
+        }}
+        theme={theme}
+        busy={state.busy}
+        error={deleteError}
+        onConfirm={confirmDelete}
+        title={
+          asking?.kind === 'workspace'
+            ? t('boards.deleteTitle', { title: asking.workspace.name })
+            : t('boards.deleteTitle', { title: asking?.board.title ?? t('boards.thisBoard') })
+        }
+        // Only the workspace asks for its name to be typed: it is the delete
+        // that takes other things with it.
+        confirmText={asking?.kind === 'workspace' ? asking.workspace.name : undefined}
+        confirmLabel={
+          asking?.kind === 'workspace' ? t('manage.deleteWorkspace') : t('boards.deleteConfirm')
+        }
+        description={
+          asking?.kind === 'workspace' ? (
+            <>
+              {rich(t('manage.deleteWorkspaceWarning'), {
+                boards: (
+                  <strong>{t('boards.count', { count: asking.workspace.boardCount })}</strong>
+                ),
+              })}
+              {endingPlan && ` ${t('manage.planEndsWith', { plan: PLAN_NAMES[endingPlan] })}`}
+            </>
+          ) : (
+            t('boards.deleteWarning')
+          )
+        }
+      />
+    </>
+  );
+
+  // On a phone, the same errands as a sheet of pages: the workspaces, one
+  // workspace, its boards, one board.
+  if (phone) {
+    return (
+      <>
+        {target !== null && (
+          <PhoneManageSheet
+            state={state}
+            theme={theme}
+            target={target}
+            error={listError}
+            onRename={(workspaceId, name) => {
+              setListError(null);
+              state
+                .renameWorkspace(workspaceId, name)
+                .catch((err: unknown) =>
+                  setListError(err instanceof Error ? err.message : t('common.somethingWentWrong')),
+                );
+            }}
+            onSwitch={(workspaceId) => {
+              state.browseWorkspace(workspaceId);
+              endManage();
+              onShowBoards?.();
+            }}
+            onDeleteWorkspace={(workspace) => askToDelete({ kind: 'workspace', workspace })}
+            onDeleteBoard={(board) => askToDelete({ kind: 'board', board })}
+          />
+        )}
+        {deleteDialogs}
+      </>
+    );
+  }
+
   return (
     <>
       <SurfaceWindow
@@ -323,54 +414,7 @@ export function ManageDialog({ state, theme, onOpenBilling }: ManageDialogProps)
         </WindowFooter>
       </SurfaceWindow>
 
-      <PlanBlocksDeleteDialog
-        block={planBlock}
-        theme={theme}
-        onClose={() => setPlanBlock(null)}
-        onOpenBilling={
-          onOpenBilling &&
-          ((workspaceId) => {
-            setPlanBlock(null);
-            endManage();
-            onOpenBilling(workspaceId);
-          })
-        }
-      />
-      <DeleteWarningDialog
-        open={pending !== null}
-        onOpenChange={(open) => {
-          if (!open) setPending(null);
-        }}
-        theme={theme}
-        busy={state.busy}
-        error={deleteError}
-        onConfirm={confirmDelete}
-        title={
-          asking?.kind === 'workspace'
-            ? t('boards.deleteTitle', { title: asking.workspace.name })
-            : t('boards.deleteTitle', { title: asking?.board.title ?? t('boards.thisBoard') })
-        }
-        // Only the workspace asks for its name to be typed: it is the delete
-        // that takes other things with it.
-        confirmText={asking?.kind === 'workspace' ? asking.workspace.name : undefined}
-        confirmLabel={
-          asking?.kind === 'workspace' ? t('manage.deleteWorkspace') : t('boards.deleteConfirm')
-        }
-        description={
-          asking?.kind === 'workspace' ? (
-            <>
-              {rich(t('manage.deleteWorkspaceWarning'), {
-                boards: (
-                  <strong>{t('boards.count', { count: asking.workspace.boardCount })}</strong>
-                ),
-              })}
-              {endingPlan && ` ${t('manage.planEndsWith', { plan: PLAN_NAMES[endingPlan] })}`}
-            </>
-          ) : (
-            t('boards.deleteWarning')
-          )
-        }
-      />
+      {deleteDialogs}
     </>
   );
 }
