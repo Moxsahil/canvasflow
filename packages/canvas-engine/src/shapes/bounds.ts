@@ -1,4 +1,4 @@
-import type { Rect } from '../math.js';
+import type { Point, Rect } from '../math.js';
 import { arrowBounds } from './arrow.js';
 import { diamondBounds } from './diamond.js';
 import { ellipseBounds } from './ellipse.js';
@@ -13,8 +13,14 @@ import { assertNever, type Shape } from './shape.js';
 import { textBoundsEstimate } from './text.js';
 import { topicBounds } from './topic.js';
 import { noteBounds } from './note.js';
+import { rectCentre, rotatePoint, rotatedRectBounds, shapeAngle } from './rotation.js';
 
-export function shapeBounds(shape: Shape) {
+/**
+ * The box a shape is drawn in before it is turned: the one its width and
+ * height describe, and the one its handles and its words are laid out in.
+ * The same as `shapeBounds` for a shape that is not turned.
+ */
+export function shapeBox(shape: Shape): Rect {
   switch (shape.kind) {
     case 'rectangle':
       return rectangleBounds(shape);
@@ -46,6 +52,32 @@ export function shapeBounds(shape: Shape) {
     default:
       return assertNever(shape);
   }
+}
+
+/**
+ * A board point in a turned shape's own upright frame: turned back about its
+ * middle, so it can be measured against `shapeBox`.
+ */
+export function toShapeFrame(shape: Shape, point: Point): Point {
+  const angle = shapeAngle(shape);
+  if (angle === 0) return point;
+  return rotatePoint(point, rectCentre(shapeBox(shape)), -angle);
+}
+
+/** A point in a shape's upright frame put where it is on the board — `toShapeFrame` undone. */
+export function fromShapeFrame(shape: Shape, point: Point): Point {
+  const angle = shapeAngle(shape);
+  if (angle === 0) return point;
+  return rotatePoint(point, rectCentre(shapeBox(shape)), angle);
+}
+
+/**
+ * The upright box a shape covers on the board. For a turned shape that is the
+ * box around its turned corners, which is what anything asking "what is near
+ * here", "what fits in this" or "how much room does it take" wants.
+ */
+export function shapeBounds(shape: Shape): Rect {
+  return rotatedRectBounds(shapeBox(shape), shapeAngle(shape));
 }
 
 export function boundsContainPoints(shape: Shape, px: number, py: number): boolean {

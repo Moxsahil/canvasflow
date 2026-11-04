@@ -1,6 +1,8 @@
 import type { ArrowShape, LineShape, Shape } from '../shapes/shape.js';
 import { clearCanvas } from '../utils/canvas.js';
-import { shapeBounds } from '../shapes/bounds.js';
+import { shapeBox } from '../shapes/bounds.js';
+import { rectCentre, shapeAngle } from '../shapes/rotation.js';
+import { rotateHandlePosition, SELECTION_PAD } from '../shapes/rotate-handle.js';
 import {
   handleRadiusAt,
   hasPointHandles,
@@ -103,6 +105,8 @@ export interface InteractiveSceneOptions {
 }
 
 const HANDLE_SIZE = 8; // screen pixels
+/** The stem from the selection box up toward the turning handle, in screen pixels. */
+const ROTATE_STEM = 12;
 /**
  * Exported because chrome drawn in the DOM rather than on the canvas has to
  * match it — the frame rename box rings itself in this, and a second copy of
@@ -244,15 +248,18 @@ export function renderInteractiveScene(
       if (pointHandles) {
         drawPointHandles(ctx, pointHandles, zoom, hoveredHandleId);
       } else {
-        const b = shapeBounds(only);
-        const pad = 4 / zoom;
+        const b = shapeBox(only);
+        const pad = SELECTION_PAD / zoom;
         const outerBounds: Rect = {
           x: b.x - pad,
           y: b.y - pad,
           width: b.width + pad * 2,
           height: b.height + pad * 2,
         };
-        drawHandles(ctx, outerBounds, zoom, opts.handleSize ?? HANDLE_SIZE);
+        const size = opts.handleSize ?? HANDLE_SIZE;
+        withShapeTurn(ctx, only, () => drawHandles(ctx, outerBounds, zoom, size));
+        const rotateAt = rotateHandlePosition(only, zoom);
+        if (rotateAt) drawRotateHandle(ctx, only, rotateAt, outerBounds, zoom, size);
       }
     }
   }
@@ -313,9 +320,57 @@ function strokeSelectionOutline(
     strokeShapeIndicator(ctx, shape);
     return;
   }
-  const b = shapeBounds(shape);
-  const pad = 4 / zoom;
-  ctx.strokeRect(b.x - pad, b.y - pad, b.width + pad * 2, b.height + pad * 2);
+  const b = shapeBox(shape);
+  const pad = SELECTION_PAD / zoom;
+  withShapeTurn(ctx, shape, () =>
+    ctx.strokeRect(b.x - pad, b.y - pad, b.width + pad * 2, b.height + pad * 2),
+  );
+}
+
+/** Runs `draw` on a board turned as `shape` is turned, so its box is drawn upright in it. */
+function withShapeTurn(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  shape: Shape,
+  draw: () => void,
+): void {
+  const angle = shapeAngle(shape);
+  if (angle === 0) {
+    draw();
+    return;
+  }
+  const centre = rectCentre(shapeBox(shape));
+  ctx.save();
+  ctx.translate(centre.x, centre.y);
+  ctx.rotate(angle);
+  ctx.translate(-centre.x, -centre.y);
+  draw();
+  ctx.restore();
+}
+
+/**
+ * The dot that turns a shape, on a short stem up from the middle of the
+ * selection's top edge. Round like a point handle rather than square like a
+ * resize one: it is not a corner of anything.
+ */
+function drawRotateHandle(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  shape: Shape,
+  at: Point,
+  outerBounds: Rect,
+  zoom: number,
+  size: number,
+): void {
+  withShapeTurn(ctx, shape, () => {
+    const cx = outerBounds.x + outerBounds.width / 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, outerBounds.y);
+    ctx.lineTo(cx, outerBounds.y - ROTATE_STEM / zoom);
+    ctx.stroke();
+  });
+  ctx.beginPath();
+  ctx.arc(at.x, at.y, (size / 2 + 1) / zoom, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
 }
 
 /**
@@ -341,15 +396,18 @@ function drawBindingHint(
     Math.max(BINDING_HINT_MIN_WIDTH, shape.strokeWidth),
   );
   ctx.lineWidth = weight / zoom;
-  ctx.beginPath();
-  const outline = generateOutlineDrawable(indicatorSource, shape);
-  if (outline) {
-    traceDrawable(ctx, outline);
-  } else {
-    const b = shapeBounds(shape);
-    ctx.rect(b.x, b.y, b.width, b.height);
-  }
-  ctx.stroke();
+  // Traced upright and stroked on the turned board, so it lies on the shape.
+  withShapeTurn(ctx, shape, () => {
+    ctx.beginPath();
+    const outline = generateOutlineDrawable(indicatorSource, shape);
+    if (outline) {
+      traceDrawable(ctx, outline);
+    } else {
+      const b = shapeBox(shape);
+      ctx.rect(b.x, b.y, b.width, b.height);
+    }
+    ctx.stroke();
+  });
 
   ctx.beginPath();
   ctx.arc(point.x, point.y, BINDING_POINT_RADIUS / zoom, 0, Math.PI * 2);

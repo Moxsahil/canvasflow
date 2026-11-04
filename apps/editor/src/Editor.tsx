@@ -34,6 +34,10 @@ import {
   frameLabelBounds,
   framesIn,
   hasPointHandles,
+  normalizeAngle,
+  rectCentre,
+  shapeAngle,
+  shapeBox,
   COARSE_HIT_MARGIN,
   HIT_MARGIN,
   hitTest,
@@ -218,7 +222,12 @@ import {
   type ContextMenuTarget,
   type MoveToBoards,
 } from './context-menu';
-import { hitTestHandles } from './selection/handles';
+import {
+  hitTestHandles,
+  hitTestRotateHandle,
+  resizeCursorFor,
+  ROTATE_CURSOR,
+} from './selection/handles';
 import { canFlipSelection, flipSelection } from './selection/flip-selection';
 import {
   bindablePair,
@@ -695,6 +704,24 @@ function releaseArrowsFrom(doc: BoardDocument, deletedIds: readonly string[]): v
   }
 }
 
+/** The steps a turn takes with Shift held: a twenty-fourth of a turn. */
+const ROTATION_STEP = Math.PI / 12;
+/** How near a quarter turn a free turn is pulled onto it, when snapping is on. */
+const ROTATION_PULL = (3 * Math.PI) / 180;
+
+/**
+ * Where a turn lands. Shift walks it in fifteen-degree steps; otherwise it is
+ * free, but pulled square when it comes within a few degrees of upright or a
+ * quarter turn — the angles people most often mean to come back to — unless
+ * snapping is off.
+ */
+function snapRotation(angle: number, stepped: boolean, snapping: boolean): number {
+  if (stepped) return Math.round(angle / ROTATION_STEP) * ROTATION_STEP;
+  if (!snapping) return angle;
+  const square = Math.round(angle / (Math.PI / 2)) * (Math.PI / 2);
+  return Math.abs(angle - square) <= ROTATION_PULL ? square : angle;
+}
+
 /**
  * Whether a resize lands where a guide would say it does.
  *
@@ -703,9 +730,11 @@ function releaseArrowsFrom(doc: BoardDocument, deletedIds: readonly string[]): v
  * tracks the drag one for one. Text is sized by a font size and the corner of
  * an image keeps its proportions, so both would land near the guide rather than
  * on it, and a guide a shape misses is worse than no guide at all. The linear
- * kinds have no handle resize to snap in the first place.
+ * kinds have no handle resize to snap in the first place. Nor does a turned
+ * shape: its edges run across the board's lines, not along them.
  */
 function resizeCanSnap(shape: Shape, handle: HandleIndex): boolean {
+  if (shapeAngle(shape) !== 0) return false;
   switch (shape.kind) {
     case 'text':
     case 'line':
@@ -1407,6 +1436,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const [hoveredEmbedId, setHoveredEmbedId] = useState<string | null>(null);
   /** The point handle under the pointer, if any — see `drawPointHandles`. */
   const [hoveredHandleId, setHoveredHandleId] = useState<string | null>(null);
+  /** What the select tool's pointer says it would do: resize or move. */
+  const [selectCursor, setSelectCursor] = useState<string | null>(null);
   useEffect(() => {
     if (!awareness) {
       setChannel(null);
@@ -2416,6 +2447,21 @@ export function Editor({ boardId, local = false }: EditorProps) {
     typedLayout?.fontFamily ??
     arrowLabelType?.fontFamily ??
     (typedWords ? typedWords.fontFamily : itemStyle.fontFamily);
+  // A turned shape's words are typed turned with it, about the shape's middle.
+  const turnedWords = typedContainer ?? editingText;
+  const textEditorTurn =
+    turnedWords && shapeAngle(turnedWords) !== 0
+      ? (() => {
+          const centre = rectCentre(shapeBox(turnedWords));
+          return {
+            angle: shapeAngle(turnedWords),
+            centre: {
+              x: (centre.x - camera.x) * camera.zoom,
+              y: (centre.y - camera.y) * camera.zoom,
+            },
+          };
+        })()
+      : undefined;
   const textEditorWrap = typedLayout
     ? {
         x: (typedLayout.area.x - camera.x) * camera.zoom,
@@ -2753,6 +2799,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
   /** Locked members of a frame being dragged, which go where it goes. */
   const carriedLockedRef = useRef<ReadonlySet<string>>(EMPTY_IDS);
   const resizeOriginRef = useRef<Shape | null>(null);
+  /** The angle the turn in progress last wrote, so a still pointer writes nothing. */
+  const turnedToRef = useRef<number | null>(null);
   /**
    * The line or arrow a point-drag started from, already carrying any point the
    * gesture created and with the dragged end's attachment let go.
@@ -3412,6 +3460,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       let hitShapeId: string | null = null;
       let hitHandle: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | null = null;
       let hitVertex: VertexGrab | null = null;
+      let hitRotate = false;
 
       // A press anywhere puts away the padlock a click on a locked shape put
       // up; the press below decides whether to put it back.
@@ -3444,21 +3493,19 @@ export function Editor({ boardId, local = false }: EditorProps) {
               vertexReleasedRef.current = false;
             }
           } else if (selectedShape) {
-            hitHandle = hitTestHandles(
-              selectedShape,
-              point.x,
-              point.y,
-              camera.zoom,
-              phone ? PHONE_HANDLE_HIT : undefined,
-            );
-            if (hitHandle !== null) {
+            const hitSize = phone ? PHONE_HANDLE_HIT : undefined;
+            hitRotate = hitTestRotateHandle(selectedShape, point.x, point.y, camera.zoom, hitSize);
+            hitHandle = hitRotate
+              ? null
+              : hitTestHandles(selectedShape, point.x, point.y, camera.zoom, hitSize);
+            if (hitHandle !== null || hitRotate) {
               resizeOriginRef.current = selectedShape;
             }
           }
         }
         // The count on a folded topic opens it again.
         const foldedId =
-          hitHandle === null && hitVertex === null && !readOnly && !shiftKey
+          hitHandle === null && hitVertex === null && !hitRotate && !readOnly && !shiftKey
             ? mindMapFoldBadgeAt(shapes, point)
             : null;
         if (foldedId && !lockedIds.has(foldedId)) {
@@ -3466,7 +3513,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
           actorRef.send({ type: 'SELECT_ALL', shapeIds: [foldedId] });
           return;
         }
-        if (hitHandle === null && hitVertex === null) {
+        if (hitHandle === null && hitVertex === null && !hitRotate) {
           // A locked shape is passed over for whatever is under it, as if it
           // were part of the board. The selection answers anywhere in its box,
           // so a diagonal line can be dragged by the space it spans.
@@ -3545,7 +3592,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
         // nothing can attach itself to a line or an arrow in the first place.
         measureSnapTargets(new Set([vertexOriginRef.current.id]));
         boundArrowsRef.current = EMPTY_IDS;
-      } else if (tool === 'select' && hitHandle !== null && resizeOriginRef.current) {
+      } else if (
+        tool === 'select' &&
+        (hitHandle !== null || hitRotate) &&
+        resizeOriginRef.current
+      ) {
         const moving = new Set([resizeOriginRef.current.id]);
         measureSnapTargets(moving);
         boundArrowsRef.current = affectedArrowIds(shapes, moving);
@@ -3587,6 +3638,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
         hitShapeId,
         hitHandle,
         hitVertex,
+        hitRotate,
       });
 
       // After POINTER_DOWN, so the machine is already in `erasing` — the idle
@@ -3713,6 +3765,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       screenDelta: Point,
       altKey = false,
       snapOverride = false,
+      shiftKey = false,
     ) => {
       lastCanvasPointRef.current = screenPoint;
       const draft = embedDraftRef.current;
@@ -3859,6 +3912,23 @@ export function Editor({ boardId, local = false }: EditorProps) {
         }
       }
 
+      const turning = resizeOriginRef.current;
+      if (snap.matches('rotatingSelection') && turning) {
+        // The handle follows the pointer round the shape's middle: it stands
+        // straight above it, so the pointer's own angle is a quarter turn on.
+        const centre = rectCentre(shapeBox(turning));
+        const pointed = Math.atan2(point.y - centre.y, point.x - centre.x) + Math.PI / 2;
+        const rotation = normalizeAngle(snapRotation(pointed, shiftKey, snapping));
+        if (rotation !== turnedToRef.current) {
+          turnedToRef.current = rotation;
+          doc.updateShape(turning.id, { rotation });
+          if (boundArrowsRef.current.size > 0) {
+            gestureShapesRef.current.set(turning.id, { ...turning, rotation });
+            settleBoundArrows(doc, gestureShapesRef.current, boundArrowsRef.current);
+          }
+        }
+      }
+
       const vertexOrigin = vertexOriginRef.current;
       const vertexGrab = snap.context.vertexGrab;
       if (
@@ -3958,8 +4028,9 @@ export function Editor({ boardId, local = false }: EditorProps) {
             showSnapGuides(EMPTY_GUIDES);
           }
           // Never smaller than its words need.
-          const drawn = resizeShape(originalShape, handle, dx, dy);
-          const resized = isTextContainer(drawn) ? fitShapeToText(drawn) : drawn;
+          const resized = resizeShape(originalShape, handle, dx, dy, (drawn) =>
+            isTextContainer(drawn) ? fitShapeToText(drawn) : drawn,
+          );
           doc.updateShape(originalShape.id, resized);
           if (boundArrowsRef.current.size > 0) {
             gestureShapesRef.current.set(resized.id, resized);
@@ -4044,6 +4115,53 @@ export function Editor({ boardId, local = false }: EditorProps) {
   });
 
   /**
+   * The pointer the select tool shows at `point`: a two-way arrow on the
+   * single selected shape's outline, where a press resizes it, and the
+   * four-way one over anything a press would pick up and move. Held for the
+   * whole of a gesture, so the pointer does not flicker as it leaves the edge
+   * it is dragging.
+   */
+  const selectCursorAt = useCallback(
+    (point: Point | null): string | null => {
+      if (!point || activeTool !== 'select' || readOnly) return null;
+      const snap = actorRef.getSnapshot();
+      if (snap.matches('rotatingSelection')) return ROTATE_CURSOR;
+      if (snap.matches('resizingSelection')) {
+        const handle = snap.context.resizeHandle;
+        const origin = resizeOriginRef.current;
+        return handle === null ? null : resizeCursorFor(handle, origin ?? undefined);
+      }
+      if (snap.matches('draggingSelection')) return 'move';
+      if (!snap.matches('idle')) return null;
+
+      if (selectedIds.length === 1 && !lockedIds.has(selectedIds[0]!)) {
+        const selected = shapes.find((s) => s.id === selectedIds[0]);
+        if (selected && !hasPointHandles(selected)) {
+          if (hitTestRotateHandle(selected, point.x, point.y, camera.zoom)) return ROTATE_CURSOR;
+          const handle = hitTestHandles(selected, point.x, point.y, camera.zoom);
+          if (handle !== null) return resizeCursorFor(handle, selected);
+        }
+      }
+      const hit = hitTest(pickableShapes, spatialIndex, point.x, point.y, camera.zoom, {
+        margin: HIT_MARGIN,
+        selectedIds,
+      });
+      return hit ? 'move' : null;
+    },
+    [
+      activeTool,
+      readOnly,
+      actorRef,
+      selectedIds,
+      lockedIds,
+      shapes,
+      camera.zoom,
+      pickableShapes,
+      spatialIndex,
+    ],
+  );
+
+  /**
    * Every pointer position over the board, pressed or not.
    *
    * Two things want it: collaborators, who are shown where your pointer is,
@@ -4065,8 +4183,9 @@ export function Editor({ boardId, local = false }: EditorProps) {
           ? (shapeHandleAt(onlySelected, point!.x, point!.y, camera.zoom)?.id ?? null)
           : null,
       );
+      setSelectCursor(selectCursorAt(point));
     },
-    [setCursor, activeTool, selectedIds, shapes, camera.zoom, embedMiddleAt],
+    [setCursor, activeTool, selectedIds, shapes, camera.zoom, embedMiddleAt, selectCursorAt],
   );
 
   /**
@@ -4126,7 +4245,10 @@ export function Editor({ boardId, local = false }: EditorProps) {
       const snap = actorRef.getSnapshot();
       const draggedVertex = snap.matches('draggingVertex') && vertexReleasedRef.current;
       const wasInteracting =
-        snap.matches('draggingSelection') || snap.matches('resizingSelection') || draggedVertex;
+        snap.matches('draggingSelection') ||
+        snap.matches('resizingSelection') ||
+        snap.matches('rotatingSelection') ||
+        draggedVertex;
 
       // An end dropped on a shape takes hold of it, and one dropped on nothing
       // stays let go. Decided on release rather than during the drag for the
@@ -4202,6 +4324,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       noteSpotsRef.current = null;
       carriedLockedRef.current = EMPTY_IDS;
       resizeOriginRef.current = null;
+      turnedToRef.current = null;
       vertexOriginRef.current = null;
       vertexReleasedRef.current = false;
       pointerDownWorldRef.current = null;
@@ -6926,7 +7049,9 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   toolCursor={
                     activeTool === 'bucket'
                       ? bucketCursorValue(pourColor, resolvedTheme === 'dark')
-                      : undefined
+                      : activeTool === 'select'
+                        ? (selectCursor ?? undefined)
+                        : undefined
                   }
                   onPointerAbandon={handlePointerAbandon}
                   onPointerCancel={handlePointerCancel}
@@ -7455,6 +7580,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   position={textEditorScreenPosition}
                   align={editingArrow || editingTopic ? 'center' : 'left'}
                   wrap={textEditorWrap}
+                  turn={textEditorTurn}
                   fontSize={textEditorFontSize}
                   fontFamily={textEditorFontFamily}
                   color={textEditorColor}

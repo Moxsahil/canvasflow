@@ -14,7 +14,7 @@ import {
   isImage,
   isText,
   membershipAfterResize,
-  shapeBounds,
+  shapeBox,
   type FrameShape,
   type Shape,
 } from '@canvasflow/canvas-engine';
@@ -63,7 +63,7 @@ const clampFont = (size: number) =>
 
 function read(shape: Shape, property: StatsProperty): number | null {
   if (property === 'fontSize') return isText(shape) ? round1(shape.fontSize) : null;
-  const bounds = shapeBounds(shape);
+  const bounds = shapeBox(shape);
   return round2(bounds[property]);
 }
 
@@ -126,12 +126,12 @@ function target(current: number, edit: StatsEdit, step: number, together: boolea
 }
 
 function moved(shape: Shape, property: 'x' | 'y', to: number): StatsGeometry | null {
-  const delta = to - shapeBounds(shape)[property];
+  const delta = to - shapeBox(shape)[property];
   return delta === 0 ? null : { [property]: shape[property] + delta };
 }
 
 function resized(shape: Shape, property: 'width' | 'height', to: number): StatsGeometry | null {
-  const bounds = shapeBounds(shape);
+  const bounds = shapeBox(shape);
   const current = bounds[property];
   const next = Math.max(MIN_SIZE, to);
   if (next === current || current <= 0) return null;
@@ -197,7 +197,7 @@ export function applyStatsEdit(
 
     let patch: StatsGeometry | null;
     if (property === 'x' || property === 'y') {
-      const from = shapeBounds(shape)[property];
+      const from = shapeBox(shape)[property];
       patch = moved(shape, property, target(from, edit, STEP, together));
       if (patch && isFrame(shape)) {
         const delta = patch[property]! - shape[property];
@@ -210,7 +210,7 @@ export function applyStatsEdit(
         ? fontSized(shape, target(shape.fontSize, edit, FONT_STEP, together))
         : null;
     } else {
-      const from = shapeBounds(shape)[property];
+      const from = shapeBox(shape)[property];
       const to = edit.kind === 'set' ? edit.value : target(Math.max(0, from), edit, STEP, together);
       patch = resized(shape, property, to);
     }

@@ -58,7 +58,9 @@ describe('renderInteractiveScene — what a selection is outlined with', () => {
     const { strokeRect, fillRect, arc } = draw(box);
     expect(strokeRect).toHaveBeenCalled();
     expect(fillRect).toHaveBeenCalled();
-    expect(arc).not.toHaveBeenCalled();
+    // The one round dot is the handle that turns it, above its top edge.
+    expect(arc).toHaveBeenCalledTimes(1);
+    expect(arc.mock.calls[0]!.slice(0, 2)).toEqual([70, -4]);
   });
 
   it('outlines a line along itself instead of boxing it', () => {
