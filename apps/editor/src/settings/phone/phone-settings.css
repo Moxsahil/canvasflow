@@ -456,32 +456,38 @@
   width: 17px;
   height: 17px;
 }
+/* The desktop's switch, a size up for a finger: the accent when on, the
+   window's grey when off, the knob sliding rather than jumping. */
 .cf-ps .st-sw {
   position: relative;
-  width: 50px;
-  height: 30px;
+  width: 40px;
+  height: 22px;
   border-radius: 99px;
-  background: var(--s-card2);
+  background: #333338;
   flex: none;
   transition: background 0.2s;
+}
+.cf-ps.light .st-sw {
+  background: #d4d4d8;
 }
 .cf-ps .st-sw::after {
   content: '';
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 26px;
-  height: 26px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-  transition: left 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s cubic-bezier(0.3, 0.7, 0.2, 1);
 }
-.cf-ps .st-sw.on {
-  background: #30d158;
+.cf-ps .st-sw.on,
+.cf-ps.light .st-sw.on {
+  background: var(--s-acc);
 }
 .cf-ps .st-sw.on::after {
-  left: 22px;
+  transform: translateX(18px);
 }
 .cf-ps .st-chk {
   color: var(--s-acc);

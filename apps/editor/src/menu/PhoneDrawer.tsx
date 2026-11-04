@@ -39,7 +39,7 @@ import type { SurfaceTheme } from '../ui/surface-palette';
 import { SHARED_WITH_YOU, type BoardSwitcherState } from '../workspace';
 import { DeleteWarningDialog } from '../workspace/DeleteWarningDialog';
 import { SharedBadge } from '../workspace/WorkspaceSwitcher';
-import { formatUpdatedAt } from '../workspace/board-presentation';
+import { ColorDot, formatUpdatedAt } from '../workspace/board-presentation';
 import { pinnedOf } from '../workspace/useBoardSwitcher';
 import type { BoardSummary } from '../workspace/workspace-api';
 import {
@@ -200,7 +200,7 @@ export function PhoneDrawer({
       : (user?.email ?? '');
   const plan: WorkspacePlan | null = workspace?.plan ?? null;
 
-  const boardRow = (board: BoardSummary, isPinned: boolean) => {
+  const boardRow = (board: BoardSummary) => {
     const here = board.id === state.boardId;
     return (
       <div
@@ -222,7 +222,10 @@ export function PhoneDrawer({
           )}
           data-testid={`drawer-board-${board.id}`}
         >
-          {isPinned ? <Pin aria-hidden="true" /> : <FileText aria-hidden="true" />}
+          {/* The board's colour tag, where the desktop list has it. */}
+          <span className="grid size-[18px] shrink-0 place-items-center">
+            <ColorDot color={board.color} />
+          </span>
           <span className="min-w-0 flex-1 truncate">{board.title}</span>
         </button>
         {!shared && (
@@ -239,7 +242,7 @@ export function PhoneDrawer({
     );
   };
 
-  const section = (id: string, label: string, list: readonly BoardSummary[], isPinned = false) => {
+  const section = (id: string, label: string, list: readonly BoardSummary[]) => {
     if (list.length === 0) return null;
     const open = !folded[id] || needle !== '';
     return (
@@ -259,7 +262,7 @@ export function PhoneDrawer({
             {list.length}
           </span>
         </button>
-        {open && list.map((board) => boardRow(board, isPinned))}
+        {open && list.map((board) => boardRow(board))}
         <div className="h-3 shrink-0" />
       </Fragment>
     );
@@ -813,7 +816,7 @@ export function PhoneDrawer({
           section(SHARED_WITH_YOU, t('boards.sharedWithYou'), sharedBoards)
         ) : (
           <>
-            {section('pinned', t('boards.pinned'), pinned, true)}
+            {section('pinned', t('boards.pinned'), pinned)}
             {section('recent', t('menu.yourBoards'), listed)}
             {section('archived', t('boards.archived'), archived)}
           </>
