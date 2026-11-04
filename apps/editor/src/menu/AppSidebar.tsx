@@ -23,7 +23,7 @@ import type { SurfaceTheme } from '../ui/surface-palette';
 import { BoardCard } from './BoardCard';
 import { BoardList, RailSeparator } from './BoardList';
 import { NavUser, type SidebarUser } from './NavUser';
-import { PhoneDrawer } from './PhoneDrawer';
+import { PhoneDrawer, type PhoneDrawerLibrary } from './PhoneDrawer';
 import { type MenuActions } from './menu-items';
 
 const NO_SHAPES: readonly Shape[] = [];
@@ -60,6 +60,8 @@ interface AppSidebarProps {
   boardShapes?: readonly Shape[];
   /** Everyone on the open board right now, oneself included. */
   peopleHere?: number;
+  /** The library, which a phone opens from its drawer; left out where it is not one. */
+  library?: PhoneDrawerLibrary;
 }
 
 /**
@@ -86,6 +88,7 @@ export function AppSidebar({
   onUpgrade,
   boardShapes = NO_SHAPES,
   peopleHere = 1,
+  library,
 }: AppSidebarProps) {
   const { isMobile, setOpenMobile } = useSidebar();
   const plan =
@@ -115,6 +118,7 @@ export function AppSidebar({
             boardShapes={boardShapes}
             peopleHere={peopleHere}
             onUpgrade={onUpgrade}
+            library={library}
           />
         ) : (
           <>

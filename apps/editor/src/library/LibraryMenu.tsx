@@ -28,10 +28,9 @@ import {
   menuSurfaceClasses,
 } from '@/components/ui/menu-look';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { saveFile } from '../file/save-file';
 import { useT } from '../i18n';
 import { openedCatalogueEntry, type CatalogueLibrary } from './library-catalogue';
-import { LIBRARY_FILE_ACCEPT, readLibraryFile, writeLibraryFile } from './library-files';
+import { LIBRARY_FILE_ACCEPT } from './library-files';
 import { LIBRARY_PACKS, localizePack, type LibraryPack } from './library-packs';
 import { readLibraryPinned, storeLibraryPinned } from './library-storage';
 import { LibraryBrowse } from './LibraryBrowse';
@@ -39,9 +38,7 @@ import { TileGrid, focusRing, mutedText, wash, type TileActions } from './Librar
 import { PanelNote } from './PanelNote';
 import { useCatalogueItems } from './useCatalogue';
 import type { AddedLibrary, Library, LibraryEntry } from './useLibrary';
-
-/** Larger than any library worth importing, and small enough to read without stalling the tab. */
-const IMPORT_MAX_BYTES = 20 * 1024 * 1024;
+import { useLibraryFiles, type Notify } from './useLibraryFiles';
 
 type View =
   | { readonly kind: 'personal' }
@@ -51,8 +48,6 @@ type View =
   | { readonly kind: 'browse' };
 
 const PERSONAL: View = { kind: 'personal' };
-
-type Notify = (message: string, tone?: 'warn') => void;
 
 interface LibraryMenuProps {
   library: Library;
@@ -218,7 +213,6 @@ export function LibraryPanel({
   const [view, setView] = useState<View>(initialView);
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [fileOver, setFileOver] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
 
@@ -226,6 +220,9 @@ export function LibraryPanel({
     setView(next);
     setQuery('');
   };
+  const { importing, importFile, exportPersonal } = useLibraryFiles(library, onNotify, () =>
+    show(PERSONAL),
+  );
 
   const pack = view.kind === 'pack' ? packs.find((p) => p.id === view.id) : undefined;
   const addedLibrary =
@@ -259,65 +256,6 @@ export function LibraryPanel({
       library.remove(entry.id).catch(notifyFailure(t('library.deleteFailed')));
     },
   });
-
-  const importFile = async (file: File) => {
-    if (file.size > IMPORT_MAX_BYTES) {
-      onNotify(t('library.fileTooLarge'), 'warn');
-      return;
-    }
-    const title = file.name.replace(/\.[^.]*$/, '').trim() || t('library.imported');
-    const read = readLibraryFile(await file.text(), importShapeId, title);
-    if (!read) {
-      onNotify(t('library.notAFile'), 'warn');
-      return;
-    }
-    if (read.items.length === 0) {
-      onNotify(t('library.nothingDrawable'), 'warn');
-      return;
-    }
-    setImporting(true);
-    const result = await library.importItems(read.items);
-    setImporting(false);
-    show(PERSONAL);
-    const total = read.items.length;
-    if (result.error) {
-      onNotify(
-        t('library.importedPartly', { imported: result.imported, total, error: result.error }),
-        'warn',
-      );
-      return;
-    }
-    const notes = [
-      result.tooLarge > 0 && t('library.tooLargeCount', { count: result.tooLarge }),
-      read.imagesLeftOut > 0 && t('library.imagesLeftOut'),
-    ].filter(Boolean);
-    onNotify(
-      notes.length > 0
-        ? t('library.importedWithNotes', {
-            items: t('library.itemCount', { count: result.imported }),
-            notes: notes.join(', '),
-          })
-        : t('library.importedItems', { items: t('library.itemCount', { count: result.imported }) }),
-      notes.length > 0 ? 'warn' : undefined,
-    );
-  };
-
-  const exportPersonal = async () => {
-    try {
-      const saved = await saveFile({
-        boardName: t('library.personalFileName'),
-        data: writeLibraryFile(library.items),
-        format: 'library',
-      });
-      if (saved.status === 'saved') {
-        onNotify(
-          t('library.exported', { items: t('library.itemCount', { count: library.items.length }) }),
-        );
-      }
-    } catch {
-      onNotify(t('library.saveFailed'), 'warn');
-    }
-  };
 
   const addFromCatalogue = async (chosen: CatalogueLibrary) => {
     try {
@@ -647,11 +585,6 @@ export function LibraryPanel({
     </div>
   );
 }
-
-// Only for telling an imported item's shapes apart: every shape gets a fresh
-// id again as it is placed.
-let nextShapeId = 0;
-const importShapeId = () => `import-${(nextShapeId += 1)}`;
 
 function PaneHeader({
   title,

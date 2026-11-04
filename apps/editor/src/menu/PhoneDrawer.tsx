@@ -13,6 +13,7 @@ import {
   FileText,
   Globe,
   Info,
+  LibraryBig,
   Pencil,
   Pin,
   PinOff,
@@ -74,6 +75,14 @@ interface PhoneDrawerProps {
   peopleHere: number;
   /** Opens the upgrade page for a workspace; without it there is no upgrade row. */
   onUpgrade?: (workspaceId: string) => void;
+  /** The library's row, first under the workspace; without it there is none. */
+  library?: PhoneDrawerLibrary;
+}
+
+export interface PhoneDrawerLibrary {
+  /** Everything in it: one's own items and the packs. */
+  count: number;
+  open: () => void;
 }
 
 /** The plan one up from each, with what it adds, for the account sheet's upgrade row. */
@@ -117,6 +126,7 @@ export function PhoneDrawer({
   boardShapes,
   peopleHere,
   onUpgrade,
+  library,
 }: PhoneDrawerProps) {
   const t = useT();
   const { setOpenMobile } = useSidebar();
@@ -691,6 +701,28 @@ export function PhoneDrawer({
           <X className="size-[18px]" aria-hidden="true" />
         </button>
       </div>
+
+      {/* The library: shapes for every board, so above any one of them. */}
+      {library && (
+        <div className="mb-3 flex shrink-0 flex-col border-b border-sidebar-border pb-2">
+          <button
+            type="button"
+            onClick={() => {
+              closeDrawer();
+              library.open();
+            }}
+            aria-label={t('ps.lib.row', { count: library.count })}
+            className="flex h-[46px] w-full items-center gap-[13px] rounded-[10px] px-2.5 text-left text-[15.5px] text-sidebar-foreground/90 active:bg-sidebar-foreground/5 [&>svg]:size-[21px] [&>svg]:shrink-0 [&>svg]:text-sidebar-foreground/55"
+            data-testid="drawer-library"
+          >
+            <LibraryBig aria-hidden="true" />
+            <span>{t('library.title')}</span>
+            <span className="ml-auto font-mono text-[11px] text-sidebar-foreground/40">
+              {library.count}
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Find a board, or start one. */}
       {state.available && !state.local && (

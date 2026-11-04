@@ -28,6 +28,7 @@ function library(overrides: Partial<Library> = {}): Library {
     rename: resolved,
     remove: resolved,
     markUsed: noop,
+    clearRecent: noop,
     added: [],
     importItems: () => Promise.resolve({ imported: 0, tooLarge: 0, error: null }),
     addFromCatalogue: () => Promise.reject(new Error('not here')),
