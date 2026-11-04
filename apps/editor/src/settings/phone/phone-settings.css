@@ -2583,3 +2583,355 @@
   color: var(--s-mut);
   padding: 4px 2px 0;
 }
+
+/* Keyboard shortcuts on a phone: the desktop window's list as a tall sheet,
+   a card per group under a heading that stays put, press-to-find at the foot.
+   Above Settings, which opens it. */
+.cf-ps-scrim.keys {
+  z-index: 902;
+}
+.cf-ps.keys {
+  z-index: 903;
+}
+.cf-ps.keys .st-bar {
+  grid-template-columns: 64px 1fr 64px;
+}
+.cf-ps .kb-head {
+  padding: 0 16px 10px;
+  flex: none;
+}
+.cf-ps .kb-sum {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--s-mut);
+  padding: 0 2px 10px;
+}
+.cf-ps .kb-sum .i {
+  width: 13px;
+  height: 13px;
+}
+.cf-ps .kb-slash {
+  font:
+    500 11px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  border: 1px solid var(--s-line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 0 5px;
+  color: var(--s-mut);
+}
+.cf-ps .st-search:focus-within .kb-slash {
+  display: none;
+}
+.cf-ps .kb-x {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--s-mut);
+  color: var(--s-bg) !important;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  opacity: 0.7;
+  flex: none;
+}
+.cf-ps .kb-x .i {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.5;
+}
+/* The groups as flat ovals, the one in view filled solid. The fill glides
+   from tab to tab, so a change reads as motion, not a swap; the row fades
+   out at its end to show it scrolls. */
+.cf-ps .kb-tabs {
+  position: relative;
+  flex: none;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 16px 12px;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+}
+.cf-ps .kb-tabs::-webkit-scrollbar {
+  display: none;
+}
+.cf-ps .kb-tab {
+  flex: none;
+  height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--s-card2);
+  font-size: 14.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: color-mix(in srgb, var(--s-fg) 78%, transparent) !important;
+  transition: transform 0.12s;
+}
+.cf-ps.light .kb-tab {
+  background: #e9e9ee;
+}
+.cf-ps .kb-tab:active {
+  transform: scale(0.96);
+}
+.cf-ps .kb-pill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  gap: 8px;
+  width: max-content;
+  padding: 2px 16px 12px;
+  background: var(--s-fg);
+  pointer-events: none;
+  transition: clip-path 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cf-ps.light .kb-pill {
+  background: #111114;
+}
+.cf-ps .kb-pill .kb-tab {
+  display: inline-grid;
+  place-items: center;
+  background: none;
+  color: var(--s-bg) !important;
+}
+.cf-ps.light .kb-pill .kb-tab {
+  color: #fff !important;
+}
+.cf-ps .kb-card {
+  background: var(--s-card);
+  border-radius: 20px;
+  padding: 14px 14px 12px;
+  transition: background 0.25s;
+}
+.cf-ps .kb-card .st-search {
+  margin: 10px 0 0;
+  background: var(--s-card2);
+}
+.cf-ps .kb-ct {
+  display: block;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.cf-ps .kb-card .kb-sum {
+  padding: 2px 0 0;
+}
+.cf-ps .kb-tr .g-ic {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--s-acc) 18%, transparent);
+  color: var(--s-acc);
+}
+.cf-ps .kb-tr .g-ic .i {
+  width: 18px;
+  height: 18px;
+}
+.cf-ps .kb-tr .d small {
+  display: block;
+  font-size: 12.5px;
+  color: var(--s-mut);
+  margin-top: 2px;
+}
+.cf-ps .kb-tr .gest {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 99px;
+  background: var(--s-card2);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--s-fg);
+  white-space: nowrap;
+}
+.cf-ps .kb-note {
+  font-size: 12.5px;
+  color: var(--s-mut);
+  padding: 8px 6px 0;
+  line-height: 1.4;
+}
+.cf-ps .kb-body {
+  padding-bottom: 16px;
+  border-top: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+.cf-ps .kb-body.scrolled {
+  border-top-color: var(--s-line);
+}
+/* Not held at the top: the tabs above already say which group is in view,
+   and a second header there showed the list cut off between the two. */
+.cf-ps .kb-cat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 14px 6px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--s-fg);
+  transition: background 0.25s;
+}
+.cf-ps .kb-cat span {
+  font:
+    11.5px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  color: var(--s-mut);
+  font-weight: 400;
+}
+.cf-ps .kb-g {
+  background: var(--s-card);
+  border-radius: 18px;
+  overflow: hidden;
+  transition: background 0.25s;
+}
+.cf-ps .kb-r {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 50px;
+  padding: 9px 14px 9px 16px;
+  transition: background 0.6s;
+}
+.cf-ps .kb-r + .kb-r::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 0;
+  height: 1px;
+  background: var(--s-line);
+}
+.cf-ps .kb-r .d {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.3;
+}
+.cf-ps .kb-r .k {
+  display: flex;
+  align-items: center;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 55%;
+  row-gap: 5px;
+  column-gap: 4px;
+}
+.cf-ps .kb-r .cb {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.cf-ps .kb-r .or {
+  font-size: 11.5px;
+  color: var(--s-mut);
+  padding: 0 3px;
+}
+.cf-ps .kb-r.flash {
+  background: color-mix(in srgb, var(--s-acc) 28%, transparent);
+  transition: none;
+}
+.cf-ps .kb-r.flash::before,
+.cf-ps .kb-r.flash + .kb-r::before {
+  opacity: 0;
+}
+.cf-ps .kb-mark {
+  background: color-mix(in srgb, var(--s-acc) 30%, transparent);
+  color: var(--s-fg);
+  border-radius: 3px;
+}
+.cf-ps .cap {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  border-radius: 7px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--s-fg);
+  background: var(--s-card2);
+  box-shadow:
+    inset 0 -2px 0 rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px var(--s-line);
+  white-space: nowrap;
+}
+.cf-ps.light .cap {
+  box-shadow:
+    inset 0 -2px 0 rgba(0, 0, 0, 0.12),
+    inset 0 0 0 1px var(--s-line);
+}
+.cf-ps .cap.sm {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  font-size: 11.5px;
+  border-radius: 6px;
+}
+.cf-ps .kb-empty {
+  text-align: center;
+  padding: 60px 16px;
+  color: var(--s-mut);
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+.cf-ps .kb-empty .i {
+  width: 22px;
+  height: 22px;
+  display: block;
+  margin: 0 auto 12px;
+}
+.cf-ps .kb-empty b {
+  color: var(--s-fg);
+  font-weight: 600;
+}
+.cf-ps .kb-empty .st-btn {
+  width: auto;
+  padding: 0 20px;
+  margin-top: 16px;
+}
+.cf-ps .kb-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  margin: 0;
+  padding: 10px 16px calc(env(safe-area-inset-bottom) + 12px);
+  border-top: 1px solid var(--s-line);
+  background: var(--s-bg);
+  font-size: 12.5px;
+  color: var(--s-mut);
+  transition: background 0.25s;
+}
+.cf-ps .kb-foot > .i {
+  width: 16px;
+  height: 16px;
+}
+.cf-ps .kb-foot b {
+  color: var(--s-fg);
+  font-weight: 600;
+}
+.cf-ps .kb-foot .kc {
+  display: inline-flex;
+  gap: 3px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
