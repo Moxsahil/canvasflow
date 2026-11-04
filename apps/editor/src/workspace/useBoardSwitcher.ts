@@ -196,6 +196,12 @@ interface UseBoardSwitcherOptions {
   localTitle?: string;
   /** Who is signed in, from the editor token: whose boards are their own. */
   userId?: string | null;
+  /**
+   * The editor token is an account's, not a guest's. A refusal of the list is
+   * then the session still being renewed, not nobody signed in, and is asked
+   * again rather than taken as final.
+   */
+  account?: boolean;
   /** Says something went wrong, or right, where a menu that has closed cannot. */
   onNotice?: (message: string) => void;
 }
@@ -300,6 +306,9 @@ function workspaceHolding(boardId: string, boards: Record<string, WorkspaceBoard
   return null;
 }
 
+/** How long to wait before asking an account's list again after a 401. */
+const LIST_RETRY_MS = [1_000, 3_000, 10_000];
+
 function messageOf(err: unknown): string {
   return err instanceof Error ? err.message : t('common.somethingWentWrong');
 }
@@ -323,6 +332,7 @@ export function useBoardSwitcher({
   local = false,
   localTitle = boardId,
   userId = null,
+  account = false,
   onNotice,
 }: UseBoardSwitcherOptions) {
   const navigate = useNavigate();
@@ -431,16 +441,23 @@ export function useBoardSwitcher({
       });
   }, []);
 
+  // Asking for the list again, after a refusal an account should not get.
+  const [listAttempt, setListAttempt] = useState(0);
   useEffect(() => {
     // Not stored in `remembered` either: an account's lists must still be read
     // when it goes on from here to one of its own boards.
     if (local) return;
     let cancelled = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
 
     listWorkspaces()
       .then((list) => {
         remembered.workspaces = list;
-        if (!cancelled) setWorkspaces(list);
+        remembered.available = true;
+        if (!cancelled) {
+          setWorkspaces(list);
+          setAvailable(true);
+        }
         // Only for an account: a guest's 401 above never gets here.
         readShared((boards) => {
           if (!cancelled) setSharedBoards(boards);
@@ -450,6 +467,15 @@ export function useBoardSwitcher({
         if (cancelled) return;
         // 401 is the ordinary answer for a guest, not a fault worth reporting.
         if (err instanceof WorkspaceApiError && err.status === 401) {
+          // An account refused is a session not yet renewed: a tab the browser
+          // restored after being closed for a while asks for this before its
+          // token is reminted and the session renewed with it. Taking that as
+          // signed out left the sidebar without its boards until a reload.
+          const wait = LIST_RETRY_MS[listAttempt];
+          if (account && wait !== undefined) {
+            retry = setTimeout(() => setListAttempt((n) => n + 1), wait);
+            return;
+          }
           // Nobody is signed in, so nothing kept here is theirs to read.
           forgetSidebarLists();
           setWorkspaces(null);
@@ -464,15 +490,18 @@ export function useBoardSwitcher({
 
     return () => {
       cancelled = true;
+      clearTimeout(retry);
     };
-  }, [local]);
+  }, [local, account, listAttempt]);
 
   // The board's own workspace: the sidebar lists it, and the board's title
   // and colour come from it. Not one somebody else let us onto: its list is
   // theirs, and the shared list already says what this board is.
+  // Again once the workspace list comes through after a refusal: the same
+  // lapsed session will have refused this list too.
   useEffect(() => {
     if (workspaceId && !openBoardIsShared) loadBoards(workspaceId);
-  }, [workspaceId, openBoardIsShared, loadBoards]);
+  }, [workspaceId, openBoardIsShared, loadBoards, workspaces]);
 
   // Which re-read of each list is the latest, so an answer that arrives after
   // a newer one does not put the older state back.

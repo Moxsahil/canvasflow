@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { rich, useT, type TranslationKey } from '../i18n';
@@ -101,9 +101,13 @@ export function PhoneShortcutsSheet({
   const search = useRef<HTMLInputElement>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout>>();
   const tabs = useRef<HTMLDivElement>(null);
-  const [indicator, setIndicator] = useState<{
-    left: number;
-    right: number;
+  // Where each tab stands in the row, measured off the tabs themselves: the
+  // filled copy is laid at those places rather than left to lay itself out,
+  // as a browser that sizes a button and a span apart (Safari on an iPhone)
+  // would put its words and the fill out of step with the tabs under them.
+  const [layout, setLayout] = useState<{
+    width: number;
+    tabs: readonly { left: number; width: number }[];
   } | null>(null);
   useEffect(() => () => clearTimeout(flashTimer.current), []);
 
@@ -168,22 +172,42 @@ export function PhoneShortcutsSheet({
 
   // The filled oval slides to the group in view, and its tab is kept in sight
   // as the row of tabs scrolls.
-  useLayoutEffect(() => {
+  const measure = useCallback(() => {
     const row = tabs.current;
-    const tab = row?.querySelector<HTMLElement>('[aria-selected="true"]');
-    if (!row || !tab) {
-      setIndicator(null);
+    if (!row) {
+      setLayout(null);
       return;
     }
-    setIndicator({
-      left: tab.offsetLeft,
-      right: row.scrollWidth - tab.offsetLeft - tab.offsetWidth,
+    const buttons = [...row.querySelectorAll<HTMLElement>('[role="tab"]')];
+    setLayout({
+      width: row.scrollWidth,
+      tabs: buttons.map((tab) => ({ left: tab.offsetLeft, width: tab.offsetWidth })),
     });
+  }, []);
+  // Again whenever the row changes size: the sheet turning, a font arriving.
+  useEffect(() => {
+    const row = tabs.current;
+    if (!row) return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    for (const tab of row.querySelectorAll('[role="tab"]')) observer.observe(tab);
+    return () => observer.disconnect();
+  }, [measure, searching]);
+
+  // The filled oval slides to the group in view, and its tab is kept in sight
+  // as the row of tabs scrolls.
+  useLayoutEffect(() => {
+    measure();
+    const row = tabs.current;
+    const tab = row?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!row || !tab) return;
     const start = tab.offsetLeft - 16;
     const end = tab.offsetLeft + tab.offsetWidth + 16 - row.clientWidth;
     if (row.scrollLeft > start) row.scrollTo({ left: start, behavior: 'smooth' });
     else if (row.scrollLeft < end) row.scrollTo({ left: end, behavior: 'smooth' });
-  }, [current, searching]);
+  }, [current, searching, measure]);
+
+  const at = layout?.tabs[GROUPS.indexOf(current)];
 
   // A found row scrolls into view when it is out of sight.
   useEffect(() => {
@@ -342,19 +366,27 @@ export function PhoneShortcutsSheet({
                 the tab in view. The cut glides, so the fill and the colour of
                 the words under it move together, a word half in it half
                 changed, as a segmented control does. */}
-            {indicator && (
+            {layout && at && (
               <div
                 className="kb-pill"
                 aria-hidden="true"
                 style={{
-                  clipPath: `inset(2px ${indicator.right}px 12px ${indicator.left}px round 999px)`,
+                  width: layout.width,
+                  clipPath: `inset(2px ${layout.width - at.left - at.width}px 12px ${at.left}px round 999px)`,
                 }}
               >
-                {GROUPS.map((group) => (
-                  <span key={group} className="kb-tab">
-                    {groupName(group)}
-                  </span>
-                ))}
+                {GROUPS.map((group, index) => {
+                  const box = layout.tabs[index];
+                  return box ? (
+                    <span
+                      key={group}
+                      className="kb-tab"
+                      style={{ left: box.left, width: box.width }}
+                    >
+                      {groupName(group)}
+                    </span>
+                  ) : null;
+                })}
               </div>
             )}
           </div>
