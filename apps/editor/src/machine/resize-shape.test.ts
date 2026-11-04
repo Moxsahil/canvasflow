@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createRectangle, type Shape } from '@canvasflow/canvas-engine';
+import { createRectangle, fromShapeFrame, type Shape } from '@canvasflow/canvas-engine';
 import { resizeShape, resizeSnapHandle } from './tool-machine';
 import type { HandleIndex } from './tool-machine.types';
 
@@ -79,5 +79,37 @@ describe('resizeSnapHandle', () => {
   it('leaves shapes with no box to mirror alone', () => {
     const text = { kind: 'text', id: 't' } as unknown as Shape;
     expect(resizeSnapHandle(text, 3, -1000, 0)).toBe(3);
+  });
+});
+
+describe('resizeShape — a turned shape', () => {
+  const turned = (): Shape =>
+    createRectangle({
+      id: 'turned',
+      x: 100,
+      y: 100,
+      width: 100,
+      height: 60,
+      rotation: Math.PI / 2,
+    });
+
+  it('takes the drag along its own sides and holds the opposite edge on the board', () => {
+    const original = turned();
+    // A quarter turn clockwise: its right edge now faces down the board, so a
+    // drag straight down pulls it out by that much.
+    const resized = resizeShape(original, 3, 0, 40);
+    expect(boxOf(resized).width).toBeCloseTo(140);
+    expect(boxOf(resized).height).toBeCloseTo(60);
+    // The left edge, now its top, stays where it was on the board.
+    const topBefore = fromShapeFrame(original, { x: 100, y: 130 });
+    const topAfter = fromShapeFrame(resized, { x: boxOf(resized).x, y: boxOf(resized).y + 30 });
+    expect(topAfter.x).toBeCloseTo(topBefore.x);
+    expect(topAfter.y).toBeCloseTo(topBefore.y);
+  });
+
+  it('ignores the part of a drag across the side being pulled', () => {
+    const resized = resizeShape(turned(), 3, 25, 40);
+    expect(boxOf(resized).width).toBeCloseTo(140);
+    expect(boxOf(resized).height).toBeCloseTo(60);
   });
 });

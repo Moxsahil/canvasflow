@@ -13,7 +13,10 @@ import {
   minNoteSize,
   noteBounds,
   recogniseStroke,
-  shapeBounds,
+  rectCentre,
+  rotatePoint,
+  shapeAngle,
+  shapeBox,
   type NoteShape,
   type Shape,
 } from '@canvasflow/canvas-engine';
@@ -57,8 +60,39 @@ const TEXT_HANDLE_FRACTIONS: Record<HandleIndex, readonly [number, number]> = {
 /**
  * Resize a shape based on which handle is being dragged and the pointer position.
  * Handle indices: 0=TL 1=TC 2=TR 3=MR 4=BR 5=BC 6=BL 7=ML
+ *
+ * A turned shape is resized in its own upright frame: the drag is turned back
+ * into it, the box resized there, and the result moved so the point opposite
+ * the handle stays where it was on the board. Resized upright and left at
+ * that, a turned box would grow about its middle and slide off its anchor.
+ * `settle` is anything that changes the box after the drag — words that need
+ * more room — and is put in before the anchor is held.
  */
-function resizeShape(original: Shape, handle: HandleIndex, dx: number, dy: number): Shape {
+function resizeShape(
+  original: Shape,
+  handle: HandleIndex,
+  dx: number,
+  dy: number,
+  settle: (shape: Shape) => Shape = (shape) => shape,
+): Shape {
+  const angle = shapeAngle(original);
+  if (angle === 0) return settle(resizeUpright(original, handle, dx, dy));
+
+  const local = rotatePoint({ x: dx, y: dy }, { x: 0, y: 0 }, -angle);
+  const resized = settle(resizeUpright(original, handle, local.x, local.y));
+  const before = shapeBox(original);
+  const [fx, fy] = TEXT_HANDLE_FRACTIONS[handle];
+  const anchor = {
+    x: before.x + (1 - fx) * before.width,
+    y: before.y + (1 - fy) * before.height,
+  };
+  const was = rotatePoint(anchor, rectCentre(before), angle);
+  const now = rotatePoint(anchor, rectCentre(shapeBox(resized)), angle);
+  return { ...resized, x: resized.x + was.x - now.x, y: resized.y + was.y - now.y };
+}
+
+/** `resizeShape` for a shape standing upright. */
+function resizeUpright(original: Shape, handle: HandleIndex, dx: number, dy: number): Shape {
   if (
     original.kind === 'line' ||
     original.kind === 'arrow' ||
@@ -75,7 +109,7 @@ function resizeShape(original: Shape, handle: HandleIndex, dx: number, dy: numbe
     // entirely by fontSize, so every handle (corner or edge) scales fontSize
     // uniformly. The point opposite the dragged handle stays anchored in
     // place; see TEXT_HANDLE_FRACTIONS for how that opposite point is derived.
-    const bounds = shapeBounds(original);
+    const bounds = shapeBox(original);
     if (bounds.width <= 0 || bounds.height <= 0) {
       return original;
     }
@@ -813,6 +847,10 @@ export const toolMachine = setup({
       if (event.type !== 'POINTER_DOWN') return false;
       return event.hitHandle !== null;
     },
+    hitRotateHandle: ({ event }) => {
+      if (event.type !== 'POINTER_DOWN') return false;
+      return event.hitRotate === true;
+    },
     hitAVertex: ({ event }) => {
       if (event.type !== 'POINTER_DOWN') return false;
       return event.hitVertex !== null;
@@ -987,6 +1025,7 @@ export const toolMachine = setup({
      */
     selectPointerDown: {
       always: [
+        { guard: 'hitRotateHandle', target: 'rotatingSelection' },
         {
           guard: 'hitAVertex',
           target: 'draggingVertex',
@@ -1049,6 +1088,15 @@ export const toolMachine = setup({
           actions: [],
         },
         POINTER_UP: { target: 'idle', actions: 'clearResize' },
+      },
+    },
+    /**
+     * The one selected shape being turned by its handle. The angle is worked
+     * out in the Editor, from where the pointer is about the shape's middle.
+     */
+    rotatingSelection: {
+      on: {
+        POINTER_UP: { target: 'idle' },
       },
     },
     /**

@@ -5,6 +5,8 @@ import { arrowInkBounds } from '../shapes/arrow.js';
 import { arrowLabelLayout, type ArrowLabelLayout } from '../shapes/arrow-label.js';
 import { shapeTextLayout } from '../shapes/shape-text.js';
 import { strokeColorFor } from '../shapes/style.js';
+import { shapeBox } from '../shapes/bounds.js';
+import { rectCentre, shapeAngle } from '../shapes/rotation.js';
 import { drawBookmarkShape } from './draw-bookmark.js';
 import { drawEmbedShape } from './draw-embed.js';
 import { drawImageShape, type ImageSource } from './draw-image.js';
@@ -150,6 +152,16 @@ export function drawSceneShape(
 
   const painted = withThemedStroke(shape, context.darkMode ?? false);
 
+  // A turned shape is drawn upright, on a board turned about its middle.
+  const angle = shapeAngle(painted);
+  if (angle !== 0) {
+    const centre = rectCentre(shapeBox(painted));
+    ctx.save();
+    ctx.translate(centre.x, centre.y);
+    ctx.rotate(angle);
+    ctx.translate(-centre.x, -centre.y);
+  }
+
   switch (painted.kind) {
     case 'rectangle':
       ctx.lineCap = outlineCap(painted) ?? 'butt';
@@ -243,5 +255,6 @@ export function drawSceneShape(
       assertNever(painted);
   }
 
+  if (angle !== 0) ctx.restore();
   ctx.globalAlpha = previousAlpha;
 }

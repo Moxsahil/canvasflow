@@ -220,6 +220,8 @@ interface UsePointerEventsOptions {
     screenDelta: Point,
     altKey: boolean,
     snapOverride: boolean,
+    /** Held, a turn walks in fifteen-degree steps. */
+    shiftKey: boolean,
   ) => void;
   onPointerUp: (point: Point, screenPoint: Point) => void;
   /**
@@ -569,7 +571,7 @@ export function usePointerEvents(
       const last = lastScreenRef.current ?? screen;
       const delta = { x: screen.x - last.x, y: screen.y - last.y };
       lastScreenRef.current = screen;
-      onPointerMove(world, screen, delta, e.altKey, snapOverrideHeld(e));
+      onPointerMove(world, screen, delta, e.altKey, snapOverrideHeld(e), e.shiftKey);
     };
 
     const handlePointerLeave = (e: PointerEvent) => {

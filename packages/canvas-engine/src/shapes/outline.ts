@@ -1,6 +1,7 @@
 import type { Segment, Vec2 } from '../geometry/segment.js';
 import { diamondPoints } from './diamond.js';
-import { shapeBounds } from './bounds.js';
+import { shapeBox, toShapeFrame } from './bounds.js';
+import { rectCentre, rotatePoint, shapeAngle } from './rotation.js';
 import { isPathALoop } from '../utils/simplify.js';
 import { polygonCornerCut, roundedRectRadius } from './corners.js';
 import type { Shape } from './shape.js';
@@ -38,17 +39,8 @@ function absolutePoints(shape: {
   return shape.points.map(([px, py]) => [shape.x + px, shape.y + py] as Vec2);
 }
 
-/**
- * A shape's outline as straight segments, in absolute coordinates.
- *
- * Curves are approximated by polylines — the eraser only needs enough
- * precision to feel right under the pointer, and segments keep the
- * intersection maths to one cheap primitive.
- *
- * Rounded corners are ignored: the difference is at most a few pixels inside
- * the corner, and always in the direction of erasing slightly early.
- */
-export function shapeOutlineSegments(shape: Shape): Segment[] {
+/** `shapeOutlineSegments` before the shape is turned. */
+function uprightOutlineSegments(shape: Shape): Segment[] {
   switch (shape.kind) {
     case 'rectangle':
     case 'text':
@@ -58,7 +50,7 @@ export function shapeOutlineSegments(shape: Shape): Segment[] {
     case 'frame':
     case 'topic':
     case 'note': {
-      const b = shapeBounds(shape);
+      const b = shapeBox(shape);
       return polylineSegments(rectCorners(b.x, b.y, b.width, b.height), true);
     }
     case 'diamond':
@@ -80,6 +72,47 @@ export function shapeOutlineSegments(shape: Shape): Segment[] {
     case 'freehand':
       return polylineSegments(absolutePoints(shape), false);
   }
+}
+
+/** Upright outline points turned to where the shape is turned to. */
+function turned(shape: Shape, points: Vec2[]): Vec2[] {
+  const angle = shapeAngle(shape);
+  if (angle === 0) return points;
+  const centre = rectCentre(shapeBox(shape));
+  return points.map(([x, y]) => {
+    const p = rotatePoint({ x, y }, centre, angle);
+    return [p.x, p.y] as Vec2;
+  });
+}
+
+/**
+ * A shape's outline as straight segments, in absolute coordinates.
+ *
+ * Curves are approximated by polylines — the eraser only needs enough
+ * precision to feel right under the pointer, and segments keep the
+ * intersection maths to one cheap primitive.
+ *
+ * Rounded corners are ignored: the difference is at most a few pixels inside
+ * the corner, and always in the direction of erasing slightly early.
+ */
+export function shapeOutlineSegments(shape: Shape): Segment[] {
+  const segments = uprightOutlineSegments(shape);
+  if (shapeAngle(shape) === 0) return segments;
+  return segments.map(([a, b]) => {
+    const [ta, tb] = turned(shape, [a, b]);
+    return [ta!, tb!] as Segment;
+  });
+}
+
+/**
+ * A closed shape's outline exactly as it is drawn — rounded corners on their
+ * curves, an ellipse finely sampled, turned as it is turned — as the points of
+ * a closed polygon. For what has to land on the outline rather than near it:
+ * an arrow attached to a shape. Null for the kinds that have no closed outline.
+ */
+export function shapeExactOutline(shape: Shape): Vec2[] | null {
+  const points = uprightExactOutline(shape);
+  return points && turned(shape, points);
 }
 
 /** Points along each rounded corner's curve, the corner's own ends included. */
@@ -127,13 +160,8 @@ function roundedPolygon(
   return outline;
 }
 
-/**
- * A closed shape's outline exactly as it is drawn — rounded corners on their
- * curves, an ellipse finely sampled — as the points of a closed polygon. For
- * what has to land on the outline rather than near it: an arrow attached to
- * a shape. Null for the kinds that have no closed outline.
- */
-export function shapeExactOutline(shape: Shape): Vec2[] | null {
+/** `shapeExactOutline` before the shape is turned. */
+function uprightExactOutline(shape: Shape): Vec2[] | null {
   switch (shape.kind) {
     case 'rectangle': {
       const corners = rectCorners(shape.x, shape.y, shape.width, shape.height);
@@ -162,7 +190,7 @@ export function shapeExactOutline(shape: Shape): Vec2[] | null {
     case 'frame':
     case 'topic':
     case 'note': {
-      const b = shapeBounds(shape);
+      const b = shapeBox(shape);
       return rectCorners(b.x, b.y, b.width, b.height);
     }
     case 'line':
@@ -218,6 +246,15 @@ export function shapeHasSolidInterior(shape: Shape): boolean {
 
 /** Whether (x, y) falls inside the shape's outline. */
 export function shapeContainsPoint(shape: Shape, x: number, y: number): boolean {
+  if (shapeAngle(shape) !== 0) {
+    const local = toShapeFrame(shape, { x, y });
+    return uprightContainsPoint(shape, local.x, local.y);
+  }
+  return uprightContainsPoint(shape, x, y);
+}
+
+/** `shapeContainsPoint` for a point already in the shape's upright frame. */
+function uprightContainsPoint(shape: Shape, x: number, y: number): boolean {
   if (
     shape.kind === 'rectangle' ||
     shape.kind === 'text' ||
@@ -228,7 +265,7 @@ export function shapeContainsPoint(shape: Shape, x: number, y: number): boolean 
     shape.kind === 'topic' ||
     shape.kind === 'note'
   ) {
-    const b = shapeBounds(shape);
+    const b = shapeBox(shape);
     return x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height;
   }
 

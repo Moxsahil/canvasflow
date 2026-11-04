@@ -1,5 +1,12 @@
 import { isFrame, type Shape } from '../shapes/shape.js';
-import { shapeBounds, rectContainsRect, rectsIntersect } from '../shapes/bounds.js';
+import {
+  shapeBounds,
+  rectContainsRect,
+  rectsIntersect,
+  shapeBox,
+  toShapeFrame,
+} from '../shapes/bounds.js';
+import { shapeAngle } from '../shapes/rotation.js';
 import { frameHitAt } from '../frames/frame-geometry.js';
 import {
   shapeContainsPoint,
@@ -146,11 +153,32 @@ function selectionAt(
     maxY = Math.max(maxY, b.y + b.height);
   }
   if (!top) return null;
+  // One turned shape is outlined by its own turned box, and answers in that.
+  if (selected.size === 1 && shapeAngle(top) !== 0) {
+    const local = toShapeFrame(top, { x, y });
+    const box = shapeBox(top);
+    const within =
+      local.x >= box.x - reach &&
+      local.x <= box.x + box.width + reach &&
+      local.y >= box.y - reach &&
+      local.y <= box.y + box.height + reach;
+    return within ? top : null;
+  }
   const inside = x >= minX - reach && x <= maxX + reach && y >= minY - reach && y <= maxY + reach;
   return inside ? top : null;
 }
 
 function shapeHitAt(shape: Shape, x: number, y: number, reach: number): ShapeHit {
+  // A turned shape is pressed in its own upright frame: the press is turned
+  // back, and the shape is measured as if it had never been turned.
+  if (shapeAngle(shape) !== 0) {
+    const local = toShapeFrame(shape, { x, y });
+    return uprightHitAt({ ...shape, rotation: 0 }, local.x, local.y, reach);
+  }
+  return uprightHitAt(shape, x, y, reach);
+}
+
+function uprightHitAt(shape: Shape, x: number, y: number, reach: number): ShapeHit {
   // Half a thick line is already on it, whatever the margin.
   const tolerance = Math.max(reach, shape.strokeWidth / 2);
   switch (shape.kind) {

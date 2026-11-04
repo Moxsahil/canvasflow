@@ -1,6 +1,6 @@
 import type { Point } from '../math.js';
 import type { Segment } from '../geometry/segment.js';
-import { shapeBounds } from './bounds.js';
+import { fromShapeFrame, shapeBounds, shapeBox, toShapeFrame } from './bounds.js';
 import { shapeExactOutline } from './outline.js';
 import {
   assertNever,
@@ -95,12 +95,16 @@ export function canBindTo(shape: Shape): boolean {
   }
 }
 
-/** Where a point sits within a shape's box, as a fraction of it. */
+/**
+ * Where a point sits within a shape's box, as a fraction of it — of the box
+ * as drawn before it was turned, so the spot turns with the shape.
+ */
 export function normalizedAnchorFor(shape: Shape, point: Point): { x: number; y: number } {
-  const bounds = shapeBounds(shape);
+  const bounds = shapeBox(shape);
+  const local = toShapeFrame(shape, point);
   return {
-    x: bounds.width > 0 ? (point.x - bounds.x) / bounds.width : 0.5,
-    y: bounds.height > 0 ? (point.y - bounds.y) / bounds.height : 0.5,
+    x: bounds.width > 0 ? (local.x - bounds.x) / bounds.width : 0.5,
+    y: bounds.height > 0 ? (local.y - bounds.y) / bounds.height : 0.5,
   };
 }
 
@@ -109,12 +113,12 @@ export function normalizedAnchorFor(shape: Shape, point: Point): { x: number; y:
  * where the end sits, and the middle of the shape for one that aims there.
  */
 function aimPointFor(binding: ArrowBinding, target: Shape): Point {
-  const bounds = shapeBounds(target);
+  const bounds = shapeBox(target);
   const anchor = binding.precise ? binding.anchor : { x: 0.5, y: 0.5 };
-  return {
+  return fromShapeFrame(target, {
     x: bounds.x + clamp01(anchor.x) * bounds.width,
     y: bounds.y + clamp01(anchor.y) * bounds.height,
-  };
+  });
 }
 
 function clamp01(value: number): number {

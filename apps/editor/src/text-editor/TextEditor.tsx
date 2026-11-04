@@ -23,6 +23,15 @@ interface TextEditorProps {
     readonly height: number;
     readonly textAlign: 'left' | 'center' | 'right';
   };
+  /**
+   * How far the shape being typed into is turned, and the middle it turns
+   * about, in screen space. The box is laid out upright and then turned with
+   * it, so the words stand where the shape will draw them.
+   */
+  turn?: {
+    readonly angle: number;
+    readonly centre: { readonly x: number; readonly y: number };
+  };
   /** Screen-space font size (already scaled by camera zoom). */
   fontSize: number;
   fontFamily: string;
@@ -52,6 +61,7 @@ export function TextEditor({
   position,
   align = 'left',
   wrap,
+  turn,
   fontSize,
   fontFamily,
   color,
@@ -187,6 +197,10 @@ export function TextEditor({
           overflow: 'hidden',
           ...wrapping,
           lineHeight: 1.2,
+          ...(turn && {
+            transform: `rotate(${turn.angle}rad)`,
+            transformOrigin: `${turn.centre.x - left}px ${turn.centre.y - top}px`,
+          }),
         }}
       />
     </>

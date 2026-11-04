@@ -96,7 +96,8 @@ interface CanvasStackProps {
   longPressMenu?: boolean;
   /**
    * The active tool's cursor, when it has to be drawn at run time rather than
-   * read from cursors.css — the bucket's, whose drop is the colour it pours.
+   * read from cursors.css — the bucket's, whose drop is the colour it pours,
+   * or the select tool's resize and move arrows over a shape.
    * Panning and embeds still take the pointer over from it.
    */
   toolCursor?: string;
@@ -114,6 +115,8 @@ interface CanvasStackProps {
     screenDelta: Point,
     altKey: boolean,
     snapOverride: boolean,
+    /** Held, a turn walks in fifteen-degree steps. */
+    shiftKey: boolean,
   ) => void;
   onPointerUp: (point: Point, screenPoint: Point) => void;
   /** A gesture a pencil took over from; see `usePointerEvents`. */

@@ -222,6 +222,8 @@ export type ToolMachineEvent =
       hitHandle: HandleIndex | null;
       /** Set instead of `hitHandle` when the press landed on a point handle. */
       hitVertex: VertexGrab | null;
+      /** The press landed on the dot that turns the one selected shape. */
+      hitRotate?: boolean;
     }
   | { type: 'POINTER_MOVE'; point: Point; screenDelta: Point }
   | { type: 'POINTER_UP'; point: Point }

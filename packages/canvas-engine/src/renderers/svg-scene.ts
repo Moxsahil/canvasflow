@@ -23,6 +23,8 @@ import { readBookmarkUrl } from '../shapes/bookmark.js';
 import { resolveEmbed } from '../shapes/embed.js';
 import { readLink } from '../shapes/link.js';
 import { visibleShapes } from '../shapes/visibility.js';
+import { shapeBox } from '../shapes/bounds.js';
+import { rectCentre, shapeAngle } from '../shapes/rotation.js';
 import { strokeColorFor } from '../shapes/style.js';
 import { FRAME_BORDER_WIDTH } from './draw-frame.js';
 import { bookmarkToSvg } from './draw-bookmark.js';
@@ -458,7 +460,13 @@ function shapeToSvg(
   // Opacity as a group attribute is the SVG equivalent of the canvas
   // renderer's globalAlpha: it applies to the composed shape, so a hatched
   // fill and its outline don't show through each other.
-  return shape.opacity < 100
-    ? `<g opacity="${num(shape.opacity / 100)}">${content}</g>`
-    : `<g>${content}</g>`;
+  // Turned about its middle, as the canvas turns it; SVG turns in degrees.
+  const angle = shapeAngle(shape);
+  let attributes = '';
+  if (angle !== 0) {
+    const centre = rectCentre(shapeBox(shape));
+    attributes += ` transform="rotate(${num((angle * 180) / Math.PI)} ${num(centre.x)} ${num(centre.y)})"`;
+  }
+  if (shape.opacity < 100) attributes += ` opacity="${num(shape.opacity / 100)}"`;
+  return `<g${attributes}>${content}</g>`;
 }

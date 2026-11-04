@@ -1,5 +1,6 @@
 import type { Point, Rect } from '../math.js';
 import { shapeBounds } from './bounds.js';
+import { normalizeAngle, shapeAngle } from './rotation.js';
 import { assertNever, type ArrowBinding, type Shape } from './shape.js';
 
 export type FlipAxis = 'horizontal' | 'vertical';
@@ -48,8 +49,8 @@ function flipBinding(binding: ArrowBinding | null, axis: FlipAxis): ArrowBinding
  * persistent flags. Linear shapes retain point order and arrowhead ownership.
  * The caller expands frame contents and only passes bound arrows when all of
  * their targets take part, so their normalized anchors can reflect with them.
- * Rotation is intentionally unchanged while the engine renders axis-aligned
- * shapes. An unchanged or invalid transform returns the original object.
+ * A turned shape is mirrored by turning it the other way, which is what its
+ * reflection is. An unchanged or invalid transform returns the original object.
  */
 export function flipShape(shape: Shape, axis: FlipAxis, center: Point): Shape {
   if (
@@ -132,14 +133,16 @@ export function flipShape(shape: Shape, axis: FlipAxis, center: Point): Shape {
         ? shape.y
         : reflectedBoxAnchor(shape.y, bounds.y, bounds.height, center.y);
       if (!Number.isFinite(x) || !Number.isFinite(y)) return shape;
+      const angle = shapeAngle(shape);
+      const turn = angle === 0 ? {} : { rotation: normalizeAngle(-angle) };
 
       if (shape.kind === 'image') {
         return horizontal
-          ? { ...shape, x, y, flipX: !shape.flipX }
-          : { ...shape, x, y, flipY: !shape.flipY };
+          ? { ...shape, x, y, ...turn, flipX: !shape.flipX }
+          : { ...shape, x, y, ...turn, flipY: !shape.flipY };
       }
-      if (x === shape.x && y === shape.y) return shape;
-      return { ...shape, x, y };
+      if (x === shape.x && y === shape.y && angle === 0) return shape;
+      return { ...shape, x, y, ...turn };
     }
 
     default:
