@@ -8,7 +8,7 @@ import { formatShortDate, useT } from '../i18n';
 import { Icon } from '../settings/phone/icons';
 import { windowThemeVars, type SurfaceTheme } from '../ui/surface-palette';
 import { DiagramPreview } from './DiagramPreview';
-import { DIAGRAM_TOOLS, DIAGRAM_TOOLS_SOON, type DiagramToolId } from './DiagramTools';
+import { DIAGRAM_TOOLS, type DiagramToolId } from './DiagramTools';
 import { EXAMPLES, FILE_ACCEPT, NEXT_PLAN, PROBLEM_KEYS, kindOf } from './DiagramPanel';
 import { useSteps } from './DiagramWork';
 import { copyDiagramAsPng } from './copy-diagram';
@@ -500,16 +500,6 @@ export function PhoneDiagramSheet({
                         <ToolGlyph aria-hidden="true" />
                         {t(tool.label)}
                         {tool.cost > 1 && <em>×{tool.cost}</em>}
-                      </button>
-                    );
-                  })}
-                  {DIAGRAM_TOOLS_SOON.map((tool) => {
-                    const ToolGlyph = tool.icon;
-                    return (
-                      <button key={tool.id} type="button" className="ai-tool soon" disabled>
-                        <ToolGlyph aria-hidden="true" />
-                        {t(tool.label)}
-                        <span className="st-soon">{t('diagrams.soon')}</span>
                       </button>
                     );
                   })}

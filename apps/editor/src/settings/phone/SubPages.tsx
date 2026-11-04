@@ -58,7 +58,6 @@ import {
   Label,
   Row,
   SlotsContext,
-  SwitchRow,
   T,
   type Page,
 } from './shell';
@@ -84,12 +83,7 @@ function usePageTitle(title: string | null) {
 
 // --- google -----------------------------------------------------------------
 
-export function GooglePage({
-  security,
-  go,
-}: {
-  security: AccountSecurity | null;
-} & Pick<SubPageNav, 'go'>) {
+export function GooglePage({ security }: { security: AccountSecurity | null }) {
   const t = useT();
   if (!security) return <div className="st-empty">…</div>;
   const connected = security.providers.includes('google');
@@ -110,19 +104,6 @@ export function GooglePage({
             </Row>
           </Group>
           <Hint>{t('ps.google.sees')}</Hint>
-          <div className="st-g" style={{ marginTop: 20 }}>
-            <Row red soon>
-              <T>{t('ps.google.disconnect')}</T>
-            </Row>
-          </div>
-          {!security.hasPassword && (
-            <Hint>
-              {t('ps.google.onlyWay')}{' '}
-              <button type="button" className="st-link" onClick={() => go('password')}>
-                {t('password.addTitle')}
-              </button>
-            </Hint>
-          )}
         </>
       ) : (
         <>
@@ -467,14 +448,6 @@ export function SessionsPage({
           <SessionRow key={session.id} session={session} />
         ))}
       </div>
-      {others.length > 0 && (
-        <div className="st-g" style={{ marginTop: 12 }}>
-          <Row soon>
-            <Tile name="userminus" color="#ff3b30" />
-            <T>{t('ps.sess.signOutOthers')}</T>
-          </Row>
-        </div>
-      )}
       <Label>
         {others.length > 0
           ? t('ps.sess.others', { count: others.length })
@@ -951,15 +924,6 @@ export function InvitePage({
           </button>
         ))}
       </div>
-      <div className="st-g" style={{ marginTop: 16 }}>
-        <Row soon>
-          <Tile name="link" color="#0a84ff" />
-          <T>
-            {t('ps.inv.link')}
-            <small>{t('ps.inv.linkHint')}</small>
-          </T>
-        </Row>
-      </div>
       {invites.length > 0 && (
         <>
           <Label>{t('ps.inv.waiting', { count: invites.length })}</Label>
@@ -1137,14 +1101,6 @@ export function MemberPage({
             )}
           </button>
         ))}
-      </div>
-      <div className="st-g noi" style={{ marginTop: 12 }}>
-        <SwitchRow
-          label={t('ps.member.canInvite')}
-          hint={t('ps.member.canInviteHint')}
-          on={false}
-          soon
-        />
       </div>
       {viewerRole === 'owner' && (
         <div className="st-g" style={{ marginTop: 12 }}>

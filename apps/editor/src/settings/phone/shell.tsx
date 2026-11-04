@@ -55,7 +55,6 @@ export function Row({
   chevron = true,
   onClick,
   red = false,
-  soon = false,
   testId,
 }: {
   children: ReactNode;
@@ -63,31 +62,22 @@ export function Row({
   chevron?: boolean;
   onClick?: () => void;
   red?: boolean;
-  soon?: boolean;
   testId?: string;
 }) {
-  const t = useT();
-  const showEnd = soon || end !== undefined || (chevron && onClick);
+  const showEnd = end !== undefined || (chevron && onClick);
   return (
     <button
       type="button"
-      className={cn('st-r', red && 'red', soon && 'dim')}
-      onClick={soon ? undefined : onClick}
-      disabled={soon || !onClick}
-      aria-disabled={soon || undefined}
+      className={cn('st-r', red && 'red')}
+      onClick={onClick}
+      disabled={!onClick}
       data-testid={testId}
     >
       {children}
       {showEnd && (
         <span className="end">
-          {soon ? (
-            <span className="st-soon">{t('common.soon')}</span>
-          ) : (
-            <>
-              {end !== undefined && end !== '' && <span>{end}</span>}
-              {chevron && onClick && <Icon name="chevright" size={16} />}
-            </>
-          )}
+          {end !== undefined && end !== '' && <span>{end}</span>}
+          {chevron && onClick && <Icon name="chevright" size={16} />}
         </span>
       )}
     </button>
@@ -99,25 +89,22 @@ export function SwitchRow({
   hint,
   on,
   onToggle,
-  soon = false,
   testId,
 }: {
   label: string;
   hint?: string;
   on: boolean;
   onToggle?: () => void;
-  soon?: boolean;
   testId?: string;
 }) {
-  const t = useT();
   return (
     <button
       type="button"
-      className={cn('st-r', soon && 'dim')}
+      className="st-r"
       role="switch"
       aria-checked={on}
-      onClick={soon ? undefined : onToggle}
-      disabled={soon || !onToggle}
+      onClick={onToggle}
+      disabled={!onToggle}
       data-testid={testId}
     >
       <span className="t">
@@ -125,11 +112,7 @@ export function SwitchRow({
         {hint && <small>{hint}</small>}
       </span>
       <span className="end">
-        {soon ? (
-          <span className="st-soon">{t('common.soon')}</span>
-        ) : (
-          <span className={cn('st-sw', on && 'on')} />
-        )}
+        <span className={cn('st-sw', on && 'on')} />
       </span>
     </button>
   );
