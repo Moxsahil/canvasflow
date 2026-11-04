@@ -5,18 +5,31 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
 } from 'react';
 import { Keyboard, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { rich, useT, type I18n } from '../i18n';
+import { rich, useT } from '../i18n';
 import { CloseButton, SCROLLBAR } from '../settings/settings-ui';
 import { SurfaceWindow, WindowButton } from '../ui/SurfaceWindow';
 import type { SurfaceTheme } from '../ui/surface-palette';
 import { balanceColumns } from './columns';
 import { KeyCaps } from './KeyCaps';
-import { formatShortcutKeys, isMac } from './platform';
+import { usePhoneWindow } from '../ui/breakpoints';
+import { isMac } from './platform';
+import { PhoneShortcutsSheet } from './PhoneShortcutsSheet';
+import {
+  ALL_ENTRIES,
+  TOTAL_SHORTCUTS,
+  comboOf,
+  entryFor,
+  highlight,
+  searchTextOf,
+  type Said,
+} from './shortcut-search';
 import { SHORTCUTS, type ShortcutEntry } from './shortcuts-registry';
+
+const MARK =
+  'rounded-[3px] bg-[var(--surface-accent-wash)] text-[var(--surface-fg)] shadow-[0_0_0_1px_var(--surface-accent-wash)]';
 
 interface ShortcutsModalProps {
   open: boolean;
@@ -24,8 +37,6 @@ interface ShortcutsModalProps {
   /** The theme on screen — the dialog surface carries its own palette for each. */
   theme: SurfaceTheme;
 }
-
-const TOTAL_SHORTCUTS = SHORTCUTS.reduce((count, category) => count + category.entries.length, 0);
 
 /** Evened out rather than one per category, so no one group sets the height. */
 const COLUMNS_NARROW = balanceColumns(SHORTCUTS, 3);
@@ -56,110 +67,6 @@ function useWindowSize(): WindowSize {
   return size;
 }
 
-const ALL_ENTRIES = SHORTCUTS.flatMap((category) => category.entries);
-
-/**
- * What a search looks through for one shortcut: what it does, and its keys by
- * every name someone might type for them.
- */
-function searchTextOf(entry: ShortcutEntry, mac: boolean, t: I18n['t']): string {
-  const synonyms: Record<string, string> = {
-    mod: mac ? 'cmd command' : 'ctrl control',
-    alt: mac ? 'option opt alt' : 'alt',
-    shift: 'shift',
-  };
-  const parts = [entry.keys, entry.altKeys]
-    .filter((keys): keys is string => Boolean(keys))
-    .flatMap((keys) => {
-      const names = formatShortcutKeys(keys);
-      return keys.split('+').map((part, index) => `${names[index]} ${synonyms[part] ?? ''}`);
-    });
-  return [t(entry.descriptionKey), ...parts].join(' ').toLowerCase();
-}
-
-/**
- * The shortcut a key press means, in the registry's `mod+shift+z` notation.
- * Null for a modifier pressed on its own.
- */
-function comboOf(event: ReactKeyboardEvent): string | null {
-  const named: Record<string, string> = {
-    Escape: 'escape',
-    Delete: 'delete',
-    Backspace: 'backspace',
-    Enter: 'enter',
-    ArrowLeft: 'arrow-left',
-    ArrowRight: 'arrow-right',
-    ArrowUp: 'arrow-up',
-    ArrowDown: 'arrow-down',
-    ' ': 'space',
-  };
-  const key =
-    named[event.key] ??
-    (event.code.startsWith('Key') ? event.code.slice(3).toLowerCase() : event.key.toLowerCase());
-  if (['control', 'meta', 'alt', 'shift', 'altgraph'].includes(key)) return null;
-
-  const parts: string[] = [];
-  if (event.ctrlKey || event.metaKey) parts.push('mod');
-  if (event.altKey) parts.push('alt');
-  // Shift is part of the name only where it changes nothing else: `?` is
-  // already the shifted key, but a letter or a named key is not.
-  if (event.shiftKey && (event.key in named || /^[a-z]$/.test(key) || key === '?')) {
-    parts.push('shift');
-  }
-  return [...parts, key].join('+');
-}
-
-function entryFor(combo: string): ShortcutEntry | undefined {
-  // Ctrl+Y is written `ctrl+y` in the registry, not `mod+y`.
-  const tries = [combo, combo.replace(/^mod\+/, 'ctrl+')];
-  return ALL_ENTRIES.find(
-    (entry) =>
-      tries.includes(entry.keys) ||
-      (entry.altKeys !== undefined && tries.includes(entry.altKeys)) ||
-      (combo === 'space' && entry.keys.startsWith('space+')),
-  );
-}
-
-/** The description with what the search matched picked out. */
-function highlight(text: string, terms: string[]): ReactNode {
-  if (terms.length === 0) return text;
-  const lower = text.toLowerCase();
-  const hits: [number, number][] = [];
-  for (const term of terms) {
-    let at = lower.indexOf(term);
-    while (at !== -1) {
-      hits.push([at, at + term.length]);
-      at = lower.indexOf(term, at + term.length);
-    }
-  }
-  if (hits.length === 0) return text;
-  hits.sort((a, b) => a[0] - b[0]);
-  const merged: [number, number][] = [];
-  for (const [start, end] of hits) {
-    const last = merged[merged.length - 1];
-    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
-    else merged.push([start, end]);
-  }
-  const out: ReactNode[] = [];
-  let at = 0;
-  merged.forEach(([start, end], index) => {
-    out.push(text.slice(at, start));
-    out.push(
-      <mark
-        key={index}
-        className="rounded-[3px] bg-[var(--surface-accent-wash)] text-[var(--surface-fg)] shadow-[0_0_0_1px_var(--surface-accent-wash)]"
-      >
-        {text.slice(start, end)}
-      </mark>,
-    );
-    at = end;
-  });
-  out.push(text.slice(at));
-  return out;
-}
-
-type Said = { kind: 'found'; entry: ShortcutEntry } | { kind: 'missed'; combo: string };
-
 /**
  * Everything the keyboard can do, on one page.
  *
@@ -172,6 +79,7 @@ export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
   const t = useT();
   const titleId = useId();
   const size = useWindowSize();
+  const phoneSheet = usePhoneWindow();
   const wide = size === 'wide';
   const phone = size === 'phone';
   const mac = useMemo(() => isMac(), []);
@@ -255,6 +163,9 @@ export function ShortcutsModal({ open, onClose, theme }: ShortcutsModalProps) {
     clearTimeout(flashTimer.current);
     flashTimer.current = setTimeout(() => setFlashing(null), 900);
   };
+
+  // A phone has the same list as a tall sheet of its own.
+  if (phoneSheet) return open ? <PhoneShortcutsSheet onClose={onClose} theme={theme} /> : null;
 
   return (
     <SurfaceWindow
@@ -461,7 +372,7 @@ function ShortcutRow({
       className="relative -mx-[6px] flex min-h-[32px] items-center gap-[12px] rounded-[6px] px-[6px] py-[4px] transition-colors duration-[600ms] before:absolute before:inset-x-[6px] before:top-0 before:h-px before:bg-[var(--surface-line)] first-of-type:before:hidden data-[flash]:bg-[var(--surface-flash)] data-[flash]:duration-0 data-[flash]:before:hidden"
     >
       <span className="min-w-0 flex-1 text-[12px] leading-[1.35]">
-        {highlight(t(entry.descriptionKey), terms)}
+        {highlight(t(entry.descriptionKey), terms, MARK)}
       </span>
       <span className="inline-flex shrink-0 items-center gap-[3px]">
         <KeyCaps keys={entry.keys} />
