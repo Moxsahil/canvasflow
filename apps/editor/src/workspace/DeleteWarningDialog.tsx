@@ -11,6 +11,8 @@ import {
   WindowHeader,
 } from '../ui/SurfaceWindow';
 import type { SurfaceTheme } from '../ui/surface-palette';
+import { usePhoneWindow } from '../ui/breakpoints';
+import { PhoneConfirm } from '../settings/phone/PhoneConfirm';
 
 interface DeleteWarningDialogProps {
   open: boolean;
@@ -65,6 +67,7 @@ export function DeleteWarningDialog({
   const descriptionId = useId();
   const fieldId = useId();
   const [typed, setTyped] = useState('');
+  const phone = usePhoneWindow();
 
   // Cleared on every open, so a name copied out for one workspace can't still
   // be sitting in the field when the dialog reopens on another.
@@ -81,6 +84,26 @@ export function DeleteWarningDialog({
   const close = () => {
     if (!busy) onOpenChange(false);
   };
+
+  if (phone) {
+    return (
+      <PhoneConfirm
+        open={open}
+        icon={<Trash2 aria-hidden="true" className="size-[25px]" />}
+        title={title}
+        body={description}
+        label={confirmLabel}
+        danger
+        busy={busy}
+        error={error}
+        confirmText={confirmText}
+        theme={theme}
+        onConfirm={onConfirm}
+        onClose={close}
+        testId="delete-warning-dialog"
+      />
+    );
+  }
 
   return (
     <SurfaceWindow

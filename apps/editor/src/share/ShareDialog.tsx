@@ -25,6 +25,8 @@ import {
   fetchBoardEmbed,
 } from './board-embed-api';
 import { QRCode } from './QRCode';
+import { PhoneShareCollaboratorSheet, PhoneShareSheet } from './PhoneShareSheet';
+import { usePhoneWindow } from '../ui/breakpoints';
 import {
   ShareCollaboratorPanel,
   ShareSessionPanel,
@@ -584,6 +586,7 @@ export function ShareDialog({
   );
 
   const name = boardName ?? boardId;
+  const phone = usePhoneWindow();
   const surface = useMemo(() => ({ ...windowThemeVars(theme), fontFamily: FONT_STACK }), [theme]);
 
   const shell = (
@@ -687,6 +690,69 @@ export function ShareDialog({
       </AnimatePresence>
     </MotionConfig>
   );
+
+  // On a phone the same sharing is a sheet from the foot of the screen.
+  if (phone) {
+    if (!open) return null;
+    return isOwner ? (
+      <PhoneShareSheet
+        boardName={name}
+        hereCount={roster?.length ?? 0}
+        people={people}
+        session={live}
+        url={url}
+        role={role}
+        allowGuests={allowGuests}
+        onRoleChange={setRole}
+        onAllowGuestsChange={setAllowGuests}
+        busy={busy}
+        copied={copied}
+        error={error}
+        onStart={() => void handleStart()}
+        guestMayReturn={session?.allowGuests ? removedGuest : null}
+        onResetLink={
+          session
+            ? () =>
+                void handleStart({
+                  role: session.role === 'viewer' ? 'viewer' : 'editor',
+                  allowGuests: session.allowGuests,
+                })
+            : undefined
+        }
+        onStop={() => void handleStop()}
+        onCopy={() => void handleCopy()}
+        onClose={onClose}
+        onMemberRole={(id, next) => void handleRoleChange(id, next)}
+        onRemoveMember={(id) => void handleRemove(id)}
+        removed={removed}
+        onAddBack={(id) => void handleAddBack(id)}
+        menuContainer={null}
+        qr={url ? <QRCode value={url} size={192} /> : undefined}
+        embed={
+          authToken
+            ? {
+                on: embedId === undefined ? null : embedId !== null,
+                code: embedId ? embedCode(embedId, name) : null,
+                busy: embedBusy,
+                copied: embedCopied,
+                onChange: (on) => void handleEmbedChange(on),
+                onCopy: () => void handleEmbedCopy(),
+              }
+            : undefined
+        }
+        theme={theme}
+      />
+    ) : (
+      <PhoneShareCollaboratorSheet
+        boardName={name}
+        role={viewerRole === 'editor' || viewerRole === 'viewer' ? viewerRole : null}
+        ownerName={ownerName}
+        here={here}
+        theme={theme}
+        onClose={onClose}
+      />
+    );
+  }
 
   return typeof document === 'undefined' ? shell : createPortal(shell, document.body);
 }

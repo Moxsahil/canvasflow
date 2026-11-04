@@ -139,6 +139,19 @@ const PATHS = {
       <path d="M2.5 20.5c.8-3.8 3.5-6 7-6s6.2 2.2 7 6M16 10h6" />
     </>
   ),
+  share: (
+    <path d="M12 15V3.5M7.5 8 12 3.5 16.5 8M6 11.5H5a1.5 1.5 0 0 0-1.5 1.5v6A1.5 1.5 0 0 0 5 20.5h14a1.5 1.5 0 0 0 1.5-1.5v-6A1.5 1.5 0 0 0 19 11.5h-1" />
+  ),
+  qr: (
+    <>
+      <rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1" />
+      <rect x="14" y="3.5" width="6.5" height="6.5" rx="1" />
+      <rect x="3.5" y="14" width="6.5" height="6.5" rx="1" />
+      <path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM14 18.5h1.5M20.5 14v2" />
+    </>
+  ),
+  code: <path d="m8.5 7.5-5 4.5 5 4.5M15.5 7.5l5 4.5-5 4.5" />,
+  pencil: <path d="M15.5 4.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z" />,
 } as const;
 
 export type PhoneIconName = keyof typeof PATHS;

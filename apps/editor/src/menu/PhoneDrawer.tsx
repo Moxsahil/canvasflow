@@ -477,6 +477,8 @@ export function PhoneDrawer({
               label={t('workspace.manage')}
               onClick={() => {
                 setSheet(null);
+                // Out of the way: the workspaces open as a sheet of their own.
+                closeDrawer();
                 state.beginManage({ kind: 'workspaces' });
               }}
             />

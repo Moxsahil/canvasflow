@@ -11,6 +11,8 @@ import {
   WindowHeader,
 } from '../ui/SurfaceWindow';
 import type { SurfaceTheme } from '../ui/surface-palette';
+import { usePhoneWindow } from '../ui/breakpoints';
+import { PhoneRenameSheet } from './PhoneRenameSheet';
 import { BOARD_COLORS } from './board-colors';
 import type { RenameBoardTarget } from './useBoardSwitcher';
 import type { BoardColor, BoardDetailsPatch } from './workspace-api';
@@ -52,6 +54,7 @@ export function RenameBoardDialog({
   // Held here rather than read off the switcher: opening this closes the menu
   // that shows the switcher's own error line, so a failure would go unseen.
   const [error, setError] = useState<string | null>(null);
+  const phone = usePhoneWindow();
 
   // Which board the fields currently hold. The dialog is one element reused
   // for every row in the list, and its target can arrive empty and fill in a
@@ -96,6 +99,25 @@ export function RenameBoardDialog({
         setError(err instanceof Error ? err.message : t('common.somethingWentWrong')),
     );
   };
+
+  if (phone) {
+    return target === null ? null : (
+      <PhoneRenameSheet
+        name={name}
+        color={color}
+        maxLength={MAX_BOARD_TITLE}
+        loaded={loaded}
+        canSave={canSave}
+        busy={busy}
+        error={error}
+        theme={theme}
+        onName={setName}
+        onColor={setColor}
+        onSave={submit}
+        onClose={() => onOpenChange(false)}
+      />
+    );
+  }
 
   return (
     <SurfaceWindow

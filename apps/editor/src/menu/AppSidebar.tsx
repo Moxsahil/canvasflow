@@ -87,74 +87,81 @@ export function AppSidebar({
   boardShapes = NO_SHAPES,
   peopleHere = 1,
 }: AppSidebarProps) {
-  const { isMobile } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar();
   const plan =
     boardSwitcher.workspaces?.find((workspace) => workspace.id === boardSwitcher.listedId)?.plan ??
     null;
   return (
-    // Floating: a panel of its own on the board's ground, so the board runs
-    // right up to it with no rule down the edge.
-    <Sidebar
-      variant="floating"
-      collapsible="icon"
-      className="group-data-[side=left]:border-r-0"
-      portalContainer={portalContainer}
-    >
-      {isMobile ? (
-        // A phone: a drawer for getting around, bottom sheets for the rest.
-        <PhoneDrawer
-          state={boardSwitcher}
-          user={user}
-          actions={actions}
-          theme={theme}
-          onThemeChange={onThemeChange}
-          preferences={preferences}
-          surfaceTheme={surfaceTheme}
-          portalContainer={portalContainer}
-          boardShapes={boardShapes}
-          peopleHere={peopleHere}
-          onUpgrade={onUpgrade}
-        />
-      ) : (
-        <>
-          <SidebarHeader className="flex-row items-center gap-1 group-data-[collapsible=icon]:flex-col">
-            {/* The rail starts at the button that opens it again: the workspace
+    <>
+      {/* Floating: a panel of its own on the board's ground, so the board runs
+        right up to it with no rule down the edge. */}
+      <Sidebar
+        variant="floating"
+        collapsible="icon"
+        className="group-data-[side=left]:border-r-0"
+        portalContainer={portalContainer}
+      >
+        {isMobile ? (
+          // A phone: a drawer for getting around, bottom sheets for the rest.
+          <PhoneDrawer
+            state={boardSwitcher}
+            user={user}
+            actions={actions}
+            theme={theme}
+            onThemeChange={onThemeChange}
+            preferences={preferences}
+            surfaceTheme={surfaceTheme}
+            portalContainer={portalContainer}
+            boardShapes={boardShapes}
+            peopleHere={peopleHere}
+            onUpgrade={onUpgrade}
+          />
+        ) : (
+          <>
+            <SidebarHeader className="flex-row items-center gap-1 group-data-[collapsible=icon]:flex-col">
+              {/* The rail starts at the button that opens it again: the workspace
             has nothing to show there that the open sidebar doesn't. */}
-            <SidebarMenu className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-              <WorkspaceSwitcher state={boardSwitcher} portalContainer={portalContainer} />
-            </SidebarMenu>
-            <CollapseButton />
-          </SidebarHeader>
+              <SidebarMenu className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+                <WorkspaceSwitcher state={boardSwitcher} portalContainer={portalContainer} />
+              </SidebarMenu>
+              <CollapseButton />
+            </SidebarHeader>
 
-          <SidebarContent>
-            <BoardList
-              state={boardSwitcher}
-              portalContainer={portalContainer}
-              theme={surfaceTheme}
-            />
-            <RailSeparator />
-            <BoardCard state={boardSwitcher} actions={actions} portalContainer={portalContainer} />
-          </SidebarContent>
-
-          <SidebarFooter>
-            <SidebarMenu>
-              <NavUser
-                user={user}
-                actions={actions}
-                theme={theme}
-                onThemeChange={onThemeChange}
-                preferences={preferences}
+            <SidebarContent>
+              <BoardList
+                state={boardSwitcher}
                 portalContainer={portalContainer}
-                plan={plan}
+                theme={surfaceTheme}
               />
-            </SidebarMenu>
-          </SidebarFooter>
-        </>
-      )}
+              <RailSeparator />
+              <BoardCard
+                state={boardSwitcher}
+                actions={actions}
+                portalContainer={portalContainer}
+              />
+            </SidebarContent>
 
-      {/* Mounted here rather than inside the list or the card, because both
-          open it — and a menu that closes as the dialog opens would take a
-          dialog living inside it down with it. */}
+            <SidebarFooter>
+              <SidebarMenu>
+                <NavUser
+                  user={user}
+                  actions={actions}
+                  theme={theme}
+                  onThemeChange={onThemeChange}
+                  preferences={preferences}
+                  portalContainer={portalContainer}
+                  plan={plan}
+                />
+              </SidebarMenu>
+            </SidebarFooter>
+          </>
+        )}
+      </Sidebar>
+      {/* Mounted beside the sidebar rather than inside the list or the card,
+          because both open it — and a menu that closes as the dialog opens
+          would take a dialog living inside it down with it. Outside the
+          sidebar itself too: on a phone it is a drawer whose contents go
+          when it closes, and both are opened from it as it closes. */}
       <RenameBoardDialog
         target={boardSwitcher.renameTarget}
         onOpenChange={(open) => {
@@ -166,8 +173,13 @@ export function AppSidebar({
       />
 
       {/* Same reasoning: opened from the workspace menu and from the list. */}
-      <ManageDialog state={boardSwitcher} theme={surfaceTheme} onOpenBilling={onOpenBilling} />
-    </Sidebar>
+      <ManageDialog
+        state={boardSwitcher}
+        theme={surfaceTheme}
+        onOpenBilling={onOpenBilling}
+        onShowBoards={() => setOpenMobile(true)}
+      />
+    </>
   );
 }
 
