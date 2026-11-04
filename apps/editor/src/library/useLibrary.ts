@@ -65,6 +65,8 @@ export interface Library {
   remove: (id: string) => Promise<void>;
   /** Say an item was just placed, for Recently used. */
   markUsed: (id: string) => void;
+  /** Empty Recently used. */
+  clearRecent: () => void;
   /** Keep a library file's items. Says how many went in, and why any did not. */
   importItems: (items: readonly LibraryFileItem[]) => Promise<ImportResult>;
   /** Add a catalogue library. Throws a `LibraryError` it did not. */
@@ -210,6 +212,11 @@ export function useLibrary({
     [userId],
   );
 
+  const clearRecent = useCallback(() => {
+    setRecent([]);
+    if (userId) storeRecentItems(userId, []);
+  }, [userId]);
+
   const importItems = useCallback(
     async (fileItems: readonly LibraryFileItem[]): Promise<ImportResult> => {
       const current = tokenRef.current;
@@ -307,6 +314,7 @@ export function useLibrary({
       rename,
       remove,
       markUsed,
+      clearRecent,
       importItems,
       addFromCatalogue,
       removeAdded,
@@ -323,6 +331,7 @@ export function useLibrary({
       rename,
       remove,
       markUsed,
+      clearRecent,
       importItems,
       addFromCatalogue,
       removeAdded,
