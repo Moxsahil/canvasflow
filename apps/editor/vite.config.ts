@@ -47,6 +47,12 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Reached only through the AI diagrams' lazy import, so the start-up scan
+  // misses them: found on first use instead, they set off a re-optimise that
+  // answers the page's request with 504 Outdated Optimize Dep.
+  optimizeDeps: {
+    include: ['elkjs/lib/elk.bundled.js', 'simple-icons'],
+  },
   server: {
     port: 3002,
     host: true,
