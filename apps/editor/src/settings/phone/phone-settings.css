@@ -442,17 +442,6 @@
 .cf-ps.light .st-r.red {
   color: #e5322d;
 }
-.cf-ps .st-r.dim {
-  opacity: 0.42;
-  pointer-events: none;
-}
-.cf-ps .st-soon {
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 99px;
-  background: var(--s-card2);
-  color: var(--s-mut);
-}
 .cf-ps .st-ic {
   width: 31px;
   height: 31px;
@@ -527,28 +516,6 @@
 }
 .cf-ps .st-field input:focus {
   color: var(--s-fg);
-}
-.cf-ps .st-pause {
-  padding: 14px 16px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  border: 0;
-  text-align: left;
-  margin-bottom: 4px;
-}
-.cf-ps .st-pause .t {
-  flex: 1;
-}
-.cf-ps .st-pause b {
-  display: block;
-  font-size: 16px;
-  font-weight: 600;
-}
-.cf-ps .st-pause .t span {
-  font-size: 13px;
-  color: var(--s-mut);
 }
 .cf-ps .themes {
   display: grid;
@@ -2060,12 +2027,6 @@
 }
 .cf-ps .ai-tool.on svg {
   color: var(--s-acc);
-}
-.cf-ps .ai-tool.soon {
-  color: var(--s-mut);
-}
-.cf-ps .ai-tool .st-soon {
-  margin-left: auto;
 }
 .cf-ps button.ai-type {
   border: 0;

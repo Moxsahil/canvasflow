@@ -497,7 +497,7 @@ function Pages(
       </>
     );
   }
-  if (page === 'google') return <GooglePage security={security} go={go} />;
+  if (page === 'google') return <GooglePage security={security} />;
   if (page === 'password') {
     return (
       <PasswordPage
@@ -710,7 +710,7 @@ function Pages(
     );
   }
 
-  if (page === 'notifications') return <NotificationsPage token={token} email={email} />;
+  if (page === 'notifications') return <NotificationsPage token={token} />;
 
   if (page === 'billing') {
     return (
@@ -793,8 +793,6 @@ function Pages(
             onToggle={chooseAnalytics ? () => void chooseAnalytics(analytics !== true) : undefined}
             testId="ps-analytics"
           />
-          <SwitchRow label={t('ps.crashReports')} hint={t('ps.crashReportsHint')} on={false} soon />
-          <SwitchRow label={t('ps.findable')} hint={t('ps.findableHint')} on={false} soon />
         </Group>
         <div className="st-g" style={{ marginTop: 20 }}>
           <Row onClick={() => window.open(privacyUrl(), '_blank', 'noopener,noreferrer')}>
@@ -948,10 +946,6 @@ function Pages(
               <Tile name="globe" color="#0a84ff" />
               <T>{t('menu.language')}</T>
             </Row>
-            <Row soon>
-              <Tile name="home" color="#30b0c7" />
-              <T>{t('ps.startOn')}</T>
-            </Row>
           </Group>
 
           {workspace && (
@@ -995,14 +989,6 @@ function Pages(
             <Row onClick={onShowShortcuts}>
               <Tile name="keyboard" color="#5e5ce6" />
               <T>{t('ps.shortcuts')}</T>
-            </Row>
-            <Row soon>
-              <Tile name="help" color="#0a84ff" />
-              <T>{t('ps.helpAndFeedback')}</T>
-            </Row>
-            <Row soon>
-              <Tile name="gift" color="#ff2d55" />
-              <T>{t('ps.whatsNew')}</T>
             </Row>
           </Group>
 
@@ -1266,9 +1252,6 @@ function WorkspacePage({
             }}
           />
         </label>
-        <Row soon>
-          <T>{t('ps.logo')}</T>
-        </Row>
       </Group>
       {error && <Hint error>{error}</Hint>}
       <div
@@ -1392,7 +1375,7 @@ function CursorColourGroup({ account, theme }: { account: ProfileState; theme: S
 
 // --- notifications ----------------------------------------------------------
 
-function NotificationsPage({ token, email }: { token: string | null; email: string }) {
+function NotificationsPage({ token }: { token: string | null }) {
   const t = useT();
   const { settings, toggle, error } = useNotifications(token);
   const real = (kind: NotificationKind, label: TranslationKey, hint: TranslationKey) => (
@@ -1407,14 +1390,6 @@ function NotificationsPage({ token, email }: { token: string | null; email: stri
   );
   return (
     <>
-      <button type="button" className="st-card st-pause dim" disabled aria-disabled="true">
-        <Tile name="bell" color="#ff3b30" />
-        <span className="t">
-          <b>{t('ps.pauseAll')}</b>
-          <span>{t('ps.pauseAllHint')}</span>
-        </span>
-        <span className="st-soon">{t('common.soon')}</span>
-      </button>
       <Label>{t('settings.group.email')}</Label>
       <Group noIcons>
         {real('accessChanges', 'settings.row.access-changes', 'notifications.accessChangesHint')}
@@ -1424,13 +1399,6 @@ function NotificationsPage({ token, email }: { token: string | null; email: stri
           'notifications.commentMentionsHint',
         )}
         {real('inviteAccepted', 'settings.row.invite-accepted', 'notifications.inviteAcceptedHint')}
-        <SwitchRow
-          label={t('ps.notify.replies')}
-          hint={t('ps.notify.repliesHint')}
-          on={false}
-          soon
-        />
-        <SwitchRow label={t('ps.notify.edits')} hint={t('ps.notify.editsHint')} on={false} soon />
       </Group>
       <Label>{t('settings.group.digest')}</Label>
       <Group noIcons>
@@ -1438,11 +1406,6 @@ function NotificationsPage({ token, email }: { token: string | null; email: stri
         {real('productUpdates', 'settings.row.product-updates', 'notifications.productUpdatesHint')}
       </Group>
       {error && <Hint error>{error}</Hint>}
-      <Label>{t('ps.notify.delivery')}</Label>
-      <Group noIcons>
-        <SwitchRow label={t('ps.notify.push')} hint={t('ps.notify.pushHint')} on={false} soon />
-        <SwitchRow label={t('ps.email')} hint={t('ps.notify.emailHint', { email })} on soon />
-      </Group>
     </>
   );
 }

@@ -276,7 +276,8 @@ export function PhoneDrawer({
     const meta = MENU_ITEMS[id];
     const Icon = meta.icon;
     const run = runAction(id);
-    if (actions?.[id] === false) return null;
+    // Left out where it is not offered, and where it is not built yet.
+    if (actions?.[id] === false || actions?.[id] === undefined) return null;
     return (
       <SheetRow
         key={id}
@@ -285,7 +286,7 @@ export function PhoneDrawer({
         onClick={run ?? (() => {})}
         disabled={!run}
         danger={danger || meta.destructive}
-        end={actions?.[id] === undefined ? t('common.soon') : end}
+        end={end}
         testId={`drawer-item-${id}`}
       />
     );
@@ -304,7 +305,9 @@ export function PhoneDrawer({
     sheetLead = <Thumb src={thumbnail} small />;
     sheetPage = 'board';
     const rest = BOARD_MENU_GROUPS.map((group) =>
-      group.filter((id) => !BOARD_TILES.includes(id)),
+      group.filter(
+        (id) => !BOARD_TILES.includes(id) && actions?.[id] !== undefined && actions[id] !== false,
+      ),
     ).filter((group) => group.length > 0);
     sheetBody = (
       <>
@@ -528,29 +531,34 @@ export function PhoneDrawer({
     } else if (sheet.page === 'learn') {
       sheetTitle = t('menu.learnMore');
       sheetBack = back;
-      sheetBody = LEARN_MORE_GROUPS.map((group, index) => (
-        <SheetGroup key={index}>
-          {group.map((item) => {
-            const Icon = item.icon;
-            let run: (() => void) | undefined;
-            if (item.action) run = runAction(item.action);
-            else if (item.path) {
-              const href = new URL(item.path, env.VITE_WEB_URL).toString();
-              run = () => window.open(href, '_blank', 'noopener,noreferrer');
-            }
-            return (
-              <SheetRow
-                key={item.id}
-                icon={Icon ? <Icon aria-hidden="true" /> : <span className="w-[19px]" />}
-                label={t(item.labelKey)}
-                onClick={run ?? (() => {})}
-                disabled={!run}
-                end={run ? undefined : t('common.soon')}
-              />
-            );
-          })}
-        </SheetGroup>
-      ));
+      // Only the pages and actions that are there: nothing waiting on its page.
+      sheetBody = LEARN_MORE_GROUPS.map((group) =>
+        group.flatMap((item) => {
+          let run: (() => void) | undefined;
+          if (item.action) run = runAction(item.action);
+          else if (item.path) {
+            const href = new URL(item.path, env.VITE_WEB_URL).toString();
+            run = () => window.open(href, '_blank', 'noopener,noreferrer');
+          }
+          return run ? [{ item, run }] : [];
+        }),
+      )
+        .filter((group) => group.length > 0)
+        .map((group, index) => (
+          <SheetGroup key={index}>
+            {group.map(({ item, run }) => {
+              const Icon = item.icon;
+              return (
+                <SheetRow
+                  key={item.id}
+                  icon={Icon ? <Icon aria-hidden="true" /> : <span className="w-[19px]" />}
+                  label={t(item.labelKey)}
+                  onClick={run}
+                />
+              );
+            })}
+          </SheetGroup>
+        ));
     } else {
       sheetTitle = accountName;
       sheetMeta = accountless ? accountDetail : (user?.email ?? null);

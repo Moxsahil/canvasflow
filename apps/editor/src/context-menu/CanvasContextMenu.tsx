@@ -134,10 +134,21 @@ export function CanvasContextMenu({
 }: CanvasContextMenuProps) {
   const t = useT();
   const short = useSyncExternalStore(subscribeToShortScreen, isShortScreen, isShortOnServer);
-  const groups = useMemo(
-    () => contextMenuFor(target, { readOnly, canShareLinks, mindMap, canHideLikes, short }),
-    [target, readOnly, canShareLinks, mindMap, canHideLikes, short],
-  );
+  const groups = useMemo(() => {
+    const all = contextMenuFor(target, { readOnly, canShareLinks, mindMap, canHideLikes, short });
+    if (!phone) return all;
+    // A phone shows only what is built: no row waiting on its feature.
+    const built = (id: ContextMenuItemId) => actions[id] !== undefined;
+    return all
+      .map((group) =>
+        group.flatMap((entry): ContextMenuEntry[] => {
+          if (typeof entry === 'string') return built(entry) ? [entry] : [];
+          const items = entry.items.filter(built);
+          return items.length > 0 || (entry.listsBoards && moveTo) ? [{ ...entry, items }] : [];
+        }),
+      )
+      .filter((group) => group.length > 0);
+  }, [target, readOnly, canShareLinks, mindMap, canHideLikes, short, phone, actions, moveTo]);
 
   // Edit stays out of the way until something in it applies to the selection.
   const canAct = (entry: ContextMenuEntry) =>
