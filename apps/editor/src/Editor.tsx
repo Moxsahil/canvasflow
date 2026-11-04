@@ -199,6 +199,9 @@ import { usePeerTyping, withPeerTyping } from './collab/peer-typing';
 import { ZoomPanel } from './zoom-panel/ZoomPanel';
 import { PhoneActionRow, PhoneDoneButton } from './zoom-panel/PhoneActionRow';
 import { PhoneBanner, type PhoneBannerMessage } from './ui/PhoneBanner';
+import { PhoneDiagramSheet } from './diagrams/PhoneDiagramSheet';
+import { PhoneLibrarySheet } from './library/PhoneLibrarySheet';
+import { LIBRARY_PACKS } from './library/library-packs';
 import { PhoneSettings } from './settings/phone/PhoneSettings';
 import { cn } from '@/lib/utils';
 import { isPhoneCanvas } from './ui/breakpoints';
@@ -459,6 +462,12 @@ const PHONE_HANDLE_SIZE = 16;
 
 /** How long the board takes to slide aside by itself, as for the phone's style panel. */
 const CAMERA_GLIDE_MS = 450;
+
+/** What the packs that come with the editor hold, for the phone drawer's Library row. */
+const PACK_ITEM_COUNT = LIBRARY_PACKS.reduce((sum, pack) => sum + pack.items.length, 0);
+
+/** Board units between library items placed together, side by side. */
+const LIBRARY_ROW_GAP = 60;
 
 /**
  * The menus' highlight curve, cubic-bezier(0.22, 1, 0.36, 1): off quickly,
@@ -900,6 +909,8 @@ export function Editor({ boardId, local = false }: EditorProps) {
   }, [accountHere]);
   // The account's own library, kept across boards. A guest has none.
   const library = useLibrary({ userId, token: authToken, isGuest: user?.isGuest ?? true });
+  // A phone's library is a sheet opened from the drawer, not a button up top.
+  const [phoneLibraryOpen, setPhoneLibraryOpen] = useState(false);
   // Diagrams generated from a description, counted against the month's
   // allowance. The panel is the one place they are asked for and placed from.
   const [diagramsOpen, setDiagramsOpen] = useState(false);
@@ -1546,6 +1557,11 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // A phone-sized canvas gathers the chrome along its top and bottom edges;
   // anything larger keeps the desktop layout untouched.
   const phone = isPhoneCanvas(width, height);
+  // The drawer's Library row counts what is in it before it is opened.
+  const { load: loadLibrary } = library;
+  useEffect(() => {
+    if (phone) loadLibrary();
+  }, [phone, loadLibrary]);
   // Settings ▸ Appearance: the accent over the theme's blue, and whether
   // sheets and pages slide in.
   const accent = useAccent();
@@ -5459,19 +5475,28 @@ export function Editor({ boardId, local = false }: EditorProps) {
   }, [libraryEnabled, addToLibrary, selectedIds, shapes, showToast]);
 
   /**
-   * Put a library item on the board: in the middle of the view, or where it
-   * was dropped. One undo step, and selected, as a paste is — the frames and
-   * loose shapes, which bring what stands in the frames along.
+   * Put library items on the board: in the middle of the view, or where it
+   * was dropped. Several stand side by side in the order given. One undo step,
+   * and selected, as a paste is — the frames and loose shapes, which bring
+   * what stands in the frames along.
    */
-  const placeLibraryItem = useCallback(
-    (entry: LibraryEntry, at?: Point) => {
-      if (readOnly) return;
-      const placed = shapesCentredOn(
-        signedCopies(withFreshIds(entry.shapes, genId), noteAuthorRef.current),
-        at ?? viewportCentre(),
-        doc.getShapes(),
-      );
-      if (placed.length === 0) return;
+  const placeLibraryItems = useCallback(
+    (entries: readonly LibraryEntry[], at?: Point) => {
+      if (readOnly || entries.length === 0) return [];
+      const row: Shape[] = [];
+      let left = 0;
+      for (const entry of entries) {
+        const copies = signedCopies(withFreshIds(entry.shapes, genId), noteAuthorRef.current);
+        const bounds = computeBoundingRect(copies);
+        if (!bounds) continue;
+        // Each item's middle on one line, LIBRARY_ROW_GAP after the last.
+        const dx = left - bounds.x;
+        const dy = -(bounds.y + bounds.height / 2);
+        for (const shape of copies) row.push({ ...shape, x: shape.x + dx, y: shape.y + dy });
+        left += bounds.width + LIBRARY_ROW_GAP;
+      }
+      const placed = shapesCentredOn(row, at ?? viewportCentre(), doc.getShapes());
+      if (placed.length === 0) return [];
       doc.batch(() => {
         for (const shape of placed) doc.addShape(shape);
       });
@@ -5482,10 +5507,51 @@ export function Editor({ boardId, local = false }: EditorProps) {
           .filter((shape) => shape.frameId == null || !ids.has(shape.frameId))
           .map((shape) => shape.id),
       });
-      markLibraryUsed(entry.id);
+      // Oldest first, so the first picked ends up first in Recently used.
+      for (const entry of [...entries].reverse()) markLibraryUsed(entry.id);
       track('library_item_placed');
+      return placed;
     },
     [readOnly, viewportCentre, doc, actorRef, markLibraryUsed],
+  );
+  const placeLibraryItem = useCallback(
+    (entry: LibraryEntry, at?: Point) => {
+      placeLibraryItems([entry], at);
+    },
+    [placeLibraryItems],
+  );
+
+  /** The phone's library places, then offers the way back: there is no keyboard to undo with. */
+  const placeFromPhoneLibrary = useCallback(
+    (entries: readonly LibraryEntry[]) => {
+      const placed = placeLibraryItems(entries);
+      // Several side by side can run past a phone's narrow view: the board
+      // draws back until they all show.
+      const bounds = computeBoundingRect(placed);
+      if (
+        bounds &&
+        (bounds.width * camera.zoom > width * 0.9 || bounds.height * camera.zoom > height * 0.7)
+      ) {
+        const framed = cameraFraming(placed);
+        if (framed) glideCamera(framed);
+      }
+      showPhoneBanner(
+        entries.length === 1
+          ? translate('ps.lib.placed', { name: entries[0]!.name })
+          : translate('ps.lib.placedMany', { count: entries.length }),
+        { label: translate('ps.banner.undo'), run: handleUndo },
+      );
+    },
+    [
+      placeLibraryItems,
+      camera.zoom,
+      width,
+      height,
+      cameraFraming,
+      glideCamera,
+      showPhoneBanner,
+      handleUndo,
+    ],
   );
 
   /**
@@ -6673,6 +6739,18 @@ export function Editor({ boardId, local = false }: EditorProps) {
           onUpgrade={upgradeFromMenu}
           boardShapes={shownShapes}
           peopleHere={Math.max(1, roster.length)}
+          library={
+            phone && libraryEnabled
+              ? {
+                  count: library.items.length + PACK_ITEM_COUNT,
+                  open: () => {
+                    // Its last word would sit over the sheet's bar.
+                    clearPhoneBanner();
+                    setPhoneLibraryOpen(true);
+                  },
+                }
+              : undefined
+          }
           boardSwitcher={sidebarSwitcher}
           user={chromeUser}
           theme={theme}
@@ -7042,7 +7120,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
           time. ⌘F still has to land somewhere, so the search comes up on its
           own for as long as it is in use and leaves on Escape like the rest. */}
             <div className="cf-top-right-dock">
-              {!chromeHidden && libraryEnabled && (
+              {!chromeHidden && libraryEnabled && !phone && (
                 <LibraryMenu
                   library={library}
                   darkMode={resolvedTheme === 'dark'}
@@ -7107,7 +7185,39 @@ export function Editor({ boardId, local = false }: EditorProps) {
               )}
             </div>
 
-            {!chromeHidden && !readOnly && !local && diagramsOpen && (
+            {!chromeHidden && libraryEnabled && phone && phoneLibraryOpen && (
+              <PhoneLibrarySheet
+                library={library}
+                theme={presenceTheme}
+                selectedCount={selectedIds.length}
+                canPlace={!readOnly}
+                onAdd={handleAddToLibrary}
+                onPlace={placeFromPhoneLibrary}
+                onNotify={showToast}
+                onClose={() => setPhoneLibraryOpen(false)}
+                container={editorRoot}
+              />
+            )}
+            {!chromeHidden && !readOnly && !local && diagramsOpen && phone && (
+              <PhoneDiagramSheet
+                panel={diagrams}
+                theme={presenceTheme}
+                canDraw={accountHere}
+                onInsert={insertDiagram}
+                onSignIn={signInForDiagrams}
+                onUpgrade={showPlans}
+                onClose={closeDiagrams}
+                minimized={diagramsMinimized}
+                onMinimize={minimizeDiagrams}
+                onRestore={restoreDiagrams}
+                boardShapeIds={boardShapeIds}
+                onShowOnBoard={showDiagramOnBoard}
+                onReplace={(entry, previous) => void replaceDiagram(entry, previous)}
+                drawStyle={diagramStyle}
+                container={editorRoot}
+              />
+            )}
+            {!chromeHidden && !readOnly && !local && diagramsOpen && !phone && (
               <DiagramPanel
                 panel={diagrams}
                 theme={presenceTheme}

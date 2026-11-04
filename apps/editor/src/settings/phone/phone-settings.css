@@ -1630,6 +1630,573 @@
   height: 19px;
 }
 
+/* AI diagrams on a phone: kinds along the top, the conversation, the box. */
+.cf-ps.ai .st-top {
+  flex: none;
+}
+.cf-ps .ai-hero {
+  text-align: center;
+  padding: 18px 8px 20px;
+}
+.cf-ps .ai-orb {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  margin: 0 auto 16px;
+  background: conic-gradient(from 0deg, var(--s-acc), #a78bfa, #f472b6, #fbbf24, var(--s-acc));
+  display: grid;
+  place-items: center;
+  animation: cf-ps-orb 6s linear infinite;
+}
+.cf-ps .ai-orb::after {
+  content: '';
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--s-bg);
+}
+.cf-ps .ai-orb .i {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  color: var(--s-fg);
+  animation: cf-ps-orb 6s linear infinite reverse;
+}
+@keyframes cf-ps-orb {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.cf-ps .ai-hero b {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.cf-ps .ai-hero span {
+  display: block;
+  color: var(--s-mut);
+  font-size: 14px;
+  margin-top: 6px;
+  line-height: 1.45;
+}
+.cf-ps .ai-sugs {
+  display: grid;
+  gap: 8px;
+}
+.cf-ps .ai-sug {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: 16px;
+  border: 0;
+  background: var(--s-card);
+  color: var(--s-fg);
+  text-align: left;
+  font-size: 14.5px;
+  line-height: 1.35;
+}
+.cf-ps .ai-sug .i,
+.cf-ps .ai-sug svg {
+  width: 17px;
+  height: 17px;
+  color: var(--s-mut);
+  flex: none;
+}
+.cf-ps .ai-sug span {
+  flex: 1;
+}
+.cf-ps .ai-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 4px;
+}
+.cf-ps .ai-u {
+  align-self: flex-end;
+  max-width: 84%;
+  padding: 10px 14px;
+  border-radius: 20px 20px 6px 20px;
+  background: color-mix(in srgb, var(--s-acc) 26%, var(--s-card2));
+  font-size: 15px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.cf-ps .ai-u small {
+  display: block;
+  font-size: 12px;
+  color: var(--s-mut);
+  margin-bottom: 2px;
+}
+.cf-ps .ai-a {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cf-ps .ai-steps {
+  display: grid;
+  gap: 8px;
+  padding: 2px 2px 0;
+}
+.cf-ps .ai-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 14px;
+  color: var(--s-fg);
+}
+.cf-ps .ai-step.done {
+  color: var(--s-mut);
+}
+.cf-ps .ai-step small {
+  display: block;
+  font-size: 12px;
+  color: var(--s-mut);
+  overflow-wrap: anywhere;
+}
+.cf-ps .ai-step .dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--s-acc);
+}
+.cf-ps .ai-step.done .dot {
+  background: #30d158;
+  color: #fff;
+}
+.cf-ps .ai-step.done .dot .i {
+  width: 11px;
+  height: 11px;
+}
+.cf-ps .spin,
+.cf-ai-pill .spin {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: cf-ps-orb 0.75s linear infinite;
+  flex: none;
+}
+.cf-ps .ai-res {
+  overflow: hidden;
+}
+.cf-ps .ai-prev {
+  height: 190px;
+  display: grid;
+  place-items: center;
+  background: var(--s-bg);
+  border-bottom: 1px solid var(--s-line);
+  overflow: hidden;
+}
+.cf-ps .ai-prev > * {
+  width: 100%;
+  height: 100%;
+}
+.cf-ps .ai-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px 0;
+  font-size: 13px;
+  color: var(--s-mut);
+}
+.cf-ps .ai-meta b {
+  color: var(--s-fg);
+  font-size: 15px;
+  font-weight: 600;
+}
+.cf-ps .ai-acts {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 8px;
+  padding: 12px;
+}
+.cf-ps .ai-acts .st-btn {
+  margin: 0;
+  height: 44px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.cf-ps .ai-acts .st-btn .i {
+  width: 17px;
+  height: 17px;
+}
+.cf-ps .ai-done-note {
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  color: #30d158;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 0 2px;
+}
+.cf-ps .ai-fail {
+  padding: 14px;
+}
+.cf-ps .ai-fail p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--s-mut);
+}
+.cf-ps .ai-comp {
+  flex: none;
+  padding: 8px 12px calc(env(safe-area-inset-bottom) + 12px);
+  background: var(--s-bg);
+}
+.cf-ps .ai-ctx {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 28px;
+  padding: 0 6px 0 10px;
+  border-radius: 99px;
+  background: var(--s-card2);
+  font-size: 12.5px;
+  margin: 0 6px 8px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.cf-ps .ai-ctx button {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(127, 127, 127, 0.25);
+  color: inherit;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  flex: none;
+}
+.cf-ps .ai-box {
+  border-radius: 22px;
+  background: var(--s-card);
+  box-shadow: inset 0 0 0 1px var(--s-line);
+  padding: 12px 10px 8px 14px;
+}
+.cf-ps .ai-box textarea {
+  all: unset;
+  display: block;
+  width: 100%;
+  min-height: 24px;
+  max-height: 120px;
+  overflow-y: auto;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--s-fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.cf-ps .ai-box textarea::placeholder {
+  color: var(--s-mut);
+}
+.cf-ps .ai-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.cf-ps .ai-row .grow {
+  flex: 1;
+}
+.cf-ps .ai-ib {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--s-card2);
+  color: var(--s-fg);
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.cf-ps .ai-type {
+  height: 34px;
+  border-radius: 99px;
+  background: var(--s-card2);
+  padding: 0 12px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.cf-ps .ai-type .i,
+.cf-ps .ai-type svg {
+  width: 15px;
+  height: 15px;
+}
+.cf-ps .ai-len {
+  font:
+    11.5px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  color: #ff453a;
+}
+.cf-ps .ai-send {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--s-acc);
+  color: #fff !important;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  flex: none;
+}
+.cf-ps .ai-send:disabled {
+  opacity: 0.3;
+}
+.cf-ps .ai-stop {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: #fff;
+}
+.cf-ps .ai-note {
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--s-mut);
+  padding-top: 8px;
+}
+
+/* New chat, in words as well as its icon, so it is found at a glance. */
+.cf-ps.ai .st-bar {
+  grid-template-columns: 1fr auto 1fr;
+}
+.cf-ps .ai-new {
+  justify-self: start;
+  height: 34px;
+  padding: 0 12px 0 10px;
+  border-radius: 99px;
+  border: 0;
+  background: color-mix(in srgb, var(--s-acc) 18%, var(--s-card2));
+  color: var(--s-fg);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.cf-ps .ai-new .i {
+  width: 16px;
+  height: 16px;
+  color: var(--s-acc);
+}
+.cf-ps .ai-new:disabled {
+  opacity: 0.45;
+}
+
+/* The tools, picked from the box's own chip, as on the desktop. */
+.cf-ps .ai-comp {
+  position: relative;
+}
+.cf-ps .ai-tools-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+}
+.cf-ps .ai-tools {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(100% - 4px);
+  z-index: 7;
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 18px;
+  background: var(--s-card);
+  box-shadow:
+    0 0 0 1px var(--s-line),
+    0 14px 40px rgba(0, 0, 0, 0.45);
+  animation: cf-ps-fade-in 0.16s ease;
+}
+.cf-ps .ai-tool {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 42px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--s-fg);
+  font-size: 14.5px;
+  text-align: left;
+}
+.cf-ps .ai-tool svg {
+  width: 17px;
+  height: 17px;
+  color: var(--s-mut);
+  flex: none;
+}
+.cf-ps .ai-tool em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--s-mut);
+  margin-left: auto;
+}
+.cf-ps .ai-tool.on {
+  background: color-mix(in srgb, var(--s-acc) 18%, var(--s-card2));
+}
+.cf-ps .ai-tool.on svg {
+  color: var(--s-acc);
+}
+.cf-ps .ai-tool.soon {
+  color: var(--s-mut);
+}
+.cf-ps .ai-tool .st-soon {
+  margin-left: auto;
+}
+.cf-ps button.ai-type {
+  border: 0;
+  color: var(--s-fg);
+}
+.cf-ps button.ai-type:disabled {
+  opacity: 0.5;
+}
+
+/* A message's actions, as on the desktop: under the request, and under the diagram. */
+.cf-ps .ai-req {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.cf-ps .ai-u-text {
+  display: block;
+}
+.cf-ps .ai-u-text.folded {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cf-ps .ai-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: none;
+  color: var(--s-mut);
+  font-size: 13px;
+  padding: 2px 6px;
+}
+.cf-ps .ai-msg-acts {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--s-mut);
+}
+.cf-ps .ai-msg-acts.end {
+  justify-content: flex-end;
+}
+.cf-ps .ai-msg-acts .when {
+  font-size: 12px;
+  padding: 0 6px;
+}
+.cf-ps .ai-msg-acts button {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 0;
+  background: none;
+  color: var(--s-mut);
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.cf-ps .ai-msg-acts button:active {
+  background: var(--s-card2);
+}
+.cf-ps .ai-msg-acts button.on {
+  color: var(--s-acc);
+}
+.cf-ps .ai-msg-acts button:disabled {
+  opacity: 0.4;
+}
+
+/* Put away, the AI keeps working as a pill above the toolbar. */
+.cf-ai-pill {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--cf-phone-dock-height, 6rem) + 1rem + env(safe-area-inset-bottom));
+  z-index: var(--zIndex-layerUI, 40);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  max-width: calc(100vw - 24px);
+  padding: 0 6px 0 14px;
+  border-radius: 99px;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f4f4f5;
+  font-size: 13.5px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.cf-ai-pill .i {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--cf-accent-soft, #4d84fd);
+}
+.cf-ai-pill .spin {
+  color: var(--cf-accent-soft, #4d84fd);
+}
+.cf-ai-pill .tx {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cf-ai-pill button {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 99px;
+  border: 0;
+  background: var(--cf-accent, #135dfc);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  flex: none;
+}
+.cf-ai-pill button.x .i {
+  width: 13px;
+  height: 13px;
+  color: #fff;
+}
+.cf-ai-pill button.x {
+  width: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.1);
+}
+.cf-editor[data-reduce-motion] .cf-ps .ai-orb,
+.cf-editor[data-reduce-motion] .cf-ps .ai-orb .i {
+  animation: none;
+}
+
 /* Reduce motion, chosen here or by the phone: sheets and pages appear
    without sliding. */
 .cf-editor[data-reduce-motion] .cf-ps,
@@ -1651,4 +2218,407 @@
   .cf-ps .st-body {
     animation: none !important;
   }
+}
+
+/* The library on a phone: a tall sheet from the drawer, with a chip per shelf,
+   and holding a tile picks several. */
+.cf-ps.lib .st-bar {
+  grid-template-columns: 76px 1fr 76px;
+}
+.cf-ps .st-bar-t.on {
+  opacity: 1;
+  transform: none;
+}
+.cf-ps .lib-txt {
+  border: 0;
+  background: none;
+  color: var(--s-acc) !important;
+  font-size: 15.5px;
+  font-weight: 500;
+  padding: 6px 0;
+  white-space: nowrap;
+  justify-self: start;
+}
+.cf-ps .lib-txt.r {
+  justify-self: end;
+}
+.cf-ps .lib-head {
+  padding: 0 16px;
+  flex: none;
+}
+.cf-ps .lib-head .st-search {
+  margin-bottom: 10px;
+}
+.cf-ps .lib-hint {
+  font-size: 12.5px;
+  color: var(--s-mut);
+  padding: 2px 2px 0;
+}
+.cf-ps .lib-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0 16px 10px;
+  scrollbar-width: none;
+  flex: none;
+}
+.cf-ps .lib-chips::-webkit-scrollbar {
+  display: none;
+}
+.cf-ps .lib-chip {
+  flex: none;
+  height: 34px;
+  padding: 0 12px 0 10px;
+  border-radius: 99px;
+  border: 0;
+  background: var(--s-card2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--s-mut) !important;
+  white-space: nowrap;
+}
+.cf-ps .lib-chip .i {
+  width: 16px;
+  height: 16px;
+}
+.cf-ps .lib-chip.on {
+  background: color-mix(in srgb, var(--s-acc) 22%, var(--s-card2));
+  color: var(--s-fg) !important;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--s-acc) 70%, transparent);
+}
+.cf-ps .lib-sec {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 20px 2px 10px;
+}
+.cf-ps .st-body > .lib-sec:first-child,
+.cf-ps .st-body > div:first-child > .lib-sec:first-child {
+  margin-top: 8px;
+}
+.cf-ps .lib-sec b {
+  font-size: 16.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cf-ps .lib-sec b small {
+  color: var(--s-mut);
+  font-weight: 500;
+  font-size: 13px;
+  margin-left: 6px;
+}
+.cf-ps .lib-sec button,
+.cf-ps .lib-note button {
+  border: 0;
+  background: none;
+  color: var(--s-acc) !important;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 4px 0;
+  flex: none;
+}
+.cf-ps .lib-grid2 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 10px;
+}
+.cf-ps .lt {
+  border: 0;
+  background: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  text-align: center;
+  position: relative;
+  min-width: 0;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.cf-ps .lt-p {
+  aspect-ratio: 1;
+  border-radius: 18px;
+  background: var(--s-card);
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  overflow: hidden;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s,
+    background 0.25s;
+}
+.cf-ps .lt-p img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+.cf-ps .lt .n {
+  font-size: 12.5px;
+  color: var(--s-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 2px;
+}
+.cf-ps .lt:active .lt-p {
+  transform: scale(0.95);
+}
+.cf-ps .lt .ck {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  background: rgba(0, 0, 0, 0.3);
+  display: grid;
+  place-items: center;
+  color: transparent;
+}
+.cf-ps .lt .ck .i {
+  width: 13px;
+  height: 13px;
+}
+.cf-ps .lt.on .ck {
+  background: var(--s-acc);
+  border-color: var(--s-acc);
+  color: #fff;
+}
+.cf-ps .lt.on .lt-p {
+  box-shadow: inset 0 0 0 2.5px var(--s-acc);
+  transform: scale(0.94);
+}
+.cf-ps.light .lt .ck {
+  border-color: rgba(0, 0, 0, 0.25);
+  background: rgba(255, 255, 255, 0.8);
+}
+.cf-ps .lib-recent {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  margin: 0 -16px;
+  padding: 0 16px 2px;
+  scrollbar-width: none;
+}
+.cf-ps .lib-recent::-webkit-scrollbar {
+  display: none;
+}
+.cf-ps .lib-recent .lt {
+  flex: none;
+  width: 78px;
+}
+.cf-ps .lib-recent .lt-p {
+  border-radius: 16px;
+  padding: 9px;
+}
+.cf-ps .lib-save {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: var(--s-card);
+  border-radius: 18px;
+  padding: 14px;
+  font-size: 13.5px;
+  color: var(--s-mut) !important;
+  line-height: 1.4;
+  border: 0;
+  width: 100%;
+  text-align: left;
+}
+.cf-ps .lib-save b {
+  display: block;
+  color: var(--s-fg);
+  font-size: 14.5px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.cf-ps .lib-save .ico {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--s-acc) 20%, transparent);
+  color: var(--s-acc);
+}
+.cf-ps .lib-empty {
+  text-align: center;
+  padding: 34px 12px;
+}
+.cf-ps .lib-empty .art {
+  width: 84px;
+  height: 84px;
+  margin: 0 auto 16px;
+  border-radius: 26px;
+  background: var(--s-card);
+  display: grid;
+  place-items: center;
+  color: var(--s-mut);
+}
+.cf-ps .lib-empty .art .i {
+  width: 34px;
+  height: 34px;
+}
+.cf-ps .lib-empty b {
+  display: block;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.cf-ps .lib-empty > span {
+  display: block;
+  color: var(--s-mut);
+  font-size: 14px;
+  margin: 6px auto 18px;
+  max-width: 290px;
+  line-height: 1.45;
+}
+.cf-ps .lib-empty .st-btn {
+  width: auto;
+  padding: 0 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cf-ps .lib-count,
+.cf-ps .lib-note {
+  font-size: 13px;
+  color: var(--s-mut);
+  margin: 8px 2px 10px;
+}
+.cf-ps .lib-menu-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+}
+.cf-ps .lib-menu {
+  position: absolute;
+  top: 60px;
+  right: 12px;
+  z-index: 6;
+  width: min(290px, calc(100% - 24px));
+  background: var(--s-card2);
+  border-radius: 18px;
+  padding: 6px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  animation: cf-ps-lib-pop 0.18s cubic-bezier(0.32, 0.72, 0, 1);
+  transform-origin: top right;
+}
+@keyframes cf-ps-lib-pop {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+}
+.cf-ps .lib-menu button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 50px;
+  padding: 6px 12px;
+  border: 0;
+  background: none;
+  border-radius: 12px;
+  font-size: 15px;
+  text-align: left;
+}
+.cf-ps .lib-menu button:active {
+  background: rgba(127, 127, 127, 0.16);
+}
+.cf-ps .lib-menu button .i {
+  flex: none;
+  color: var(--s-mut);
+}
+.cf-ps .lib-menu button small {
+  display: block;
+  font-size: 12px;
+  color: var(--s-mut);
+  margin-top: 1px;
+}
+.cf-ps .lib-menu button:disabled {
+  opacity: 0.45;
+}
+.cf-ps .lib-menu hr {
+  border: 0;
+  border-top: 1px solid var(--s-line);
+  margin: 4px 10px;
+}
+.cf-ps .lib-cta {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+.cf-ps .lib-cta.one {
+  grid-template-columns: 1fr;
+}
+.cf-ps .lib-cta .st-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.cf-ps .lib-cta .st-btn.ghost {
+  padding: 0 16px;
+  color: #ff453a !important;
+}
+/* Browse: the desktop's catalogue list, set in the sheet's cards and buttons. */
+.cf-ps .lib-browse ul {
+  gap: 12px;
+}
+.cf-ps .lib-browse li {
+  background: var(--s-card);
+  border: 0;
+  border-radius: 18px;
+  padding: 8px 8px 12px;
+  gap: 8px;
+}
+.cf-ps .lib-browse li > div:first-child {
+  height: 120px;
+  border-radius: 12px;
+}
+.cf-ps .lib-browse li p:first-child {
+  font-size: 14.5px;
+}
+.cf-ps .lib-browse li p {
+  font-size: 12.5px;
+  color: var(--s-mut);
+}
+.cf-ps .lib-browse li p:first-child {
+  color: var(--s-fg);
+}
+.cf-ps .lib-browse li button {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 99px;
+  border: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  background: var(--s-card2);
+  color: var(--s-fg);
+}
+.cf-ps .lib-browse li button[data-testid='catalogue-add'] {
+  background: var(--s-acc);
+  color: #fff;
+}
+.cf-ps .lib-browse > div > p:last-child {
+  font-size: 12px;
+  color: var(--s-mut);
+  padding: 4px 2px 0;
 }

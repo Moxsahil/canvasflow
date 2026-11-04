@@ -35,7 +35,7 @@ function seconds(ms: number): string {
  * The steps a diagram has been through, in the words for whether each is still
  * happening (`now`) or done. Only steps the stream has shown are listed.
  */
-function useSteps() {
+export function useSteps() {
   const t = useT();
   return (
     progress: DiagramProgress,

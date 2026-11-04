@@ -57,7 +57,7 @@ import {
   type DiagramProblem,
 } from './useDiagramPanel';
 
-const PROBLEM_KEYS: Record<DiagramProblem, WordKey> = {
+export const PROBLEM_KEYS: Record<DiagramProblem, WordKey> = {
   refused: 'diagrams.problem.refused',
   empty: 'diagrams.problem.empty',
   busy: 'diagrams.problem.busy',
@@ -65,7 +65,7 @@ const PROBLEM_KEYS: Record<DiagramProblem, WordKey> = {
   cut: 'diagrams.problem.cut',
 };
 
-const EXAMPLES: ReadonlyArray<{ label: WordKey; text: WordKey }> = [
+export const EXAMPLES: ReadonlyArray<{ label: WordKey; text: WordKey }> = [
   { label: 'diagrams.example.signupLabel', text: 'diagrams.example.signup' },
   { label: 'diagrams.example.pipelineLabel', text: 'diagrams.example.pipeline' },
   { label: 'diagrams.example.teamLabel', text: 'diagrams.example.team' },
@@ -75,10 +75,10 @@ const EXAMPLES: ReadonlyArray<{ label: WordKey; text: WordKey }> = [
  * What + takes. Text files are read into the description; pictures and PDFs
  * can be added and are shown, but the generator does not read them yet.
  */
-const FILE_ACCEPT =
+export const FILE_ACCEPT =
   '.txt,.md,.markdown,.csv,.json,.mmd,.mermaid,text/plain,text/markdown,text/csv,.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp,.pdf,application/pdf';
 
-function kindOf(picked: File): DiagramAttachment['kind'] | null {
+export function kindOf(picked: File): DiagramAttachment['kind'] | null {
   if (/\.(png|jpe?g|webp)$/i.test(picked.name) || /^image\/(png|jpeg|webp)$/.test(picked.type)) {
     return 'image';
   }
@@ -145,7 +145,10 @@ function readHistoryWidth(): number {
 }
 
 /** The plan one step up, where there is one to move to. */
-const NEXT_PLAN: Partial<Record<WorkspacePlan, WorkspacePlan>> = { free: 'pro', pro: 'team' };
+export const NEXT_PLAN: Partial<Record<WorkspacePlan, WorkspacePlan>> = {
+  free: 'pro',
+  pro: 'team',
+};
 
 const ghost = `${button} text-[var(--surface-fg-muted)] hover:bg-[var(--surface-wash)] hover:text-[var(--surface-fg)]`;
 
