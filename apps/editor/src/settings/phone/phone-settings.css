@@ -1550,6 +1550,86 @@
   animation: none;
 }
 
+/* Export image: the picture on top, its size on it, then the choices. */
+.cf-ps .xp-prev {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  height: 210px;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  box-shadow: inset 0 0 0 1px var(--s-line);
+  background: var(--s-card);
+}
+.cf-ps .xp-prev.checker {
+  background: repeating-conic-gradient(#3a3a40 0 25%, #2a2a2f 0 50%) 0 0 / 16px 16px;
+}
+.cf-ps .xp-prev.checker.light,
+.cf-ps.light .xp-prev.checker {
+  background: repeating-conic-gradient(#e2e2e8 0 25%, #f7f7f9 0 50%) 0 0 / 16px 16px;
+}
+.cf-ps .xp-prev img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.cf-ps .xp-badge {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 6px;
+}
+.cf-ps .xp-badge span {
+  padding: 4px 9px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font:
+    500 11.5px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.cf-ps .xp-cap {
+  font-size: 12.5px;
+  color: var(--s-mut);
+  padding: 7px 4px 0;
+  line-height: 1.4;
+  min-height: 24px;
+}
+.cf-ps .xp-acts {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr 1fr;
+  gap: 8px;
+}
+.cf-ps .xp-acts.two {
+  grid-template-columns: 1fr 1.6fr;
+}
+.cf-ps .xp-acts .st-btn {
+  margin: 0;
+  height: 50px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 12.5px;
+}
+.cf-ps .xp-acts .st-btn.main {
+  flex-direction: row;
+  gap: 8px;
+  font-size: 15.5px;
+}
+.cf-ps .xp-acts .st-btn .i {
+  width: 19px;
+  height: 19px;
+}
+
 /* Reduce motion, chosen here or by the phone: sheets and pages appear
    without sliding. */
 .cf-editor[data-reduce-motion] .cf-ps,

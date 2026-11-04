@@ -18,6 +18,8 @@ import {
   WindowHeader,
 } from '../ui/SurfaceWindow';
 import type { SurfaceTheme } from '../ui/surface-palette';
+import { usePhoneWindow } from '../ui/breakpoints';
+import { PhoneExportSheet } from './PhoneExportSheet';
 import {
   canvasToPngBlob,
   copyPngToClipboard,
@@ -27,7 +29,7 @@ import {
   renderExportCanvas,
   type ImageExportSettings,
 } from '../file/export-image';
-import { saveFile } from '../file/save-file';
+import { SAVE_FORMATS, saveFile, toFileName } from '../file/save-file';
 import { track } from '../analytics/analytics';
 import { useT } from '../i18n';
 import { serializeBoardFile } from '../file/board-file';
@@ -167,50 +169,66 @@ export function ExportImageDialog({
     [t],
   );
 
-  const exportPng = useCallback(
+  /** The file as it would be saved: its bytes, its name and its type. */
+  const buildFile = useCallback(async () => {
+    const fileName = settings.embedScene ? `${name}.canvasflow` : name;
+    if (format === 'svg') {
+      // Bytes are fetched rather than taken from the decoded cache, so a
+      // vector stays a vector in the exported file.
+      const dataUrls = await resolveImageDataUrls?.(exported);
+      const rendered = exportSvgString(exported, settings, dataUrls);
+      const svg = settings.embedScene
+        ? embedSceneInSvg(rendered, serializeBoardFile(exported))
+        : rendered;
+      return { data: svg as string | Blob, fileName, format: 'svg' as const };
+    }
+    const { canvas } = renderExportCanvas(exported, settings, images);
+    const png = await canvasToPngBlob(canvas);
+    // Only the exported shapes go in, so opening the image gives back what
+    // the image shows rather than a board that disagrees with it.
+    const blob = settings.embedScene
+      ? await embedSceneInPng(png, serializeBoardFile(exported))
+      : png;
+    return { data: blob as string | Blob, fileName, format: 'png' as const };
+  }, [format, exported, settings, name, images, resolveImageDataUrls]);
+
+  const save = useCallback(
     () =>
       run(async () => {
-        const { canvas } = renderExportCanvas(exported, settings, images);
-        const png = await canvasToPngBlob(canvas);
-        // Only the exported shapes go in, so opening the image gives back what
-        // the image shows rather than a board that disagrees with it.
-        const blob = settings.embedScene
-          ? await embedSceneInPng(png, serializeBoardFile(exported))
-          : png;
+        const file = await buildFile();
         const result = await saveFile({
-          boardName: settings.embedScene ? `${name}.canvasflow` : name,
-          data: blob,
-          format: 'png',
+          boardName: file.fileName,
+          data: file.data,
+          format: file.format,
         });
         if (result.status === 'saved') {
-          track('image_exported', { format: 'png', scene: settings.embedScene });
+          track('image_exported', { format: file.format, scene: settings.embedScene });
           onClose();
         }
       }),
-    [exported, settings, name, onClose, run, images],
+    [buildFile, settings.embedScene, onClose, run],
   );
 
-  const exportSvg = useCallback(
+  /** A phone's own share sheet, with the file attached, where the browser has one. */
+  const share = useCallback(
     () =>
       run(async () => {
-        // Bytes are fetched rather than taken from the decoded cache, so a
-        // vector stays a vector in the exported file.
-        const dataUrls = await resolveImageDataUrls?.(exported);
-        const rendered = exportSvgString(exported, settings, dataUrls);
-        const svg = settings.embedScene
-          ? embedSceneInSvg(rendered, serializeBoardFile(exported))
-          : rendered;
-        const result = await saveFile({
-          boardName: settings.embedScene ? `${name}.canvasflow` : name,
-          data: svg,
-          format: 'svg',
+        const file = await buildFile();
+        const { extension, mimeType } = SAVE_FORMATS[file.format];
+        const attached = new File([file.data], toFileName(file.fileName, extension), {
+          type: mimeType,
         });
-        if (result.status === 'saved') {
-          track('image_exported', { format: 'svg', scene: settings.embedScene });
+        try {
+          await navigator.share({ files: [attached], title: name });
+          track('image_exported', { format: file.format, scene: settings.embedScene });
           onClose();
+        } catch (err) {
+          // Closing the share sheet is a choice, not a failure.
+          if (err instanceof DOMException && err.name === 'AbortError') return;
+          throw err;
         }
       }),
-    [exported, settings, name, onClose, run, resolveImageDataUrls],
+    [buildFile, name, settings.embedScene, onClose, run],
   );
 
   const copyPng = useCallback(
@@ -227,6 +245,50 @@ export function ExportImageDialog({
   // Nothing to export is nothing to measure — see `dimensions`.
   const empty = dimensions === null;
   const titleId = useId();
+  const phone = usePhoneWindow();
+  // Sharing files is a phone browser's, and not every one's.
+  const canShareFiles = useMemo(
+    () =>
+      typeof navigator !== 'undefined' &&
+      typeof navigator.canShare === 'function' &&
+      navigator.canShare({ files: [new File([''], 'x.png', { type: 'image/png' })] }),
+    [],
+  );
+
+  if (phone) {
+    return open ? (
+      <PhoneExportSheet
+        boardName={boardName}
+        theme={theme}
+        preview={preview}
+        empty={empty}
+        dimensions={dimensions}
+        format={format}
+        scale={scale}
+        hasSelection={hasSelection}
+        selectedCount={selectedShapes.length}
+        selectionOnly={selectionOnly && hasSelection}
+        withBackground={withBackground}
+        dark={dark}
+        embedScene={embedScene}
+        name={name}
+        busy={busy}
+        error={error}
+        canShare={canShareFiles}
+        onFormat={setFormat}
+        onScale={setScale}
+        onSelectionOnly={setSelectionOnly}
+        onBackground={setWithBackground}
+        onDark={setDark}
+        onEmbed={setEmbedScene}
+        onName={setName}
+        onCopy={copyPng}
+        onSave={save}
+        onShare={share}
+        onClose={onClose}
+      />
+    ) : null;
+  }
 
   return (
     <SurfaceWindow
@@ -315,11 +377,7 @@ export function ExportImageDialog({
           <Copy aria-hidden="true" />
           {t('export.copy')}
         </WindowButton>
-        <WindowButton
-          variant="primary"
-          onClick={format === 'svg' ? exportSvg : exportPng}
-          disabled={empty || busy}
-        >
+        <WindowButton variant="primary" onClick={save} disabled={empty || busy}>
           <ImageDown aria-hidden="true" />
           {t('common.save')}
         </WindowButton>
