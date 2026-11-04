@@ -2685,10 +2685,7 @@
   position: absolute;
   left: 0;
   top: 0;
-  display: flex;
-  gap: 8px;
-  width: max-content;
-  padding: 2px 16px 12px;
+  height: 50px;
   background: var(--s-fg);
   pointer-events: none;
   transition: clip-path 0.42s cubic-bezier(0.22, 1, 0.36, 1);
@@ -2697,9 +2694,13 @@
   background: #111114;
 }
 .cf-ps .kb-pill .kb-tab {
-  display: inline-grid;
+  position: absolute;
+  top: 2px;
+  display: grid;
   place-items: center;
+  padding: 0;
   background: none;
+  white-space: nowrap;
   color: var(--s-bg) !important;
 }
 .cf-ps.light .kb-pill .kb-tab {

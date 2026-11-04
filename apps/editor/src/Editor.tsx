@@ -1036,6 +1036,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
     local,
     localTitle: t('local.boardTitle'),
     userId: user?.id ?? null,
+    account: user !== null && !user.isGuest,
     onNotice: showToast,
   });
   // Someone outside the board's workspace — let in by a share link — has no

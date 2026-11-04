@@ -381,6 +381,9 @@ export function PhoneDrawer({
               label={t('common.rename')}
               onClick={() => {
                 setSheet(null);
+                // The rename sheet lives outside the drawer: left open, the
+                // drawer would hold the page under its own and take every tap.
+                closeDrawer();
                 state.beginRename(board.id);
               }}
             />
