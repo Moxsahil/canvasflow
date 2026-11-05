@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeDelta, wheelZoomFactor } from './useWheelEvents';
+import { isWheelNotch, normalizeDelta, wheelZoomFactor } from './useWheelEvents';
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 30;
@@ -82,5 +82,19 @@ describe('normalizeDelta', () => {
     const line = applyZoom(1, wheelZoomFactor(3, 1));
     const pixel = applyZoom(1, wheelZoomFactor(48, 0));
     expect(line).toBeCloseTo(pixel, 6);
+  });
+});
+
+describe('isWheelNotch', () => {
+  it('reads a mouse wheel notch as a step to ease', () => {
+    expect(isWheelNotch(100, 0)).toBe(true);
+    expect(isWheelNotch(-120, 0)).toBe(true);
+    expect(isWheelNotch(3, 1)).toBe(true);
+    expect(isWheelNotch(1, 2)).toBe(true);
+  });
+
+  it('leaves a pinch to follow the fingers', () => {
+    expect(isWheelNotch(4, 0)).toBe(false);
+    expect(isWheelNotch(-12.5, 0)).toBe(false);
   });
 });

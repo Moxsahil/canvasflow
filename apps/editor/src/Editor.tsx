@@ -166,6 +166,7 @@ import { PEN_ERASER_BUTTON } from './pointer/usePointerEvents';
 import { useLastPointerPosition } from './pointer/useLastPointerPosition';
 import { CanvasStack } from './canvas/CanvasStack';
 import { createDragPreview } from './canvas/drag-preview';
+import { useBoardFonts } from './fonts/useBoardFonts';
 import { pointerCursorValue } from './canvas/pointer-cursor';
 import { bucketCursorValue } from './canvas/bucket-cursor';
 import { useCameraPersistence } from './canvas/useCameraPersistence';
@@ -320,6 +321,8 @@ import {
 } from './tools/tool';
 import {
   IDENTITY_CAMERA,
+  MAX_ZOOM,
+  MIN_ZOOM,
   newShapeScale,
   type HandleIndex,
   type ItemStyle,
@@ -492,6 +495,12 @@ const DRAG_SPRING = 44;
  * re-rendering for it does not cost the drag its frames.
  */
 const DRAG_WRITE_MS = 120;
+
+/**
+ * How quickly a stepped zoom closes on its new scale, as a time constant in
+ * ms: most of the way there in three of these, about a fifth of a second.
+ */
+const ZOOM_EASE_MS = 65;
 
 const reducedMotionQuery =
   typeof window !== 'undefined'
@@ -1846,6 +1855,85 @@ export function Editor({ boardId, local = false }: EditorProps) {
   );
   useEffect(() => () => cancelAnimationFrame(glideFrame.current), []);
 
+  /**
+   * A zoom by a whole step — a wheel notch, the + and − buttons, the keys —
+   * eases to its new scale instead of jumping there, about the same point.
+   * Steps taken while one is still easing add up: the board heads for where
+   * all of them together lead, so a run of notches is one smooth zoom.
+   *
+   * Eased in scale's own terms (its logarithm), so zooming out by half takes
+   * as long as zooming in by double. It lets go if anything else moves the
+   * zoom meanwhile, as a glide does.
+   */
+  const zoomEaseRef = useRef<{
+    target: number;
+    anchor: Point;
+    sent: number;
+    frame: number;
+    last: number;
+  } | null>(null);
+  const stopSmoothZoom = useCallback(() => {
+    cancelAnimationFrame(zoomEaseRef.current?.frame ?? 0);
+    zoomEaseRef.current = null;
+  }, []);
+  const stepSmoothZoom = useCallback(
+    (now: number) => {
+      const ease = zoomEaseRef.current;
+      if (!ease) return;
+      const zoom = actorRef.getSnapshot().context.camera.zoom;
+      if (Math.abs(zoom - ease.sent) > 1e-9) {
+        zoomEaseRef.current = null;
+        return;
+      }
+      const dt = Math.min(now - ease.last, 50);
+      ease.last = now;
+      const from = Math.log(zoom);
+      const to = Math.log(ease.target);
+      let next = to + (from - to) * Math.exp(-dt / ZOOM_EASE_MS);
+      const done = Math.abs(next - to) < 0.0005;
+      if (done) next = to;
+      actorRef.send({ type: 'ZOOM_BY', delta: Math.exp(next - from), anchor: ease.anchor });
+      ease.sent = actorRef.getSnapshot().context.camera.zoom;
+      if (done) {
+        zoomEaseRef.current = null;
+        return;
+      }
+      ease.frame = requestAnimationFrame(stepSmoothZoom);
+    },
+    [actorRef],
+  );
+  const zoomSmoothly = useCallback(
+    (delta: number, anchor: Point) => {
+      const still = reduceMotion || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      if (still) {
+        stopSmoothZoom();
+        actorRef.send({ type: 'ZOOM_BY', delta, anchor });
+        return;
+      }
+      // A step taken mid-glide takes over from the glide.
+      cancelAnimationFrame(glideFrame.current);
+      const zoom = actorRef.getSnapshot().context.camera.zoom;
+      const ease = zoomEaseRef.current;
+      const from = ease ? ease.target : zoom;
+      const target = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, from * delta));
+      if (ease) {
+        ease.target = target;
+        ease.anchor = anchor;
+        return;
+      }
+      if (target === zoom) return;
+      zoomEaseRef.current = {
+        target,
+        anchor,
+        sent: zoom,
+        last: performance.now(),
+        frame: requestAnimationFrame(stepSmoothZoom),
+      };
+    },
+    [actorRef, reduceMotion, stopSmoothZoom, stepSmoothZoom],
+  );
+  useEffect(() => stopSmoothZoom, [stopSmoothZoom]);
+
   const follow = useFollowMode({
     channel,
     selfUserId: user?.id ?? null,
@@ -2253,6 +2341,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
     [images.cache, resolveImageDataUrls, linkCards.images, resolveCardDataUrls],
   );
   const pictureRevision = images.revision + linkCards.revision;
+  const fontRevision = useBoardFonts(shapes);
 
   /** This board as Export all boards reads it: live, not as last saved. */
   const exportOpenBoard = useMemo(
@@ -2670,13 +2759,16 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // the shape takes the moment it is committed.
   const textEditorColor = editingTopic
     ? topicInk(editingTopic, resolvedTheme === 'dark')
-    : strokeColorFor(
-        editingArrow?.strokeColor ??
-          editingContainer?.strokeColor ??
-          editingText?.strokeColor ??
-          itemStyle.strokeColor,
-        resolvedTheme === 'dark',
-      );
+    : editingContainer?.textColor
+      ? // Words with a colour of their own are that colour on either board.
+        editingContainer.textColor
+      : strokeColorFor(
+          editingArrow?.strokeColor ??
+            editingContainer?.strokeColor ??
+            editingText?.strokeColor ??
+            itemStyle.strokeColor,
+          resolvedTheme === 'dark',
+        );
 
   // Rebuilt only when the marked set actually changes, so the static canvas
   // isn't invalidated on every pointer move of an eraser stroke.
@@ -5035,11 +5127,18 @@ export function Editor({ boardId, local = false }: EditorProps) {
   // the same time, and a chase that silently fights your scrolling feels broken
   // rather than deliberate.
   const handleWheelZoom = useCallback(
-    (delta: number, anchor: Point) => {
+    (delta: number, anchor: Point, stepped: boolean) => {
       follow.notifyUserCameraInput();
+      if (stepped) {
+        zoomSmoothly(delta, anchor);
+        return;
+      }
+      // A pinch is already a stream of small steps, and easing it would only
+      // leave the board trailing the fingers.
+      stopSmoothZoom();
       actorRef.send({ type: 'ZOOM_BY', delta, anchor });
     },
-    [actorRef, follow],
+    [actorRef, follow, zoomSmoothly, stopSmoothZoom],
   );
   const handleWheelPan = useCallback(
     (dx: number, dy: number) => {
@@ -5171,12 +5270,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
   const handleSpaceDown = useCallback(() => actorRef.send({ type: 'SPACE_DOWN' }), [actorRef]);
   const handleSpaceUp = useCallback(() => actorRef.send({ type: 'SPACE_UP' }), [actorRef]);
   const handleZoomIn = useCallback(
-    () => actorRef.send({ type: 'ZOOM_BY', delta: 1.2, anchor: { x: width / 2, y: height / 2 } }),
-    [actorRef, width, height],
+    () => zoomSmoothly(1.2, { x: width / 2, y: height / 2 }),
+    [zoomSmoothly, width, height],
   );
   const handleZoomOut = useCallback(
-    () => actorRef.send({ type: 'ZOOM_BY', delta: 0.8, anchor: { x: width / 2, y: height / 2 } }),
-    [actorRef, width, height],
+    () => zoomSmoothly(0.8, { x: width / 2, y: height / 2 }),
+    [zoomSmoothly, width, height],
   );
   // Nothing to delete in a selection that is all locked — and sending the
   // delete would still let go of the selection, as if something had gone.
@@ -5607,7 +5706,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
         touchCameraRef.current = actorRef.getSnapshot().context.camera;
       },
       pan: handleWheelPan,
-      zoom: handleWheelZoom,
+      zoom: (factor, anchor) => handleWheelZoom(factor, anchor, false),
       end: () => {
         touchCameraRef.current = null;
       },
@@ -7472,6 +7571,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
                   marquee={marquee}
                   images={boardPictures.cache}
                   imageRevision={pictureRevision}
+                  fontRevision={fontRevision}
                   darkMode={resolvedTheme === 'dark'}
                   handleSize={phone ? PHONE_HANDLE_SIZE : undefined}
                   selectionColor={accent === 'blue' ? undefined : selectionColorFor(accent)}

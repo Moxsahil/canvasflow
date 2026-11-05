@@ -17,7 +17,7 @@ import {
 import type { Rect } from '../math.js';
 import { arrowInkBounds } from '../shapes/arrow.js';
 import { arrowLabelLayout, type ArrowLabelLayout } from '../shapes/arrow-label.js';
-import { shapeTextLayout } from '../shapes/shape-text.js';
+import { shapeTextColor, shapeTextLayout } from '../shapes/shape-text.js';
 import { FRAME_LABEL_FONT_SIZE, FRAME_LABEL_GAP, frameLabel } from '../shapes/frame.js';
 import { readBookmarkUrl } from '../shapes/bookmark.js';
 import { resolveEmbed } from '../shapes/embed.js';
@@ -257,7 +257,7 @@ function shapeTextToSvg(shape: TextContainerShape): string {
       (line, index) =>
         `<text x="${num(layout.x)}" y="${num(layout.textTop + index * lineHeight)}" ` +
         `font-family="${escapeXml(layout.fontFamily)}" font-size="${num(layout.fontSize)}px" ` +
-        `fill="${escapeXml(shape.strokeColor)}" text-anchor="${anchor}" ` +
+        `fill="${escapeXml(shapeTextColor(shape))}" text-anchor="${anchor}" ` +
         `dominant-baseline="text-before-edge" style="white-space: pre;">${escapeXml(line)}</text>`,
     )
     .join('');

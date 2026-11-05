@@ -15,6 +15,7 @@ import {
   Layers,
   MoveDown,
   MoveUp,
+  Type,
 } from 'lucide-react';
 import { strokeColorFor } from '@canvasflow/canvas-engine';
 import { cn } from '@/lib/utils';
@@ -34,14 +35,19 @@ import {
   Swatch,
 } from './inspector';
 import { RoundEdgeIcon, SharpEdgeIcon } from './icons';
-import { BACKGROUND_SWATCHES, BUCKET_SWATCHES, NOTE_SWATCHES, STROKE_SWATCHES } from './palette';
+import {
+  BACKGROUND_SWATCHES,
+  BUCKET_SWATCHES,
+  NOTE_SWATCHES,
+  STROKE_SWATCHES,
+  TEXT_SWATCHES,
+} from './palette';
 import type { StyleSurfaceProps } from './PropertiesPanel';
 import {
   ALIGN_OPTIONS,
   ARROW_TYPE_OPTIONS,
   ArrowheadGrid,
   DASH_OPTIONS,
-  FONT_OPTIONS,
   FONT_SIZE_OPTIONS,
   LOOK_OPTIONS,
   MAP_LAYOUT_OPTIONS,
@@ -53,6 +59,7 @@ import {
 } from './style-options';
 import { styleSections } from './style-sections';
 import { useT } from '../i18n';
+import { FontPicker } from './FontPicker';
 
 type HaloMenu =
   | 'stroke'
@@ -61,6 +68,7 @@ type HaloMenu =
   | 'look'
   | 'arrow'
   | 'text'
+  | 'textColour'
   | 'mindMap'
   | 'opacity'
   | 'arrange';
@@ -325,6 +333,27 @@ export function StyleHalo({
             <Chevron />
           </button>
         )}
+        {show.shapeText && (
+          // The words' own colour: an A over a bar of the colour they are.
+          <button
+            type="button"
+            title={t('style.textColour')}
+            aria-label={`${t('style.textColour')}: ${style.textColor ?? paintStroke(style.strokeColor)}`}
+            className={menuChipClasses}
+            {...chipState('textColour')}
+          >
+            <span className="flex flex-col items-center leading-none">
+              <Type aria-hidden="true" className="size-3.5!" />
+              <span
+                className="mt-0.5 h-[3px] w-3.5 rounded-full"
+                style={{
+                  backgroundColor: style.textColor ?? paintStroke(style.strokeColor),
+                }}
+              />
+            </span>
+            <Chevron />
+          </button>
+        )}
         {show.stroke && (
           <button
             type="button"
@@ -432,6 +461,21 @@ export function StyleHalo({
           </button>
         )}
       </div>
+
+      {open?.menu === 'textColour' && (
+        <ColorPickerPopover
+          key="textColour"
+          title={t('style.textColour')}
+          value={style.textColor ?? paintStroke(style.strokeColor)}
+          swatches={TEXT_SWATCHES}
+          position={menuPosition()}
+          trigger={open.trigger}
+          onChange={(next, transient) =>
+            onStyleChange({ textColor: next ?? style.textColor }, transient)
+          }
+          onClose={close}
+        />
+      )}
 
       {(open?.menu === 'stroke' || open?.menu === 'fill') && (
         <ColorPickerPopover
@@ -576,10 +620,9 @@ export function StyleHalo({
           t('style.text'),
           <>
             <InspectorRow label={t('style.font')}>
-              <SegmentedControl
+              <FontPicker
                 label={t('style.font')}
                 value={style.fontFamily}
-                options={FONT_OPTIONS}
                 onChange={(fontFamily) => onStyleChange({ fontFamily })}
               />
             </InspectorRow>
@@ -631,10 +674,9 @@ export function StyleHalo({
               />
             </InspectorRow>
             <InspectorRow label={t('style.font')}>
-              <SegmentedControl
+              <FontPicker
                 label={t('style.font')}
                 value={style.fontFamily}
-                options={FONT_OPTIONS}
                 onChange={(fontFamily) => onStyleChange({ fontFamily })}
               />
             </InspectorRow>

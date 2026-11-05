@@ -1,5 +1,5 @@
 import type { Rect } from '../math.js';
-import { measureTextWidth } from '../utils/text-measure.js';
+import { measureTextWidth, registerTextLayoutCache } from '../utils/text-measure.js';
 import { fontSizeOf, shapeScale, type NoteShape } from './shape.js';
 import { DEFAULT_STROKE_COLOR, resolveBaseStyle, type BaseStyleInput } from './style.js';
 import { DEFAULT_FONT_FAMILY } from './text.js';
@@ -199,6 +199,7 @@ function wrapNoteText(
 
 const layoutCache = new Map<string, NoteLayout>();
 const LAYOUT_CACHE_LIMIT = 512;
+registerTextLayoutCache(() => layoutCache.clear());
 
 type LayoutInput = Pick<
   NoteShape,

@@ -69,6 +69,8 @@ interface CanvasStackProps {
   /** Decoded image bitmaps, and a counter that changes when one lands. */
   images?: ImageSource;
   imageRevision?: number;
+  /** Goes up when a font arrives; see `useBoardFonts`. */
+  fontRevision?: number;
   /** Which board this is. Every layer that paints a shape is told the same. */
   darkMode?: boolean;
   /** The resize handles' size in screen pixels: larger on a phone. */
@@ -129,7 +131,7 @@ interface CanvasStackProps {
   /** A right-button press, settling the selection before the context menu opens. */
   onContextPress?: (point: Point, screenPoint: Point) => void;
   onDoubleClick: (point: Point, screenPoint: Point) => void;
-  onWheelZoom: (delta: number, anchor: Point) => void;
+  onWheelZoom: (delta: number, anchor: Point, stepped: boolean) => void;
   onWheelPan: (dx: number, dy: number) => void;
   isPanning: boolean;
 }
@@ -162,6 +164,7 @@ export function CanvasStack({
   bindingHint,
   images,
   imageRevision,
+  fontRevision,
   darkMode = false,
   handleSize,
   selectionColor,
@@ -215,6 +218,7 @@ export function CanvasStack({
     editingNoteId,
     images,
     imageRevision,
+    fontRevision,
     darkMode,
   });
   useNewElementRender(newElementCanvasRef, {
@@ -244,6 +248,7 @@ export function CanvasStack({
     darkMode,
     handleSize,
     selectionColor,
+    fontRevision,
   });
 
   const screenToWorldFn = useCallback(

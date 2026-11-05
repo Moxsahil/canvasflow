@@ -44,7 +44,7 @@ import {
   TopicRoundedIcon,
   TopicUnderlineIcon,
 } from './icons';
-import { ARROWHEADS, FONT_FAMILIES, FONT_SIZES, STROKE_WIDTHS } from './palette';
+import { ARROWHEADS, FONT_SIZES, STROKE_WIDTHS } from './palette';
 import { useT, type TranslationKey } from '../i18n';
 
 /**
@@ -125,13 +125,6 @@ export const ALIGN_OPTIONS: SegmentOption<ItemStyle['textAlign']>[] = [
   { value: 'right', labelKey: 'style.align.right', icon: <AlignRightIcon /> },
 ];
 
-export const FONT_OPTIONS: SegmentOption<string>[] = FONT_FAMILIES.map(({ value, labelKey }) => ({
-  value,
-  labelKey,
-  // Each family names itself in its own face.
-  icon: <span style={{ fontFamily: value, fontSize: 13 }}>Aa</span>,
-}));
-
 /** Short enough to sit four abreast in the value column. */
 const FONT_SIZE_ABBREVIATIONS: Record<number, string> = { 16: 'S', 20: 'M', 28: 'L', 36: 'XL' };
 export const FONT_SIZE_OPTIONS: SegmentOption<number>[] = FONT_SIZES.map(({ value, labelKey }) => ({
@@ -140,7 +133,7 @@ export const FONT_SIZE_OPTIONS: SegmentOption<number>[] = FONT_SIZES.map(({ valu
   icon: <span>{FONT_SIZE_ABBREVIATIONS[value] ?? value}</span>,
 }));
 
-export const WEIGHT_STEPS = STROKE_WIDTHS.map((width) => width.value);
+export const WEIGHT_STEPS = STROKE_WIDTHS;
 
 export function arrowheadLabel(value: Arrowhead): TranslationKey {
   return ARROWHEADS.find((a) => a.value === value)?.labelKey ?? 'style.arrowhead.none';

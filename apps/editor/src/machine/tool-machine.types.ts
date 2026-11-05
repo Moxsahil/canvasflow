@@ -112,6 +112,8 @@ export interface ItemStyle {
   readonly noteColor: string;
   readonly noteFontSize: number;
   readonly noteTextAlign: 'left' | 'center' | 'right';
+  // a shape's own words: their colour, or null to take the stroke's
+  readonly textColor: string | null;
 }
 
 /** strokeColor matches the first swatch in the panel, so it opens with a selection. */
@@ -139,6 +141,7 @@ export const DEFAULT_ITEM_STYLE: ItemStyle = {
   // than a label, and its words shrink to fit anyway.
   noteFontSize: 28,
   noteTextAlign: 'center',
+  textColor: null,
 };
 
 export interface ToolMachineContext {

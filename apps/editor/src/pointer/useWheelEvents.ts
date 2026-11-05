@@ -2,7 +2,11 @@ import { useEffect, type RefObject } from 'react';
 import type { Point } from '../machine/tool-machine.types';
 
 interface UseWheelEventsOptions {
-  onZoom: (delta: number, anchor: Point) => void;
+  /**
+   * `stepped` for a mouse wheel's notches, which arrive one coarse jump at a
+   * time, as against a pinch's stream of small ones that is smooth already.
+   */
+  onZoom: (delta: number, anchor: Point, stepped: boolean) => void;
   onPan: (dx: number, dy: number) => void;
   eventToCanvasScreen: (event: WheelEvent) => Point;
 }
@@ -59,6 +63,18 @@ export function wheelZoomFactor(deltaY: number, deltaMode = 0): number {
   return Math.exp(-stepped * ZOOM_SENSITIVITY);
 }
 
+/**
+ * Whether a zooming wheel event is a mouse wheel's notch rather than part of
+ * a pinch. A notch reports in lines or pages, or as one big jump of pixels; a
+ * pinch reports a few pixels at a time.
+ */
+export function isWheelNotch(deltaY: number, deltaMode = 0): boolean {
+  return deltaMode !== 0 || Math.abs(deltaY) >= NOTCH_MIN_PX;
+}
+
+/** The smallest pixel delta read as a wheel notch rather than a pinch. */
+const NOTCH_MIN_PX = 50;
+
 export function useWheelEvents(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   { onZoom, onPan, eventToCanvasScreen }: UseWheelEventsOptions,
@@ -80,7 +96,11 @@ export function useWheelEvents(
         // Exponential, so the factor stays positive and one notch is one step
         // regardless of how large a delta the device reports. Negative deltaY
         // (scroll up) zooms in.
-        onZoom(wheelZoomFactor(e.deltaY, e.deltaMode), eventToCanvasScreen(e));
+        onZoom(
+          wheelZoomFactor(e.deltaY, e.deltaMode),
+          eventToCanvasScreen(e),
+          isWheelNotch(e.deltaY, e.deltaMode),
+        );
       } else {
         onPan(-dx, -dy);
       }

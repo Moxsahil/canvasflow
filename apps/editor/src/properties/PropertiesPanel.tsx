@@ -18,7 +18,13 @@ import {
   SegmentedControl,
   StepperControl,
 } from './inspector';
-import { BACKGROUND_SWATCHES, BUCKET_SWATCHES, NOTE_SWATCHES, STROKE_SWATCHES } from './palette';
+import {
+  BACKGROUND_SWATCHES,
+  BUCKET_SWATCHES,
+  NOTE_SWATCHES,
+  STROKE_SWATCHES,
+  TEXT_SWATCHES,
+} from './palette';
 import {
   ALIGN_OPTIONS,
   ARROWHEAD_ICONS,
@@ -26,7 +32,6 @@ import {
   ArrowheadGrid,
   CORNER_OPTIONS,
   DASH_OPTIONS,
-  FONT_OPTIONS,
   FONT_SIZE_OPTIONS,
   LOOK_OPTIONS,
   MAP_LAYOUT_OPTIONS,
@@ -39,6 +44,7 @@ import {
 } from './style-options';
 import { styleSections } from './style-sections';
 import { useT } from '../i18n';
+import { FontPicker } from './FontPicker';
 import './PropertiesPanel.css';
 
 export interface LayerActions {
@@ -75,7 +81,7 @@ export interface StyleSurfaceProps {
 
 /** Which popover is open, and where to anchor it. */
 interface OpenPopover {
-  target: 'stroke' | 'fill' | 'startArrowhead' | 'endArrowhead';
+  target: 'stroke' | 'fill' | 'text' | 'startArrowhead' | 'endArrowhead';
   top: number;
   /** Kept so the outside-click handler can tell the trigger apart from a click-away. */
   trigger: HTMLElement;
@@ -155,10 +161,9 @@ export function PropertiesPanel({
   const textRows = (
     <>
       <InspectorRow label={t('style.font')}>
-        <SegmentedControl
+        <FontPicker
           label={t('style.font')}
           value={style.fontFamily}
-          options={FONT_OPTIONS}
           onChange={(fontFamily) => onStyleChange({ fontFamily })}
         />
       </InspectorRow>
@@ -208,10 +213,9 @@ export function PropertiesPanel({
           </InspectorRow>
           {strokeColourRow}
           <InspectorRow label={t('style.font')}>
-            <SegmentedControl
+            <FontPicker
               label={t('style.font')}
               value={style.fontFamily}
-              options={FONT_OPTIONS}
               onChange={(fontFamily) => onStyleChange({ fontFamily })}
             />
           </InspectorRow>
@@ -386,10 +390,9 @@ export function PropertiesPanel({
             />
           </InspectorRow>
           <InspectorRow label={t('style.font')}>
-            <SegmentedControl
+            <FontPicker
               label={t('style.font')}
               value={style.fontFamily}
-              options={FONT_OPTIONS}
               onChange={(fontFamily) => onStyleChange({ fontFamily })}
             />
           </InspectorRow>
@@ -409,7 +412,21 @@ export function PropertiesPanel({
   if (show.shapeText) {
     sections.push({
       key: 'shapeText',
-      node: <InspectorSection title={t('style.text')}>{textRows}</InspectorSection>,
+      node: (
+        <InspectorSection title={t('style.text')}>
+          {/* Its own colour, so words can be set dark on a bright fill. Until
+              one is picked they show the stroke's, as they are drawn. */}
+          <InspectorRow label={t('style.colour')}>
+            <ColorChip
+              label={t('style.textColour')}
+              value={style.textColor ?? paintStroke(style.strokeColor)}
+              expanded={popover?.target === 'text'}
+              onOpen={openPopover('text')}
+            />
+          </InspectorRow>
+          {textRows}
+        </InspectorSection>
+      ),
     });
   }
 
@@ -459,6 +476,21 @@ export function PropertiesPanel({
           </Fragment>
         ))}
       </aside>
+
+      {popover?.target === 'text' && (
+        <ColorPickerPopover
+          key="text"
+          title={t('style.textColour')}
+          value={style.textColor ?? paintStroke(style.strokeColor)}
+          swatches={TEXT_SWATCHES}
+          position={popoverPosition}
+          trigger={popover.trigger}
+          onChange={(next, transient) =>
+            onStyleChange({ textColor: next ?? style.textColor }, transient)
+          }
+          onClose={closePopover}
+        />
+      )}
 
       {(popover?.target === 'stroke' || popover?.target === 'fill') && (
         <ColorPickerPopover

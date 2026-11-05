@@ -2,12 +2,12 @@
 
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { PanelLeftIcon } from 'lucide-react';
 import { Slot } from 'radix-ui';
 
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
+import { useReduceMotion } from '@/theme/accent';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
@@ -20,6 +20,14 @@ import {
 } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
+/**
+ * How the sidebar opens and closes: off quickly, then a long soft settle — the
+ * menus' highlight curve — over a little longer than a plain slide, so the
+ * board making room can be followed by eye.
+ */
+const SIDEBAR_MOTION =
+  'duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none';
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state';
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
@@ -174,6 +182,31 @@ const Sidebar = React.forwardRef<
 ) {
   const t = useT();
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+  const reduceMotion = useReduceMotion();
+
+  const innerRef = React.useRef<HTMLDivElement>(null);
+
+  // The panel's width eases between open and the rail, but what is in it
+  // cannot: the open sidebar's rows and the rail's icons are laid out
+  // differently, and the one swaps for the other the moment the state turns.
+  // So the contents fade up as the width moves, and the swap reads as one
+  // motion instead of a jump. Skipped on the first render and for whoever
+  // asked for less motion.
+  const previousState = React.useRef(state);
+  React.useEffect(() => {
+    if (previousState.current === state) return;
+    previousState.current = state;
+    const inner = innerRef.current;
+    if (!inner || reduceMotion || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+    inner.animate?.([{ opacity: 0 }, { opacity: 1 }], {
+      duration: 260,
+      delay: 40,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      fill: 'backwards',
+    });
+  }, [state, reduceMotion]);
 
   if (collapsible === 'none') {
     return (
@@ -232,7 +265,8 @@ const Sidebar = React.forwardRef<
       <div
         data-slot="sidebar-gap"
         className={cn(
-          'relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear',
+          'relative w-(--sidebar-width) bg-transparent transition-[width]',
+          SIDEBAR_MOTION,
           'group-data-[collapsible=offcanvas]:w-0',
           'group-data-[side=right]:rotate-180',
           variant === 'floating' || variant === 'inset'
@@ -243,7 +277,8 @@ const Sidebar = React.forwardRef<
       <div
         data-slot="sidebar-container"
         className={cn(
-          'fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex',
+          'fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] md:flex',
+          SIDEBAR_MOTION,
           side === 'left'
             ? 'left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]'
             : 'right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]',
@@ -261,6 +296,7 @@ const Sidebar = React.forwardRef<
         {...props}
       >
         <div
+          ref={innerRef}
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
           className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-card group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border"
@@ -272,6 +308,40 @@ const Sidebar = React.forwardRef<
   );
 });
 
+/**
+ * The sidebar's mark: a rounded window with a short bar inside it, standing
+ * for the panel. The bar sits on the left while the sidebar is out and slides
+ * across to the right when it is put away, so the button shows which way it
+ * will go.
+ */
+function SidebarIcon({
+  open,
+  className,
+  ...props
+}: React.SVGProps<SVGSVGElement> & { open: boolean }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={cn('size-[1.125rem]!', className)}
+      {...props}
+    >
+      <rect x="3" y="5" width="18" height="14" rx="4" />
+      <path
+        d="M7.75 9.5v5"
+        className="transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+        style={{ transform: open ? undefined : 'translateX(8.5px)' }}
+      />
+    </svg>
+  );
+}
+
 const SidebarTrigger = React.forwardRef<
   HTMLButtonElement,
   React.ComponentPropsWithoutRef<typeof Button> & {
@@ -280,7 +350,8 @@ const SidebarTrigger = React.forwardRef<
   }
 >(function SidebarTrigger({ className, onClick, icon, ...props }, ref) {
   const t = useT();
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, state, isMobile, openMobile } = useSidebar();
+  const open = isMobile ? openMobile : state === 'expanded';
 
   return (
     <Button
@@ -296,7 +367,7 @@ const SidebarTrigger = React.forwardRef<
       }}
       {...props}
     >
-      {icon ?? <PanelLeftIcon />}
+      {icon ?? <SidebarIcon open={open} />}
       <span className="sr-only">{t('sidebar.toggle')}</span>
     </Button>
   );

@@ -4,19 +4,19 @@ import { bucketFillColor, nextBucketColor, NOTE_SWATCHES } from './palette';
 
 describe('bucket colours', () => {
   it('pours green when the shared fill colour is transparent', () => {
-    expect(bucketFillColor(null)).toBe('#b2f2bb');
-    expect(bucketFillColor('#ffec99')).toBe('#ffec99');
+    expect(bucketFillColor(null)).toBe('#40c057');
+    expect(bucketFillColor('#fab005')).toBe('#fab005');
   });
 
   it('steps round its swatches, white left out', () => {
-    expect(nextBucketColor('#ffc9c9')).toBe('#b2f2bb');
-    expect(nextBucketColor('#B2F2BB')).toBe('#a5d8ff');
-    expect(nextBucketColor('#ffec99')).toBe('#ffc9c9');
+    expect(nextBucketColor('#fa5252')).toBe('#40c057');
+    expect(nextBucketColor('#40C057')).toBe('#228be6');
+    expect(nextBucketColor('#fab005')).toBe('#fa5252');
   });
 
   it('starts the round at the first swatch from any other colour', () => {
-    expect(nextBucketColor('#ffffff')).toBe('#ffc9c9');
-    expect(nextBucketColor('#123456')).toBe('#ffc9c9');
+    expect(nextBucketColor('#ffffff')).toBe('#fa5252');
+    expect(nextBucketColor('#123456')).toBe('#fa5252');
   });
 });
 

@@ -97,7 +97,8 @@ export interface BaseShape {
  * nothing to hold the two together and nothing left behind when they part.
  *
  * Set in the same three fields a text shape uses, under the same names, so the
- * panel's text controls write to either alike. The colour is the stroke's.
+ * panel's text controls write to either alike. The colour is the stroke's,
+ * unless the words have one of their own.
  *
  * Every field absent means no text, and the defaults for the rest. Absent is
  * what every shape written before this existed says, which is why there is no
@@ -108,6 +109,12 @@ export interface ShapeText {
   readonly fontSize?: number;
   readonly fontFamily?: string;
   readonly textAlign?: 'left' | 'center' | 'right';
+  /**
+   * The words' own colour, painted exactly as stored on either board — so
+   * dark words can be put on a bright fill on the dark board. Absent, they
+   * take the stroke's colour, themed as the stroke is.
+   */
+  readonly textColor?: string;
 }
 
 export interface RectangleShape extends BaseShape, ShapeText {
