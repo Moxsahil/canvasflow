@@ -35,6 +35,7 @@ import { frameChain } from '../frames/membership.js';
 import { FRAME_LABEL_FONT_FAMILY } from '../frames/frame-geometry.js';
 import {
   arrowheadMarks,
+  arrowBendJoins,
   createRoughGenerator,
   freehandPressureSegments,
   generateArrowDrawable,
@@ -375,6 +376,16 @@ function shapeToSvg(
       break;
     case 'arrow': {
       content = drawableToSvg(generator, generateArrowDrawable(source, shape));
+      // The corners of the line filled, as the canvas fills them.
+      for (const join of arrowBendJoins(shape)) {
+        const half = join.size / 2;
+        content +=
+          join.kind === 'square'
+            ? `<rect x="${num(join.x - half)}" y="${num(join.y - half)}" width="${num(join.size)}" ` +
+              `height="${num(join.size)}" fill="${escapeXml(shape.strokeColor)}"/>`
+            : `<circle cx="${num(join.x)}" cy="${num(join.y)}" r="${num(half)}" ` +
+              `fill="${escapeXml(shape.strokeColor)}"/>`;
+      }
       for (const mark of arrowheadMarks(shape)) {
         // Solid markers even on a dashed arrow, matching the canvas renderer.
         const common = `stroke="${escapeXml(shape.strokeColor)}" stroke-width="${num(

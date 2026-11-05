@@ -25,3 +25,4 @@ export * from './lock.js';
 export * from './visibility.js';
 export * from './rotation.js';
 export * from './rotate-handle.js';
+export * from './elbow-route.js';

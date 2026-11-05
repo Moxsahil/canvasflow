@@ -226,6 +226,8 @@ function rebuildShape(
         endArrowhead: oneOf(candidate.endArrowhead, ARROWHEADS),
         arrowType: oneOf(candidate.arrowType, ARROW_TYPES),
         label: text(candidate.label),
+        edges: oneOf(candidate.edges, EDGES),
+        routeFixed: candidate.routeFixed === true,
       });
     }
 

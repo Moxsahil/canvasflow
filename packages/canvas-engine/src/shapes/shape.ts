@@ -183,6 +183,19 @@ export interface ArrowShape extends BaseShape {
   readonly startBinding: ArrowBinding | null;
   readonly endBinding: ArrowBinding | null;
   /**
+   * Whether the bends of a line drawn with corners — an elbow arrow, or a
+   * straight one with points added — are rounded off. Absent on arrows made
+   * before it could be chosen, which are sharp.
+   */
+  readonly edges?: Edges;
+  /**
+   * An elbow arrow whose route someone has shaped by dragging one of its
+   * runs: its bends are kept as they were placed, and only the runs at the
+   * two ends follow the shapes they are attached to. Absent or false, the
+   * route is worked out afresh whenever anything it depends on moves.
+   */
+  readonly routeFixed?: boolean;
+  /**
    * Text carried at the arrow's midpoint, empty when it has none.
    *
    * A field rather than a text shape tied to the arrow: there is no second

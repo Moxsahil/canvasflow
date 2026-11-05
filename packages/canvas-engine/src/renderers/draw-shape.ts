@@ -24,6 +24,7 @@ import {
   generateFreehandFillDrawable,
   drawShape,
   drawArrowheads,
+  drawArrowBendJoins,
   drawFreehandPressure,
   drawText,
 } from '../utils/rough.js';
@@ -190,6 +191,7 @@ export function drawSceneShape(
         clipOutsideLabel(ctx, painted, label.box);
       }
       drawShape(rc, generateArrowDrawable(rc, painted));
+      drawArrowBendJoins(ctx, painted);
       drawArrowheads(ctx, painted);
       if (label) {
         ctx.restore();

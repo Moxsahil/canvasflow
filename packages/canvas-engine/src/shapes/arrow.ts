@@ -7,6 +7,7 @@ import {
   type Arrowhead,
   type ArrowType,
   type BaseStyleInput,
+  type Edges,
 } from './style.js';
 import { strokeWidthOf } from './shape.js';
 
@@ -29,6 +30,8 @@ export function createArrow(
     startBinding?: ArrowBinding | null;
     endBinding?: ArrowBinding | null;
     label?: string;
+    edges?: Edges;
+    routeFixed?: boolean;
   },
 ): ArrowShape {
   if (input.points.length < 2) {
@@ -46,6 +49,8 @@ export function createArrow(
     startBinding: input.startBinding ?? null,
     endBinding: input.endBinding ?? null,
     label: input.label ?? '',
+    edges: input.edges ?? 'sharp',
+    ...(input.routeFixed ? { routeFixed: true } : {}),
     ...resolveBaseStyle(input),
     // Arrows enclose no area.
     fillColor: null,

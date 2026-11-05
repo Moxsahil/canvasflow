@@ -67,11 +67,12 @@ describe('StyleHalo', () => {
     expect(chips(render(['text']))).toEqual(['Text colour', 'Text style', 'Opacity', 'Arrange']);
   });
 
-  it('gives an arrow its own chip, and no fill', () => {
+  it('gives an arrow its own chip, rounded bends, and no fill', () => {
     expect(chips(render(['arrow']))).toEqual([
       'Stroke colour',
       'Line',
       'Look',
+      'Rounded corners',
       'Arrow',
       'Opacity',
       'Arrange',

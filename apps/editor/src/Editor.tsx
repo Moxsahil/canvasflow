@@ -8,6 +8,12 @@ import {
   bindingAt,
   bindingPointOf,
   bindingTargetAt,
+  ELBOW_PADDING,
+  elbowBindingAt,
+  elbowRouteTouches,
+  arrowIsBoundTo,
+  isUnroutedElbow,
+  withElbowRoute,
   withPinnedBindings,
   type BindingHint,
   boundArrowPatches,
@@ -80,6 +86,7 @@ import {
   visibleShapes,
   withHandlePointInserted,
   withHandlePointMoved,
+  withSegmentMoved,
   membershipAfterResize,
   parseEmbedInput,
   readBookmarkUrl,
@@ -158,6 +165,7 @@ import { useBoardItemTouchGuard } from './pointer/useBoardItemTouchGuard';
 import { PEN_ERASER_BUTTON } from './pointer/usePointerEvents';
 import { useLastPointerPosition } from './pointer/useLastPointerPosition';
 import { CanvasStack } from './canvas/CanvasStack';
+import { createDragPreview } from './canvas/drag-preview';
 import { pointerCursorValue } from './canvas/pointer-cursor';
 import { bucketCursorValue } from './canvas/bucket-cursor';
 import { useCameraPersistence } from './canvas/useCameraPersistence';
@@ -472,6 +480,25 @@ const PHONE_HANDLE_SIZE = 16;
 /** How long the board takes to slide aside by itself, as for the phone's style panel. */
 const CAMERA_GLIDE_MS = 450;
 
+/**
+ * How tightly a drag follows the pointer, per second. Higher is snappier;
+ * at this the selection trails a moving pointer by about 1/22 s.
+ */
+const DRAG_SPRING = 44;
+
+/**
+ * How often a drag drawn ahead of the document writes it, in ms: often enough
+ * for the people watching to see it move, rarely enough that the editor
+ * re-rendering for it does not cost the drag its frames.
+ */
+const DRAG_WRITE_MS = 120;
+
+const reducedMotionQuery =
+  typeof window !== 'undefined'
+    ? window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    : undefined;
+const prefersReducedMotion = () => reducedMotionQuery?.matches ?? false;
+
 /** What the packs that come with the editor hold, for the phone drawer's Library row. */
 const PACK_ITEM_COUNT = LIBRARY_PACKS.reduce((sum, pack) => sum + pack.items.length, 0);
 
@@ -535,13 +562,17 @@ function attachArrowEnds(arrow: ArrowShape, shapes: readonly Shape[]): ArrowShap
  */
 function reattachArrowEnd(arrow: ArrowShape, index: number, shapes: readonly Shape[]): ArrowShape {
   // An arrow with a bend in it is routed by hand and never attaches to
-  // anything, here or anywhere else — see `arrowsAffectedBy`.
-  if (arrow.points.length !== 2 || (index !== 0 && index !== 1)) return arrow;
+  // anything, here or anywhere else — see `arrowsAffectedBy`. An elbow
+  // arrow's bends are routed for it, and its two ends attach as any do.
+  const elbow = arrow.arrowType === 'elbow';
+  const last = arrow.points.length - 1;
+  if (!elbow && arrow.points.length !== 2) return arrow;
+  if (index !== 0 && index !== last) return arrow;
 
   const atStart = index === 0;
   const [px, py] = arrow.points[index]!;
   const point = { x: arrow.x + px, y: arrow.y + py };
-  const [ox, oy] = arrow.points[1 - index]!;
+  const [ox, oy] = arrow.points[atStart ? last : 0]!;
   const otherPoint = { x: arrow.x + ox, y: arrow.y + oy };
   // As for an arrow just drawn: nothing locked or hidden takes hold of it.
   const targets = withoutLocked(visibleShapes(shapes), lockedShapeIds(shapes));
@@ -549,9 +580,10 @@ function reattachArrowEnd(arrow: ArrowShape, index: number, shapes: readonly Sha
   // Nor the shape the other end holds: there is no line between a shape and
   // itself to stop at either end of.
   const other = atStart ? arrow.endBinding : arrow.startBinding;
+  const bind = elbow ? elbowBindingAt : bindingAt;
   const binding =
     target && target.id !== other?.shapeId
-      ? bindingAt(target, point, otherPoint, ARROW_BIND_MARGIN)
+      ? bind(target, point, otherPoint, ARROW_BIND_MARGIN)
       : null;
 
   return atStart ? { ...arrow, startBinding: binding } : { ...arrow, endBinding: binding };
@@ -596,12 +628,64 @@ function arrowEndsAttached(arrow: ArrowShape, shapes: readonly Shape[]): ArrowSh
   if (startTarget && endTarget && startTarget.id === endTarget.id) return null;
 
   // Each end fixed at the spot of the outline it was let go at — see
-  // `bindingAt` — and from now on it stays on that spot.
+  // `bindingAt` — and from now on it stays on that spot. An elbow arrow's
+  // ends take the middle of a side instead, where its line comes in square.
+  const bind = arrow.arrowType === 'elbow' ? elbowBindingAt : bindingAt;
   return {
     ...arrow,
-    startBinding: startTarget ? bindingAt(startTarget, start, end, ARROW_BIND_MARGIN) : null,
-    endBinding: endTarget ? bindingAt(endTarget, end, start, ARROW_BIND_MARGIN) : null,
+    startBinding: startTarget ? bind(startTarget, start, end, ARROW_BIND_MARGIN) : null,
+    endBinding: endTarget ? bind(endTarget, end, start, ARROW_BIND_MARGIN) : null,
   };
+}
+
+/**
+ * Arrows whose type was just changed, put into the shape the new type draws.
+ *
+ * One turned into an elbow arrow is routed. One turned back from an elbow
+ * arrow keeps only its two ends — its bends were the route, not something
+ * anyone placed — and is settled back onto what it is attached to.
+ */
+function rerouteRetypedArrows(
+  doc: BoardDocument,
+  before: readonly Shape[],
+  ids: readonly string[],
+): void {
+  const wanted = new Set(ids);
+  const was = new Map(before.filter((shape) => wanted.has(shape.id)).map((s) => [s.id, s]));
+  const board = doc.getShapes();
+  const byId = shapesByIdOf(board);
+  const straightened: string[] = [];
+  for (const shape of board) {
+    const old = was.get(shape.id);
+    if (!old || !isArrow(shape) || !isArrow(old) || old.arrowType === shape.arrowType) continue;
+    if (shape.arrowType === 'elbow') {
+      const routed = withElbowRoute(shape, byId);
+      doc.updateShape(shape.id, {
+        x: routed.x,
+        y: routed.y,
+        points: routed.points,
+      } as Partial<Shape>);
+    } else if (old.arrowType === 'elbow' && shape.points.length > 2) {
+      const last = shape.points[shape.points.length - 1]!;
+      doc.updateShape(shape.id, { points: [shape.points[0]!, last] } as Partial<Shape>);
+      straightened.push(shape.id);
+    }
+  }
+  if (straightened.length > 0) settleBoundArrowsInDocument(doc, new Set(straightened));
+}
+
+/** The board keyed by id. */
+function shapesByIdOf(shapes: readonly Shape[]): Map<string, Shape> {
+  return new Map(shapes.map((shape) => [shape.id, shape]));
+}
+
+/**
+ * An elbow arrow being drawn, as it will land: its ends attached to what they
+ * are over, when arrows attach, and routed between them.
+ */
+function routedElbowDraft(arrow: ArrowShape, shapes: readonly Shape[], bind: boolean): ArrowShape {
+  const attached = bind ? (arrowEndsAttached(arrow, shapes) ?? arrow) : arrow;
+  return withElbowRoute(attached, shapesByIdOf(shapes));
 }
 
 /**
@@ -630,8 +714,12 @@ function affectedArrowIds(
 }
 
 /** The board keyed by id, for a gesture that is going to be redrawing arrows. */
-function shapeMapFor(shapes: readonly Shape[], arrowIds: ReadonlySet<string>): Map<string, Shape> {
-  if (arrowIds.size === 0) return new Map();
+function shapeMapFor(
+  shapes: readonly Shape[],
+  arrowIds: ReadonlySet<string>,
+  wholeBoard = false,
+): Map<string, Shape> {
+  if (arrowIds.size === 0 && !wholeBoard) return new Map();
   return new Map(shapes.map((shape) => [shape.id, shape]));
 }
 
@@ -648,19 +736,115 @@ function settleBoundArrows(
   shapesById: Map<string, Shape>,
   arrowIds: ReadonlySet<string>,
 ): void {
+  for (const [id, geometry] of boundArrowGeometry(shapesById, arrowIds)) {
+    // An arrow following what it is attached to moves even when locked: the
+    // lock holds it to that shape, and this is the shape moving it.
+    doc.updateShape(id, geometry, { allowLocked: true });
+  }
+}
+
+/**
+ * Where the named arrows go to stay on the shapes they are attached to,
+ * without writing it anywhere but the map — for a drag drawing ahead of the
+ * document.
+ */
+function boundArrowGeometry(
+  shapesById: Map<string, Shape>,
+  arrowIds: ReadonlySet<string>,
+): Map<string, Partial<Shape>> {
+  const moved = new Map<string, Partial<Shape>>();
   const arrows: ArrowShape[] = [];
   for (const id of arrowIds) {
     const shape = shapesById.get(id);
     if (shape && isArrow(shape)) arrows.push(shape);
   }
-  if (arrows.length === 0) return;
+  if (arrows.length === 0) return moved;
 
   for (const patch of boundArrowPatches(arrows, shapesById)) {
-    const geometry = { x: patch.x, y: patch.y, points: patch.points };
-    // An arrow following what it is attached to moves even when locked: the
-    // lock holds it to that shape, and this is the shape moving it.
-    doc.updateShape(patch.id, geometry as Partial<Shape>, { allowLocked: true });
+    const geometry = {
+      x: patch.x,
+      y: patch.y,
+      points: patch.points,
+      ...(patch.routeFixed !== undefined && { routeFixed: patch.routeFixed }),
+    } as Partial<Shape>;
+    moved.set(patch.id, geometry);
     shapesById.set(patch.id, { ...shapesById.get(patch.id)!, ...geometry } as Shape);
+  }
+  return moved;
+}
+
+const NO_ZONES: readonly Rect[] = [];
+
+/** A box grown on every side. */
+function grownRect(box: Rect, by: number): Rect {
+  return { x: box.x - by, y: box.y - by, width: box.width + by * 2, height: box.height + by * 2 };
+}
+
+/**
+ * Where the shapes about to move stand, as an elbow route keeps clear of
+ * them — or nothing, when no elbow arrow on the board is routed for itself
+ * and so none could care.
+ */
+function elbowDetourZones(shapes: readonly Shape[], moving: ReadonlySet<string>): readonly Rect[] {
+  const routed = shapes.some(
+    (shape) => isArrow(shape) && shape.arrowType === 'elbow' && !shape.routeFixed,
+  );
+  if (!routed) return NO_ZONES;
+  const zones: Rect[] = [];
+  for (const shape of shapes) {
+    if (moving.has(shape.id) && !isArrow(shape))
+      zones.push(grownRect(shapeBounds(shape), ELBOW_PADDING));
+  }
+  return zones;
+}
+
+/**
+ * Elbow arrows a moving shape has come into the way of, or gone out of the
+ * way of, routed again — the ones not attached to it, which are redrawn with
+ * it anyway. Only arrows that route themselves: one shaped by hand keeps its
+ * shape until someone changes it.
+ */
+function rerouteCrossedElbows(
+  doc: BoardDocument,
+  shapesById: Map<string, Shape>,
+  moving: ReadonlySet<string>,
+  startZones: readonly Rect[],
+): void {
+  const zones = [...startZones];
+  for (const id of moving) {
+    const shape = shapesById.get(id);
+    if (shape && !isArrow(shape)) zones.push(grownRect(shapeBounds(shape), ELBOW_PADDING));
+  }
+  if (zones.length === 0) return;
+  for (const shape of [...shapesById.values()]) {
+    if (!isArrow(shape) || shape.arrowType !== 'elbow' || shape.routeFixed) continue;
+    if (moving.has(shape.id) || arrowIsBoundTo(shape, moving)) continue;
+    if (!elbowRouteTouches(shape, zones)) continue;
+    const routed = withElbowRoute(shape, shapesById);
+    const same =
+      routed.points.length === shape.points.length &&
+      routed.points.every(
+        ([x, y], i) =>
+          Math.abs(routed.x + x - (shape.x + shape.points[i]![0])) < 0.0005 &&
+          Math.abs(routed.y + y - (shape.y + shape.points[i]![1])) < 0.0005,
+      );
+    if (same) continue;
+    const geometry = { x: routed.x, y: routed.y, points: routed.points };
+    doc.updateShape(shape.id, geometry as Partial<Shape>, { allowLocked: true });
+    shapesById.set(shape.id, { ...shape, ...geometry });
+  }
+}
+
+/** Everything a frame of a gesture redraws: attached arrows, then arrows it has got in the way of. */
+function settleGestureArrows(
+  doc: BoardDocument,
+  shapesById: Map<string, Shape>,
+  arrowIds: ReadonlySet<string>,
+  detours: { moving: ReadonlySet<string>; zones: readonly Rect[] },
+): void {
+  settleBoundArrows(doc, shapesById, arrowIds);
+  if (detours.zones.length > 0) {
+    rerouteCrossedElbows(doc, shapesById, detours.moving, detours.zones);
   }
 }
 
@@ -1253,6 +1437,17 @@ export function Editor({ boardId, local = false }: EditorProps) {
       if (fixed !== shape) pinned.push(fixed);
     }
     if (pinned.length > 0) doc.pinArrowBindings(pinned);
+
+    // Elbow arrows from before they were routed are drawn as one level run
+    // and one upright one, through whatever is in the way. Routed as the
+    // board opens, the same way: nobody's edit, and no undo step.
+    for (const shape of shapes) {
+      if (!isArrow(shape) || !isUnroutedElbow(shape)) continue;
+      byId ??= new Map(shapes.map((each) => [each.id, each]));
+      const pin = pinned.find((each) => each.id === shape.id);
+      const routed = withElbowRoute(pin ? { ...shape, ...pin } : shape, byId);
+      doc.settleShape(shape.id, { x: routed.x, y: routed.y, points: routed.points });
+    }
   }, [doc, shapes, readOnly]);
 
   const comments = useComments(doc);
@@ -2752,6 +2947,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
         for (const id of selectedIds) {
           doc.updateShape(id, rest);
         }
+        if (rest.arrowType !== undefined) rerouteRetypedArrows(doc, current, selectedIds);
         const topics = selectedIds.filter((id) =>
           current.some((shape) => shape.id === id && isTopic(shape)),
         );
@@ -2856,6 +3052,13 @@ export function Editor({ boardId, local = false }: EditorProps) {
   /** Arrows this gesture has to redraw, decided once when it began. */
   const boundArrowsRef = useRef<ReadonlySet<string>>(EMPTY_IDS);
   /**
+   * Where the shapes a gesture moves stood when it began, padded as a route
+   * keeps clear of them: an elbow arrow that went round one of them is routed
+   * again once it has gone, and straightens. Empty when the board has no
+   * routed elbow arrows to care.
+   */
+  const detourZonesRef = useRef<readonly Rect[]>(NO_ZONES);
+  /**
    * The board as this gesture last left it.
    *
    * Only built when there is an attached arrow to redraw, and then kept current
@@ -2955,8 +3158,16 @@ export function Editor({ boardId, local = false }: EditorProps) {
     setTyping({ shapeId: typed.id, text });
   }, [editingTextShapeId, shapes, liveText, liveTextAt, textEditingAt, setTyping]);
 
+  // An elbow arrow is drawn routed from the first move: out of the side of
+  // the shape it starts on, round whatever is in the way, and into the side
+  // of the shape it is over — which is what it will be when let go.
+  const shownNewElement = useMemo(() => {
+    if (!newElement || !isArrow(newElement) || newElement.arrowType !== 'elbow') return newElement;
+    return routedElbowDraft(newElement, shapes, bindArrowsRef.current);
+  }, [newElement, shapes]);
+
   const draft = useMemo<Shape | null>(() => {
-    if (newElement) return newElement;
+    if (shownNewElement) return shownNewElement;
     // Only a box being made from nothing: editing a shape that already exists
     // previews itself, on the shape.
     if (!textEditingAt || editingTextShapeId || !liveText.trim()) return null;
@@ -2972,7 +3183,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       textAlign: itemStyle.textAlign,
       scale: newTextScale,
     });
-  }, [newElement, textEditingAt, editingTextShapeId, liveText, itemStyle, newTextScale]);
+  }, [shownNewElement, textEditingAt, editingTextShapeId, liveText, itemStyle, newTextScale]);
 
   // Published from the machine's own preview rather than the pointer handlers,
   // so every tool that draws something gets this for free — and so the draft
@@ -3026,7 +3237,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
       // during the gesture because it is the released ends that matter, and
       // they are not settled until the arrow is.
       const bindable = isArrow(placed) && bindArrowsRef.current;
-      const bound = bindable ? attachArrowEnds(placed as ArrowShape, doc.getShapes()) : placed;
+      const attached = bindable ? attachArrowEnds(placed as ArrowShape, doc.getShapes()) : placed;
+      // An elbow arrow lands routed, attached or not.
+      const bound =
+        isArrow(attached) && attached.arrowType === 'elbow'
+          ? withElbowRoute(attached, shapesByIdOf(doc.getShapes()))
+          : attached;
       doc.addShape(bound);
 
       // Settled straight away, so an arrow drawn across a shape stops at its
@@ -3474,7 +3690,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
           const selectedShape = shapes.find((s) => s.id === selectedIds[0]);
           if (selectedShape && hasPointHandles(selectedShape)) {
             const handle = shapeHandleAt(selectedShape, point.x, point.y, camera.zoom);
-            if (handle) {
+            if (handle?.type === 'segment') {
+              // A run slid sideways keeps both ends attached: nothing is let go.
+              hitVertex = { index: handle.index, inserts: false, segment: true };
+              vertexOriginRef.current = selectedShape;
+              vertexReleasedRef.current = false;
+            } else if (handle) {
               const inserts = handle.type !== 'vertex';
               hitVertex = { index: handle.index, inserts };
               // The point a midpoint handle creates is made here rather than on
@@ -3600,7 +3821,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
         const moving = new Set([resizeOriginRef.current.id]);
         measureSnapTargets(moving);
         boundArrowsRef.current = affectedArrowIds(shapes, moving);
-        gestureShapesRef.current = shapeMapFor(shapes, boundArrowsRef.current);
+        detourZonesRef.current = elbowDetourZones(shapes, moving);
+        gestureShapesRef.current = shapeMapFor(
+          shapes,
+          boundArrowsRef.current,
+          detourZonesRef.current.length > 0,
+        );
       } else if (tool === 'select' && hitShapeId) {
         const moving = new Set(Object.keys(dragOriginsRef.current));
         measureSnapTargets(moving);
@@ -3611,7 +3837,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
           ? { note: held, spots: freeNoteSpots(shownShapes, held, moving) }
           : null;
         boundArrowsRef.current = affectedArrowIds(shapes, moving);
-        gestureShapesRef.current = shapeMapFor(shapes, boundArrowsRef.current);
+        detourZonesRef.current = elbowDetourZones(shapes, moving);
+        gestureShapesRef.current = shapeMapFor(
+          shapes,
+          boundArrowsRef.current,
+          detourZonesRef.current.length > 0,
+        );
       } else if (DRAWS_FROM_POINTER.has(tool)) {
         measureSnapTargets(new Set<string>());
         boundArrowsRef.current = EMPTY_IDS;
@@ -3758,6 +3989,171 @@ export function Editor({ boardId, local = false }: EditorProps) {
         }
       : null;
 
+  /** Writes everything being dragged to `dx`, `dy` from where it was picked up. */
+  const placeDragged = useCallback(
+    (dx: number, dy: number) => {
+      const redrawingArrows = boundArrowsRef.current.size > 0 || detourZonesRef.current.length > 0;
+      const updates: ShapeUpdate[] = [];
+      for (const [id, origin] of Object.entries(dragOriginsRef.current)) {
+        const moved = { x: origin.x + dx, y: origin.y + dy };
+        updates.push({ id, patch: moved });
+        if (redrawingArrows) {
+          gestureShapesRef.current.set(id, { ...origin, ...moved });
+        }
+      }
+      // One write for the lot, rather than one per shape: each write asks
+      // the document what is locked, and a frame full of shapes is a lot of
+      // asking for every frame of a drag.
+      doc.updateShapes(updates, { allowLocked: carriedLockedRef.current });
+      // After the shapes have moved, not before: an arrow works out where to
+      // stop from where the shapes it is attached to are now.
+      if (redrawingArrows) {
+        settleGestureArrows(doc, gestureShapesRef.current, boundArrowsRef.current, {
+          moving: new Set(Object.keys(dragOriginsRef.current)),
+          zones: detourZonesRef.current,
+        });
+      }
+    },
+    [doc],
+  );
+  const placeDraggedRef = useRef(placeDragged);
+  placeDraggedRef.current = placeDragged;
+
+  /** Draws everything being dragged at `dx`, `dy`, ahead of the document. */
+  const [dragPreview] = useState(createDragPreview);
+  const previewDragged = useCallback(
+    (dx: number, dy: number) => {
+      const shown = new Map<string, Partial<Shape>>();
+      const redrawingArrows = boundArrowsRef.current.size > 0;
+      for (const [id, origin] of Object.entries(dragOriginsRef.current)) {
+        const moved = { x: origin.x + dx, y: origin.y + dy };
+        shown.set(id, moved);
+        if (redrawingArrows) {
+          gestureShapesRef.current.set(id, { ...origin, ...moved });
+        }
+      }
+      if (redrawingArrows) {
+        for (const [id, geometry] of boundArrowGeometry(
+          gestureShapesRef.current,
+          boundArrowsRef.current,
+        )) {
+          shown.set(id, geometry);
+        }
+      }
+      dragPreview.set(shown);
+    },
+    [dragPreview],
+  );
+
+  /**
+   * A drag follows the pointer on a spring rather than jumping to it, so the
+   * selection flows after the hand instead of stepping with every pointer
+   * event. `target` is where the pointer says it should be; `shown` is where
+   * it is drawn, and closes on the target a frame at a time; `written` is
+   * where the document last had it.
+   *
+   * The frames in between are drawn from the drag preview, which only the
+   * canvases listen to; the document — and with it the rest of the editor
+   * and everyone else on the board — catches up every `DRAG_WRITE_MS`. A
+   * drag carrying an embed writes every frame instead: its page is a DOM
+   * layer that only follows the document.
+   */
+  const dragFollowRef = useRef<{
+    target: Point;
+    shown: Point;
+    written: Point | null;
+    writtenAt: number;
+    velocity: Point;
+    frame: number;
+    last: number;
+    preview: boolean;
+  } | null>(null);
+  const reduceMotionRef = useRef(reduceMotion);
+  reduceMotionRef.current = reduceMotion;
+
+  const stepDragFollow = useCallback(
+    (now: number) => {
+      const follow = dragFollowRef.current;
+      if (!follow) return;
+      // A dropped frame is caught up in one step, not replayed: a long pause
+      // would otherwise send the selection flying past the pointer.
+      const dt = Math.min((now - follow.last) / 1000, 1 / 20);
+      follow.last = now;
+      const axis = (shown: number, velocity: number, target: number) => {
+        // Critically damped: as quick as it can be without overshooting.
+        const offset = shown - target;
+        const carry = velocity + DRAG_SPRING * offset;
+        const decay = Math.exp(-DRAG_SPRING * dt);
+        return {
+          at: target + (offset + carry * dt) * decay,
+          velocity: (velocity - DRAG_SPRING * carry * dt) * decay,
+        };
+      };
+      const x = axis(follow.shown.x, follow.velocity.x, follow.target.x);
+      const y = axis(follow.shown.y, follow.velocity.y, follow.target.y);
+      const zoom = cameraRef.current.zoom;
+      const resting =
+        Math.hypot(x.at - follow.target.x, y.at - follow.target.y) * zoom < 0.25 &&
+        Math.hypot(x.velocity, y.velocity) * zoom < 10;
+      follow.shown = resting ? { ...follow.target } : { x: x.at, y: y.at };
+      follow.velocity = resting ? { x: 0, y: 0 } : { x: x.velocity, y: y.velocity };
+      const { x: dx, y: dy } = follow.shown;
+      if (!follow.preview || resting || now - follow.writtenAt >= DRAG_WRITE_MS) {
+        placeDraggedRef.current(dx, dy);
+        follow.written = follow.shown;
+        follow.writtenAt = now;
+      }
+      if (follow.preview) previewDragged(dx, dy);
+      follow.frame = resting ? 0 : requestAnimationFrame(stepDragFollow);
+    },
+    [previewDragged],
+  );
+
+  /** Sends the drag on its way to `dx`, `dy`; instant for whoever asked for less motion. */
+  const followDrag = useCallback(
+    (dx: number, dy: number) => {
+      if (reduceMotionRef.current || prefersReducedMotion()) {
+        dragFollowRef.current = null;
+        placeDraggedRef.current(dx, dy);
+        return;
+      }
+      const follow = (dragFollowRef.current ??= {
+        target: { x: 0, y: 0 },
+        shown: { x: 0, y: 0 },
+        written: null,
+        writtenAt: performance.now(),
+        velocity: { x: 0, y: 0 },
+        frame: 0,
+        last: 0,
+        preview: !Object.values(dragOriginsRef.current).some(isEmbed),
+      });
+      follow.target = { x: dx, y: dy };
+      if (follow.frame === 0) {
+        follow.last = performance.now();
+        follow.frame = requestAnimationFrame(stepDragFollow);
+      }
+    },
+    [stepDragFollow],
+  );
+
+  /**
+   * Ends the follow with the selection exactly where the pointer put it, so
+   * everything settled on release — frames joined, the undo step closed —
+   * sees the shapes where they landed.
+   */
+  const finishDragFollow = useCallback(() => {
+    const follow = dragFollowRef.current;
+    dragFollowRef.current = null;
+    if (!follow) return;
+    cancelAnimationFrame(follow.frame);
+    const { target, written } = follow;
+    if (!written || written.x !== target.x || written.y !== target.y) {
+      placeDraggedRef.current(target.x, target.y);
+    }
+    dragPreview.set(null);
+  }, [dragPreview]);
+  useEffect(() => () => cancelAnimationFrame(dragFollowRef.current?.frame ?? 0), []);
+
   const handlePointerMove = useCallback(
     (
       point: Point,
@@ -3892,24 +4288,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
           }
         }
 
-        const redrawingArrows = boundArrowsRef.current.size > 0;
-        const updates: ShapeUpdate[] = [];
-        for (const [id, origin] of Object.entries(dragOriginsRef.current)) {
-          const moved = { x: origin.x + dx, y: origin.y + dy };
-          updates.push({ id, patch: moved });
-          if (redrawingArrows) {
-            gestureShapesRef.current.set(id, { ...origin, ...moved });
-          }
-        }
-        // One write for the lot, rather than one per shape: each write asks
-        // the document what is locked, and a frame full of shapes is a lot of
-        // asking for every frame of a drag.
-        doc.updateShapes(updates, { allowLocked: carriedLockedRef.current });
-        // After the shapes have moved, not before: an arrow works out where to
-        // stop from where the shapes it is attached to are now.
-        if (redrawingArrows) {
-          settleBoundArrows(doc, gestureShapesRef.current, boundArrowsRef.current);
-        }
+        followDrag(dx, dy);
       }
 
       const turning = resizeOriginRef.current;
@@ -3922,9 +4301,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
         if (rotation !== turnedToRef.current) {
           turnedToRef.current = rotation;
           doc.updateShape(turning.id, { rotation });
-          if (boundArrowsRef.current.size > 0) {
+          if (boundArrowsRef.current.size > 0 || detourZonesRef.current.length > 0) {
             gestureShapesRef.current.set(turning.id, { ...turning, rotation });
-            settleBoundArrows(doc, gestureShapesRef.current, boundArrowsRef.current);
+            settleGestureArrows(doc, gestureShapesRef.current, boundArrowsRef.current, {
+              moving: new Set([turning.id]),
+              zones: detourZonesRef.current,
+            });
           }
         }
       }
@@ -3932,6 +4314,28 @@ export function Editor({ boardId, local = false }: EditorProps) {
       const vertexOrigin = vertexOriginRef.current;
       const vertexGrab = snap.context.vertexGrab;
       if (
+        snap.matches('draggingVertex') &&
+        pointerDownWorldRef.current &&
+        vertexOrigin &&
+        vertexGrab?.segment &&
+        hasPointHandles(vertexOrigin)
+      ) {
+        // The run slides with the pointer, and the arrow keeps the shape it
+        // has been given from then on: its route is no longer worked out.
+        const slid = withSegmentMoved(
+          vertexOrigin,
+          vertexGrab.index,
+          point.x - pointerDownWorldRef.current.x,
+          point.y - pointerDownWorldRef.current.y,
+        );
+        vertexReleasedRef.current = true;
+        doc.updateShape(vertexOrigin.id, {
+          x: slid.x,
+          y: slid.y,
+          points: slid.points,
+          routeFixed: true,
+        } as Partial<Shape>);
+      } else if (
         snap.matches('draggingVertex') &&
         pointerDownWorldRef.current &&
         vertexOrigin &&
@@ -3961,12 +4365,23 @@ export function Editor({ boardId, local = false }: EditorProps) {
           showSnapGuides(EMPTY_GUIDES);
         }
 
-        const moved = withHandlePointMoved(vertexOrigin, vertexGrab.index, x, y);
-        const geometry = { x: moved.x, y: moved.y, points: moved.points };
-        if (isArrow(moved) && bindArrowsRef.current) {
-          const index = vertexGrab.index;
-          hint = bindingHintAt(reattachArrowEnd(moved, index, shapes), index, shapes);
+        let moved = withHandlePointMoved(vertexOrigin, vertexGrab.index, x, y);
+        const index = vertexGrab.index;
+        const reattached =
+          isArrow(moved) && bindArrowsRef.current ? reattachArrowEnd(moved, index, shapes) : null;
+        if (reattached) hint = bindingHintAt(reattached, index, shapes);
+        // An elbow arrow's end is dragged with its route following it, round
+        // into the side of whatever it is over.
+        if (isArrow(moved) && moved.arrowType === 'elbow') {
+          moved = withElbowRoute(reattached ?? moved, shapesByIdOf(shapes));
         }
+        const geometry = {
+          x: moved.x,
+          y: moved.y,
+          points: moved.points,
+          // An end dragged away routes the arrow afresh, hand-shaped or not.
+          ...(isArrow(vertexOrigin) && vertexOrigin.routeFixed && { routeFixed: false }),
+        };
 
         // The attachment is let go on the first move rather than on the press,
         // so that clicking an end without moving it leaves the arrow attached
@@ -4032,9 +4447,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
             isTextContainer(drawn) ? fitShapeToText(drawn) : drawn,
           );
           doc.updateShape(originalShape.id, resized);
-          if (boundArrowsRef.current.size > 0) {
+          if (boundArrowsRef.current.size > 0 || detourZonesRef.current.length > 0) {
             gestureShapesRef.current.set(resized.id, resized);
-            settleBoundArrows(doc, gestureShapesRef.current, boundArrowsRef.current);
+            settleGestureArrows(doc, gestureShapesRef.current, boundArrowsRef.current, {
+              moving: new Set([resized.id]),
+              zones: detourZonesRef.current,
+            });
           }
         }
       }
@@ -4046,6 +4464,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
     // The whole board feeds the arrow-end hint, which looks for what the end is
     // over by the rules release follows.
     [
+      followDrag,
       actorRef,
       activeTool,
       laser,
@@ -4131,7 +4550,12 @@ export function Editor({ boardId, local = false }: EditorProps) {
         const origin = resizeOriginRef.current;
         return handle === null ? null : resizeCursorFor(handle, origin ?? undefined);
       }
-      if (snap.matches('draggingSelection')) return 'move';
+      // Lines and arrows keep the plain pointer, over them and while they
+      // are dragged: they are edited by their points, not moved like a box.
+      if (snap.matches('draggingSelection')) {
+        const dragged = Object.values(dragOriginsRef.current);
+        return dragged.length > 0 && dragged.every(hasPointHandles) ? null : 'move';
+      }
       if (!snap.matches('idle')) return null;
 
       if (selectedIds.length === 1 && !lockedIds.has(selectedIds[0]!)) {
@@ -4146,7 +4570,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
         margin: HIT_MARGIN,
         selectedIds,
       });
-      return hit ? 'move' : null;
+      return hit && !hasPointHandles(hit) ? 'move' : null;
     },
     [
       activeTool,
@@ -4206,6 +4630,9 @@ export function Editor({ boardId, local = false }: EditorProps) {
 
   const handlePointerUp = useCallback(
     (point: Point, screenPoint: Point) => {
+      // Before anything else reads the board: a drag still catching up lands
+      // where the pointer let it go.
+      finishDragFollow();
       // A press on a locked shape that came up where it went down was a
       // click on it: the padlock goes up over whatever is holding it locked.
       const lockPress = lockPressRef.current;
@@ -4254,11 +4681,20 @@ export function Editor({ boardId, local = false }: EditorProps) {
       // stays let go. Decided on release rather than during the drag for the
       // same reason a freshly drawn arrow is: it is where an end comes to rest
       // that says what it is pointing at.
-      if (draggedVertex && vertexOriginRef.current && bindArrowsRef.current) {
+      if (
+        draggedVertex &&
+        vertexOriginRef.current &&
+        bindArrowsRef.current &&
+        !snap.context.vertexGrab?.segment
+      ) {
         const current = doc.getShapes();
         const dragged = current.find((s) => s.id === vertexOriginRef.current!.id);
-        const index = snap.context.vertexGrab?.index ?? -1;
+        const grabbed = snap.context.vertexGrab?.index ?? -1;
         if (dragged && isArrow(dragged)) {
+          // An elbow arrow's route may have gained or lost bends on the way,
+          // so its far end is wherever its last point now is.
+          const index =
+            dragged.arrowType === 'elbow' && grabbed > 0 ? dragged.points.length - 1 : grabbed;
           const rebound = reattachArrowEnd(dragged, index, current);
           doc.updateShape(dragged.id, {
             startBinding: rebound.startBinding,
@@ -4331,6 +4767,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       lastErasePointRef.current = null;
       snapTargetsRef.current = NO_SNAP_TARGETS;
       boundArrowsRef.current = EMPTY_IDS;
+      detourZonesRef.current = NO_ZONES;
       showSnapGuides(EMPTY_GUIDES);
       showBindingHint(null);
 
@@ -4340,6 +4777,7 @@ export function Editor({ boardId, local = false }: EditorProps) {
       }
     },
     [
+      finishDragFollow,
       actorRef,
       activeTool,
       laser,
@@ -7023,12 +7461,13 @@ export function Editor({ boardId, local = false }: EditorProps) {
               <div className="absolute inset-0">
                 <CanvasStack
                   shapes={shapesForRender}
+                  dragPreview={dragPreview}
                   pendingErasureIds={pendingErasureIds}
                   editingFrameIds={editingFrameIds}
                   editingLabelId={editingArrow?.id ?? editingContainer?.id}
                   editingTopicId={editingTopic?.id}
                   editingNoteId={editingNote?.id}
-                  newElement={newElement}
+                  newElement={shownNewElement}
                   selectedIds={selectedIdsForRender}
                   marquee={marquee}
                   images={boardPictures.cache}

@@ -8,8 +8,11 @@ import type { ArrowShape, LineShape, Shape } from './shape.js';
  * shown — a `virtual` handle is always visible because the shape it bends is
  * already curved, while a `create` handle stays hidden until the pointer finds
  * it, so a straight line is not littered with dots it will never use.
+ *
+ * `segment` sits in the middle of one run of an elbow arrow, and dragging it
+ * slides the whole run sideways, taking the bends at either end with it.
  */
-export type ShapeHandleType = 'vertex' | 'virtual' | 'create';
+export type ShapeHandleType = 'vertex' | 'virtual' | 'create' | 'segment';
 
 export interface ShapeHandle {
   /** Stable across a shape's edits, so a hovered handle stays hovered. */
@@ -17,7 +20,8 @@ export interface ShapeHandle {
   readonly type: ShapeHandleType;
   /**
    * The point the handle edits: the one at this index for a `vertex` handle,
-   * and the one the others insert there.
+   * and the one the others insert there. For a `segment` handle, the run from
+   * this point to the next.
    */
   readonly index: number;
   /** World coordinates. */
@@ -56,8 +60,8 @@ export function hasPointHandles(shape: Shape): shape is LineShape | ArrowShape {
 
 /**
  * How a shape shows the handles between its points, or null when it shows
- * none: an elbow arrow is routed rather than drawn through its points, so a
- * midpoint taken from them would float off the line it belongs to.
+ * none: an elbow arrow is routed, and a point put into its route by hand
+ * would be routed away again on the next move.
  */
 function midpointHandleType(shape: LineShape | ArrowShape): ShapeHandleType | null {
   if (shape.kind === 'arrow') {
@@ -71,13 +75,34 @@ function midpointHandleType(shape: LineShape | ArrowShape): ShapeHandleType | nu
 export function shapeHandles(shape: Shape): ShapeHandle[] | null {
   if (!hasPointHandles(shape)) return null;
 
-  const handles: ShapeHandle[] = shape.points.map(([px, py], index) => ({
+  const all: ShapeHandle[] = shape.points.map(([px, py], index) => ({
     id: `v${index}`,
     type: 'vertex' as const,
     index,
     x: shape.x + px,
     y: shape.y + py,
   }));
+  // An elbow arrow's bends are its route, which is worked out rather than
+  // placed: only its two ends are there to take hold of.
+  const last = shape.points.length - 1;
+  const elbow = shape.kind === 'arrow' && shape.arrowType === 'elbow';
+  const handles = elbow ? all.filter((handle) => handle.index === 0 || handle.index === last) : all;
+  if (elbow) {
+    // Every run but the two at the ends, which leave and meet the shapes
+    // square and so are not free to slide.
+    for (let i = 1; i < shape.points.length - 2; i += 1) {
+      const from = shape.points[i]!;
+      const to = shape.points[i + 1]!;
+      handles.push({
+        id: `s${i}`,
+        type: 'segment',
+        index: i,
+        x: shape.x + (from[0] + to[0]) / 2,
+        y: shape.y + (from[1] + to[1]) / 2,
+      });
+    }
+    return handles;
+  }
 
   const midpoint = midpointHandleType(shape);
   if (!midpoint) return handles;
@@ -189,5 +214,35 @@ export function withHandlePointInserted<S extends LineShape | ArrowShape>(
 ): S {
   const points = [...shape.points];
   points.splice(index, 0, [x - shape.x, y - shape.y] as const);
+  return normalized(shape, points);
+}
+
+/** Whether the run of an elbow arrow from point `index` to the next is upright. */
+export function isUprightSegment(shape: LineShape | ArrowShape, index: number): boolean {
+  const from = shape.points[index];
+  const to = shape.points[index + 1];
+  if (!from || !to) return false;
+  return Math.abs(from[0] - to[0]) < Math.abs(from[1] - to[1]);
+}
+
+/**
+ * The shape with the run from point `index` to the next slid sideways by the
+ * drag: an upright run moves left and right, a level one up and down, and the
+ * bends at its two ends go with it, so every run stays square.
+ */
+export function withSegmentMoved<S extends LineShape | ArrowShape>(
+  shape: S,
+  index: number,
+  dx: number,
+  dy: number,
+): S {
+  const upright = isUprightSegment(shape, index);
+  const points = shape.points.map((point, i) =>
+    i === index || i === index + 1
+      ? upright
+        ? ([point[0] + dx, point[1]] as const)
+        : ([point[0], point[1] + dy] as const)
+      : point,
+  );
   return normalized(shape, points);
 }

@@ -153,7 +153,12 @@ function absolutePoints(shape: {
  */
 export function arrowRenderPoints(shape: ArrowShape): Array<[number, number]> {
   const pts = absolutePoints(shape);
-  if (shape.arrowType !== 'elbow' || pts.length < 2) return pts;
+  // A routed elbow arrow is drawn through its points, which are its route.
+  // One stored before elbow arrows were routed has only its two ends, and is
+  // drawn as it always was until the board routes it.
+  if (shape.arrowType !== 'elbow' || pts.length !== 2) return pts;
+  const [a, b] = pts as [[number, number], [number, number]];
+  if (Math.abs(a[0] - b[0]) <= 0.5 || Math.abs(a[1] - b[1]) <= 0.5) return pts;
 
   // Route as one horizontal run then one vertical run.
   const start = pts[0]!;
@@ -275,9 +280,60 @@ export function generateFreehandFillDrawable(
 export function generateArrowDrawable(rc: RoughDrawableSource, shape: ArrowShape): Drawable {
   const absPoints = arrowRenderPoints(shape);
   const options: Options = { ...baseOptions(shape), preserveVertices: true };
-  return shape.arrowType === 'curved'
-    ? rc.generator.curve(absPoints, options)
-    : rc.generator.linearPath(absPoints, options);
+  if (shape.arrowType === 'curved') return rc.generator.curve(absPoints, options);
+  if (hasRoundedBends(shape, absPoints)) {
+    return rc.generator.path(roundedPolylinePath(absPoints, bendRadius(shape)), options);
+  }
+  return rc.generator.linearPath(absPoints, options);
+}
+
+/** The radius a rounded bend is drawn at, before it is fitted to the runs either side. */
+function bendRadius(shape: ArrowShape): number {
+  return 16 * shapeScale(shape);
+}
+
+/** Whether an arrow's bends are drawn rounded: chosen so, and there being a bend to round. */
+function hasRoundedBends(shape: ArrowShape, points: readonly unknown[]): boolean {
+  return shape.edges === 'round' && shape.arrowType !== 'curved' && points.length > 2;
+}
+
+/**
+ * SVG path for an open polyline whose bends are rounded off: each bend cut
+ * back along both its runs by up to `radius` — never past half of either run,
+ * so neighbouring bends cannot overlap — and bridged by a quadratic through
+ * the corner. The two ends stay exactly where they are, which is where a head
+ * is drawn and where a bound end meets its shape.
+ */
+export function roundedPolylinePath(
+  points: ReadonlyArray<readonly [number, number]>,
+  radius: number,
+): string {
+  const first = points[0]!;
+  const parts = [`M ${first[0]} ${first[1]}`];
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1]!;
+    const corner = points[i]!;
+    const next = points[i + 1]!;
+    const prevLength = Math.hypot(prev[0] - corner[0], prev[1] - corner[1]);
+    const nextLength = Math.hypot(next[0] - corner[0], next[1] - corner[1]);
+    // The first and last runs end at the arrow's ends, so the whole of them
+    // is available; an inner run is shared with the bend at its other end.
+    const prevRoom = i === 1 ? prevLength : prevLength / 2;
+    const nextRoom = i === points.length - 2 ? nextLength : nextLength / 2;
+    const r = Math.min(radius, prevRoom, nextRoom);
+    if (r <= 0 || prevLength === 0 || nextLength === 0) {
+      parts.push(`L ${corner[0]} ${corner[1]}`);
+      continue;
+    }
+    const inX = corner[0] + ((prev[0] - corner[0]) / prevLength) * r;
+    const inY = corner[1] + ((prev[1] - corner[1]) / prevLength) * r;
+    const outX = corner[0] + ((next[0] - corner[0]) / nextLength) * r;
+    const outY = corner[1] + ((next[1] - corner[1]) / nextLength) * r;
+    parts.push(`L ${inX} ${inY}`, `Q ${corner[0]} ${corner[1]} ${outX} ${outY}`);
+  }
+  const last = points[points.length - 1]!;
+  parts.push(`L ${last[0]} ${last[1]}`);
+  return parts.join(' ');
 }
 
 export function generateFreehandDrawable(rc: RoughDrawableSource, shape: FreehandShape): Drawable {
@@ -322,9 +378,11 @@ export function generateIndicatorDrawable(
     const points = arrowRenderPoints(shape);
     // Ends kept in place, as the arrow's own line keeps them.
     const pinned: Options = { ...options, preserveVertices: true };
-    return shape.arrowType === 'curved'
-      ? rc.generator.curve(points, pinned)
-      : rc.generator.linearPath(points, pinned);
+    if (shape.arrowType === 'curved') return rc.generator.curve(points, pinned);
+    if (hasRoundedBends(shape, points)) {
+      return rc.generator.path(roundedPolylinePath(points, bendRadius(shape)), pinned);
+    }
+    return rc.generator.linearPath(points, pinned);
   }
 
   const points = absolutePoints(shape);
@@ -387,6 +445,65 @@ export function traceArrowheadMark(
 export function outlineCap(shape: RectangleShape | DiamondShape): CanvasLineCap | null {
   if (shape.edges === 'round' || shape.strokeStyle !== 'solid') return null;
   return shape.kind === 'rectangle' ? 'square' : 'round';
+}
+
+/** What fills the outside of one bend in an arrow's line; see `arrowBendJoins`. */
+export interface ArrowBendJoin {
+  /** A square for a right-angled bend, square to the board; a disc for any other. */
+  readonly kind: 'square' | 'disc';
+  readonly x: number;
+  readonly y: number;
+  /** The square's side, or the disc's diameter: the stroke's width. */
+  readonly size: number;
+}
+
+/**
+ * The patches that join an arrow's runs at its bends.
+ *
+ * Rough draws each run as a line of its own with flat ends, so where two meet
+ * the outside of the corner is left bare — the line reads as two lines butted
+ * together. A square the stroke's width, centred on a right-angled bend, fills
+ * that corner exactly; any other bend takes a disc, which joins it round.
+ * Square caps would do the same for a rectangle, but an arrow's two ends have
+ * to stop exactly where they are. None for a curved arrow, rounded bends, or a
+ * dashed line, whose ends are meant to show.
+ */
+export function arrowBendJoins(shape: ArrowShape): ArrowBendJoin[] {
+  if (shape.arrowType === 'curved' || shape.edges === 'round' || shape.strokeStyle !== 'solid') {
+    return [];
+  }
+  const points = arrowRenderPoints(shape);
+  const size = strokeWidthOf(shape);
+  const joins: ArrowBendJoin[] = [];
+  for (let i = 1; i < points.length - 1; i++) {
+    const [px, py] = points[i - 1]!;
+    const [x, y] = points[i]!;
+    const [nx, ny] = points[i + 1]!;
+    const square = (px === x || py === y) && (nx === x || ny === y);
+    joins.push({ kind: square ? 'square' : 'disc', x, y, size });
+  }
+  return joins;
+}
+
+/** The joins at an arrow's bends, filled in its stroke colour. */
+export function drawArrowBendJoins(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  shape: ArrowShape,
+): void {
+  const joins = arrowBendJoins(shape);
+  if (joins.length === 0) return;
+  ctx.fillStyle = shape.strokeColor;
+  ctx.beginPath();
+  for (const { kind, x, y, size } of joins) {
+    const half = size / 2;
+    if (kind === 'square') {
+      ctx.rect(x - half, y - half, size, size);
+    } else {
+      ctx.moveTo(x + half, y);
+      ctx.arc(x, y, half, 0, Math.PI * 2);
+    }
+  }
+  ctx.fill();
 }
 
 // --- The draw call ---

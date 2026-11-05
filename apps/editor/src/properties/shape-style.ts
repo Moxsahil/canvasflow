@@ -28,7 +28,7 @@ export function itemStyleFromShape(shape: Shape, fallback: ItemStyle): ItemStyle
     strokeStyle: shape.strokeStyle,
     roughness: shape.roughness,
     opacity: shape.opacity,
-    edges: 'edges' in shape ? shape.edges : fallback.edges,
+    edges: ('edges' in shape ? shape.edges : undefined) ?? fallback.edges,
     // A shape's own words are set in the same three fields as a text shape's;
     // its alignment, when it has none, is the middle its words are drawn in.
     fontFamily:

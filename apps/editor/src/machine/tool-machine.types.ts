@@ -66,6 +66,11 @@ export interface VertexGrab {
    * the point at `index` before it can move it.
    */
   readonly inserts: boolean;
+  /**
+   * True when the drag began on the middle of a run of an elbow arrow, and
+   * slides that run, from point `index` to the next, sideways.
+   */
+  readonly segment?: boolean;
 }
 
 /**
@@ -122,7 +127,7 @@ export const DEFAULT_ITEM_STYLE: ItemStyle = {
   fontFamily: DEFAULT_FONT_FAMILY,
   fontSize: DEFAULT_FONT_SIZE,
   textAlign: 'left',
-  arrowType: 'curved',
+  arrowType: 'straight',
   startArrowhead: 'none',
   endArrowhead: 'triangle',
   simulatePressure: false,

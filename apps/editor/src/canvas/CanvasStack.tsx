@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
 import type {
   BindingHint,
   ImageSource,
@@ -9,6 +9,7 @@ import type {
 } from '@canvasflow/canvas-engine';
 import type { Camera, Point } from '../machine/tool-machine.types';
 import { useT } from '../i18n';
+import { withDragPreview, type DragPreview } from './drag-preview';
 import type { Tool } from '../tools/tool';
 import { Grid } from './Grid';
 import { useCanvasResize } from './hooks/useCanvasResize';
@@ -25,6 +26,8 @@ import { LIBRARY_DRAG_TYPE } from '../library/library-items';
 
 interface CanvasStackProps {
   shapes: readonly Shape[];
+  /** Shapes a drag is drawing ahead of the document; see `DragPreview`. */
+  dragPreview?: DragPreview;
   pendingErasureIds?: ReadonlySet<string>;
   editingFrameIds?: ReadonlySet<string>;
   /** The arrow or shape whose words are open for typing: an arrow breaks for the caret. */
@@ -131,8 +134,12 @@ interface CanvasStackProps {
   isPanning: boolean;
 }
 
+const noSubscription = () => () => {};
+const noPreview = () => null;
+
 export function CanvasStack({
-  shapes,
+  shapes: boardShapes,
+  dragPreview,
   pendingErasureIds,
   editingFrameIds,
   editingLabelId,
@@ -185,6 +192,12 @@ export function CanvasStack({
   const staticCanvasRef = useRef<HTMLCanvasElement>(null);
   const newElementCanvasRef = useRef<HTMLCanvasElement>(null);
   const interactiveCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  const preview = useSyncExternalStore(
+    dragPreview?.subscribe ?? noSubscription,
+    dragPreview?.get ?? noPreview,
+  );
+  const shapes = useMemo(() => withDragPreview(boardShapes, preview), [boardShapes, preview]);
 
   const { width, height } = useCanvasResize(containerRef);
   const dpr = useDevicePixelRatio();
