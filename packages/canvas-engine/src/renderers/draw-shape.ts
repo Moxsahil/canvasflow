@@ -3,7 +3,7 @@ import type { ArrowShape, Shape, TextContainerShape } from '../shapes/shape.js';
 import { assertNever, fontSizeOf } from '../shapes/shape.js';
 import { arrowInkBounds } from '../shapes/arrow.js';
 import { arrowLabelLayout, type ArrowLabelLayout } from '../shapes/arrow-label.js';
-import { shapeTextLayout } from '../shapes/shape-text.js';
+import { shapeTextColor, shapeTextLayout } from '../shapes/shape-text.js';
 import { strokeColorFor } from '../shapes/style.js';
 import { shapeBox } from '../shapes/bounds.js';
 import { rectCentre, shapeAngle } from '../shapes/rotation.js';
@@ -109,7 +109,7 @@ export interface SceneShapeContext {
 }
 
 /**
- * A shape's own words, over it, in its stroke colour — unless they are open
+ * A shape's own words, over it, in their colour — unless they are open
  * for typing, when the overlay draws them.
  */
 function drawShapeText(
@@ -127,7 +127,7 @@ function drawShapeText(
     fontSize: layout.fontSize,
     fontFamily: layout.fontFamily,
     textAlign: layout.textAlign,
-    strokeColor: shape.strokeColor,
+    strokeColor: shapeTextColor(shape),
   });
 }
 

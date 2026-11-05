@@ -30,6 +30,8 @@ interface UseStaticRenderOptions {
    * what turns "bytes arrived" into a repaint.
    */
   imageRevision?: number;
+  /** Goes up when a font arrives, so words drawn in its stand-in are drawn again. */
+  fontRevision?: number;
   /**
    * Which board these shapes are being painted on. Required, not optional with
    * a safe-looking default, because every layer that paints a shape has to be
@@ -63,6 +65,7 @@ export function useStaticRender(
     editingNoteId,
     images,
     imageRevision,
+    fontRevision,
     darkMode,
   } = options;
 
@@ -99,6 +102,7 @@ export function useStaticRender(
     editingNoteId,
     images,
     imageRevision,
+    fontRevision,
     darkMode,
   ]);
 }

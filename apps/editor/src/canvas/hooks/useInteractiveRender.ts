@@ -34,6 +34,8 @@ interface UseInteractiveRenderOptions {
   handleSize?: number;
   /** The selection's colour: the accent picked in Settings. */
   selectionColor?: string;
+  /** Goes up when a font arrives, which moves the outlines of words set in it. */
+  fontRevision?: number;
 }
 
 export function useInteractiveRender(
@@ -57,6 +59,7 @@ export function useInteractiveRender(
     darkMode,
     handleSize,
     selectionColor,
+    fontRevision,
   } = options;
 
   useEffect(() => {
@@ -99,5 +102,6 @@ export function useInteractiveRender(
     darkMode,
     handleSize,
     selectionColor,
+    fontRevision,
   ]);
 }

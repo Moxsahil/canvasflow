@@ -61,5 +61,6 @@ export function itemStyleFromShape(shape: Shape, fallback: ItemStyle): ItemStyle
     noteColor: isNote(shape) && shape.fillColor ? shape.fillColor : fallback.noteColor,
     noteFontSize: isNote(shape) ? shape.fontSize : fallback.noteFontSize,
     noteTextAlign: isNote(shape) ? shape.textAlign : fallback.noteTextAlign,
+    textColor: isTextContainer(shape) ? (shape.textColor ?? null) : fallback.textColor,
   };
 }

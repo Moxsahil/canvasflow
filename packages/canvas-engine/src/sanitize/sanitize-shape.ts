@@ -202,6 +202,7 @@ function rebuildShape(
         fontSize: finite(candidate.fontSize),
         fontFamily: text(candidate.fontFamily),
         textAlign: oneOf(candidate.textAlign, TEXT_ALIGNS),
+        textColor: text(candidate.textColor),
       };
       if (candidate.kind === 'ellipse') {
         return createEllipse({ ...common, width, height, ...words });

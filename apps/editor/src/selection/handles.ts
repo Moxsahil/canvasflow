@@ -16,11 +16,11 @@ const EDGE_REACH = 7;
 const ROTATE_REACH = 8;
 
 /**
- * If (px, py) — in world coords — is on one of the shape's 8 handles, or
- * anywhere along the outline between two corners, return the handle index.
- * Else return null. An edge is taken hold of along its whole length, not
- * only at its middle dot, so the box can be resized from wherever the
- * pointer meets it.
+ * If (px, py) — in world coords — is on one of the shape's four corner
+ * handles, or anywhere along the outline between two corners, return the
+ * handle index. Else return null. A side has no handle of its own: it is
+ * taken hold of along its whole length, so the box can be resized from
+ * wherever the pointer meets it.
  *
  * A turned shape's handles turn with it, so the press is turned back into
  * the shape's own upright frame and measured there.
@@ -49,20 +49,14 @@ export function hitTestHandles(
   };
 
   const halfHandle = hitSize / 2 / zoom;
-  const cx = outerBounds.x + outerBounds.width / 2;
-  const cy = outerBounds.y + outerBounds.height / 2;
   const right = outerBounds.x + outerBounds.width;
   const bottom = outerBounds.y + outerBounds.height;
 
   const positions: Array<[HandleIndex, number, number]> = [
     [0, outerBounds.x, outerBounds.y],
-    [1, cx, outerBounds.y],
     [2, right, outerBounds.y],
-    [3, right, cy],
     [4, right, bottom],
-    [5, cx, bottom],
     [6, outerBounds.x, bottom],
-    [7, outerBounds.x, cy],
   ];
 
   for (const [idx, hx, hy] of positions) {

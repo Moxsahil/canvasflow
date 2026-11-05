@@ -541,20 +541,17 @@ function drawHandles(
   const s = size / zoom; // Handle size in world coords
   const half = s / 2;
 
-  const cx = bounds.x + bounds.width / 2;
-  const cy = bounds.y + bounds.height / 2;
   const right = bounds.x + bounds.width;
   const bottom = bounds.y + bounds.height;
 
+  // The corners only. A side is resized by taking hold of it anywhere along
+  // its length, so a square in its middle would mark nothing the side does
+  // not already offer, and four fewer squares leave the shape easier to read.
   const positions: Array<[number, number]> = [
     [bounds.x, bounds.y], // top-left
-    [cx, bounds.y], // top-center
     [right, bounds.y], // top-right
-    [right, cy], // middle-right
     [right, bottom], // bottom-right
-    [cx, bottom], // bottom-center
     [bounds.x, bottom], // bottom-left
-    [bounds.x, cy], // middle-left
   ];
 
   for (const [x, y] of positions) {

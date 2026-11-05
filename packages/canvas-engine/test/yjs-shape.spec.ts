@@ -1,7 +1,7 @@
 import * as Y from 'yjs';
 import { shapeToYMap, yMapToShape } from '../src/document/yjs-shape.js';
 import { shapeBounds } from '../src/shapes/bounds.js';
-import { createArrow, createText, createRectangle } from '../src/shapes/index.js';
+import { createArrow, createText, createRectangle, shapeTextColor } from '../src/shapes/index.js';
 import type { ArrowShape, TextShape } from '../src/shapes/shape.js';
 
 /** Put a Y.Map into a doc, as it would be when read back off the wire. */
@@ -244,5 +244,24 @@ describe('arrow bindings through the document', () => {
       expect(read.startBinding).toBeNull();
       expect(() => shapeBounds(read)).not.toThrow();
     }
+  });
+});
+
+describe('the colour of a shape’s own words', () => {
+  const box = (textColor?: string) =>
+    createRectangle({ id: 'r1', x: 0, y: 0, width: 100, height: 60, label: 'hi', textColor });
+
+  it('round-trips through the document', () => {
+    const read = yMapToShape(integrate(shapeToYMap(box('#1e1e1e'))));
+    expect(read && 'textColor' in read && read.textColor).toBe('#1e1e1e');
+  });
+
+  it('writes no key for words that take the stroke’s colour', () => {
+    expect(shapeToYMap(box()).has('textColor')).toBe(false);
+  });
+
+  it('paints the words their own colour, and otherwise the stroke’s', () => {
+    expect(shapeTextColor(box('#ffffff'))).toBe('#ffffff');
+    expect(shapeTextColor(box())).toBe(box().strokeColor);
   });
 });

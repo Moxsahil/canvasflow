@@ -2,6 +2,7 @@ export * from './math.js';
 export * from './shapes/index.js';
 export * from './renderers/index.js';
 export { setupCanvas, clearCanvas } from './utils/canvas.js';
+export { forgetTextLayouts } from './utils/text-measure.js';
 
 /**
  * @canvasflow/canvas-engine — public API.

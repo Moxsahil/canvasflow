@@ -6,12 +6,30 @@ export const STROKE_SWATCHES = [
   { value: '#f08c00', labelKey: 'color.orange' },
 ] as const;
 
+/**
+ * The fill's quick picks: full colours rather than pastels, so a filled shape
+ * reads as the colour picked on either board. Paler ones are a click away on
+ * the wheel.
+ */
+/**
+ * The quick picks for the words inside a shape: dark and light first, since
+ * the point is words that read on whatever the shape is filled with. Painted
+ * as they are on either board — black is black on the dark board too.
+ */
+export const TEXT_SWATCHES = [
+  { value: '#1e1e1e', labelKey: 'color.black' },
+  { value: '#ffffff', labelKey: 'color.white' },
+  { value: '#e03131', labelKey: 'color.red' },
+  { value: '#1971c2', labelKey: 'color.blue' },
+  { value: '#2f9e44', labelKey: 'color.green' },
+] as const;
+
 export const BACKGROUND_SWATCHES = [
   { value: null, labelKey: 'color.transparent' },
-  { value: '#ffc9c9', labelKey: 'color.red' },
-  { value: '#b2f2bb', labelKey: 'color.green' },
-  { value: '#a5d8ff', labelKey: 'color.blue' },
-  { value: '#ffec99', labelKey: 'color.yellow' },
+  { value: '#fa5252', labelKey: 'color.red' },
+  { value: '#40c057', labelKey: 'color.green' },
+  { value: '#228be6', labelKey: 'color.blue' },
+  { value: '#fab005', labelKey: 'color.yellow' },
 ] as const;
 
 /**
@@ -35,17 +53,17 @@ export const NOTE_SWATCHES = [
  */
 export const BUCKET_SWATCHES = [
   { value: '#ffffff', labelKey: 'color.white' },
-  { value: '#ffc9c9', labelKey: 'color.red' },
-  { value: '#b2f2bb', labelKey: 'color.green' },
-  { value: '#a5d8ff', labelKey: 'color.blue' },
-  { value: '#ffec99', labelKey: 'color.yellow' },
+  { value: '#fa5252', labelKey: 'color.red' },
+  { value: '#40c057', labelKey: 'color.green' },
+  { value: '#228be6', labelKey: 'color.blue' },
+  { value: '#fab005', labelKey: 'color.yellow' },
 ] as const;
 
 /**
  * What the bucket pours when the fill colour it shares with the shape tools
  * is transparent — the green swatch.
  */
-export const BUCKET_FALLBACK_COLOR = '#b2f2bb';
+export const BUCKET_FALLBACK_COLOR = '#40c057';
 
 /** The colour the bucket actually pours, given the shared fill colour. */
 export function bucketFillColor(fillColor: string | null): string {
@@ -85,11 +103,8 @@ export function canvasBackgroundFor(theme: CanvasTheme): string {
   return CANVAS_BACKGROUND[theme];
 }
 
-export const STROKE_WIDTHS = [
-  { value: 1, labelKey: 'style.width.thin' },
-  { value: 2, labelKey: 'style.width.bold' },
-  { value: 4, labelKey: 'style.width.extraBold' },
-] as const;
+/** Every stroke weight the Weight row steps through, in px: 1 to 10. */
+export const STROKE_WIDTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
 /** Font stacks offered by the Font family row, keyed by the label shown. */
 export const FONT_FAMILIES = [

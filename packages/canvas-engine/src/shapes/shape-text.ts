@@ -1,5 +1,5 @@
 import type { Rect } from '../math.js';
-import { measureTextWidth } from '../utils/text-measure.js';
+import { measureTextWidth, registerTextLayoutCache } from '../utils/text-measure.js';
 import { shapeScale, type ShapeText, type TextContainerShape } from './shape.js';
 import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from './text.js';
 
@@ -34,6 +34,19 @@ export interface ShapeTextInput {
   fontSize?: number;
   fontFamily?: string;
   textAlign?: 'left' | 'center' | 'right';
+  /** Null, as the panel holds it, for words that take the stroke's colour. */
+  textColor?: string | null;
+}
+
+/**
+ * The colour a shape's words are painted in: their own when they have one,
+ * as stored, and otherwise the stroke's — which the caller has already
+ * themed for the board, as it themes the stroke.
+ */
+export function shapeTextColor(shape: TextContainerShape): string {
+  return typeof shape.textColor === 'string' && shape.textColor !== ''
+    ? shape.textColor
+    : shape.strokeColor;
 }
 
 /**
@@ -42,12 +55,13 @@ export interface ShapeTextInput {
  * was before shapes could hold text.
  */
 export function shapeTextFields(input: ShapeTextInput): ShapeText {
-  const { label, fontSize, fontFamily, textAlign } = input;
+  const { label, fontSize, fontFamily, textAlign, textColor } = input;
   return {
     ...(typeof label === 'string' && label !== '' && { label }),
     ...(typeof fontSize === 'number' && Number.isFinite(fontSize) && fontSize > 0 && { fontSize }),
     ...(typeof fontFamily === 'string' && fontFamily !== '' && { fontFamily }),
     ...(textAlign !== undefined && ALIGNS.includes(textAlign) && { textAlign }),
+    ...(typeof textColor === 'string' && textColor !== '' && { textColor }),
   };
 }
 
@@ -142,6 +156,7 @@ function shapeSizeFor(shape: TextContainerShape, area: number): number {
 // decides them, and bounded.
 const wrapCache = new Map<string, string[]>();
 const WRAP_CACHE_LIMIT = 2000;
+registerTextLayoutCache(() => wrapCache.clear());
 
 /**
  * Text broken into the lines it is drawn in: at its own line breaks, and

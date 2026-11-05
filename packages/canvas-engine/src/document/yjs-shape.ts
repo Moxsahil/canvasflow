@@ -205,6 +205,7 @@ function writeShapeText(map: Y.Map<unknown>, shape: ShapeText): void {
   if (fields.fontSize !== undefined) map.set('fontSize', fields.fontSize);
   if (fields.fontFamily !== undefined) map.set('fontFamily', fields.fontFamily);
   if (fields.textAlign !== undefined) map.set('textAlign', fields.textAlign);
+  if (fields.textColor !== undefined) map.set('textColor', fields.textColor);
 }
 
 /**
@@ -219,6 +220,7 @@ function readShapeText(map: Y.Map<unknown>): ShapeText {
     fontSize: map.get('fontSize') as number | undefined,
     fontFamily: map.get('fontFamily') as string | undefined,
     textAlign: map.get('textAlign') as 'left' | 'center' | 'right' | undefined,
+    textColor: map.get('textColor') as string | undefined,
   });
 }
 

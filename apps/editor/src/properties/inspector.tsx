@@ -20,12 +20,12 @@ import {
  * inspector.
  */
 
-const mutedText = 'text-neutral-500 dark:text-neutral-400';
+export const mutedText = 'text-neutral-500 dark:text-neutral-400';
 
 /** The well a control sits in: a faint tint of the panel's own ink. */
 const wellClasses = 'bg-neutral-950/5 dark:bg-neutral-50/5';
 const wellHoverClasses = 'hover:bg-neutral-950/10 dark:hover:bg-neutral-50/10';
-const wellOpenClasses = 'bg-neutral-950/10 dark:bg-neutral-50/10';
+export const wellOpenClasses = 'bg-neutral-950/10 dark:bg-neutral-50/10';
 
 const focusRing =
   'outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--focus-highlight-color)';
@@ -183,7 +183,7 @@ export function Swatch({
   );
 }
 
-const chipClasses = cn(
+export const chipClasses = cn(
   'inline-flex h-6 shrink-0 items-center gap-2 rounded-[5px] px-1.5 text-left text-xs font-medium tabular-nums',
   valueWidth,
   wellClasses,
@@ -453,6 +453,8 @@ export function InspectorPopover({
       const root = rootRef.current;
       const target = event.target as Node;
       if (!root || root.contains(target) || trigger.contains(target)) return;
+      // A list this popover opened, portalled elsewhere, is still part of it.
+      if (target instanceof Element && target.closest('[data-inspector-nested]')) return;
       onClose();
     };
     // Capture phase: the canvas suppresses default pointer handling, so a press
