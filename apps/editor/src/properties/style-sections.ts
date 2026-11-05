@@ -15,8 +15,12 @@ const FILLABLE_KINDS: ReadonlySet<Shape['kind']> = new Set([
   'topic',
 ]);
 
-/** Shape kinds whose corners or joints can be rounded off. */
-const EDGED_KINDS: ReadonlySet<Shape['kind']> = new Set(['rectangle', 'diamond', 'line']);
+/**
+ * Shape kinds whose corners or joints can be rounded off. An arrow's are its
+ * bends, which a curved arrow has none of — it still offers the choice, which
+ * waits for it to be made elbow or straight again.
+ */
+const EDGED_KINDS: ReadonlySet<Shape['kind']> = new Set(['rectangle', 'diamond', 'line', 'arrow']);
 
 /** Which groups of style controls apply to what is being edited. */
 export interface StyleSections {

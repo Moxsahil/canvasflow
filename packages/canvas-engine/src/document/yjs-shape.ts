@@ -104,6 +104,8 @@ export function shapeToYMap(shape: Shape): Y.Map<unknown> {
       map.set('startArrowhead', shape.startArrowhead);
       map.set('endArrowhead', shape.endArrowhead);
       map.set('arrowType', shape.arrowType);
+      if (shape.edges) map.set('edges', shape.edges);
+      if (shape.routeFixed) map.set('routeFixed', true);
       // Written only when there is one, so an unattached arrow carries no key
       // for it and a board made before arrows could attach is untouched.
       if (shape.startBinding) {
@@ -380,6 +382,9 @@ export function yMapToShape(map: Y.Map<unknown>): Shape | null {
         startArrowhead: (map.get('startArrowhead') as Arrowhead) ?? 'none',
         endArrowhead: (map.get('endArrowhead') as Arrowhead) ?? 'arrow',
         arrowType: (map.get('arrowType') as ArrowType) ?? 'straight',
+        // Arrows from before their corners could be rounded are sharp.
+        edges: (map.get('edges') as Edges) ?? 'sharp',
+        ...(map.get('routeFixed') === true ? { routeFixed: true } : {}),
         startBinding: readArrowBinding(map.get('startBinding')),
         endBinding: readArrowBinding(map.get('endBinding')),
         label: readTextValue(map.get('label')),

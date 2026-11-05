@@ -1,7 +1,18 @@
-import type { Point } from '../math.js';
+import type { Point, Rect } from '../math.js';
 import type { Segment } from '../geometry/segment.js';
 import { fromShapeFrame, shapeBounds, shapeBox, toShapeFrame } from './bounds.js';
 import { shapeExactOutline } from './outline.js';
+import { shapeAngle } from './rotation.js';
+import {
+  ELBOW_PADDING,
+  HEADING_DOWN,
+  HEADING_LEFT,
+  HEADING_RIGHT,
+  HEADING_UP,
+  routeElbow,
+  type ElbowEnd,
+  type Heading,
+} from './elbow-route.js';
 import {
   assertNever,
   isArrow,
@@ -444,8 +455,9 @@ export function arrowIsBoundTo(arrow: ArrowShape, shapeIds: ReadonlySet<string>)
  * of the things that moved — dragging a bound arrow moves its stored points,
  * and they have to be put back where its attachments say they belong.
  *
- * Only two-point arrows take part. Anything with a bend in it is a shape the
- * person routed by hand, and rewriting its ends would throw that away.
+ * Only two-point arrows take part, and elbow arrows, which are routed rather
+ * than bent by hand. Any other arrow with a bend in it is a shape the person
+ * routed by hand, and rewriting its ends would throw that away.
  */
 export function arrowsAffectedBy(
   shapes: readonly Shape[],
@@ -453,7 +465,10 @@ export function arrowsAffectedBy(
 ): ArrowShape[] {
   const affected: ArrowShape[] = [];
   for (const shape of shapes) {
-    if (!isArrow(shape) || shape.points.length !== 2) continue;
+    if (!isArrow(shape)) continue;
+    // An elbow arrow's bends are its route, worked out afresh whenever its
+    // ends move, so it takes part however many it has.
+    if (shape.points.length !== 2 && shape.arrowType !== 'elbow') continue;
     if (!shape.startBinding && !shape.endBinding) continue;
     if (arrowIsBoundTo(shape, changedIds) || changedIds.has(shape.id)) {
       affected.push(shape);
@@ -468,6 +483,8 @@ export interface ArrowGeometryPatch {
   readonly x: number;
   readonly y: number;
   readonly points: ReadonlyArray<readonly [number, number]>;
+  /** Set when an elbow arrow shaped by hand had to be routed afresh. */
+  readonly routeFixed?: boolean;
 }
 
 /**
@@ -484,6 +501,21 @@ export function boundArrowPatches(
   const patches: ArrowGeometryPatch[] = [];
 
   for (const arrow of arrows) {
+    if (arrow.arrowType === 'elbow') {
+      const routed = arrow.routeFixed
+        ? withFixedRouteEnds(arrow, shapesById)
+        : withElbowRoute(arrow, shapesById);
+      if (!sameRoute(arrow, routed) || Boolean(routed.routeFixed) !== Boolean(arrow.routeFixed)) {
+        patches.push({
+          id: arrow.id,
+          x: routed.x,
+          y: routed.y,
+          points: routed.points,
+          ...(routed.routeFixed !== arrow.routeFixed && { routeFixed: Boolean(routed.routeFixed) }),
+        });
+      }
+      continue;
+    }
     const { start, end } = resolveArrowTerminals(arrow, shapesById);
     const current = storedTerminals(arrow);
     if (samePoint(current.start, start) && samePoint(current.end, end)) continue;
@@ -595,4 +627,321 @@ export function bindingTargetAt(
 /** A binding onto `target` for an end dropped at `point`. */
 export function bindingFor(target: Shape, point: Point, precise = false): ArrowBinding {
   return { shapeId: target.id, anchor: normalizedAnchorFor(target, point), precise };
+}
+
+// --- Elbow arrows -----------------------------------------------------------
+
+/** Whether two arrows are drawn through the same points. */
+function sameRoute(a: ArrowShape, b: ArrowShape): boolean {
+  if (a.points.length !== b.points.length) return false;
+  return a.points.every((point, i) =>
+    samePoint(
+      { x: a.x + point[0], y: a.y + point[1] },
+      { x: b.x + b.points[i]![0], y: b.y + b.points[i]![1] },
+    ),
+  );
+}
+
+/** The four sides of a box as headings out of it, keyed the way anchors measure them. */
+const SIDE_HEADINGS: ReadonlyArray<readonly [Heading, (u: number, v: number) => number]> = [
+  [HEADING_LEFT, (u) => u],
+  [HEADING_RIGHT, (u) => 1 - u],
+  [HEADING_UP, (_u, v) => v],
+  [HEADING_DOWN, (_u, v) => 1 - v],
+];
+
+/** The side of its box a spot, as a fraction of the box, is nearest. */
+function nearestSide(u: number, v: number): Heading {
+  let best = SIDE_HEADINGS[0]!;
+  for (const side of SIDE_HEADINGS) if (side[1](u, v) < best[1](u, v)) best = side;
+  return best[0];
+}
+
+/** A heading out of a shape's upright frame, turned with the shape and squared to the board. */
+function turnedHeading(heading: Heading, angle: number): Heading {
+  if (angle === 0) return heading;
+  const x = heading.x * Math.cos(angle) - heading.y * Math.sin(angle);
+  const y = heading.x * Math.sin(angle) + heading.y * Math.cos(angle);
+  if (Math.abs(x) >= Math.abs(y)) return x < 0 ? HEADING_LEFT : HEADING_RIGHT;
+  return y < 0 ? HEADING_UP : HEADING_DOWN;
+}
+
+/** The middle of each side, as the fraction of the box an anchor is kept in. */
+function sideMiddle(heading: Heading): { x: number; y: number } {
+  return { x: 0.5 + heading.x / 2, y: 0.5 + heading.y / 2 };
+}
+
+/**
+ * A binding for an elbow arrow's end let go at `point` over `target`: at the
+ * middle of one of its sides, which is where an elbow line comes in square.
+ *
+ * Let go near a side, it is that side. Let go well inside the shape, it is the
+ * side facing `from` — where the other end is — so the line comes in the way
+ * it was already heading.
+ */
+export function elbowBindingAt(
+  target: Shape,
+  point: Point,
+  from: Point,
+  reach: number,
+): ArrowBinding {
+  const box = shapeBox(target);
+  const local = toShapeFrame(target, point);
+  const u = box.width > 0 ? (local.x - box.x) / box.width : 0.5;
+  const v = box.height > 0 ? (local.y - box.y) / box.height : 0.5;
+  const nearEdge =
+    local.x - box.x <= reach ||
+    box.x + box.width - local.x <= reach ||
+    local.y - box.y <= reach ||
+    box.y + box.height - local.y <= reach ||
+    u < 0 ||
+    u > 1 ||
+    v < 0 ||
+    v > 1;
+
+  let side: Heading;
+  if (nearEdge) {
+    side = nearestSide(u, v);
+  } else {
+    const towards = toShapeFrame(target, from);
+    const dx = (towards.x - (box.x + box.width / 2)) / Math.max(box.width, 1);
+    const dy = (towards.y - (box.y + box.height / 2)) / Math.max(box.height, 1);
+    side =
+      Math.abs(dx) >= Math.abs(dy)
+        ? dx < 0
+          ? HEADING_LEFT
+          : HEADING_RIGHT
+        : dy < 0
+          ? HEADING_UP
+          : HEADING_DOWN;
+  }
+  return { shapeId: target.id, anchor: sideMiddle(side), precise: true };
+}
+
+/** One end of an elbow arrow, as the router takes it. */
+function elbowEndOf(
+  arrow: ArrowShape,
+  binding: ArrowBinding | null,
+  head: Arrowhead,
+  stored: Point,
+  shapesById: ReadonlyMap<string, Shape>,
+): ElbowEnd {
+  const target = boundTarget(binding, shapesById);
+  if (!target || !binding) return { point: stored, outward: null, box: null };
+  // A binding that aims at the middle has no side of its own; the board pins
+  // those where they meet the shape as it opens, so this is only a stopgap.
+  const anchor = binding.precise ? binding.anchor : { x: 0.5, y: 0.5 };
+  const side = nearestSide(anchor.x, anchor.y);
+  const outward = turnedHeading(side, shapeAngle(target));
+  const aim = aimPointFor(
+    { ...binding, anchor: binding.precise ? anchor : sideMiddle(side), precise: true },
+    target,
+  );
+  // Stopped short by the gap, so the head drawn there meets the shape's edge.
+  const gap = boundArrowGap(arrow, head, target);
+  return {
+    point: { x: aim.x + outward.x * gap, y: aim.y + outward.y * gap },
+    outward,
+    box: shapeBounds(target),
+  };
+}
+
+/** The kinds a route goes round rather than through. */
+function isObstacle(shape: Shape): boolean {
+  switch (shape.kind) {
+    case 'rectangle':
+    case 'ellipse':
+    case 'diamond':
+    case 'text':
+    case 'image':
+    case 'embed':
+    case 'bookmark':
+    case 'note':
+    case 'topic':
+      return true;
+    default:
+      return false;
+  }
+}
+
+/** How many shapes in the way a route takes account of, nearest first. */
+const MAX_OBSTACLES = 24;
+
+/**
+ * The shapes in the way of a route between two points: the ones standing
+ * near the box the two ends span, other than the shapes the arrow is attached
+ * to and any shape an end is inside.
+ */
+function obstaclesBetween(
+  start: Point,
+  end: Point,
+  shapesById: ReadonlyMap<string, Shape>,
+  exclude: ReadonlySet<string>,
+): Rect[] {
+  const margin = ELBOW_PADDING * 6;
+  const region = {
+    x: Math.min(start.x, end.x) - margin,
+    y: Math.min(start.y, end.y) - margin,
+    right: Math.max(start.x, end.x) + margin,
+    bottom: Math.max(start.y, end.y) + margin,
+  };
+  const centre = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+  const found: Array<{ box: Rect; distance: number }> = [];
+  for (const shape of shapesById.values()) {
+    if (exclude.has(shape.id) || shape.hidden || !isObstacle(shape)) continue;
+    const box = shapeBounds(shape);
+    if (
+      box.x > region.right ||
+      box.y > region.bottom ||
+      box.x + box.width < region.x ||
+      box.y + box.height < region.y
+    ) {
+      continue;
+    }
+    const holds = (p: Point) =>
+      p.x >= box.x && p.x <= box.x + box.width && p.y >= box.y && p.y <= box.y + box.height;
+    if (holds(start) || holds(end)) continue;
+    const distance =
+      Math.abs(box.x + box.width / 2 - centre.x) + Math.abs(box.y + box.height / 2 - centre.y);
+    found.push({ box, distance });
+  }
+  found.sort((a, b) => a.distance - b.distance);
+  return found.slice(0, MAX_OBSTACLES).map((each) => each.box);
+}
+
+/**
+ * An elbow arrow routed afresh: out of the side its start is attached to, or
+ * from where it starts, in level and upright runs round whatever is in the
+ * way, and into the side its end is attached to, or to where it ends.
+ *
+ * Its first and last points say where a free end is; everything between is
+ * the route, and is rewritten.
+ */
+export function withElbowRoute(
+  arrow: ArrowShape,
+  shapesById: ReadonlyMap<string, Shape>,
+): ArrowShape {
+  const stored = storedTerminals(arrow);
+  const start = elbowEndOf(
+    arrow,
+    arrow.startBinding,
+    arrow.startArrowhead,
+    stored.start,
+    shapesById,
+  );
+  const end = elbowEndOf(arrow, arrow.endBinding, arrow.endArrowhead, stored.end, shapesById);
+  const exclude = new Set<string>([arrow.id]);
+  if (arrow.startBinding) exclude.add(arrow.startBinding.shapeId);
+  if (arrow.endBinding) exclude.add(arrow.endBinding.shapeId);
+  const route = routeElbow(
+    start,
+    end,
+    obstaclesBetween(start.point, end.point, shapesById, exclude),
+  );
+  const origin = route[0]!;
+  return {
+    ...arrow,
+    x: origin.x,
+    y: origin.y,
+    points: route.map((point) => [point.x - origin.x, point.y - origin.y] as const),
+    // Routed for it, so no longer shaped by hand.
+    ...(arrow.routeFixed && { routeFixed: false }),
+  };
+}
+
+/**
+ * An elbow arrow shaped by hand, with its ends put back on what they are
+ * attached to and everything between left where it was placed.
+ *
+ * The run at each end keeps its direction and only its length changes: the
+ * bend beside an end slides with it, along the run, so every run stays square.
+ * When an end has been carried round behind its own run — the run would now
+ * have to go back into the shape it leaves — the hand-made route cannot be
+ * kept, and the arrow is routed afresh.
+ */
+export function withFixedRouteEnds(
+  arrow: ArrowShape,
+  shapesById: ReadonlyMap<string, Shape>,
+): ArrowShape {
+  if (arrow.points.length < 4) return withElbowRoute(arrow, shapesById);
+  const stored = storedTerminals(arrow);
+  const start = elbowEndOf(
+    arrow,
+    arrow.startBinding,
+    arrow.startArrowhead,
+    stored.start,
+    shapesById,
+  );
+  const end = elbowEndOf(arrow, arrow.endBinding, arrow.endArrowhead, stored.end, shapesById);
+
+  const points = arrow.points.map(([px, py]) => ({ x: arrow.x + px, y: arrow.y + py }));
+  const n = points.length;
+  const level = (a: Point, b: Point) => Math.abs(a.y - b.y) <= Math.abs(a.x - b.x);
+
+  const firstLevel = level(points[0]!, points[1]!);
+  const lastLevel = level(points[n - 1]!, points[n - 2]!);
+  points[0] = start.point;
+  points[n - 1] = end.point;
+  if (firstLevel) points[1] = { ...points[1]!, y: start.point.y };
+  else points[1] = { ...points[1]!, x: start.point.x };
+  if (lastLevel) points[n - 2] = { ...points[n - 2]!, y: end.point.y };
+  else points[n - 2] = { ...points[n - 2]!, x: end.point.x };
+
+  // Each end run has to leave its shape the way the side faces, and be
+  // running along the axis that side faces along.
+  const leavesRight = (from: Point, to: Point, out: Heading | null, isLevel: boolean) =>
+    !out ||
+    ((out.x !== 0) === isLevel &&
+      (to.x - from.x) * out.x + (to.y - from.y) * out.y >= ELBOW_PADDING / 2);
+  if (
+    !leavesRight(points[0]!, points[1]!, start.outward, firstLevel) ||
+    !leavesRight(points[n - 1]!, points[n - 2]!, end.outward, lastLevel)
+  ) {
+    return withElbowRoute(arrow, shapesById);
+  }
+
+  const origin = points[0]!;
+  return {
+    ...arrow,
+    x: origin.x,
+    y: origin.y,
+    points: points.map((point) => [point.x - origin.x, point.y - origin.y] as const),
+  };
+}
+
+/**
+ * Whether any run of an arrow passes over or along any of these boxes — what
+ * says a shape has been moved into its way, or out of the way it went round.
+ */
+export function elbowRouteTouches(arrow: ArrowShape, boxes: readonly Rect[]): boolean {
+  for (let i = 1; i < arrow.points.length; i += 1) {
+    const [ax, ay] = arrow.points[i - 1]!;
+    const [bx, by] = arrow.points[i]!;
+    const left = arrow.x + Math.min(ax, bx);
+    const right = arrow.x + Math.max(ax, bx);
+    const top = arrow.y + Math.min(ay, by);
+    const bottom = arrow.y + Math.max(ay, by);
+    for (const box of boxes) {
+      if (
+        right >= box.x &&
+        left <= box.x + box.width &&
+        bottom >= box.y &&
+        top <= box.y + box.height
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Whether an elbow arrow still has the two points it was stored with before
+ * elbow arrows were routed, and so has never been routed: it was drawn as one
+ * level run and one upright one, wherever that took it.
+ */
+export function isUnroutedElbow(arrow: ArrowShape): boolean {
+  if (arrow.arrowType !== 'elbow' || arrow.points.length !== 2) return false;
+  const [a, b] = arrow.points as [readonly [number, number], readonly [number, number]];
+  return Math.abs(a[0] - b[0]) > 0.5 && Math.abs(a[1] - b[1]) > 0.5;
 }
