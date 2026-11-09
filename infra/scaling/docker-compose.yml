@@ -1,0 +1,134 @@
+# Local scaling lab for the sync-server: Postgres, Redis, two sync-server
+# instances and an nginx load balancer, all on this machine.
+#
+# Nothing here is used in production. Every port is bound to 127.0.0.1, every
+# secret is a fake value used only by this file, and the database is a
+# throwaway volume. See README.md ("Scaling lab") for the commands.
+#
+#   docker compose -f infra/scaling/docker-compose.yml up -d --build --wait
+#
+# Profiles:
+#   (default)  postgres, redis, sync-1, sync-2, lb   two instances behind nginx
+#   solo       sync-solo                             one instance, no Redis,
+#                                                    the production default
+#   load       loadgen                               the load generator, run
+#                                                    inside the compose network
+
+name: canvasflow-scaling
+
+x-sync: &sync
+  build:
+    context: ../..
+    dockerfile: services/sync-server/Dockerfile
+  image: canvasflow-sync:scaling
+  restart: 'no'
+  depends_on:
+    postgres:
+      condition: service_healthy
+  environment: &sync-env
+    NODE_ENV: production
+    PORT_WS: '4000'
+    PORT_HTTP: '4001'
+    LOG_LEVEL: warn
+    AUTH_SECRET: local-scaling-auth-secret-not-used-anywhere-else-0000
+    DATABASE_URL: postgresql://postgres:postgres@postgres:5432/canvasflow
+    # The origin the load generator sends, as the editor would.
+    EDITOR_URL: http://localhost:3002
+    REDIS_URL: redis://redis:6379
+  # One CPU and the Fly VM's 1 GB per instance, so one vs two instances is a
+  # fair comparison on a machine with many more cores than that.
+  cpus: 1.0
+  mem_limit: 1g
+  ulimits:
+    nofile: { soft: 1048576, hard: 1048576 }
+  healthcheck:
+    test:
+      - CMD
+      - node
+      - -e
+      - "fetch('http://127.0.0.1:4001/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+    interval: 2s
+    timeout: 2s
+    retries: 30
+
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: canvasflow
+    command: ['postgres', '-c', 'max_connections=200']
+    ports: ['127.0.0.1:55432:5432']
+    tmpfs: ['/var/lib/postgresql/data']
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'postgres', '-d', 'canvasflow']
+      interval: 1s
+      timeout: 2s
+      retries: 30
+
+  redis:
+    image: redis:7.4-alpine
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    ports: ['127.0.0.1:56379:6379']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 1s
+      timeout: 2s
+      retries: 30
+
+  sync-1:
+    <<: *sync
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports: ['127.0.0.1:4201:4000']
+
+  sync-2:
+    <<: *sync
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports: ['127.0.0.1:4202:4000']
+
+  # The single-instance default: no REDIS_URL, so the fan-out is off.
+  sync-solo:
+    <<: *sync
+    profiles: [solo]
+    environment:
+      <<: *sync-env
+      REDIS_URL: !reset null
+    ports: ['127.0.0.1:4203:4000']
+
+  lb:
+    image: nginx:1.27-alpine
+    depends_on:
+      sync-1: { condition: service_healthy }
+    environment:
+      # Override to put only sync-1 behind the balancer:
+      #   SYNC_UPSTREAMS='server sync-1:4000;'
+      SYNC_UPSTREAMS: ${SYNC_UPSTREAMS:-server sync-1:4000; server sync-2:4000;}
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+    ulimits:
+      nofile: { soft: 1048576, hard: 1048576 }
+    ports: ['127.0.0.1:4200:4000']
+
+  loadgen:
+    image: canvasflow-sync:scaling
+    profiles: [load]
+    user: node
+    working_dir: /load
+    entrypoint: ['node']
+    environment:
+      LOAD_RESOLVE_FROM: /app/package.json
+      AUTH_SECRET: local-scaling-auth-secret-not-used-anywhere-else-0000
+    volumes:
+      - ../../scripts/metrics/scaling:/load
+    # Every client keeps a presence record for every other client, so the
+    # generator's memory grows with N². Capped so that past the machine's
+    # limit the generator is what fails, never the host.
+    mem_limit: 6g
+    ulimits:
+      nofile: { soft: 1048576, hard: 1048576 }

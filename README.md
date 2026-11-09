@@ -156,6 +156,50 @@ E2E_EMAIL=you@example.com E2E_PASSWORD=your-password pnpm --filter @canvasflow/e
 pnpm --filter @canvasflow/e2e test:e2e --project=recovery
 ```
 
+### Scaling lab
+
+`infra/scaling/docker-compose.yml` runs the sync server the way a second
+replica would: Postgres, Redis, two sync-server instances built from
+`services/sync-server/Dockerfile` (1 CPU and 1 GB each) and an nginx load
+balancer. All of it stays on this machine: ports are bound to `127.0.0.1`,
+the secrets are fake, and Postgres keeps its data in memory.
+
+| Service     | Address               | Notes                                            |
+| ----------- | --------------------- | ------------------------------------------------ |
+| `lb`        | `ws://127.0.0.1:4200` | nginx, round-robin, no sticky sessions           |
+| `sync-1`    | `ws://127.0.0.1:4201` | `REDIS_URL` set                                  |
+| `sync-2`    | `ws://127.0.0.1:4202` | `REDIS_URL` set                                  |
+| `sync-solo` | `ws://127.0.0.1:4203` | profile `solo`: no Redis, the production default |
+| `postgres`  | `127.0.0.1:55432`     | `postgres` / `postgres`, database `canvasflow`   |
+| `redis`     | `127.0.0.1:56379`     |                                                  |
+
+```bash
+C="docker compose -f infra/scaling/docker-compose.yml"
+
+# Build and start Postgres, Redis, both instances and the balancer,
+# then apply the migrations and seed a user and boards
+$C up -d --build --wait
+node scripts/metrics/scaling/seed.mjs --spare-boards=300
+
+# Two clients on different instances: do they sync, and how fast?
+$C --profile load run --rm loadgen cross-instance.mjs --samples=200 --runs=3
+
+# Reopening a board before its last edit is saved must not split the room
+$C --profile load run --rm loadgen redis-unload-race.mjs --tries=5
+
+# Raise the number of clients on one board until a level is not stable:
+# solo = one instance without Redis, lb1 / lb2 = one / two instances behind nginx
+node scripts/metrics/scaling/sweep.mjs --mode=solo --levels=500,1000,2000,5000 --runs=2
+node scripts/metrics/scaling/sweep.mjs --mode=lb2 --levels=500,1000,2000,5000 --runs=2
+
+# Stop everything and throw the data away
+$C --profile solo down -v
+```
+
+The load clients run inside the compose network (the `loadgen` service
+reuses the sync-server image), so the traffic never crosses Docker's port
+forwarding. Results are written to `scripts/metrics/scaling/results/`.
+
 ## Deployment
 
 | Part                     | Hosted on                            |
