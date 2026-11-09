@@ -14,7 +14,9 @@
     "compact:documents": "tsx --env-file=.env scripts/compact-documents.ts",
     "load-test": "tsx --env-file=.env scripts/load-test.ts",
     "clean": "rm -rf dist .turbo *.tsbuildinfo",
-    "lint": "eslint src --max-warnings=0"
+    "lint": "eslint src --max-warnings=0",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@canvasflow/canvas-engine": "workspace:*",
@@ -36,7 +38,10 @@
     "@types/express": "^5.0.0",
     "@types/node": "^25.9.1",
     "@types/ws": "^8.18.1",
+    "@vitest/coverage-v8": "2.1.9",
+    "embedded-postgres": "17.11.0-beta.19",
     "tsx": "^4.19.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "2.1.9"
   }
 }

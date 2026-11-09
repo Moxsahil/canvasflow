@@ -12,6 +12,7 @@ import {
   workspaces,
 } from '@canvasflow/db';
 import { TERMS_VERSION } from '@canvasflow/types';
+import { EDITOR, GATEWAY, WEB, urlOn } from './support/urls';
 
 /**
  * Inviting people into a workspace by email, end to end: the gateway's rules,
@@ -33,9 +34,6 @@ try {
   // Already in the environment, or not available; the check below says which.
 }
 
-const WEB = 'http://localhost:3000';
-const GATEWAY = 'http://localhost:3001';
-const EDITOR = 'http://localhost:3002';
 const RUN = randomUUID().slice(0, 8);
 const PREFIX = 'delivered+e2e-invites-';
 const OWNER = `${PREFIX}owner-${RUN}@resend.dev`;
@@ -69,7 +67,7 @@ async function signIn(browser: Browser, email: string): Promise<Page> {
   await page.getByLabel('Email', { exact: true }).fill(email);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
-  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 45_000 });
+  await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 45_000 });
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 20_000 });
   return page;
 }
@@ -262,7 +260,7 @@ test('a stranger signs up from the invitation and lands in the workspace', async
   // Back on the invitation, signed in as the address it was sent to.
   await page.waitForURL(new RegExp(`/join/${token}$`), { timeout: 45_000 });
   await page.getByRole('button', { name: `Join ${workspaceName}` }).click();
-  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 45_000 });
+  await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 45_000 });
 
   const [joined] = await db!
     .select({ role: memberships.role, verified: users.emailVerifiedAt })

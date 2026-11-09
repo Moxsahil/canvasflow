@@ -43,7 +43,8 @@
       "bcrypt",
       "esbuild",
       "@nestjs/core",
-      "protobufjs"
+      "protobufjs",
+      "@embedded-postgres/linux-x64"
     ]
   },
   "license": "UNLICENSED",

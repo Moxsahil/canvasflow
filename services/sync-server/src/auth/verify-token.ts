@@ -24,7 +24,7 @@ export interface EditorTokenPayload {
    * an endless token-refresh loop, because the socket could never authenticate.
    *
    * Informational only. The connection's actual permissions are resolved
-   * against the database on every connect — see index.ts.
+   * against the database on every connect — see server.ts.
    */
   role: BoardRole;
   /**

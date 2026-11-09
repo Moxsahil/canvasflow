@@ -17,7 +17,7 @@ import * as Y from 'yjs';
  * amplification, and a measured 45-second read. So the write path prunes.
  *
  * Notably, we do NOT re-verify workspace membership on each read/write:
- * - Connection was authorized in onAuthenticate (see src/index.ts)
+ * - Connection was authorized in onAuthenticate (see src/server.ts)
  * - Periodic reauth (PR #29) closes the revocation window
  */
 

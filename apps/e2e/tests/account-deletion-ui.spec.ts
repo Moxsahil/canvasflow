@@ -14,6 +14,7 @@ import {
   workspaces,
 } from '@canvasflow/db';
 import { TERMS_VERSION } from '@canvasflow/types';
+import { EDITOR, GATEWAY, WEB, urlOn } from './support/urls';
 
 /**
  * Settings → Data & Privacy → Delete account, end to end, through the real
@@ -39,8 +40,6 @@ try {
   // Already in the environment, or not available; the check below says which.
 }
 
-const WEB = 'http://localhost:3000';
-const GATEWAY = 'http://localhost:3001';
 const suffix = randomUUID().slice(0, 8);
 const PAT = `delivered+e2e-delete-ui-pat-${suffix}@resend.dev`;
 const GEE = `delivered+e2e-delete-ui-gee-${suffix}@resend.dev`;
@@ -75,7 +74,7 @@ async function signedIn(browser: Browser, email: string): Promise<Page> {
   await page.getByLabel('Email', { exact: true }).fill(email);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
-  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+  await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 30_000 });
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15_000 });
   return page;
 }
@@ -174,7 +173,7 @@ test('a password account types its address, is refused a wrong password, then de
   await password.fill(PASSWORD);
   await remove.click();
 
-  await page.waitForURL(/localhost:3000\/account-deleted\?until=/, { timeout: 30_000 });
+  await page.waitForURL(urlOn(WEB, /\/account-deleted\?until=/), { timeout: 30_000 });
   await expect(page.getByRole('heading', { name: 'Your account will be deleted' })).toBeVisible();
   await expect(
     page.getByText(/everything in it after \d{1,2} \w+ \d{4} at \d{2}:\d{2} UTC/),
@@ -183,7 +182,7 @@ test('a password account types its address, is refused a wrong password, then de
 
   // Every session ended with it: this browser is signed out.
   await page.goto(`${WEB}/open`);
-  await page.waitForURL(/localhost:3000\/login/, { timeout: 30_000 });
+  await page.waitForURL(urlOn(WEB, /\/login/), { timeout: 30_000 });
 });
 
 test('a Google-only account signs in again first, comes back to the dialog, then deletes', async ({
@@ -237,7 +236,7 @@ test('a Google-only account signs in again first, comes back to the dialog, then
   await back.getByLabel('Type your email address to confirm').fill(GEE);
   await back.getByRole('button', { name: 'Delete account' }).click();
 
-  await page.waitForURL(/localhost:3000\/account-deleted\?until=/, { timeout: 30_000 });
+  await page.waitForURL(urlOn(WEB, /\/account-deleted\?until=/), { timeout: 30_000 });
   expect(await scheduled(made.gee)).toBe('scheduled');
 });
 

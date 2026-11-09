@@ -10,6 +10,7 @@ import {
   workspaces,
 } from '@canvasflow/db';
 import { TERMS_VERSION } from '@canvasflow/types';
+import { EDITOR, GATEWAY, WEB, urlOn } from './support/urls';
 
 /**
  * The board at the editor's own address, which anyone can draw on without an
@@ -31,9 +32,6 @@ try {
   // Already in the environment, or not available; the check below says which.
 }
 
-const EDITOR = 'http://localhost:3002';
-const WEB = 'http://localhost:3000';
-const GATEWAY = 'http://localhost:3001';
 const EMAIL = `delivered+e2e-local-${randomUUID().slice(0, 8)}@resend.dev`;
 const PASSWORD = 'E2e!Local-board1';
 
@@ -57,7 +55,7 @@ async function signIn(page: Page) {
   await page.getByLabel('Email', { exact: true }).fill(EMAIL);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
-  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+  await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 30_000 });
   // Up and running, so the editor has noted that an account is in this browser.
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15_000 });
   await expect
@@ -113,7 +111,7 @@ test('asks for an account when the board is shared', async ({ page }) => {
   await expect(prompt.getByText('Sharing needs an account')).toBeVisible();
   await expect(prompt.getByRole('button', { name: 'Create account' })).toBeVisible();
   await prompt.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(/localhost:3000\/login\?next=\/open/);
+  await expect(page).toHaveURL(urlOn(WEB, /\/login\?next=\/open/));
 });
 
 test.describe('signed in', () => {
@@ -165,12 +163,12 @@ test.describe('signed in', () => {
     await page.getByRole('button', { name: /share/i }).click();
     await page.getByTestId('sign-up-prompt').getByRole('button', { name: 'Sign in' }).click();
     // A full navigation to the web app: wait for its form to be ready to type in.
-    await page.waitForURL(/localhost:3000\/login/);
+    await page.waitForURL(urlOn(WEB, /\/login/));
     await page.waitForLoadState('networkidle');
     await page.getByLabel('Email', { exact: true }).fill(EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: /^sign in$/i }).click();
-    await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+    await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 30_000 });
 
     // A new account's first board was empty, so the drawing is put on it, and
     // the share window it was brought over for opens.
@@ -196,7 +194,7 @@ test.describe('signed in', () => {
     // is not. The address still opens the account's own board, not the local one.
     await page.context().clearCookies({ name: 'cf.access' });
     await page.goto(`${EDITOR}/`);
-    await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+    await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 30_000 });
     expect(page.url().split('#')[0]).toBe(lastBoard);
     await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('local-account-button')).toHaveCount(0);
@@ -207,7 +205,7 @@ test.describe('signed in', () => {
     await page.getByTestId('menu-account').click();
     await page.getByTestId('menu-item-signOut').click();
     await page.getByTestId('sign-out-confirm').click();
-    await page.waitForURL(/localhost:3000/, { timeout: 30_000 });
+    await page.waitForURL(urlOn(WEB), { timeout: 30_000 });
     await page.goto(`${EDITOR}/`);
     await expect(page).toHaveURL(`${EDITOR}/`);
     await expect(page.getByTestId('local-account-button')).toHaveText('Sign in');
@@ -251,7 +249,7 @@ test.describe('signed in', () => {
     // Unchanged, it is not brought along a second time: the address opens the
     // board it went to, with nothing new made.
     await page.goto(`${EDITOR}/`);
-    await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+    await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 30_000 });
     await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(3000);
     expect(page.url().split('#')[0]).toBe(moved);

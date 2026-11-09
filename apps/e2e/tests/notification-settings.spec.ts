@@ -10,6 +10,7 @@ import {
   workspaces,
 } from '@canvasflow/db';
 import { TERMS_VERSION } from '@canvasflow/types';
+import { EDITOR, GATEWAY, WEB, urlOn } from './support/urls';
 
 /**
  * Settings → Notifications, end to end, through the real editor.
@@ -33,8 +34,6 @@ try {
   // Already in the environment, or not available; the check below says which.
 }
 
-const WEB = 'http://localhost:3000';
-const GATEWAY = 'http://localhost:3001';
 const RUN = randomUUID().slice(0, 8);
 const PASSWORD = 'E2e!Notify-one1';
 const PERSON = { email: `delivered+e2e-notify-${RUN}@resend.dev`, name: `E2E Notify ${RUN}` };
@@ -53,7 +52,7 @@ async function signedIn(browser: Browser): Promise<Page> {
   await page.getByLabel('Email', { exact: true }).fill(PERSON.email);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
-  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+  await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 30_000 });
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15_000 });
   return page;
 }

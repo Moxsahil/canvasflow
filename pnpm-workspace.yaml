@@ -3,6 +3,7 @@ packages:
   - 'services/*'
   - 'packages/*'
 allowBuilds:
+  '@embedded-postgres/linux-x64': true
   '@nestjs/core': true
   bcrypt: true
   canvas: true
@@ -11,3 +12,8 @@ allowBuilds:
   protobufjs: true
   sharp: true
   unrs-resolver: true
+# embedded-postgres (test-only) asks for pg ^8.23.1. Held at the version the
+# app already uses, so the workspace keeps one pg and one drizzle-orm copy;
+# two copies make drizzle's types incompatible across packages.
+overrides:
+  embedded-postgres>pg: 8.21.0

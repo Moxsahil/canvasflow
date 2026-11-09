@@ -10,12 +10,16 @@ import type { Env } from '../config/env.js';
  *
  * Localhost in development because the web app and the editor run on their own
  * ports there and neither is configured; the real hosts in production, where
- * both are.
+ * both are. Outside production the configured hosts are admitted as well, so a
+ * local stack on other ports (the end-to-end run) can talk to this service.
  */
 const DEV_ORIGINS = ['http://localhost:3000', 'http://localhost:3002'];
 
 export function allowedOrigins(env: Env): string[] {
-  if (env.NODE_ENV !== 'production') return DEV_ORIGINS;
+  if (env.NODE_ENV !== 'production') {
+    const configured = [env.WEB_URL, env.EDITOR_URL].filter((url): url is string => Boolean(url));
+    return [...new Set([...DEV_ORIGINS, ...configured])];
+  }
   return [env.WEB_URL, env.EDITOR_URL].filter((url): url is string => Boolean(url));
 }
 

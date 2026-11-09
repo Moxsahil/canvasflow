@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { EDITOR } from './tests/support/urls';
 
 export default defineConfig({
   testDir: './tests',
@@ -8,7 +9,7 @@ export default defineConfig({
   workers: 1,
   reporter: [['html', { open: 'never' }], ['list']],
   use: {
-    baseURL: 'http://localhost:3002',
+    baseURL: EDITOR,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },

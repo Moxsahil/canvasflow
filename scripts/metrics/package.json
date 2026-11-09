@@ -1,0 +1,9 @@
+{
+  "name": "canvasflow-metrics",
+  "private": true,
+  "type": "module",
+  "description": "Local-only measurement scripts. Not part of the pnpm workspace.",
+  "dependencies": {
+    "embedded-postgres": "^17.11.0-beta.19"
+  }
+}

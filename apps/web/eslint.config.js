@@ -9,6 +9,6 @@ export default [
     },
   },
   {
-    ignores: ['.next/**', '.turbo/**', 'node_modules/**', 'next-env.d.ts'],
+    ignores: ['.next/**', '.next-e2e/**', '.turbo/**', 'node_modules/**', 'next-env.d.ts'],
   },
 ];
