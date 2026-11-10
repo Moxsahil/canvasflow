@@ -20,8 +20,6 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import EmbeddedPostgres from 'embedded-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { createClient } from '@canvasflow/db';
-import { TERMS_VERSION } from '@canvasflow/types';
 import { startFakeResend } from './fake-resend.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -275,6 +273,10 @@ try {
   await pg.initialise();
   await pg.start();
   await pg.createDatabase('canvasflow_e2e');
+  // Imported only now: these workspace packages resolve to their built dist/,
+  // which the build step above has just written (a fresh checkout has none).
+  const { createClient } = await import('@canvasflow/db');
+  const { TERMS_VERSION } = await import('@canvasflow/types');
   const db = createClient(DATABASE_URL);
   await migrate(db, { migrationsFolder: join(ROOT, 'packages/db/migrations') });
 
