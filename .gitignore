@@ -8,6 +8,7 @@ build/
 .next/
 .next-e2e/
 .next-perf/
+services/api-gateway/dist-perf/
 .turbo/
 out/
 *.tsbuildinfo

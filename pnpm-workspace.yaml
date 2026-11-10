@@ -17,3 +17,32 @@ allowBuilds:
 # two copies make drizzle's types incompatible across packages.
 overrides:
   embedded-postgres>pg: 8.21.0
+
+  # Security patches for packages pulled in by other packages, each held to
+  # the major version its parent asks for, so nothing changes API. Added from
+  # `pnpm audit`; see METRICS.md (Phase 4) for what is left and why.
+  '@grpc/grpc-js@1': ^1.14.5
+  ajv@8: ^8.18.0
+  baseline-browser-mapping@2: ^2.11.0
+  body-parser@1: ^1.20.9
+  brace-expansion@1: ^1.1.21
+  brace-expansion@2: ^2.1.7
+  brace-expansion@5: ^5.0.12
+  browserslist@4: ^4.28.7
+  fast-uri@3: ^3.1.9
+  glob@10: ^10.5.0
+  js-yaml@4: ^4.3.2
+  multer@2: ^2.5.0
+  nanoid@3: ^3.3.18
+  picomatch@4: ^4.0.7
+  postcss@8: ^8.5.23
+  protobufjs@7: ^7.6.5
+  proxy-addr@2: ^2.0.8
+  qs@6: ^6.16.1
+  source-map-js@1: ^1.2.2
+  webpack@5: ^5.104.1
+  zod@4: ^4.6.7
+  # Two lines whose fix is a newer 0.x line. tmp is only used by the Nest
+  # CLI's interactive prompts; sharp is the image library Next.js loads.
+  'tmp@<0.2.6': ^0.2.6
+  'sharp@0.34': ^0.35.5

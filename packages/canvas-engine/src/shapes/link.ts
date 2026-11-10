@@ -23,8 +23,21 @@ const LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 /** A scheme at the very start, e.g. `https:` or `mailto:`. */
 const SCHEME = /^[a-z][a-z\d+.-]*:/i;
 
-/** An address with no scheme that is plainly an email. */
-const EMAIL = /^[^\s@/:]+@[^\s@/:]+\.[^\s@/:]+$/;
+/**
+ * An address with no scheme that is plainly an email: one `@`, something
+ * before it, and a dot with something either side of it after. No spaces,
+ * slashes or colons anywhere. Checked by hand, because the pattern for it
+ * (`^[^@]+@[^@]+\.[^@]+$`) is quadratic on a long run of dots.
+ */
+function isPlainEmail(text: string): boolean {
+  if (/[\s/:]/.test(text)) return false;
+  const at = text.indexOf('@');
+  if (at <= 0 || text.includes('@', at + 1)) return false;
+  return text
+    .slice(at + 1)
+    .slice(1, -1)
+    .includes('.');
+}
 
 /**
  * A stored link, or null where there is none to trust.
@@ -67,7 +80,7 @@ export function parseLinkInput(raw: string): ParsedLinkInput {
     // failed parse falls through to being tried as a bare address below.
   }
 
-  if (EMAIL.test(text)) {
+  if (isPlainEmail(text)) {
     const url = parseUrl(`mailto:${text}`);
     return url ? accept(url) : { ok: false };
   }

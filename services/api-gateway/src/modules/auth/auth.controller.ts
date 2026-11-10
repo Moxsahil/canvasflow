@@ -15,6 +15,7 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { AuthService, type AuthenticatedAccount, type SignupResult } from './auth.service.js';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { AccountThrottlerGuard } from './account-throttler.guard.js';
 import { parseEnv } from '../../config/env.js';
 import { isAllowedOrigin } from '../../common/allowed-origins.js';
 import { requestLocation } from '../../common/request-origin.js';
@@ -204,6 +205,8 @@ export class AuthController {
    */
   @Post('signout')
   @HttpCode(204)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   async signOut(
     @Req() request: Request,
     @Headers('origin') origin: string | undefined,
@@ -240,7 +243,8 @@ export class AuthController {
    */
   @Post('signout-all')
   @HttpCode(204)
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, AccountThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async signOutEverywhere(
     @CurrentUser() user: AuthenticatedUser,
     @Headers('origin') origin: string | undefined,

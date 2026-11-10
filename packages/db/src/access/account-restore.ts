@@ -136,7 +136,20 @@ export interface RestoreArgs {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/**
+ * One `@` with something before it, and a dot with something either side of
+ * it after; no spaces. By hand, because the equivalent pattern is quadratic
+ * on a long run of dots.
+ */
+function looksLikeEmail(text: string): boolean {
+  if (/\s/.test(text)) return false;
+  const at = text.indexOf('@');
+  if (at <= 0 || text.includes('@', at + 1)) return false;
+  return text
+    .slice(at + 1)
+    .slice(1, -1)
+    .includes('.');
+}
 
 /** The tool's arguments, or the sentence that says what is wrong with them. */
 export function parseRestoreArgs(argv: readonly string[]): RestoreArgs | { error: string } {
@@ -162,7 +175,7 @@ export function parseRestoreArgs(argv: readonly string[]): RestoreArgs | { error
     }
   }
 
-  if (!email || !EMAIL.test(email)) {
+  if (!email || !looksLikeEmail(email)) {
     return { error: 'Give the email address the person wrote from.' };
   }
   return { email, confirm, ...(userId ? { userId } : {}) };

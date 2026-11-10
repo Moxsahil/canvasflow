@@ -1,0 +1,52 @@
+name: CodeQL
+
+# Reads the source for security bugs (injection, unsafe redirects, request
+# forgery, ReDoS and the like) and reports them under the repository's
+# Security tab, and on a pull request as a check. Free for a public repository.
+#
+# The same suite runs locally with the CodeQL CLI:
+#   codeql database create db --language=javascript-typescript --source-root=.
+#   codeql database analyze db \
+#     codeql/javascript-queries:codeql-suites/javascript-security-extended.qls \
+#     --format=sarifv2.1.0 --output=codeql.sarif
+#   node scripts/metrics/sarif-summary.mjs codeql.sarif --list
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Mondays, so a new query added upstream still reaches code nobody touched.
+    - cron: '27 4 * * 1'
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (JavaScript and TypeScript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # To upload the results; nothing else is written.
+      security-events: write
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # No build: JavaScript and TypeScript are read from source.
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          build-mode: none
+          queries: security-extended
+
+      - name: Analyse
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:javascript-typescript'

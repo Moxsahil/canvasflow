@@ -11,6 +11,8 @@ import {
 import { ImagesService, type PresignedDownload, type PresignedUpload } from './images.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { type AuthenticatedUser, JwtAuthGuard } from '../auth/jwt.guard.js';
+import { Throttle } from '@nestjs/throttler';
+import { AccountThrottlerGuard } from '../auth/account-throttler.guard.js';
 
 interface CreateUploadBody {
   /** Lowercase hex SHA-256 of the bytes, computed by the client before upload. */
@@ -32,11 +34,12 @@ const FILE_ID_PATTERN = /^[0-9a-f]{64}$/;
  * bandwidth here and, before that, in the database.
  */
 @Controller('boards/:boardId/images')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, AccountThrottlerGuard)
 export class ImagesController {
   constructor(private readonly images: ImagesService) {}
 
   @Post('upload-url')
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   async createUpload(
     @Param('boardId', new ParseUUIDPipe({ version: '4' })) boardId: string,
     @Body() body: CreateUploadBody,
@@ -77,6 +80,7 @@ export class ImagesController {
    * then on.
    */
   @Get(':fileId/url')
+  @Throttle({ default: { limit: 600, ttl: 60_000 } })
   async downloadUrl(
     @Param('boardId', new ParseUUIDPipe({ version: '4' })) boardId: string,
     @Param('fileId') fileId: string,

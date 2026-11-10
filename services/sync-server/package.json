@@ -26,12 +26,12 @@
     "@hocuspocus/provider": "^2.15.3",
     "@hocuspocus/server": "^2.15.0",
     "drizzle-orm": "^0.36.4",
-    "express": "^4.21.2",
+    "express": "^4.22.3",
     "jose": "^6.2.3",
     "ws": "^8.21.2",
     "y-protocols": "^1.0.6",
     "yjs": "^13.6.20",
-    "zod": "^3.23.8"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@canvasflow/config": "workspace:*",

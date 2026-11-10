@@ -559,8 +559,30 @@ function resolveUncached(value: string): ResolvedEmbed | null {
   return null;
 }
 
-/** `src="…"` inside a pasted `<iframe>` tag. */
-const IFRAME_SRC = /^<iframe\b[^>]*?\ssrc=["']([^"']+)["'][^>]*>/i;
+/**
+ * A pasted `<iframe>` tag, and the `src="…"` among its attributes. Two steps,
+ * not one pattern: a single expression that both skips attributes and looks
+ * for `src` can try every split of a long tag, which is quadratic.
+ */
+const IFRAME_TAG = /^<iframe\b([^>]*)>/i;
+const SRC_ATTRIBUTE = /\ssrc=["']([^"']+)["']/i;
+
+function iframeSrc(text: string): string | null {
+  const attributes = IFRAME_TAG.exec(text)?.[1];
+  if (attributes === undefined) return null;
+  return SRC_ATTRIBUTE.exec(attributes)?.[1] ?? null;
+}
+
+/**
+ * `example.com:8080…`: a host with a dot in it, then a port. Read with
+ * indexOf, since the obvious pattern for it is quadratic on long input.
+ */
+function startsWithHostAndPort(text: string): boolean {
+  const colon = text.indexOf(':');
+  if (colon < 0) return false;
+  const host = text.slice(0, colon);
+  return host.slice(1, -1).includes('.') && /\d/.test(text.charAt(colon + 1));
+}
 
 /**
  * What someone typed or pasted into the embed field, as the address to store —
@@ -572,13 +594,13 @@ const IFRAME_SRC = /^<iframe\b[^>]*?\ssrc=["']([^"']+)["'][^>]*>/i;
  */
 export function parseEmbedInput(raw: string): string | null {
   let text = raw.trim();
-  const tag = IFRAME_SRC.exec(text);
-  if (tag) text = tag[1]!.replace(/&amp;/g, '&');
+  const src = iframeSrc(text);
+  if (src !== null) text = src.replace(/&amp;/g, '&');
   if (text === '' || /\s/.test(text)) return null;
 
   if (/^http:\/\//i.test(text)) text = `https://${text.slice(7)}`;
   else if (!/^https:\/\//i.test(text)) {
-    if (/^[a-z][a-z\d+.-]*:/i.test(text) && !/^[^:]+\.[^:]+:\d/.test(text)) return null;
+    if (/^[a-z][a-z\d+.-]*:/i.test(text) && !startsWithHostAndPort(text)) return null;
     text = `https://${text}`;
   }
 

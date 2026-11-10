@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareWorkspaceMembers, type WorkspaceRole } from './workspaces.js';
+import { compareWorkspaceMembers, workspaceSlugStem, type WorkspaceRole } from './workspaces.js';
 
 const member = (name: string, role: WorkspaceRole, joined: string) => ({
   name,
@@ -24,5 +24,22 @@ describe('compareWorkspaceMembers', () => {
       member('Kim', 'member', '2026-03-01'),
     ].sort(compareWorkspaceMembers);
     expect(list.map((m) => m.name)).toEqual(['Zed', 'Kim', 'Ada']);
+  });
+});
+
+describe('workspaceSlugStem', () => {
+  it('lowercases, folds accents and joins words with single dashes', () => {
+    expect(workspaceSlugStem('  Café   Design -- Team!  ')).toBe('cafe-design-team');
+    expect(workspaceSlugStem('---Acme---')).toBe('acme');
+  });
+
+  it('keeps 40 characters without leaving a dash at the cut', () => {
+    const stem = workspaceSlugStem(`${'a'.repeat(39)} b`);
+    expect(stem).toBe('a'.repeat(39));
+  });
+
+  it('falls back when nothing survives', () => {
+    expect(workspaceSlugStem('🙂🙂')).toBe('workspace');
+    expect(workspaceSlugStem('-'.repeat(50_000))).toBe('workspace');
   });
 });

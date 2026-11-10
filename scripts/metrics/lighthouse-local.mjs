@@ -18,7 +18,7 @@
 // Nothing reads the apps' own .env files, so nothing reaches Neon or the live
 // services. Writes results/lighthouse/<label>/*.json and results/lighthouse-<label>.json.
 import { spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -148,9 +148,10 @@ function jsSizes(dir) {
   let gz = 0;
   let files = 0;
   const walk = (d) => {
-    for (const name of readdirSync(d)) {
+    for (const entry of readdirSync(d, { withFileTypes: true })) {
+      const name = entry.name;
       const p = join(d, name);
-      if (statSync(p).isDirectory()) walk(p);
+      if (entry.isDirectory()) walk(p);
       else if (name.endsWith('.js')) {
         const buf = readFileSync(p);
         raw += buf.length;

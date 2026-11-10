@@ -121,3 +121,21 @@ describe('parseRestoreArgs', () => {
     expect(parseRestoreArgs(['pat@example.com', '--force'])).toHaveProperty('error');
   });
 });
+
+describe('parseRestoreArgs, reading the address', () => {
+  it('takes a plain address and refuses what only looks like one', () => {
+    expect(parseRestoreArgs(['a.b@mail.example.org'])).toEqual({
+      email: 'a.b@mail.example.org',
+      confirm: false,
+    });
+    for (const bad of ['pat@example.', 'pat@.com', '@example.com', 'a@b@c.com', 'pat @x.com']) {
+      expect(parseRestoreArgs([bad])).toHaveProperty('error');
+    }
+  });
+
+  it('answers at once for an address made of a long run of dots', () => {
+    const started = performance.now();
+    expect(parseRestoreArgs([`a@a.${'a.'.repeat(50_000)}@`])).toHaveProperty('error');
+    expect(performance.now() - started).toBeLessThan(250);
+  });
+});

@@ -13,6 +13,8 @@ import { exportableBoards, exportableBoardSnapshots, type ExportableBoard } from
 import { DatabaseService } from '../../infra/database/database.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { type AuthenticatedUser, JwtAuthGuard } from '../auth/jwt.guard.js';
+import { Throttle } from '@nestjs/throttler';
+import { AccountThrottlerGuard } from '../auth/account-throttler.guard.js';
 import { mergeSnapshots } from './merge-snapshots.js';
 
 /**
@@ -29,11 +31,12 @@ import { mergeSnapshots } from './merge-snapshots.js';
  * as one that does not exist does.
  */
 @Controller('users/me/export')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, AccountThrottlerGuard)
 export class BoardExportController {
   constructor(private readonly database: DatabaseService) {}
 
   @Get('boards')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Header('Cache-Control', 'private, no-store')
   async boards(@CurrentUser() user: AuthenticatedUser): Promise<{ data: ExportableBoard[] }> {
     return { data: await exportableBoards(this.database.db, user.id) };
@@ -44,6 +47,7 @@ export class BoardExportController {
    * board that was never drawn on.
    */
   @Get('boards/:id')
+  @Throttle({ default: { limit: 600, ttl: 60_000 } })
   async board(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @CurrentUser() user: AuthenticatedUser,

@@ -64,6 +64,8 @@ export class BoardsController {
   ) {}
 
   @Get()
+  @UseGuards(AccountThrottlerGuard)
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   async list(@CurrentUser() user: AuthenticatedUser): Promise<{ data: BoardRow[] }> {
     const data = await this.boards.findAllForUser(user.id);
     return { data };
@@ -71,6 +73,8 @@ export class BoardsController {
 
   @Post()
   @HttpCode(201)
+  @UseGuards(AccountThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   async create(
     @Body() body: unknown,
     @CurrentUser() user: AuthenticatedUser,
@@ -89,6 +93,8 @@ export class BoardsController {
   }
 
   @Get(':id')
+  @UseGuards(AccountThrottlerGuard)
+  @Throttle({ default: { limit: 240, ttl: 60_000 } })
   async get(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -112,6 +118,8 @@ export class BoardsController {
    * not exist.
    */
   @Get(':id/overview')
+  @UseGuards(AccountThrottlerGuard)
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   @Header('Cache-Control', 'private, no-store')
   async overview(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,

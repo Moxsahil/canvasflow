@@ -24,6 +24,12 @@ export default defineConfig({
       VITE_SYNC_URL: 'ws://localhost:4000',
       VITE_PRESENCE_URL: 'ws://localhost:4002',
     },
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.{test,spec}.{ts,tsx}', 'src/**/*.d.ts'],
+      reporter: ['text-summary', 'json-summary', 'json'],
+    },
   },
   resolve: {
     alias: {

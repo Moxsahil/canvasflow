@@ -9,7 +9,9 @@
       "@/*": ["src/*"],
       // The SDK publishes this entry only through package exports, which the
       // CommonJS resolution here does not read. Node does at run time.
-      "@polar-sh/sdk/2026-10": ["node_modules/@polar-sh/sdk/dist/2026-10/index.d.cts"]
+      "@polar-sh/sdk/2026-10": ["node_modules/@polar-sh/sdk/dist/2026-10/index.d.cts"],
+      // The same, for the test-only Postgres the gateway tests start.
+      "embedded-postgres": ["node_modules/embedded-postgres/dist/index.d.ts"]
     }
   },
   "include": ["src/**/*"],
