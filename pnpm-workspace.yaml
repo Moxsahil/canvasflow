@@ -2,6 +2,7 @@ packages:
   - 'apps/*'
   - 'services/*'
   - 'packages/*'
+  - 'scripts/metrics'
 allowBuilds:
   '@embedded-postgres/linux-x64': true
   '@nestjs/core': true
@@ -20,7 +21,7 @@ overrides:
 
   # Security patches for packages pulled in by other packages, each held to
   # the major version its parent asks for, so nothing changes API. Added from
-  # `pnpm audit`; see METRICS.md (Phase 4) for what is left and why.
+  # `pnpm audit`.
   '@grpc/grpc-js@1': ^1.14.5
   ajv@8: ^8.18.0
   baseline-browser-mapping@2: ^2.11.0

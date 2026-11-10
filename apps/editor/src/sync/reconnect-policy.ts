@@ -5,8 +5,8 @@
  * provider makes. Hocuspocus's own default waits 1 s, doubling to 30 s. Past
  * the fourth failed attempt that leaves up to half a minute between tries, so
  * someone whose server came back after a short outage could wait 20 s more
- * for the board to reconnect (23.9 s p95 measured with the defaults, see
- * METRICS.md).
+ * for the board to reconnect (23.9 s p95 measured locally with the
+ * defaults).
  *
  * Capped at 5 s instead. Every wait is still drawn at random between
  * `minDelay` and the current step ("full jitter"), so when a server restarts

@@ -1,3 +1,7 @@
 .pgdata/
 node_modules/
-results/lighthouse/
+# Measurement output stays on the machine that measured it.
+results/*
+!results/.gitkeep
+scaling/results/*
+!scaling/results/.gitkeep

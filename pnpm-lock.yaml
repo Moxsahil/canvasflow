@@ -614,6 +614,12 @@ importers:
         specifier: ^8.3.6
         version: 8.3.6(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.51.2)(tsx@4.22.3)(yaml@2.9.0)
 
+  scripts/metrics:
+    dependencies:
+      embedded-postgres:
+        specifier: ^17.11.0-beta.19
+        version: 17.11.0-beta.19
+
   services/api-gateway:
     dependencies:
       '@anthropic-ai/sdk':
