@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 /** Move this whenever the text below changes: the page tells readers it did. */
-const LAST_UPDATED = '2026-10-28';
+const LAST_UPDATED = '2026-11-10';
 
 const privacyEmail = <a href={`mailto:${CONTACT.privacy}`}>{CONTACT.privacy}</a>;
 const supportEmail = <a href={`mailto:${CONTACT.support}`}>{CONTACT.support}</a>;
@@ -27,7 +27,10 @@ const supportEmail = <a href={`mailto:${CONTACT.support}`}>{CONTACT.support}</a>
  * keeps PostHog's id in local storage rather than a cookie, and deletes it on
  * a no; the project discards IP addresses. The board at the editor's own
  * address, drawn on without an account, never leaves the browser
- * (apps/editor/src/local). Change the product, change this.
+ * (apps/editor/src/local). The website (apps/web, not the editor) also runs
+ * Vercel Web Analytics and Speed Insights for everyone: no cookies, no account
+ * ID, visitors counted by a hash Vercel discards daily. Change the product,
+ * change this.
  */
 const SECTIONS: LegalSection[] = [
   {
@@ -111,10 +114,17 @@ const SECTIONS: LegalSection[] = [
             your name or your email address, and we don’t keep your IP address with it. We don’t
             record your screen or every click.
           </li>
+          <li>
+            <strong>Website visits and speed:</strong> on our website (not the editor), Vercel
+            counts which pages are visited, where visitors came from, their country, browser and
+            device type, and how fast each page loads. It sets no cookies, doesn’t link a visit to
+            your account, and tells visitors apart only for a day, by a scrambled value it then
+            throws away.
+          </li>
         </ul>
         <p>
           We don’t use advertising or tracking tools, and we don’t buy data about you from anyone.
-          Usage analytics is off unless you turn it on.
+          Usage analytics in the editor is off unless you turn it on.
         </p>
       </>
     ),
@@ -187,7 +197,10 @@ const SECTIONS: LegalSection[] = [
             <strong>Service providers</strong> that run parts of CanvasFlow for us, and handle your
             data only to do that:
             <ul>
-              <li>Vercel, which hosts the website and the editor</li>
+              <li>
+                Vercel, which hosts the website and the editor, and counts website visits and page
+                speed
+              </li>
               <li>Fly.io, which runs our servers, in Singapore</li>
               <li>Neon, which stores our database, in Singapore</li>
               <li>Cloudflare, which protects our network and stores uploaded images and photos</li>

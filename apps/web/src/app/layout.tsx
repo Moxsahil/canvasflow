@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Geist, Geist_Mono, Inter, JetBrains_Mono } from 'next/font/google';
 import { Providers } from '@/providers';
 import './globals.css';
@@ -91,6 +93,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={fontVariables} suppressHydrationWarning>
       <body suppressHydrationWarning className="min-h-screen bg-white text-zinc-900 antialiased">
         <Providers>{children}</Providers>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
