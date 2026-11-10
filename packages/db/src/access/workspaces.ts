@@ -406,10 +406,12 @@ export function workspaceSlugStem(name: string): string {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    // Runs are single dashes by now, so one at either end is all there is.
+    // (`-+$` here would be quadratic on a long run of them.)
+    .replace(/^-|-$/g, '')
     .slice(0, 40)
     // A trailing dash left behind by the slice reads as a typo.
-    .replace(/-+$/, '');
+    .replace(/-$/, '');
 
   return stem || 'workspace';
 }

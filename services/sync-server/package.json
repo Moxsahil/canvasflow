@@ -14,7 +14,9 @@
     "compact:documents": "tsx --env-file=.env scripts/compact-documents.ts",
     "load-test": "tsx --env-file=.env scripts/load-test.ts",
     "clean": "rm -rf dist .turbo *.tsbuildinfo",
-    "lint": "eslint src --max-warnings=0"
+    "lint": "eslint src --max-warnings=0",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@canvasflow/canvas-engine": "workspace:*",
@@ -24,19 +26,22 @@
     "@hocuspocus/provider": "^2.15.3",
     "@hocuspocus/server": "^2.15.0",
     "drizzle-orm": "^0.36.4",
-    "express": "^4.21.2",
+    "express": "^4.22.3",
     "jose": "^6.2.3",
     "ws": "^8.21.2",
     "y-protocols": "^1.0.6",
     "yjs": "^13.6.20",
-    "zod": "^3.23.8"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@canvasflow/config": "workspace:*",
     "@types/express": "^5.0.0",
     "@types/node": "^25.9.1",
     "@types/ws": "^8.18.1",
+    "@vitest/coverage-v8": "2.1.9",
+    "embedded-postgres": "17.11.0-beta.19",
     "tsx": "^4.19.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "2.1.9"
   }
 }

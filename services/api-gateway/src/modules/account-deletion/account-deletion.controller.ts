@@ -22,6 +22,7 @@ import type { RequestContext } from '../auth/audit.service.js';
 import { clearSessionCookies } from '../auth/auth-cookies.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { type AuthenticatedUser, JwtAuthGuard } from '../auth/jwt.guard.js';
+import { AccountThrottlerGuard } from '../auth/account-throttler.guard.js';
 import { AccountDeletionService, type DeletionPreview } from './account-deletion.service.js';
 
 /**
@@ -51,6 +52,8 @@ export class AccountDeletionController {
 
   /** What deleting the account would take, and how to confirm it, for the screen that asks. */
   @Get()
+  @UseGuards(AccountThrottlerGuard)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   async preview(@CurrentUser() user: AuthenticatedUser): Promise<{ data: DeletionPreview }> {
     const preview = await this.deletion.preview(user.id, user.sessionId);
     if (!preview) throw new NotFoundException('There is no account here to delete.');

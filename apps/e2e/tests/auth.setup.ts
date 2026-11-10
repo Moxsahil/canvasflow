@@ -1,4 +1,5 @@
 import { test as setup, expect } from '@playwright/test';
+import { EDITOR, WEB, urlOn } from './support/urls';
 
 const authFile = 'playwright/.auth/user.json';
 
@@ -9,14 +10,13 @@ const authFile = 'playwright/.auth/user.json';
  * so these locate by placeholder and input type rather than by label.
  */
 setup('authenticate', async ({ page }) => {
-  await page.goto('http://localhost:3000/login');
+  await page.goto(`${WEB}/login`);
 
   // The profile the editor reads once it opens, which decides whether it asks
   // this account to agree to the terms. Watched from before signing in, so the
   // request cannot come and go unseen.
   const profileRead = page.waitForResponse(
-    (response) =>
-      response.url() === 'http://localhost:3000/api/me' && response.request().method() === 'GET',
+    (response) => response.url() === `${WEB}/api/me` && response.request().method() === 'GET',
     { timeout: 30_000 },
   );
 
@@ -30,7 +30,7 @@ setup('authenticate', async ({ page }) => {
   // Signing in lands on the editor, not the dashboard: /login sends the user
   // to /open, which picks (or creates) a board and redirects to the editor
   // origin with a token in the fragment. So the destination is :3002.
-  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+  await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 30_000 });
 
   // Agree to the terms if asked, so no test after this one meets the notice
   // standing over the board. An account that has already agreed is not asked,

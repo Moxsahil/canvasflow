@@ -15,6 +15,7 @@ import {
   workspaces,
 } from '@canvasflow/db';
 import { TERMS_VERSION } from '@canvasflow/types';
+import { EDITOR, GATEWAY, WEB, urlOn } from './support/urls';
 
 /**
  * The weekly digest, end to end:
@@ -42,6 +43,8 @@ try {
 
 /** The digest job's secret, from the gateway's own settings. Read, never set into this process. */
 function triggerSecret(): string | null {
+  // The local stack (local/run.mjs) hands its own over; a dev run reads the file.
+  if (process.env.E2E_DIGEST_TRIGGER_SECRET) return process.env.E2E_DIGEST_TRIGGER_SECRET;
   try {
     const file = readFileSync(
       new URL('../../../services/api-gateway/.env', import.meta.url),
@@ -53,9 +56,6 @@ function triggerSecret(): string | null {
   }
 }
 
-const WEB = 'http://localhost:3000';
-const GATEWAY = 'http://localhost:3001';
-const EDITOR = 'http://localhost:3002';
 const RUN = randomUUID().slice(0, 8);
 const PREFIX = 'delivered+e2e-digest-';
 const PASSWORD = 'E2e!Digest-one1';
@@ -81,7 +81,7 @@ async function signIn(browser: Browser, email: string, at?: string): Promise<Pag
   await page.getByLabel('Email', { exact: true }).fill(email);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
-  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 45_000 });
+  await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 45_000 });
   if (at) await page.goto(at);
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 20_000 });
   return page;

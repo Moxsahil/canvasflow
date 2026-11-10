@@ -2,6 +2,7 @@ import { HocuspocusProvider, WebSocketStatus } from '@hocuspocus/provider';
 import type { BoardDocument } from '@canvasflow/canvas-engine';
 import type { SyncStatus } from './sync-status';
 import { isAccountPart, type AccountPart } from './account-events';
+import { RECONNECT_POLICY } from './reconnect-policy';
 
 /**
  * The Yjs awareness instance the provider manages.
@@ -76,7 +77,9 @@ const SESSION_ENDED_REASON = 'session-ended';
 
 /**
  * WebSocket sync layer, wrapping Hocuspocus provider with our resilience:
- *   - Infinite exponential backoff (never gives up on the connection)
+ *   - Infinite exponential backoff, capped at 5 s and jittered (never gives up
+ *     on the connection; see RECONNECT_POLICY)
+ *   - Network back online: retry at once instead of waiting out the backoff
  *   - Visibility API: force reconnect when user returns to a hidden tab
  *   - Warm-up ping: HTTP GET on api-gateway when user resumes after long idle,
  *     so cold serverless backends wake before the WebSocket tries to connect
@@ -100,6 +103,7 @@ export class WebSocketSync {
   private wsStatus: WebSocketStatus = WebSocketStatus.Connecting;
   private lastActivityAt = Date.now();
   private visibilityHandler: (() => void) | null = null;
+  private onlineHandler: (() => void) | null = null;
   /**
    * Latched, so a revocation or an ended session is reported once however many
    * ways it arrives, and the socket closing afterwards is not reported as a
@@ -148,13 +152,15 @@ export class WebSocketSync {
 
     this.provider = new HocuspocusProvider({
       url: this.config.syncUrl,
+      // Handed on to the socket the provider makes and owns: how long to wait
+      // between reconnect attempts (from 1 s, doubling to 5 s, jittered).
+      ...RECONNECT_POLICY,
       name: this.config.boardId,
       document: this.doc.yDoc,
       // Hocuspocus's token callback must resolve to a string. An empty string
       // is rejected by sync-server's onAuthenticate, which surfaces as
       // onAuthenticationFailed below — the same path as an expired token.
       token: () => this.config.getToken() ?? '',
-      // Hocuspocus defaults: initial 1s, doubles up to 30s
       onStatus: ({ status }) => this.handleStatusChange(status),
       onSynced: ({ state }) => {
         if (state && !this.disposed) this.config.onSynced?.();
@@ -350,6 +356,12 @@ export class WebSocketSync {
       }
     };
     document.addEventListener('visibilitychange', this.visibilityHandler);
+
+    // The network coming back is the surest sign the next attempt will work:
+    // try now rather than wait out the rest of the backoff.
+    if (typeof window === 'undefined') return;
+    this.onlineHandler = () => this.forceReconnect();
+    window.addEventListener('online', this.onlineHandler);
   }
 
   dispose(): void {
@@ -357,6 +369,10 @@ export class WebSocketSync {
     if (this.visibilityHandler && typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this.visibilityHandler);
       this.visibilityHandler = null;
+    }
+    if (this.onlineHandler && typeof window !== 'undefined') {
+      window.removeEventListener('online', this.onlineHandler);
+      this.onlineHandler = null;
     }
     if (this.provider) {
       this.provider.destroy();

@@ -12,6 +12,7 @@ import {
   workspaces,
 } from '@canvasflow/db';
 import { TERMS_VERSION } from '@canvasflow/types';
+import { EDITOR, GATEWAY, WEB, urlOn } from './support/urls';
 
 /**
  * Who is in a workspace, end to end: changing people between member and admin,
@@ -31,9 +32,6 @@ try {
   // Already in the environment, or not available; the check below says which.
 }
 
-const WEB = 'http://localhost:3000';
-const GATEWAY = 'http://localhost:3001';
-const EDITOR = 'http://localhost:3002';
 const RUN = randomUUID().slice(0, 8);
 const PREFIX = 'delivered+e2e-members-';
 const PASSWORD = 'E2e!Members-one1';
@@ -66,7 +64,7 @@ async function signIn(browser: Browser, who: Who): Promise<Page> {
   await page.getByLabel('Email', { exact: true }).fill(PEOPLE[who].email);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
-  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 45_000 });
+  await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 45_000 });
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 20_000 });
   return page;
 }

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { EDITOR, WEB, urlOn } from './support/urls';
 
 /**
  * Signing out, end to end, across the two origins it spans.
@@ -15,8 +16,8 @@ import { test, expect } from '@playwright/test';
 test('signing out from the editor ends the session on the web app', async ({ browser }) => {
   const page = await browser.newPage();
 
-  await page.goto('http://localhost:3000/open');
-  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+  await page.goto(`${WEB}/open`);
+  await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 30_000 });
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15_000 });
   // Without the fragment: the token in it is spent, and re-opening this URL
   // later has to stand on the session alone.
@@ -28,7 +29,7 @@ test('signing out from the editor ends the session on the web app', async ({ bro
   await page.getByTestId('sign-out-confirm').click();
 
   // The form POST to /logout answers 303 onto the login page.
-  await page.waitForURL(/localhost:3000\/login/, { timeout: 30_000 });
+  await page.waitForURL(urlOn(WEB, /\/login/), { timeout: 30_000 });
 
   // The tokens minted for this tab's boards are gone with it. Read on the
   // editor origin, which is the only place sessionStorage for it exists —
@@ -41,8 +42,8 @@ test('signing out from the editor ends the session on the web app', async ({ bro
   expect(stashed).toEqual([]);
 
   // And the way back in is the login form: a protected page now redirects.
-  await page.goto('http://localhost:3000/open');
-  await page.waitForURL(/localhost:3000\/login/, { timeout: 30_000 });
+  await page.goto(`${WEB}/open`);
+  await page.waitForURL(urlOn(WEB, /\/login/), { timeout: 30_000 });
 
   await page.close();
 });

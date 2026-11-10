@@ -124,7 +124,7 @@ describe('SettingsDialog', () => {
     expect(html).toContain('role="tablist"');
     expect(html.match(/role="tab"/g)).toHaveLength(SETTINGS_SECTIONS.length);
     for (const { id, labelKey } of SETTINGS_SECTIONS) {
-      expect(html).toContain(t(labelKey).replace('&', '&amp;'));
+      expect(html).toContain(t(labelKey).replaceAll('&', '&amp;'));
       expect(html).toContain(`data-testid="settings-tab-${id}"`);
     }
     expect(html.match(/aria-selected="true"/g)).toHaveLength(1);

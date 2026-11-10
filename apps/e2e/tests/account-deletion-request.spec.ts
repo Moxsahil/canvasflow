@@ -12,6 +12,7 @@ import {
   users,
   workspaces,
 } from '@canvasflow/db';
+import { GATEWAY, WEB } from './support/urls';
 
 /**
  * Asking to delete an account, through the real gateway: the preview, both
@@ -35,8 +36,6 @@ try {
   // Already in the environment, or not available; the check below says which.
 }
 
-const WEB = 'http://localhost:3000';
-const GATEWAY = 'http://localhost:3001';
 const suffix = randomUUID().slice(0, 8);
 const PAT = `delivered+e2e-deletion-pat-${suffix}@resend.dev`;
 const GEE = `delivered+e2e-deletion-gee-${suffix}@resend.dev`;

@@ -20,6 +20,7 @@ import { requestOrigin } from '../../common/request-origin.js';
 import type { RequestContext } from '../auth/audit.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { type AuthenticatedUser, JwtAuthGuard } from '../auth/jwt.guard.js';
+import { AccountThrottlerGuard } from '../auth/account-throttler.guard.js';
 import { passwordSchema } from '../auth/password-policy.js';
 import {
   AccountSecurityService,
@@ -59,6 +60,8 @@ export class AccountSecurityController {
 
   /** What protects the account and where it is signed in, for the Settings pane. */
   @Get('users/me/security')
+  @UseGuards(AccountThrottlerGuard)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   async overview(@CurrentUser() user: AuthenticatedUser): Promise<{ data: AccountSecurity }> {
     const overview = await this.security.overview(user.id, user.sessionId);
     if (!overview) throw new NotFoundException('No account settings for this sign-in');

@@ -13,6 +13,7 @@ import {
   workspaces,
 } from '@canvasflow/db';
 import { TERMS_VERSION } from '@canvasflow/types';
+import { EDITOR, GATEWAY, WEB, urlOn } from './support/urls';
 
 /**
  * Comment mention emails, end to end, with two people on one board.
@@ -39,6 +40,8 @@ try {
 
 /** The gateway's own secret, which signs unsubscribe links. Read, never set into this process. */
 function gatewaySecret(): string | null {
+  // The local stack (local/run.mjs) hands its own over; a dev run reads the file.
+  if (process.env.E2E_GATEWAY_AUTH_SECRET) return process.env.E2E_GATEWAY_AUTH_SECRET;
   try {
     const file = readFileSync(
       new URL('../../../services/api-gateway/.env', import.meta.url),
@@ -55,9 +58,6 @@ function gatewaySecret(): string | null {
   }
 }
 
-const WEB = 'http://localhost:3000';
-const GATEWAY = 'http://localhost:3001';
-const EDITOR = 'http://localhost:3002';
 const RUN = randomUUID().slice(0, 8);
 const PASSWORD = 'E2e!Mention-mail1';
 const WRITER = { email: `delivered+e2e-mwriter-${RUN}@resend.dev`, name: `Writer ${RUN}` };
@@ -88,7 +88,7 @@ async function signedIn(browser: Browser, email: string, at?: string): Promise<P
   await page.getByLabel('Email', { exact: true }).fill(email);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
-  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+  await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 30_000 });
   if (at) await page.goto(at);
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15_000 });
   return page;

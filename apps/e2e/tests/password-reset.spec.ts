@@ -11,6 +11,7 @@ import {
   users,
   workspaces,
 } from '@canvasflow/db';
+import { EDITOR, GATEWAY, WEB, urlOn } from './support/urls';
 
 /**
  * Forgot password and reset password, through the real pages, end to end.
@@ -35,8 +36,6 @@ try {
   // Already in the environment, or not available; the check below says which.
 }
 
-const WEB = 'http://localhost:3000';
-const GATEWAY = 'http://localhost:3001';
 const EMAIL = `delivered+e2e-reset-${randomUUID().slice(0, 8)}@resend.dev`;
 const OLD_PASSWORD = 'E2e!Reset-old1';
 const NEW_PASSWORD = 'E2e!Reset-new2';
@@ -146,7 +145,7 @@ test('choosing a new password signs out every device, and the new one works', as
   // A second device, signed in before the reset, with a board open.
   const otherDevice = await browser.newPage();
   await signInThroughTheForm(otherDevice, OLD_PASSWORD);
-  await otherDevice.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+  await otherDevice.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 30_000 });
 
   const page = await browser.newPage();
   await page.goto(await mintResetLink());
@@ -168,7 +167,7 @@ test('choosing a new password signs out every device, and the new one works', as
   await expect(page.getByRole('heading', { name: 'Password updated' })).toBeVisible();
 
   // The other device's editor is told its session is over and goes to sign in.
-  await otherDevice.waitForURL(/localhost:3000\/login/, { timeout: 20_000 });
+  await otherDevice.waitForURL(urlOn(WEB, /\/login/), { timeout: 20_000 });
 
   // Signing in: offered the address, told what happened, and the new password works.
   await page.getByRole('link', { name: 'Sign in', exact: true }).click();
@@ -177,7 +176,7 @@ test('choosing a new password signs out every device, and the new one works', as
   await expect(page.getByLabel('Email', { exact: true })).toHaveValue(EMAIL);
   await page.getByLabel('Password', { exact: true }).fill(NEW_PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
-  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+  await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 30_000 });
 
   // And the old password is gone.
   const old = await fetch(`${GATEWAY}/auth/signin`, {

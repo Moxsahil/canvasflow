@@ -14,6 +14,7 @@ import {
   workspaces,
 } from '@canvasflow/db';
 import { TERMS_VERSION } from '@canvasflow/types';
+import { EDITOR, GATEWAY, WEB, urlOn } from './support/urls';
 
 /**
  * Two things about boards shared by link, end to end:
@@ -38,8 +39,6 @@ try {
   // Already in the environment, or not available; the check below says which.
 }
 
-const WEB = 'http://localhost:3000';
-const GATEWAY = 'http://localhost:3001';
 const RUN = randomUUID().slice(0, 8);
 const PREFIX = 'delivered+e2e-shared-';
 const PASSWORD = 'E2e!Shared-one1';
@@ -62,6 +61,16 @@ let token = '';
 let workspaceId = '';
 const ids: Record<string, string> = {};
 
+/**
+ * The board card's own actions menu. The card is in the open sidebar only, not
+ * the rail it starts folded to, so the sidebar is opened first when it is folded.
+ */
+async function openBoardActions(page: Page) {
+  const expand = page.getByRole('button', { name: 'Expand sidebar' });
+  if (await expand.isVisible()) await expand.click();
+  await page.getByTestId('menu-board-more').click();
+}
+
 async function signIn(browser: Browser, email: string): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
   await page.goto(`${WEB}/login`);
@@ -69,7 +78,7 @@ async function signIn(browser: Browser, email: string): Promise<Page> {
   await page.getByLabel('Email', { exact: true }).fill(email);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
-  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 45_000 });
+  await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 45_000 });
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 20_000 });
   return page;
 }
@@ -228,9 +237,11 @@ test('an account let onto somebody else’s board sees it under Shared with you'
   await expect(settings.getByTestId('workspace-members-open')).toHaveCount(0);
   // Their own workspace is one click away, and the page follows to it.
   await settings.getByTestId('workspace-show-own').click();
-  await expect(settings.getByLabel('Workspace name')).toHaveValue(`${FRIEND.name}'s workspace`, {
-    timeout: 15_000,
-  });
+  // The name is shown as text with an Edit button, not as a field.
+  await expect(settings.locator('[data-setting="workspace-name"]')).toContainText(
+    `${FRIEND.name}'s workspace`,
+    { timeout: 15_000 },
+  );
   await friend.keyboard.press('Escape');
 
   // Their own workspace is one step away, and the shared list stays in the menu.
@@ -299,13 +310,13 @@ test('only the owner and the workspace’s admins run sharing; others get no lin
 }) => {
   const shareLinks = (page: Page) =>
     page.request.post(`${WEB}/api/boards/${boardId}/share-links`, {
-      headers: { Origin: 'http://localhost:3002' },
+      headers: { Origin: EDITOR },
       data: { role: 'editor' },
     });
 
   // A member of the workspace: no link to pass on, and the server agrees.
   const member = await signIn(browser, MEMBER.email);
-  await member.goto(`http://localhost:3002/boards/${boardId}`);
+  await member.goto(`${EDITOR}/boards/${boardId}`);
   await expect(member.locator('canvas').first()).toBeVisible({ timeout: 20_000 });
   await member.getByRole('button', { name: /manage links|Share this board/ }).click();
   const theirs = member.getByTestId('share-dialog');
@@ -316,7 +327,8 @@ test('only the owner and the workspace’s admins run sharing; others get no lin
   await expect(theirs.getByLabel('Board link')).toHaveCount(0);
   await expect(theirs.getByTestId('share-start')).toHaveCount(0);
   // Nor anywhere else: no Copy board link on the board card.
-  await member.getByTestId('menu-board-more').click();
+  await member.keyboard.press('Escape');
+  await openBoardActions(member);
   await expect(member.getByTestId('menu-item-copyLink')).toHaveCount(0);
   await member.keyboard.press('Escape');
   expect((await shareLinks(member)).status()).toBe(403);
@@ -325,7 +337,7 @@ test('only the owner and the workspace’s admins run sharing; others get no lin
   // An admin runs the board's sharing as its owner does, and sees the
   // workspace's people on it, however they joined.
   const admin = await signIn(browser, ADMIN.email);
-  await admin.goto(`http://localhost:3002/boards/${boardId}`);
+  await admin.goto(`${EDITOR}/boards/${boardId}`);
   await expect(admin.locator('canvas').first()).toBeVisible({ timeout: 20_000 });
   await admin.getByRole('button', { name: /manage links|Share this board/ }).click();
   const share = admin.getByTestId('share-dialog');
@@ -338,6 +350,6 @@ test('only the owner and the workspace’s admins run sharing; others get no lin
   );
   expect((await shareLinks(admin)).status()).toBe(201);
   await admin.keyboard.press('Escape');
-  await admin.getByTestId('menu-board-more').click();
+  await openBoardActions(admin);
   await expect(admin.getByTestId('menu-item-copyLink')).toBeAttached();
 });

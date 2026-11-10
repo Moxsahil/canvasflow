@@ -49,7 +49,8 @@ export class OAuthController {
    * match.
    */
   @Get('google/callback')
-  @UseGuards(GoogleOAuthGuard)
+  @UseGuards(ThrottlerGuard, GoogleOAuthGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   googleCallback(
     @Req() request: Request,
     @Headers('user-agent') userAgent: string | undefined,
@@ -64,7 +65,8 @@ export class OAuthController {
   startGitHub(): void {}
 
   @Get('github/callback')
-  @UseGuards(GitHubOAuthGuard)
+  @UseGuards(ThrottlerGuard, GitHubOAuthGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   gitHubCallback(
     @Req() request: Request,
     @Headers('user-agent') userAgent: string | undefined,

@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { can, DIAGRAM_LIMIT_REACHED } from '@canvasflow/types';
@@ -212,7 +221,6 @@ import { usePeerTyping, withPeerTyping } from './collab/peer-typing';
 import { ZoomPanel } from './zoom-panel/ZoomPanel';
 import { PhoneActionRow, PhoneDoneButton } from './zoom-panel/PhoneActionRow';
 import { PhoneBanner, type PhoneBannerMessage } from './ui/PhoneBanner';
-import { PhoneDiagramSheet } from './diagrams/PhoneDiagramSheet';
 import { PhoneLibrarySheet } from './library/PhoneLibrarySheet';
 import { LIBRARY_PACKS } from './library/library-packs';
 import { PhoneSettings } from './settings/phone/PhoneSettings';
@@ -262,14 +270,14 @@ import {
   useUnreadThreads,
   type CommentThread,
 } from './comments';
-import {
-  composeDiagram,
-  DiagramPanel,
-  DiagramsButton,
-  expandTopic,
-  useDiagramPanel,
-  type DiagramEntry,
-} from './diagrams';
+// Straight from their files rather than './diagrams', whose index also brings
+// in the panel: the panel is loaded on first use (below), and with it the chat
+// and markdown libraries it is built on.
+import { composeDiagram } from './diagrams/diagram-kit';
+import { DiagramsButton } from './diagrams/DiagramsButton';
+import { expandTopic } from './diagrams/diagram-client';
+import { useDiagramPanel } from './diagrams/useDiagramPanel';
+import type { DiagramEntry } from './diagrams/diagram-history';
 import { FrameNameEditor } from './frames/FrameNameEditor';
 import {
   assignmentsAfterMove,
@@ -411,6 +419,19 @@ import { CornerMark } from './ui/CornerMark';
 import { NoticeDialog, type Notice } from './ui/NoticeDialog';
 import { BoardLoading } from './ui/BoardLoading';
 import { Toast, useToast } from './ui/Toast';
+
+/**
+ * The AI panel, desktop and phone, fetched the first time it opens. With the
+ * chat thread and the markdown libraries it renders with, it is one of the
+ * largest parts of the editor's code, and a board that never opens it should
+ * not have to download it.
+ */
+const DiagramPanel = lazy(() =>
+  import('./diagrams/DiagramPanel').then((m) => ({ default: m.DiagramPanel })),
+);
+const PhoneDiagramSheet = lazy(() =>
+  import('./diagrams/PhoneDiagramSheet').then((m) => ({ default: m.PhoneDiagramSheet })),
+);
 
 /** How far left of centre a thread's pin is put when the board has to be brought to it: about half the thread beside it. */
 const THREAD_LEAD = 160;
@@ -7864,44 +7885,48 @@ export function Editor({ boardId, local = false }: EditorProps) {
               />
             )}
             {!chromeHidden && !readOnly && !local && diagramsOpen && phone && (
-              <PhoneDiagramSheet
-                panel={diagrams}
-                theme={presenceTheme}
-                canDraw={accountHere}
-                onInsert={insertDiagram}
-                onSignIn={signInForDiagrams}
-                onUpgrade={showPlans}
-                onClose={closeDiagrams}
-                minimized={diagramsMinimized}
-                onMinimize={minimizeDiagrams}
-                onRestore={restoreDiagrams}
-                boardShapeIds={boardShapeIds}
-                onShowOnBoard={showDiagramOnBoard}
-                onReplace={(entry, previous) => void replaceDiagram(entry, previous)}
-                drawStyle={diagramStyle}
-                container={editorRoot}
-              />
+              <Suspense fallback={null}>
+                <PhoneDiagramSheet
+                  panel={diagrams}
+                  theme={presenceTheme}
+                  canDraw={accountHere}
+                  onInsert={insertDiagram}
+                  onSignIn={signInForDiagrams}
+                  onUpgrade={showPlans}
+                  onClose={closeDiagrams}
+                  minimized={diagramsMinimized}
+                  onMinimize={minimizeDiagrams}
+                  onRestore={restoreDiagrams}
+                  boardShapeIds={boardShapeIds}
+                  onShowOnBoard={showDiagramOnBoard}
+                  onReplace={(entry, previous) => void replaceDiagram(entry, previous)}
+                  drawStyle={diagramStyle}
+                  container={editorRoot}
+                />
+              </Suspense>
             )}
             {!chromeHidden && !readOnly && !local && diagramsOpen && !phone && (
-              <DiagramPanel
-                panel={diagrams}
-                theme={presenceTheme}
-                canDraw={accountHere}
-                onInsert={insertDiagram}
-                onSignIn={signInForDiagrams}
-                onUpgrade={showPlans}
-                onClose={closeDiagrams}
-                minimized={diagramsMinimized}
-                onMinimize={minimizeDiagrams}
-                onRestore={restoreDiagrams}
-                profile={
-                  chromeUser ? { name: chromeUser.name, avatarUrl: chromeUser.avatarUrl } : null
-                }
-                boardShapeIds={boardShapeIds}
-                onShowOnBoard={showDiagramOnBoard}
-                onReplace={(entry, previous) => void replaceDiagram(entry, previous)}
-                drawStyle={diagramStyle}
-              />
+              <Suspense fallback={null}>
+                <DiagramPanel
+                  panel={diagrams}
+                  theme={presenceTheme}
+                  canDraw={accountHere}
+                  onInsert={insertDiagram}
+                  onSignIn={signInForDiagrams}
+                  onUpgrade={showPlans}
+                  onClose={closeDiagrams}
+                  minimized={diagramsMinimized}
+                  onMinimize={minimizeDiagrams}
+                  onRestore={restoreDiagrams}
+                  profile={
+                    chromeUser ? { name: chromeUser.name, avatarUrl: chromeUser.avatarUrl } : null
+                  }
+                  boardShapeIds={boardShapeIds}
+                  onShowOnBoard={showDiagramOnBoard}
+                  onReplace={(entry, previous) => void replaceDiagram(entry, previous)}
+                  drawStyle={diagramStyle}
+                />
+              </Suspense>
             )}
 
             {/* Opens the sidebar on a phone, where it is a sheet that leaves no

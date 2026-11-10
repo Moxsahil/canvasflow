@@ -3,6 +3,8 @@ import { getProfile, storageAllowanceGb, storageUsage, type StorageUsage } from 
 import { DatabaseService } from '../../infra/database/database.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { type AuthenticatedUser, JwtAuthGuard } from '../auth/jwt.guard.js';
+import { Throttle } from '@nestjs/throttler';
+import { AccountThrottlerGuard } from '../auth/account-throttler.guard.js';
 
 /**
  * Who the caller is, according to the database rather than their token.
@@ -19,11 +21,12 @@ import { type AuthenticatedUser, JwtAuthGuard } from '../auth/jwt.guard.js';
  * avatar routes.
  */
 @Controller('users/me')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, AccountThrottlerGuard)
 export class UsersController {
   constructor(private readonly database: DatabaseService) {}
 
   @Get()
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   async me(@CurrentUser() user: AuthenticatedUser): Promise<{ data: CurrentAccount }> {
     const profile = await getProfile(this.database.db, user.id);
 
@@ -50,6 +53,7 @@ export class UsersController {
    * number follows boards being drawn on, added and deleted.
    */
   @Get('storage')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   async storage(
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<{ data: StorageUsage & { allowanceGb: number } }> {

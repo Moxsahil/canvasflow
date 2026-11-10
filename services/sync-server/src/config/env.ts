@@ -16,7 +16,7 @@ const EnvSchema = z.object({
    * Optional on purpose. Without it this process is the only one that holds
    * its rooms, which is correct for local development and for a single
    * deployed instance. Set it the moment a second replica exists — see the
-   * fan-out extension in src/index.ts for what breaks otherwise.
+   * fan-out extension in src/server.ts for what breaks otherwise.
    *
    * Accepts redis:// and rediss:// (TLS), which is the form managed
    * providers hand out.

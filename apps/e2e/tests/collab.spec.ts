@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { EDITOR, WEB, urlOn } from './support/urls';
 
 /**
  * Two tabs on one board — the check that has been done by hand all along.
@@ -9,8 +10,8 @@ import { test, expect, type Page } from '@playwright/test';
  * would rot the moment the board they name is deleted.
  */
 async function openBoard(page: Page): Promise<string> {
-  await page.goto('http://localhost:3000/open');
-  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+  await page.goto(`${WEB}/open`);
+  await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 30_000 });
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15_000 });
   return page.url();
 }

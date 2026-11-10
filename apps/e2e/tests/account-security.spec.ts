@@ -10,6 +10,7 @@ import {
   workspaces,
 } from '@canvasflow/db';
 import { TERMS_VERSION } from '@canvasflow/types';
+import { EDITOR, GATEWAY, WEB, urlOn } from './support/urls';
 
 /**
  * Settings → Account & Security, end to end, through the real editor.
@@ -34,8 +35,6 @@ try {
   // Already in the environment, or not available; the check below says which.
 }
 
-const WEB = 'http://localhost:3000';
-const GATEWAY = 'http://localhost:3001';
 const EMAIL = `delivered+e2e-account-${randomUUID().slice(0, 8)}@resend.dev`;
 const FIRST_PASSWORD = 'E2e!Account-one1';
 const SECOND_PASSWORD = 'E2e!Account-two2';
@@ -69,7 +68,7 @@ async function signedInDevice(browser: Browser): Promise<Page> {
   await page.getByLabel('Email', { exact: true }).fill(EMAIL);
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: /^sign in$/i }).click();
-  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+  await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 30_000 });
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15_000 });
   return page;
 }
@@ -178,12 +177,12 @@ test('changing the password signs out the other device and keeps this one', asyn
   password = SECOND_PASSWORD;
 
   // The other device's editor is told its session ended and goes to sign in.
-  await other.waitForURL(/localhost:3000\/login/, { timeout: 20_000 });
+  await other.waitForURL(urlOn(WEB, /\/login/), { timeout: 20_000 });
 
   // This one stays, and the row now says the password just changed.
   await changed.getByRole('button', { name: 'Done' }).click();
   await expect(pane.getByText('Last changed just now')).toBeVisible(PASSWORD_CHANGE);
-  expect(page.url()).toContain('localhost:3002/boards/');
+  expect(page.url()).toContain(`${EDITOR}/boards/`);
 
   await other.context().close();
   await page.context().close();
@@ -221,8 +220,8 @@ test('sign out everywhere signs out every device, this one too', async ({ browse
   await expect(confirm.getByText(/all \d+ devices, including this one/)).toBeVisible();
   await confirm.getByRole('button', { name: 'Sign out all' }).click();
 
-  await page.waitForURL(/localhost:3000\/login/, { timeout: 20_000 });
-  await other.waitForURL(/localhost:3000\/login/, { timeout: 20_000 });
+  await page.waitForURL(urlOn(WEB, /\/login/), { timeout: 20_000 });
+  await other.waitForURL(urlOn(WEB, /\/login/), { timeout: 20_000 });
 
   await other.context().close();
   await page.context().close();

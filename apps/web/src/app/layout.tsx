@@ -19,12 +19,18 @@ const geist = Geist({
 const geistMono = Geist_Mono({
   subsets: ['latin'],
   variable: '--font-geist-mono',
+  // Only set in small labels further down the page: fetched when used rather
+  // than preloaded with the fonts the first screen needs.
+  preload: false,
 });
 
 // The small rule-and-name labels (`cf-eyebrow`) are set in this.
 const jetBrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-jetbrains-mono',
+  // Only set in small labels further down the page: fetched when used rather
+  // than preloaded with the fonts the first screen needs.
+  preload: false,
 });
 
 const fontVariables = [

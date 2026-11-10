@@ -1,0 +1,7 @@
+.pgdata/
+node_modules/
+# Measurement output stays on the machine that measured it.
+results/*
+!results/.gitkeep
+scaling/results/*
+!scaling/results/.gitkeep

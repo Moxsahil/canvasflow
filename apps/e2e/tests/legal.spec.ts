@@ -11,6 +11,7 @@ import {
   users,
   workspaces,
 } from '@canvasflow/db';
+import { EDITOR, GATEWAY, WEB, urlOn } from './support/urls';
 
 /**
  * The Terms of Service, every place that says continuing means agreeing to
@@ -38,9 +39,6 @@ try {
   // Already in the environment, or not available; the database cases say which.
 }
 
-const WEB = 'http://localhost:3000';
-const GATEWAY = 'http://localhost:3001';
-const EDITOR = 'http://localhost:3002';
 const PASSWORD = 'E2e!Legal-pass1';
 
 const db = process.env.DATABASE_URL ? createClient(process.env.DATABASE_URL) : null;
@@ -82,7 +80,10 @@ test('the terms open for someone who is not signed in', async ({ page }) => {
 
 test('the home page footer leads to the terms', async ({ page }) => {
   await page.goto(`${WEB}/`);
-  await page.getByRole('contentinfo').getByRole('link', { name: 'Terms', exact: true }).click();
+  // The footer's links fade in as it scrolls into view, as someone reading down reaches it.
+  const footer = page.getByRole('contentinfo');
+  await footer.scrollIntoViewIfNeeded();
+  await footer.getByRole('link', { name: 'Terms', exact: true }).click();
 
   await expect(page).toHaveURL(`${WEB}/terms`);
 });
@@ -96,7 +97,9 @@ test('the privacy policy opens for someone who is not signed in, from the footer
   await expect(page.getByRole('heading', { level: 1, name: 'Privacy Policy' })).toBeVisible();
 
   await page.goto(`${WEB}/`);
-  await page.getByRole('contentinfo').getByRole('link', { name: 'Privacy', exact: true }).click();
+  const footer = page.getByRole('contentinfo');
+  await footer.scrollIntoViewIfNeeded();
+  await footer.getByRole('link', { name: 'Privacy', exact: true }).click();
   await expect(page).toHaveURL(`${WEB}/privacy`);
 });
 
@@ -325,7 +328,7 @@ test.describe('an account with no agreement on record', () => {
     await page.getByLabel('Email', { exact: true }).fill(email);
     await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: /^sign in$/i }).click();
-    await page.waitForURL(/localhost:3002\/boards\//, { timeout: 30_000 });
+    await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 30_000 });
   }
 
   test.beforeAll(async () => {

@@ -3,6 +3,7 @@ import { expect, test, type CDPSession, type Page } from '@playwright/test';
 import { eq, inArray } from 'drizzle-orm';
 import { auditLog, createClient, memberships, users, workspaces } from '@canvasflow/db';
 import { TERMS_VERSION } from '@canvasflow/types';
+import { EDITOR, GATEWAY, WEB, urlOn } from './support/urls';
 
 /**
  * Pen mode, end to end, through the real editor on an emulated touch screen.
@@ -26,8 +27,6 @@ try {
   // Already in the environment, or not available; the check below says which.
 }
 
-const WEB = 'http://localhost:3000';
-const GATEWAY = 'http://localhost:3001';
 const EMAIL = `delivered+e2e-pen-${randomUUID().slice(0, 8)}@resend.dev`;
 const PASSWORD = 'E2e!PenMode-one1';
 /** Somewhere a link badge can lead that is local and opens in a new tab. */
@@ -201,7 +200,7 @@ test('a pen draws, fingers move the board, and a resting hand leaves it alone', 
   await page.getByLabel('Email', { exact: true }).fill(EMAIL);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
-  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 45_000 });
+  await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 45_000 });
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 20_000 });
   await expect(shapeCount(page)).toHaveText('0', { timeout: 15_000 });
 
@@ -424,9 +423,11 @@ test('a pen draws, fingers move the board, and a resting hand leaves it alone', 
     await page.keyboard.press('Escape');
 
     await pickTool('freehand');
-    await fingerStroke(cdp, 700);
+    // In the clear band between the strokes above: lower down, the shape
+    // stats strip at the bottom left takes the touch instead of the canvas.
+    await fingerStroke(cdp, 400);
     await expect(shapeCount(page)).toHaveText('6');
-    await penStroke(cdp, 740);
+    await penStroke(cdp, 440);
     await expect(shapeCount(page)).toHaveText('7');
     const stored = await page.evaluate(() => localStorage.getItem('cf:preferences'));
     expect(JSON.parse(stored!).penMode).toBe(false);

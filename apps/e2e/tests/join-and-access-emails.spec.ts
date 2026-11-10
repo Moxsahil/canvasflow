@@ -16,6 +16,7 @@ import {
   workspaces,
 } from '@canvasflow/db';
 import { TERMS_VERSION } from '@canvasflow/types';
+import { EDITOR, GATEWAY, WEB, urlOn } from './support/urls';
 
 /**
  * The emails about joins and access changes, end to end:
@@ -45,6 +46,8 @@ try {
 
 /** The gateway's own secret, which signs internal calls. Read, never set into this process. */
 function gatewaySecret(): string | null {
+  // The local stack (local/run.mjs) hands its own over; a dev run reads the file.
+  if (process.env.E2E_GATEWAY_AUTH_SECRET) return process.env.E2E_GATEWAY_AUTH_SECRET;
   try {
     const file = readFileSync(
       new URL('../../../services/api-gateway/.env', import.meta.url),
@@ -61,9 +64,6 @@ function gatewaySecret(): string | null {
   }
 }
 
-const WEB = 'http://localhost:3000';
-const GATEWAY = 'http://localhost:3001';
-const EDITOR = 'http://localhost:3002';
 const RUN = randomUUID().slice(0, 8);
 const PREFIX = 'delivered+e2e-joinmail-';
 const PASSWORD = 'E2e!Joinmail-one1';
@@ -94,7 +94,7 @@ async function signIn(browser: Browser, email: string): Promise<Page> {
   await page.getByLabel('Email', { exact: true }).fill(email);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /^sign in$/i }).click();
-  await page.waitForURL(/localhost:3002\/boards\//, { timeout: 45_000 });
+  await page.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 45_000 });
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 20_000 });
   return page;
 }
@@ -280,7 +280,7 @@ test('an accepted workspace invitation emails whoever sent it', async ({ browser
   const newbie = await signIn(browser, NEWBIE.email);
   await newbie.goto(`${WEB}/join/${inviteToken}`);
   await newbie.getByRole('button', { name: /^Join / }).click();
-  await newbie.waitForURL(/localhost:3002\/boards\//, { timeout: 45_000 });
+  await newbie.waitForURL(urlOn(EDITOR, /\/boards\//), { timeout: 45_000 });
   await expectNotices(OWNER.email, 'workspace-joined', [true]);
   await newbie.context().close();
 });

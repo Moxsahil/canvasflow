@@ -17,7 +17,10 @@ export const MAX_OUTLINE_TOPICS = 500;
 /** Columns a tab stands for, when indentation is measured. */
 const TAB_WIDTH = 4;
 
-const HEADING = /^(#{1,6})\s+(.*)$/;
+// The title starts at the first non-space, so the space run and the title
+// cannot both claim the same characters: matching stays linear in the line's
+// length, whatever was pasted.
+const HEADING = /^(#{1,6})\s+(\S.*)$/;
 // A bullet, a number, then an optional checkbox — any of them, in that order.
 const BULLET = /^(?:[-*+•‣◦▪▫–]\s+|\d{1,3}[.)]\s+)?(?:\[[ xX]\]\s+)?/;
 
@@ -162,8 +165,17 @@ export function topicsFromOutline(
   return made;
 }
 
+/**
+ * The text on one line: each line break, with the spaces around it, becomes a
+ * single space. Split and trimmed rather than matched with `\s*\n\s*`, which
+ * takes quadratic time on a long run of spaces that ends without a break.
+ */
 function oneLine(text: string): string {
-  return text.replace(/\s*\n\s*/g, ' ').trim();
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .join(' ');
 }
 
 /** Every topic of each map among `shapes`, centre first, depth first. */

@@ -36,6 +36,8 @@ import {
 import { DatabaseService } from '../../infra/database/database.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { type AuthenticatedUser, JwtAuthGuard } from '../auth/jwt.guard.js';
+import { Throttle } from '@nestjs/throttler';
+import { AccountThrottlerGuard } from '../auth/account-throttler.guard.js';
 
 /**
  * A person's library: things they saved from one board to use on any other.
@@ -45,17 +47,19 @@ import { type AuthenticatedUser, JwtAuthGuard } from '../auth/jwt.guard.js';
  * share-link guest has no account to keep a library in, and is told so.
  */
 @Controller('library/items')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, AccountThrottlerGuard)
 export class LibraryController {
   constructor(private readonly database: DatabaseService) {}
 
   @Get()
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   async list(@CurrentUser() user: AuthenticatedUser): Promise<{ data: LibraryItem[] }> {
     await requireAccount(this.database.db, user);
     return { data: await listLibraryItems(this.database.db, user.id) };
   }
 
   @Post()
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @HttpCode(201)
   async create(
     @Body() body: unknown,
@@ -74,6 +78,7 @@ export class LibraryController {
 
   /** Several items at once, from a library file. All of them are kept, or none. */
   @Post('import')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(201)
   async import(
     @Body() body: unknown,
@@ -93,6 +98,7 @@ export class LibraryController {
   }
 
   @Patch(':id')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   async rename(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() body: unknown,
@@ -108,6 +114,7 @@ export class LibraryController {
   }
 
   @Delete(':id')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @HttpCode(204)
   async remove(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -125,17 +132,19 @@ export class LibraryController {
  * nothing of what is in them: the editor reads that from the catalogue.
  */
 @Controller('library/added')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, AccountThrottlerGuard)
 export class AddedLibrariesController {
   constructor(private readonly database: DatabaseService) {}
 
   @Get()
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   async list(@CurrentUser() user: AuthenticatedUser): Promise<{ data: AddedLibrary[] }> {
     await requireAccount(this.database.db, user);
     return { data: await listAddedLibraries(this.database.db, user.id) };
   }
 
   @Post()
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @HttpCode(201)
   async add(
     @Body() body: unknown,
@@ -153,6 +162,7 @@ export class AddedLibrariesController {
   }
 
   @Delete(':id')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @HttpCode(204)
   async remove(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
