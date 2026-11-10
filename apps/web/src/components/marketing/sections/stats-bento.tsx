@@ -70,7 +70,7 @@ export async function StatsBento({ id, className }: { id?: string; className?: s
                 <SyncMap />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 @xl:grid-cols-2">
                 <div
                   className={cn(card, 'group grid grid-cols-[auto_1fr] gap-6 overflow-hidden p-8')}
                 >

@@ -49,7 +49,7 @@ const STYLES = `
 [data-slot=hero-section] .nav-trigger svg { transition: transform .2s; }
 [data-slot=hero-section] .nav-trigger.expanded svg { transform: rotate(180deg); }
 [data-slot=hero-section] .header-actions { margin-left: auto; display: flex; gap: 10px; }
-[data-slot=hero-section] .action { display: inline-flex; align-items: center; justify-content: center; border: 1px solid #d9d9df; background: white; border-radius: 10px; padding: 8px 16px; font-size: 14px; line-height: 20px; font-weight: 500; box-shadow: 0 1px 2px #00000012, inset 0 1px 1px #ffffff60; transition: filter .2s, box-shadow .2s, transform .2s; }
+[data-slot=hero-section] .action { display: inline-flex; align-items: center; justify-content: center; border: 1px solid #d9d9df; background: white; border-radius: 10px; padding: 8px 16px; font-size: 14px; line-height: 20px; font-weight: 500; white-space: nowrap; box-shadow: 0 1px 2px #00000012, inset 0 1px 1px #ffffff60; transition: filter .2s, box-shadow .2s, transform .2s; }
 [data-slot=hero-section] .action:hover { filter: brightness(.97); box-shadow: 0 3px 7px #00000012; }
 [data-slot=hero-section] .action:active { transform: translateY(1px); }
 [data-slot=hero-section] .action.primary { color: white; border-color: #0b4ad6; background: var(--primary); font-weight: 600; box-shadow: 0 2px 6px rgb(19 93 252 / 25%); }
@@ -106,18 +106,31 @@ const STYLES = `
 @keyframes hero-section-menu-in{from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); }}
 @keyframes hero-section-veil-in{from { opacity: 0; } to { opacity: 1; }}
 @keyframes hero-section-tab-progress{to { transform: scaleX(1); }}
-@media(max-width: 767px) {
+/* Below 960px the centred desktop bar no longer fits beside the two buttons,
+   so the links move into the menu sheet behind the toggle. */
+@media(max-width: 959px) {
   [data-slot=hero-section] .header-inner { display: flex; height: 64px; padding: 0 24px; gap: 16px; }
   [data-slot=hero-section] .header-actions { gap: 8px; }
   [data-slot=hero-section] .header-actions .action:first-child { display: none; }
-  [data-slot=hero-section] .mobile-toggle { display: block; }
-  [data-slot=hero-section] .main-nav { display: none; }
-  [data-slot=hero-section] .main-nav.mobile-open { display: flex; position: absolute; top: 64px; left: 0; right: 0; padding: 16px 24px; background: #fafafa; flex-wrap: wrap; gap: 4px; }
-  [data-slot=hero-section] .main-nav > a, [data-slot=hero-section] .nav-trigger { padding: 8px 10px; }
-  [data-slot=hero-section] .mega-menu { margin-top: 55px; padding: 20px 24px; max-height: 65vh; overflow: auto; }
-  [data-slot=hero-section] .product-grid, [data-slot=hero-section] .solutions-grid { grid-template-columns: 1fr; gap: 24px; }
-  [data-slot=hero-section] .product-grid > div + div, [data-slot=hero-section] .content-links { border-left: 0; padding-left: 0; }
-  [data-slot=hero-section] .menu-backdrop { top: 64px; }
+  [data-slot=hero-section] .mobile-toggle { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; }
+  [data-slot=hero-section] .main-nav, [data-slot=hero-section] .mega-menu, [data-slot=hero-section] .menu-backdrop { display: none; }
+}
+@media(min-width: 960px) {
+  [data-slot=hero-section] .mobile-sheet { display: none; }
+}
+[data-slot=hero-section] .mobile-sheet { position: fixed; inset: 64px 0 0; z-index: 25; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; padding: 4px 24px calc(24px + env(safe-area-inset-bottom)); background: var(--background); animation: hero-section-veil-in .18s ease; }
+[data-slot=hero-section] .sheet-list { list-style: none; margin: 0; padding: 0; }
+[data-slot=hero-section] .sheet-row { display: flex; width: 100%; align-items: center; justify-content: space-between; min-height: 56px; padding: 0; font-size: 17px; font-weight: 500; letter-spacing: -.2px; color: var(--foreground); background: none; border: 0; text-align: left; }
+[data-slot=hero-section] .sheet-row svg { color: var(--muted-foreground); transition: transform .2s; }
+[data-slot=hero-section] .sheet-row[aria-expanded=true] svg { transform: rotate(180deg); }
+[data-slot=hero-section] .sheet-group { padding: 0 0 12px; animation: hero-section-menu-in .2s ease both; }
+[data-slot=hero-section] .sheet-group h2 { margin: 8px 0 4px; font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; color: var(--muted-foreground); }
+[data-slot=hero-section] .sheet-group a { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 0; font-size: 15px; color: var(--foreground); }
+[data-slot=hero-section] .sheet-group a .menu-icon { margin: 0; }
+[data-slot=hero-section] .sheet-group small { display: block; font-size: 13px; line-height: 18px; color: var(--muted-foreground); }
+[data-slot=hero-section] .sheet-actions { display: grid; gap: 10px; margin-top: auto; padding-top: 32px; }
+[data-slot=hero-section] .sheet-actions .action { padding: 12px 16px; font-size: 15px; }
+@media(max-width: 767px) {
   [data-slot=hero-section] .hero-copy { padding: 125px 24px 56px; }
   [data-slot=hero-section] .hero-copy h1 { font-size: 40px; line-height: 1.06; letter-spacing: -1.2px; }
   [data-slot=hero-section] .desktop-break { display: none; }
@@ -144,7 +157,6 @@ const STYLES = `
 [data-slot=hero-section]:is(.dark, .dark *) .mega-menu, [data-slot=hero-section]:is(.dark, .dark *) .tab-rule, [data-slot=hero-section]:is(.dark, .dark *) .tab-cell, [data-slot=hero-section]:is(.dark, .dark *) .tab-cell:last-child { border-color: var(--border); }
 [data-slot=hero-section]:is(.dark, .dark *) .menu-icon { color: var(--muted-foreground); }
 [data-slot=hero-section]:is(.dark, .dark *) .menu-links a:hover .menu-icon { color: var(--foreground); }
-[data-slot=hero-section]:is(.dark, .dark *) .main-nav.mobile-open { background: var(--background); }
 [data-slot=hero-section]:is(.dark, .dark *) .scenic-background { opacity: .28; filter: brightness(.65) saturate(.7); }
 [data-slot=hero-section]:is(.dark, .dark *) .tab-cell button { color: var(--muted-foreground); border-color: var(--border); background: #18181c80; }
 [data-slot=hero-section]:is(.dark, .dark *) .tab-cell button:hover, [data-slot=hero-section]:is(.dark, .dark *) .tab-cell button[aria-selected=true] { color: var(--foreground); background: var(--accent); border-color: #45454e; box-shadow: 0 2px 8px #00000030; }
@@ -340,6 +352,7 @@ function HeroHeader() {
   const [open, setOpen] = useState<'Product' | 'Solutions' | null>(null);
   const [mobile, setMobile] = useState(false);
   const menuId = useId();
+  const sheetId = useId();
 
   useEffect(() => {
     const dismiss = (event: KeyboardEvent) => {
@@ -352,18 +365,24 @@ function HeroHeader() {
     return () => document.removeEventListener('keydown', dismiss);
   }, []);
 
+  // The sheet covers the page, so the page behind it must not scroll; and it
+  // closes itself when the window grows past the width it is shown at.
+  useEffect(() => {
+    if (!mobile) return;
+    const wide = window.matchMedia('(min-width: 960px)');
+    const close = () => wide.matches && setMobile(false);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    wide.addEventListener('change', close);
+    return () => {
+      document.body.style.overflow = overflow;
+      wide.removeEventListener('change', close);
+    };
+  }, [mobile]);
+
   return (
     <>
-      {(open || mobile) && (
-        <div
-          className="menu-backdrop"
-          onClick={() => {
-            setOpen(null);
-            setMobile(false);
-          }}
-          aria-hidden="true"
-        />
-      )}
+      {open && <div className="menu-backdrop" onClick={() => setOpen(null)} aria-hidden="true" />}
       <header className="site-header" onMouseLeave={() => setOpen(null)}>
         <div className="header-inner">
           <a className="brand" href="/" aria-label="CanvasFlow home">
@@ -377,10 +396,7 @@ function HeroHeader() {
             </svg>
             CanvasFlow
           </a>
-          <nav
-            className={mobile ? 'main-nav mobile-open' : 'main-nav'}
-            aria-label="Main navigation"
-          >
+          <nav className="main-nav" aria-label="Main navigation">
             {(['Product', 'Solutions'] as const).map((item) => (
               <button
                 key={item}
@@ -415,6 +431,7 @@ function HeroHeader() {
             className="mobile-toggle"
             aria-label={mobile ? 'Close navigation' : 'Open navigation'}
             aria-expanded={mobile}
+            aria-controls={sheetId}
             onClick={() => {
               setMobile(!mobile);
               setOpen(null);
@@ -469,7 +486,91 @@ function HeroHeader() {
           </div>
         )}
       </header>
+      {mobile && <MobileSheet id={sheetId} onNavigate={() => setMobile(false)} />}
     </>
+  );
+}
+
+const sheetGroups = {
+  Product: [
+    { title: 'Features', items: features },
+    { title: 'More features', items: moreFeatures },
+  ],
+  Solutions: [{ title: 'Also built in', items: solutions }],
+} as const;
+
+/**
+ * The phone and tablet menu: a sheet under the bar with one row per section.
+ * Product and Solutions open in place to list their pages; the two actions sit
+ * full width at the bottom, where a thumb reaches them.
+ */
+function MobileSheet({ id, onNavigate }: { id: string; onNavigate: () => void }) {
+  const [expanded, setExpanded] = useState<keyof typeof sheetGroups | null>(null);
+
+  return (
+    <div className="mobile-sheet" id={id}>
+      <nav aria-label="Main navigation">
+        <ul className="sheet-list">
+          {(Object.keys(sheetGroups) as (keyof typeof sheetGroups)[]).map((name) => {
+            const isOpen = expanded === name;
+            const groupId = `${id}-${name}`;
+            return (
+              <li key={name}>
+                <button
+                  type="button"
+                  className="sheet-row"
+                  aria-expanded={isOpen}
+                  aria-controls={groupId}
+                  onClick={() => setExpanded(isOpen ? null : name)}
+                >
+                  {name}
+                  <ChevronDown size={18} />
+                </button>
+                {isOpen && (
+                  <div className="sheet-group" id={groupId}>
+                    {sheetGroups[name].map((group) => (
+                      <div key={group.title}>
+                        <h2>{group.title}</h2>
+                        {group.items.map((item) => (
+                          <a href={item.href} key={item.name} onClick={onNavigate}>
+                            <span className="menu-icon">
+                              <item.icon size={18} strokeWidth={1.75} />
+                            </span>
+                            <span>
+                              {item.name}
+                              <small>{item.description}</small>
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+          {[
+            { label: 'Pricing', href: '/#pricing' },
+            { label: 'How it works', href: '/#how-it-works' },
+            { label: 'Contact', href: '/contact' },
+          ].map((link) => (
+            <li key={link.label}>
+              <a className="sheet-row" href={link.href} onClick={onNavigate}>
+                {link.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      <div className="sheet-actions">
+        <a className="action primary" href={WHITEBOARD_HREF}>
+          Start drawing
+        </a>
+        <a className="action" href="/login">
+          Sign in
+        </a>
+      </div>
+    </div>
   );
 }
 
