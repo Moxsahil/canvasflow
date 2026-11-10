@@ -32,6 +32,19 @@ const nextConfig = {
         ],
       },
       {
+        // Pictures under public/. Their names carry no content hash, so they
+        // are not cached for good like /_next/static: a day fresh, then served
+        // from the cache for up to a week while the browser checks for a newer
+        // copy in the background. Without this every visit asks for them again.
+        source: '/:dir(assets|brand)/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=604800',
+          },
+        ],
+      },
+      {
         // The one page whose address bar holds a live credential. Without this
         // any outbound request from it puts the whole URL, token and all, into
         // a Referer header.

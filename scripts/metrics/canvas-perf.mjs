@@ -4,6 +4,12 @@
 // (canvasflow:local:local, y-indexeddb "updates") and the page reloaded,
 // so the editor loads them exactly as it would a board drawn earlier.
 // Usage: node canvas-perf.mjs --sizes=100,500,1000 --runs=3 --seconds=4
+//   [--url=http://localhost:3302/] [--headed] [--label=name]
+//
+// --headed opens a visible Chromium window (needs a display; on WSL2 that is
+// WSLg) with the GPU allowed, instead of headless software rendering. Either
+// way the result records what Chromium actually drew with: its WebGL renderer
+// string and the Canvas / Rasterization rows of chrome://gpu.
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -14,7 +20,9 @@ const argS = (k, d) => process.argv.find((a) => a.startsWith(`--${k}=`))?.split(
 const SIZES = argS('sizes', '100,500,1000').split(',').map(Number);
 const RUNS = Number(argS('runs', 3));
 const SECONDS = Number(argS('seconds', 4));
-const EDITOR = 'http://localhost:3002/';
+const EDITOR = argS('url', 'http://localhost:3002/');
+const HEADED = process.argv.includes('--headed');
+const LABEL = argS('label', '');
 
 const { chromium } = createRequire(resolve(ROOT, 'apps/e2e/package.json'))('@playwright/test');
 const PNPM = resolve(ROOT, 'node_modules/.pnpm');
@@ -73,16 +81,58 @@ async function measure(page, mode) {
   return { fps: (frames.length - 1) / dur, frameMs: stats(deltas), wheelEvents: i };
 }
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch(
+  HEADED
+    ? {
+        headless: false,
+        // Ask for the GPU even where Chromium would rather not trust it.
+        args: ['--ignore-gpu-blocklist', '--enable-gpu-rasterization'],
+      }
+    : { headless: true },
+);
+
+/** What this Chromium is drawing with, read from inside it. */
+async function graphics() {
+  const page = await browser.newPage();
+  const webgl = await page.evaluate(() => {
+    const gl = document.createElement('canvas').getContext('webgl');
+    if (!gl) return null;
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    return {
+      vendor: info ? gl.getParameter(info.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR),
+      renderer: info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
+    };
+  });
+  let features = null;
+  try {
+    await page.goto('chrome://gpu');
+    await page.waitForTimeout(1500);
+    const text = await page.evaluate(() => document.body.innerText);
+    features = Object.fromEntries(
+      ['Canvas', 'Rasterization', 'WebGL', 'Compositing']
+        .map((name) => [
+          name,
+          new RegExp(`^\\*?\\s*${name}:\\s*(.+)$`, 'm').exec(text)?.[1]?.trim(),
+        ])
+        .filter(([, v]) => v),
+    );
+  } catch {}
+  await page.close();
+  return { webgl, features };
+}
+
 const out = {
   metric: 'canvas-fps',
   seconds: SECONDS,
   runs: RUNS,
   viewport: '1440x900',
-  browser: `chromium ${browser.version()} headless`,
+  url: EDITOR,
+  browser: `chromium ${browser.version()} ${HEADED ? 'headed' : 'headless'}`,
+  graphics: await graphics(),
   results: {},
   env: env(),
 };
+console.log(JSON.stringify({ browser: out.browser, graphics: out.graphics }));
 for (const N of SIZES) {
   const update = boardUpdate(N);
   out.results[N] = { pan: [], zoom: [] };
@@ -108,7 +158,10 @@ for (const N of SIZES) {
     await page.reload();
     await page.locator('canvas').first().waitFor({ timeout: 30000 });
     await page.waitForTimeout(2000);
-    if (r === 0) await page.screenshot({ path: resolve(HERE, `results/canvas-${N}.png`) });
+    if (r === 0)
+      await page.screenshot({
+        path: resolve(HERE, `results/canvas-${N}${LABEL ? `-${LABEL}` : ''}.png`),
+      });
     out.results[N].pan.push(await measure(page, 'pan'));
     await page.waitForTimeout(500);
     out.results[N].zoom.push(await measure(page, 'zoom'));
@@ -129,4 +182,7 @@ for (const N of SIZES) {
   );
 }
 await browser.close();
-writeFileSync(resolve(HERE, 'results/canvas-perf.json'), JSON.stringify(out, null, 2));
+writeFileSync(
+  resolve(HERE, `results/canvas-perf${LABEL ? `-${LABEL}` : ''}.json`),
+  JSON.stringify(out, null, 2),
+);

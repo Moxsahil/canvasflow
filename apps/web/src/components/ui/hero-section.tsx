@@ -270,10 +270,21 @@ const solutions = [
 ];
 
 const tabs = [
-  { label: 'Whiteboard', image: `${ASSETS}/whiteboard.png`, icon: Shapes, dark: true },
-  { label: 'Mind maps', image: `${ASSETS}/mind-maps.png`, icon: Network, dark: true },
-  { label: 'AI diagrams', image: `${ASSETS}/ai-diagrams.png`, icon: TextCursorInput, dark: true },
+  { label: 'Whiteboard', image: `${ASSETS}/whiteboard`, icon: Shapes, dark: true },
+  { label: 'Mind maps', image: `${ASSETS}/mind-maps`, icon: Network, dark: true },
+  { label: 'AI diagrams', image: `${ASSETS}/ai-diagrams`, icon: TextCursorInput, dark: true },
 ];
+
+/**
+ * A screenshot's sources: WebP at 960 and 1920 pixels wide, made from the PNGs
+ * by scripts/hero-images.mjs. The frame is at most 1050 CSS pixels across, so
+ * a phone takes the small one and a wide, sharp screen the large one.
+ */
+const screenshot = (base: string) => ({
+  src: `${base}-1920.webp`,
+  srcSet: `${base}-960.webp 960w, ${base}-1920.webp 1920w`,
+  sizes: '(max-width: 1122px) calc(100vw - 58px), 1050px',
+});
 
 const groups = [
   {
@@ -566,10 +577,24 @@ export default function HeroSection({ className, ...props }: ComponentProps<'div
   const [hovered, setHovered] = useState(false);
   const [offscreen, setOffscreen] = useState(false);
   const [tabHidden, setTabHidden] = useState(false);
+  // Only the open tab's screenshot is fetched with the page. The other two
+  // wait until the page has finished loading, so they never compete with
+  // what the visitor sees first, and are in hand well before their turn.
+  const [loadRest, setLoadRest] = useState(false);
   const id = useId();
   const tabId = (index: number) => `${id}-tab-${index}`;
   const panelId = `${id}-panel`;
   const titleId = `${id}-title`;
+
+  useEffect(() => {
+    const ready = () => setLoadRest(true);
+    if (document.readyState === 'complete') {
+      const timer = setTimeout(ready, 0);
+      return () => clearTimeout(timer);
+    }
+    window.addEventListener('load', ready, { once: true });
+    return () => window.removeEventListener('load', ready);
+  }, []);
 
   // The strip over the open tab only fills while someone could be watching it:
   // not with the showcase scrolled away or the browser tab in the background.
@@ -679,7 +704,7 @@ export default function HeroSection({ className, ...props }: ComponentProps<'div
                 <img
                   key={tab.image}
                   className={`dashboard-image ${index === active ? 'is-active' : ''}`}
-                  src={tab.image}
+                  {...(index === active || loadRest ? screenshot(tab.image) : {})}
                   // The screenshots are 16:9; the frame takes its height from them.
                   width={1920}
                   height={1080}

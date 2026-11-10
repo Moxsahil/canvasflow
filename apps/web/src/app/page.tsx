@@ -16,6 +16,13 @@ import HeroSection from '@/components/ui/hero-section';
 // gets cached — so this doubles as the longest a moment's bad luck can keep
 // the figures missing.
 export const revalidate = 300;
+// Static even though the stats section's requests are uncached (`no-store`),
+// which on their own would make Next.js render the page for every visitor:
+// each visit would then wait on those requests, and on a cold server
+// function, before the first byte. Forced static, the requests run only when
+// the page is regenerated, every `revalidate` seconds, and visitors are sent
+// the stored page.
+export const dynamic = 'force-static';
 
 /**
  * What CanvasFlow is, said to search engines in their own terms: the company
